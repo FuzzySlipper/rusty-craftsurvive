@@ -61,6 +61,7 @@
     <Compile Include="$(ProductModules)Water/RiverStage.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/Floods.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/WaterModel.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/StreamRibbons.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/WaterWaveSettings.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/SeaWaves.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/SeaState.cs" LinkBase="Product/Water" />

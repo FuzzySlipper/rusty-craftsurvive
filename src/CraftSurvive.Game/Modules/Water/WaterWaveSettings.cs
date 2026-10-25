@@ -6,6 +6,9 @@ internal static class WaterWaveSettings
     internal const int MeshSpacingMetres = 1;
     internal const float ShoreClearance = 0.15f, FullDepth = 2f;
 
+    /// <summary>How far under its own ground a dry shore corner lower than its water's surface is drawn (metres).</summary>
+    internal const double ShoreSink = 0.1;
+
     /// <summary>Pin dry and frozen vertices; ease in waves and opacity over the shallow bed.</summary>
     internal static float Coverage(double depth, bool ice)
     {

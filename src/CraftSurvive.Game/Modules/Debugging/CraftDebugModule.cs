@@ -240,6 +240,14 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.water.visual", Description = "Water appearance comparison: waves (the sea state's, #9902), flow (flat flowing water), velocity (red +X, green +Z, blue slow) or baseline (the Engine's water alone).")]
     public string WaterVisual(string mode) => terrain.WaterVisual(mode);
 
+    [DebugCommand("craft.water.ribbons", Description = "Assisted (#10191): draws narrow streams (under 4 m) as flow-aligned ribbons (on, the default) or by the 1 m lattice alone (off), for comparisons; the near water is built again.")]
+    public string WaterRibbons(string state) => terrain.WaterRibbons(state switch
+    {
+        "on" => true,
+        "off" => false,
+        _ => throw new ArgumentException($"Expected on or off, not {state}.", nameof(state)),
+    });
+
     [DebugCommand("craft.water.wind", Description = "Assisted (#9902): holds the waves' wind at a speed in m/s (2 calm, 20 a gale) whatever the weather; a negative speed follows the weather again. Boats and swimmers ride what is drawn.")]
     public string WaterWind(double speed)
     {

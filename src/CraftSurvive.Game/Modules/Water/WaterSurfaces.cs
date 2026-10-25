@@ -18,6 +18,8 @@ namespace CraftSurvive.Game.Modules.Water;
 /// When the river stage moves on (#9878, <see cref="Refresh"/>), the tiles that hold a river or lake are
 /// sampled again, a few an update, and rebuilt in place only where the water changed; a frozen cell is
 /// drawn as ice, and the ice is also kept as triangles the walking session collides with (<see cref="Ice"/>).
+/// A narrow stream is drawn in the same tiles as a flow-aligned ribbon (<see cref="StreamRibbons"/>, #10191), which
+/// the lattice leaves its cells to; it is sampled, refreshed, frozen and retired with its tile.
 /// </summary>
 internal sealed class WaterSurfaces : IDisposable
 {
@@ -35,9 +37,6 @@ internal sealed class WaterSurfaces : IDisposable
     internal static readonly Color IceColour = new(0.62f, 0.72f, 0.8f, 1);
     internal const float IceRoughness = 0.45f;
 
-    /// <summary>How far under its own ground a dry shore corner lower than its water's surface is drawn (metres).</summary>
-    private const double ShoreSink = 0.1;
-
     /// <summary>Two water tops closer than this (metres) draw the same.</summary>
     private const double TopResolution = 0.02;
 
@@ -52,6 +51,9 @@ internal sealed class WaterSurfaces : IDisposable
     private WaterVisualMaterial? visual;
     private Material? iceMaterial;
     private readonly WaterFlowStudy flowStudy;
+    private readonly StreamRibbons streams;
+    /// <summary>Whether narrow streams are drawn as ribbons (#10191), or by the lattice alone for a comparison.</summary>
+    private bool ribbons = true;
     private readonly SeaState sea = new();
     private int built, retired, refreshed;
     /// <summary>Dry shore corners last built lower than their water (into their own ground), over the tiles built so far.</summary>
@@ -59,7 +61,8 @@ internal sealed class WaterSurfaces : IDisposable
     private long revision;
 
     /// <summary>A drawn tile; its ice, if any, as triangles over vertices relative to the corner.</summary>
-    private sealed record Tile(ulong Id, MeshResource Mesh, Appearance Look, Vector3 Corner, int Quads, int IceQuads, Vector3[] IceVertices, Triangle[] IceTriangles);
+    private sealed record Tile(ulong Id, MeshResource Mesh, Appearance Look, Vector3 Corner, int Quads, int IceQuads, Vector3[] IceVertices, Triangle[] IceTriangles,
+        int RibbonQuads = 0, int CoveredCells = 0, int Strips = 0);
 
     internal WaterSurfaces(IEngineContext engine, WorldFrame frame, WaterModel model)
     {
@@ -67,6 +70,7 @@ internal sealed class WaterSurfaces : IDisposable
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.model = model ?? throw new ArgumentNullException(nameof(model));
         flowStudy = new(engine, frame, model);
+        streams = new(model);
     }
 
     /// <summary>The square of tiles the near water covers about a centre (<see cref="NearWaterSquare"/>).</summary>
@@ -81,9 +85,21 @@ internal sealed class WaterSurfaces : IDisposable
             tile.Look, true, RenderLayer.Scene, ShadowCasting.None))];
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"waterTiles={tiles.Count} drawn={tiles.Values.Count(t => t is not null)} quads={tiles.Values.OfType<Tile>().Sum(t => t.Quads)} iceQuads={tiles.Values.OfType<Tile>().Sum(t => t.IceQuads)} built={built} refreshed={refreshed} sunkCorners={sunkCorners} retired={retired} stale={sampled.Values.Count(s => s.Staged && s.Revision != revision)} outer={outerMetres:F0} radiusTiles={TileRadius(outerMetres)} visual={visual?.Mode ?? "waves"} sea=[{sea.Readout()}] {flowStudy.Readout()}");
+        $"waterTiles={tiles.Count} drawn={tiles.Values.Count(t => t is not null)} quads={tiles.Values.OfType<Tile>().Sum(t => t.Quads)} ribbons={(ribbons ? "on" : "off")} strips={tiles.Values.OfType<Tile>().Sum(t => t.Strips)} ribbonQuads={tiles.Values.OfType<Tile>().Sum(t => t.RibbonQuads)} coveredCells={tiles.Values.OfType<Tile>().Sum(t => t.CoveredCells)} iceQuads={tiles.Values.OfType<Tile>().Sum(t => t.IceQuads)} built={built} refreshed={refreshed} sunkCorners={sunkCorners} retired={retired} stale={sampled.Values.Count(s => s.Staged && s.Revision != revision)} outer={outerMetres:F0} radiusTiles={TileRadius(outerMetres)} visual={visual?.Mode ?? "waves"} sea=[{sea.Readout()}] {flowStudy.Readout()}");
 
     internal string SetVisual(string mode) => (visual ??= new(engine, frame, waveBounds)).SetMode(mode);
+
+    /// <summary>Draws narrow streams as ribbons, or by the lattice alone (#10191); every tile is built again.</summary>
+    internal string SetRibbons(bool on)
+    {
+        if (on != ribbons)
+        {
+            ribbons = on;
+            Invalidate();
+        }
+
+        return $"ribbons={(ribbons ? "on" : "off")}";
+    }
 
     /// <summary>The waves over the near water (#9902): what the shader draws and boats and swimmers ride.</summary>
     internal SeaState Sea => sea;
@@ -221,6 +237,7 @@ internal sealed class WaterSurfaces : IDisposable
             if (tile is not null) Retire(tile);
         tiles.Clear();
         sampled.Clear();
+        streams.Clear();
     }
 
     public void Dispose()
@@ -246,9 +263,15 @@ internal sealed class WaterSurfaces : IDisposable
 
     /// <summary>
     /// A tile's water samples; whether any is a river or lake (which the stage can change), and a signature
-    /// of what would be drawn - each wet vertex's top to a resolution, and its ice.
+    /// of what would be drawn - each wet vertex's top to a resolution, and its ice - with its narrow streams' ribbons (#10191).
     /// </summary>
-    private readonly record struct TileSamples(WaterSample[] Samples, Vector2[] Flow, bool AnyWet, bool Staged, ulong Signature);
+    private readonly record struct TileSamples(WaterSample[] Samples, Vector2[] Flow, bool AnyWet, bool Staged, ulong Signature, StreamRibbons.TileStreams Streams);
+
+    /// <summary>Two currents closer than this (m/s) draw the same on a ribbon.</summary>
+    private const double CurrentResolution = 0.01;
+
+    /// <summary>What a sample draws, for a tile's signature: its top to a resolution, and its ice; nothing where it is dry.</summary>
+    private static long Drawn(WaterSample sample) => sample.Wet ? ((long)Math.Round(sample.Top / TopResolution) * 2) + (sample.Ice ? 1 : 0) : long.MinValue;
 
     private const int Side = Cells + 1;
 
@@ -268,15 +291,26 @@ internal sealed class WaterSurfaces : IDisposable
             anyWet |= sample.Wet;
             // A river or lake moves with the stage; so may a floodplain's dry ground (#9880), below.
             staged |= sample.Body is WaterBody.River or WaterBody.Lake;
-            long drawn = sample.Wet ? (long)Math.Round(sample.Top / TopResolution) * 2 + (sample.Ice ? 1 : 0) : long.MinValue;
-            signature = (signature ^ (ulong)drawn) * 1099511628211UL;
+            signature = (signature ^ (ulong)Drawn(sample)) * 1099511628211UL;
+        }
+
+        // The ribbons' stations (#10191): what each draws, and its current, which a ribbon carries as the lattice's flow does.
+        StreamRibbons.TileStreams tileStreams = ribbons ? streams.Sample(x0, z0, TileMetres, Side, Step, samples) : StreamRibbons.TileStreams.None;
+        foreach (StreamRibbons.Strip strip in tileStreams.Strips)
+        foreach (WaterSample sample in strip.Samples)
+        {
+            anyWet |= sample.Wet;
+            staged |= sample.Body is WaterBody.River or WaterBody.Lake;
+            signature = (signature ^ (ulong)Drawn(sample)) * 1099511628211UL;
+            signature = (signature ^ (ulong)(long)Math.Round(sample.CurrentX / CurrentResolution)) * 1099511628211UL;
+            signature = (signature ^ (ulong)(long)Math.Round(sample.CurrentZ / CurrentResolution)) * 1099511628211UL;
         }
 
         staged |= NearWaterSquare.Floodable(model.Floodable, key);
         flowStudy.Apply(x0, z0, Side, Step, flow);
         // Frozen cells must remain still even when the neighbouring study field is wet.
         for (int i = 0; i < samples.Length; i++) if (samples[i].Ice) flow[i] = Vector2.Zero;
-        return new(samples, flow, anyWet, staged || flowStudy.Overlaps(x0, z0, TileMetres), signature);
+        return new(samples, flow, anyWet, staged || flowStudy.Overlaps(x0, z0, TileMetres), signature, tileStreams);
     }
 
     /// <summary>One tile's water as a mesh, or null where it holds none.</summary>
@@ -307,7 +341,7 @@ internal sealed class WaterSurfaces : IDisposable
             near[v] = !double.IsNegativeInfinity(best);
             // Where the dry ground lies below that surface (a bank lip lower than the river, a levee's crest),
             // the corner goes down into the ground instead, so no sheet of water hangs over the dry bank (#10178).
-            top[v] = Math.Min(best, samples[v].Bed - ShoreSink);
+            top[v] = Math.Min(best, samples[v].Bed - WaterWaveSettings.ShoreSink);
             if (near[v] && top[v] < best) sunkCorners++;
         }
 
@@ -319,24 +353,31 @@ internal sealed class WaterSurfaces : IDisposable
         List<uint> indices = [];
         List<uint> iceIndices = [];
         Color white = new(1, 1, 1, 1);
-        uint Vertex(int i, int j)
+        uint Add(Vector3 position, WaterSample sample, Vector2 current)
         {
-            int v = (j * side) + i;
-            if (index.TryGetValue(v, out uint at)) return at;
-            at = (uint)positions.Count;
-            index[v] = at;
-            positions.Add(new(i * Step, (float)top[v], j * Step));
+            uint at = (uint)positions.Count;
+            positions.Add(position);
             // The mesh normal carries what the waves (#9902) make of the point whatever the wind: its fetch
             // in kilometres and its sea swell share. The shader lights the water by the displaced triangles.
-            WaveExposure exposure = model.Exposure(samples[v]);
+            WaveExposure exposure = model.Exposure(sample);
             normals.Add(new((float)(exposure.FetchMetres / MetresPerKilometre), 1, (float)exposure.Swell));
             // Engine WATER textures use world coordinates, leaving mesh UV free for the current.
-            uvs.Add(sampledTile.Flow[v]);
+            uvs.Add(current);
             // Alpha is shore coverage: it fades both translucency and visual displacement. Dry
             // corners under the bank stay pinned; adjacent tiles evaluate the same world column.
             colours.Add(white with { A = (float)exposure.Coverage });
             return at;
         }
+
+        uint Vertex(int i, int j)
+        {
+            int v = (j * side) + i;
+            if (index.TryGetValue(v, out uint at)) return at;
+            return index[v] = Add(new(i * Step, (float)top[v], j * Step), samples[v], sampledTile.Flow[v]);
+        }
+
+        bool[] covered = sampledTile.Streams.Covered;
+        int coveredCells = 0;
 
         for (int j = 0; j < Cells; j++)
         for (int i = 0; i < Cells; i++)
@@ -344,11 +385,18 @@ internal sealed class WaterSurfaces : IDisposable
             int a = (j * side) + i, b = a + 1, c = a + side, d = c + 1;
             if (!(samples[a].Wet || samples[b].Wet || samples[c].Wet || samples[d].Wet)) continue;
             if (!(near[a] && near[b] && near[c] && near[d])) continue;
+            // A ribbon draws a narrow stream's water (#10191): the lattice leaves the cells whose every wet corner one covers.
+            if (covered.Length > 0 && (!samples[a].Wet || covered[a]) && (!samples[b].Wet || covered[b]) && (!samples[c].Wet || covered[c]) && (!samples[d].Wet || covered[d]))
+            { coveredCells++; continue; }
             uint va = Vertex(i, j), vb = Vertex(i + 1, j), vc = Vertex(i, j + 1), vd = Vertex(i + 1, j + 1);
             bool ice = samples[a].Ice || samples[b].Ice || samples[c].Ice || samples[d].Ice;
             (ice ? iceIndices : indices).AddRange([va, vd, vb, va, vc, vd]);
         }
 
+        int latticeQuads = (indices.Count + iceIndices.Count) / 6;
+        // A ribbon's current is its stations' own; ice stills it, as on the lattice.
+        int ribbonQuads = StreamRibbons.Append(sampledTile.Streams, x0, z0,
+            (position, sample) => Add(position, sample, sample.Ice ? Vector2.Zero : new((float)sample.CurrentX, (float)sample.CurrentZ)), indices, iceIndices);
         if (indices.Count + iceIndices.Count == 0) return null;
         visual ??= new(engine, frame, waveBounds);
         List<MeshGroup> groups = [];
@@ -367,7 +415,8 @@ internal sealed class WaterSurfaces : IDisposable
         MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), uvs.ToArray(),
             colours.ToArray(), indices.Concat(iceIndices).ToArray(), groups.ToArray(), bindings.ToArray()));
         built++;
-        return new(NextId(), mesh, engine.Graphics.CreateMeshAppearance(mesh), new(x0, 0, z0), (indices.Count + iceIndices.Count) / 6, iceIndices.Count / 6, iceVertices, iceTriangles);
+        return new(NextId(), mesh, engine.Graphics.CreateMeshAppearance(mesh), new(x0, 0, z0), latticeQuads + ribbonQuads, iceIndices.Count / 6, iceVertices, iceTriangles,
+            ribbonQuads, coveredCells, sampledTile.Streams.Strips.Length);
     }
 
     private const ushort WaterSlot = 0, IceSlot = 1;

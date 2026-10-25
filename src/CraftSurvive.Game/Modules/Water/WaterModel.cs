@@ -135,6 +135,32 @@ internal sealed class WaterModel(TerrainRecipe recipe)
         return reaches is not null && reach >= 0 && reach < reaches.Count ? reaches[reach].Width : 0;
     }
 
+    /// <summary>
+    /// The walked reaches narrower than <paramref name="widestMetres"/> (their mean channel) whose network nodes lie
+    /// near a rectangle of the world (#10191), in id order; none where the world has no walked network.
+    /// </summary>
+    internal IEnumerable<int> StreamsWithin(double minX, double minZ, double maxX, double maxZ, double widestMetres)
+    {
+        if (recipe.Regions?.Drainage is not MapDrainage drainage) return [];
+        IReadOnlyList<Reach> reaches = drainage.Network.Reaches;
+        return drainage.ReachesWithin(minX, minZ, maxX, maxZ).Where(r => r < reaches.Count && reaches[r].Width < widestMetres);
+    }
+
+    /// <summary>A walked reach's centreline as the region tiles carve its channel (#10191).</summary>
+    internal RiverPoint[] Centreline(int reach) =>
+        recipe.Regions?.Drainage is MapDrainage drainage ? drainage.Shaped(reach) : [];
+
+    /// <summary>
+    /// A walked reach's channel half width (metres) at its flow now (#10191), by hydraulic geometry: its mean flow's
+    /// until the stage is routed. A dry reach keeps its mean's.
+    /// </summary>
+    internal double HalfWidthNow(int reach)
+    {
+        IReadOnlyList<Reach>? reaches = recipe.Regions?.Drainage.Network.Reaches;
+        if (reaches is null || reach < 0 || reach >= reaches.Count) return 0;
+        return RiverGeometry.HalfWidth(Stages?.At(reach) is { Dry: false } now ? now.Flow : reaches[reach].Flow);
+    }
+
     /// <summary>A walked reach's mean velocity (m/s), or still water where there is no such reach.</summary>
     private double MeanVelocity(int reach)
     {

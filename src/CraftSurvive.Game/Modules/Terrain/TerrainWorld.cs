@@ -119,6 +119,9 @@ internal sealed class TerrainWorld : IDisposable
 
     internal string WaterVisual(string mode) => waterSurfaces.SetVisual(mode);
 
+    /// <summary>Narrow streams as ribbons, or the lattice alone (#10191).</summary>
+    internal string WaterRibbons(bool on) => waterSurfaces.SetRibbons(on);
+
     /// <summary>The waves over the near water (#9902).</summary>
     internal Water.SeaState Sea => waterSurfaces.Sea;
 
