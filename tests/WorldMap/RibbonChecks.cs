@@ -44,59 +44,35 @@ internal static class RibbonChecks
         Check.That(water.StreamsWithin(key.X * TileMetres, key.Z * TileMetres, (key.X + 1) * TileMetres, (key.Z + 1) * TileMetres, StreamRibbons.WidestMetres).Contains(reach),
             "the reach is among the narrow streams near its tile");
 
-        // The tile and its neighbours, so a covered lattice vertex can be matched to whichever tile draws the ribbon over it.
+        // The tile and its neighbours, each taken alone: a tile must draw water over every lattice vertex it leaves to a
+        // ribbon whether or not its neighbours are loaded (the near water square's edge, R10191-1).
         Dictionary<(long X, long Z), (WaterSample[] Lattice, StreamRibbons.TileStreams Streams)> tiles = [];
         for (long dz = -1; dz <= 1; dz++)
         for (long dx = -1; dx <= 1; dx++)
             tiles[(key.X + dx, key.Z + dz)] = Sampled(water, ribbons, key.X + dx, key.Z + dz);
-        (WaterSample[] lattice, StreamRibbons.TileStreams streams) = tiles[key];
+        StreamRibbons.TileStreams streams = tiles[key].Streams;
         Check.That(streams.Strips.Any(strip => strip.Reach == reach && strip.Drawn.Any(drawn => drawn)), "the narrow reach's tile draws its ribbon");
         Check.That(streams.Covered.Any(covered => covered), "the ribbon covers some of its tile's lattice");
+        Check.That(tiles.Values.All(tile => tile.Streams.Strips.All(Clear)),
+            "no ribbon is drawn where its stations meet other water: the lattice draws the meeting");
 
-        List<(Vector3 A, Vector3 B, Vector3 C)> drawnTriangles = [];
-        bool foreign = false, ownCorner = true, tops = true;
+        int covered = 0, under = 0, drawnQuads = 0;
+        bool inside = true, noIce = true;
         foreach (((long X, long Z) tile, (WaterSample[] _, StreamRibbons.TileStreams tileStreams)) in tiles)
-        foreach (StreamRibbons.Strip strip in tileStreams.Strips)
         {
-            List<(Vector3 Position, WaterSample Sample)> vertices = [];
-            List<uint> waterIndices = [], iceIndices = [];
-            long x0 = tile.X * TileMetres, z0 = tile.Z * TileMetres;
-            int owner = strip.Reach;
-            StreamRibbons.Append(new([strip], []), x0, z0, (position, sample) =>
-            {
-                vertices.Add((position, sample));
-                return (uint)(vertices.Count - 1);
-            }, waterIndices, iceIndices);
-            Check.That(iceIndices.Count == 0, "an unfrozen stream draws no ice");
-            for (int t = 0; t < waterIndices.Count; t += 6)
-            {
-                int[] corners = [(int)waterIndices[t], (int)waterIndices[t + 1], (int)waterIndices[t + 2], (int)waterIndices[t + 4]];
-                (Vector3 Position, WaterSample Sample)[] quad = [.. corners.Select(c => vertices[c])];
-                foreign |= quad.Any(v => v.Sample.Wet && !(v.Sample.Body == WaterBody.River && v.Sample.BodyId == owner));
-                ownCorner &= quad.Any(v => v.Sample is { Wet: true, Body: WaterBody.River } s && s.BodyId == owner);
-                tops &= quad.All(v => v.Sample.Wet ? Math.Abs(v.Position.Y - v.Sample.Top) < 1e-3 : v.Position.Y <= v.Sample.Bed - WaterWaveSettings.ShoreSink + 1e-3);
-                Vector3 offset = new(x0, 0, z0);
-                for (int k = t; k < t + 6; k += 3)
-                    drawnTriangles.Add((vertices[(int)waterIndices[k]].Position + offset, vertices[(int)waterIndices[k + 1]].Position + offset, vertices[(int)waterIndices[k + 2]].Position + offset));
-            }
+            (List<(Vector3 A, Vector3 B, Vector3 C)> waterTriangles, List<(Vector3 A, Vector3 B, Vector3 C)> iceTriangles, int quads) = Drawn(tileStreams, tile);
+            drawnQuads += quads;
+            noIce &= iceTriangles.Count == 0;
+            inside &= waterTriangles.SelectMany(t => new[] { t.A, t.B, t.C }).All(p => Within(p, tile));
+            (int c, int u) = Under(tileStreams, tile, waterTriangles);
+            covered += c;
+            under += u;
         }
 
-        Check.That(drawnTriangles.Count > 0, "the ribbons about the reach draw quads");
-        Check.That(ownCorner, "every drawn ribbon quad touches its own stream's water");
-        Check.That(!foreign, "no ribbon is drawn where its stations meet other water: the lattice draws the meeting");
-        Check.That(tops, "a ribbon stands at its water's top, and on a dry bank no higher than a little under the ground");
-
-        // No gap: every lattice vertex the ribbon covers lies under a drawn ribbon quad, whichever tile draws it.
-        int coveredCount = 0, underRibbon = 0;
-        for (int v = 0; v < lattice.Length; v++)
-        {
-            if (!streams.Covered[v]) continue;
-            coveredCount++;
-            Vector2 p = new((key.X * TileMetres) + (v % Side * Step), (key.Z * TileMetres) + (v / Side * Step));
-            if (drawnTriangles.Any(t => Inside(p, t.A, t.B, t.C))) underRibbon++;
-        }
-
-        Check.That(underRibbon == coveredCount, $"every lattice vertex left to a ribbon lies under a drawn ribbon ({underRibbon} of {coveredCount})");
+        Check.That(drawnQuads > 0, "the ribbons about the reach draw quads");
+        Check.That(noIce, "an unfrozen stream draws no ice");
+        Check.That(inside, "a tile draws its ribbons cut to its own square");
+        Check.That(under == covered, $"every lattice vertex a tile leaves to a ribbon lies under that tile's own ribbon ({under} of {covered})");
 
         // The stage: in spate the ribbon stands higher and reaches wider; dry, it draws nothing; frozen, it is ice.
         StubStage stub = new(reach);
@@ -114,8 +90,69 @@ internal static class RibbonChecks
         stub.Now = new(stream.Flow * 0.4, 0.4, 0.15, -0.1, true, false);
         (int frozenWater, int frozenIce) = Quads(ribbons, water, key);
         Check.That(frozenIce > 0 && frozenWater == 0, $"a frozen stream's ribbon is ice ({frozenIce} quads)");
+        // Ice is what the walking session stands on: each tile alone keeps ice under every lattice vertex it leaves to a ribbon.
+        int frozenCovered = 0, frozenUnder = 0;
+        for (long dz = -1; dz <= 1; dz++)
+        for (long dx = -1; dx <= 1; dx++)
+        {
+            (long X, long Z) tile = (key.X + dx, key.Z + dz);
+            StreamRibbons.TileStreams frozen = Sampled(water, ribbons, tile.X, tile.Z).Streams;
+            (int c, int u) = Under(frozen, tile, Drawn(frozen, tile).Ice);
+            frozenCovered += c;
+            frozenUnder += u;
+        }
+
+        Check.That(frozenCovered > 0 && frozenUnder == frozenCovered, $"a frozen stream's ice lies under every lattice vertex left to it ({frozenUnder} of {frozenCovered})");
         water.Stages = null;
     }
+
+    /// <summary>Whether a strip is drawn only between sections none of whose stations is wet with other water.</summary>
+    private static bool Clear(StreamRibbons.Strip strip)
+    {
+        int width = StreamRibbons.Width;
+        for (int s = 0; s + 1 < strip.Sections; s++)
+        {
+            if (!strip.Drawn[s]) continue;
+            for (int v = s * width; v < (s + 2) * width; v++)
+                if (strip.Samples[v] is { Wet: true } sample && !(sample.Body == WaterBody.River && sample.BodyId == strip.Reach)) return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>A tile's ribbon triangles in world metres, water and ice, and how many quads it draws.</summary>
+    private static (List<(Vector3 A, Vector3 B, Vector3 C)> Water, List<(Vector3 A, Vector3 B, Vector3 C)> Ice, int Quads) Drawn(StreamRibbons.TileStreams streams, (long X, long Z) tile)
+    {
+        List<Vector3> vertices = [];
+        List<uint> waterIndices = [], iceIndices = [];
+        int quads = StreamRibbons.Append(streams, tile.X * TileMetres, tile.Z * TileMetres, TileMetres, _ => default, vertex =>
+        {
+            vertices.Add(vertex.Position + new Vector3(tile.X * TileMetres, 0, tile.Z * TileMetres));
+            return (uint)(vertices.Count - 1);
+        }, waterIndices, iceIndices);
+        List<(Vector3, Vector3, Vector3)> Triangles(List<uint> indices) =>
+            [.. Enumerable.Range(0, indices.Count / 3).Select(t => (vertices[(int)indices[3 * t]], vertices[(int)indices[(3 * t) + 1]], vertices[(int)indices[(3 * t) + 2]]))];
+        return (Triangles(waterIndices), Triangles(iceIndices), quads);
+    }
+
+    /// <summary>How many of a tile's lattice vertices are left to a ribbon, and how many of those lie under the given triangles.</summary>
+    private static (int Covered, int Under) Under(StreamRibbons.TileStreams streams, (long X, long Z) tile, List<(Vector3 A, Vector3 B, Vector3 C)> triangles)
+    {
+        int covered = 0, under = 0;
+        for (int v = 0; v < streams.Covered.Length; v++)
+        {
+            if (!streams.Covered[v]) continue;
+            covered++;
+            Vector2 p = new((tile.X * TileMetres) + (v % Side * Step), (tile.Z * TileMetres) + (v / Side * Step));
+            if (triangles.Any(t => Inside(p, t.A, t.B, t.C))) under++;
+        }
+
+        return (covered, under);
+    }
+
+    private static bool Within(Vector3 p, (long X, long Z) tile) =>
+        p.X >= (tile.X * TileMetres) - EdgeTolerance && p.X <= ((tile.X + 1) * TileMetres) + EdgeTolerance
+        && p.Z >= (tile.Z * TileMetres) - EdgeTolerance && p.Z <= ((tile.Z + 1) * TileMetres) + EdgeTolerance;
 
     private static WaterSample[] Lattice(WaterModel water, long tx, long tz)
     {
@@ -141,7 +178,7 @@ internal static class RibbonChecks
         StreamRibbons.TileStreams streams = ribbons.Sample(key.X * TileMetres, key.Z * TileMetres, TileMetres, Side, Step, Lattice(water, key.X, key.Z));
         List<uint> waterIndices = [], iceIndices = [];
         uint next = 0;
-        StreamRibbons.Append(streams, key.X * TileMetres, key.Z * TileMetres, (_, _) => next++, waterIndices, iceIndices);
+        StreamRibbons.Append(streams, key.X * TileMetres, key.Z * TileMetres, TileMetres, _ => default, _ => next++, waterIndices, iceIndices);
         return (waterIndices.Count / 6, iceIndices.Count / 6);
     }
 

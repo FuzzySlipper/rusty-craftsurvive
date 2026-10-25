@@ -353,20 +353,26 @@ internal sealed class WaterSurfaces : IDisposable
         List<uint> indices = [];
         List<uint> iceIndices = [];
         Color white = new(1, 1, 1, 1);
-        uint Add(Vector3 position, WaterSample sample, Vector2 current)
+        // The mesh normal carries what the waves (#9902) make of the point whatever the wind: its fetch
+        // in kilometres and its sea swell share. The shader lights the water by the displaced triangles.
+        static Vector3 Normal(WaveExposure exposure) => new((float)(exposure.FetchMetres / MetresPerKilometre), 1, (float)exposure.Swell);
+        uint Push(Vector3 position, Vector3 normal, Vector2 current, float coverage)
         {
             uint at = (uint)positions.Count;
             positions.Add(position);
-            // The mesh normal carries what the waves (#9902) make of the point whatever the wind: its fetch
-            // in kilometres and its sea swell share. The shader lights the water by the displaced triangles.
-            WaveExposure exposure = model.Exposure(sample);
-            normals.Add(new((float)(exposure.FetchMetres / MetresPerKilometre), 1, (float)exposure.Swell));
+            normals.Add(normal);
             // Engine WATER textures use world coordinates, leaving mesh UV free for the current.
             uvs.Add(current);
             // Alpha is shore coverage: it fades both translucency and visual displacement. Dry
             // corners under the bank stay pinned; adjacent tiles evaluate the same world column.
-            colours.Add(white with { A = (float)exposure.Coverage });
+            colours.Add(white with { A = coverage });
             return at;
+        }
+
+        uint Add(Vector3 position, WaterSample sample, Vector2 current)
+        {
+            WaveExposure exposure = model.Exposure(sample);
+            return Push(position, Normal(exposure), current, (float)exposure.Coverage);
         }
 
         uint Vertex(int i, int j)
@@ -395,8 +401,11 @@ internal sealed class WaterSurfaces : IDisposable
 
         int latticeQuads = (indices.Count + iceIndices.Count) / 6;
         // A ribbon's current is its stations' own; ice stills it, as on the lattice.
-        int ribbonQuads = StreamRibbons.Append(sampledTile.Streams, x0, z0,
-            (position, sample) => Add(position, sample, sample.Ice ? Vector2.Zero : new((float)sample.CurrentX, (float)sample.CurrentZ)), indices, iceIndices);
+        int ribbonQuads = StreamRibbons.Append(sampledTile.Streams, x0, z0, TileMetres, sample =>
+        {
+            WaveExposure exposure = model.Exposure(sample);
+            return new(Vector3.Zero, Normal(exposure), sample.Ice ? Vector2.Zero : new((float)sample.CurrentX, (float)sample.CurrentZ), (float)exposure.Coverage);
+        }, vertex => Push(vertex.Position, vertex.Normal, vertex.Current, vertex.Coverage), indices, iceIndices);
         if (indices.Count + iceIndices.Count == 0) return null;
         visual ??= new(engine, frame, waveBounds);
         List<MeshGroup> groups = [];
