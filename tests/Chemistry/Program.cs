@@ -121,8 +121,6 @@ Check.Section("grass fire", () =>
     Run(dry, 200);
     int dryBurnt = Count(dry, burning) + Count(dry, burnt);
     Check.That(dryBurnt > 60, $"dry grass catches and spreads ({dryBurnt} cells in 20 s)");
-    Check.That(BurningPlaces.Pick(dry, blocks.Burning, new Vector3(24, 2, 24), 12, 4) is { Count: > 0 and <= 12 } places
-        && places.All(place => place.Y == 2), "burning cells show as at most a slot's worth of fires, on top of the ground");
 
     ChemistryField green = Meadow(grass);
     Ignite(green, 24, 24);

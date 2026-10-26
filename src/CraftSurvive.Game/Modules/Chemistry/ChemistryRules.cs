@@ -252,51 +252,7 @@ internal static class FieldWindow
 /// <summary>The lowest and highest surface cell heights of a chunk column.</summary>
 internal readonly record struct SurfaceBand(long Low, long High);
 
-/// <summary>Where the field's fires are shown (#10293). Engine-free.</summary>
-internal static class BurningPlaces
-{
-    private const int Size = ChemistryField.ChunkSize;
-    private const int CellsPerChunk = Size * Size * Size;
-
-    /// <summary>
-    /// One place per square of <paramref name="cluster"/> cells across that holds burning cells: on top of its highest
-    /// burning cell, at the mean of its burning columns; the <paramref name="slots"/> nearest <paramref name="near"/>.
-    /// Only active chunks are read, since a sleeping one cannot be burning.
-    /// </summary>
-    internal static List<Vector3> Pick(ChemistryField field, IReadOnlySet<int> burning, Vector3 near, int slots, int cluster)
-    {
-        Dictionary<(int X, int Z), (Vector3 Sum, int Count, int Top)> squares = [];
-        ushort[] materials = new ushort[CellsPerChunk];
-        foreach (Cell origin in field.LoadedChunks())
-        {
-            if (!field.IsActive(origin))
-            {
-                continue;
-            }
-
-            field.ReadChunkMaterials(origin, materials);
-            for (int index = 0; index < CellsPerChunk; index++)
-            {
-                if (!burning.Contains(materials[index]))
-                {
-                    continue;
-                }
-
-                Cell cell = origin.Offset(index % Size, index / Size % Size, index / (Size * Size));
-                (int, int) square = ((int)Math.Floor(cell.X / (double)cluster), (int)Math.Floor(cell.Z / (double)cluster));
-                (Vector3 sum, int count, int top) = squares.GetValueOrDefault(square, (Vector3.Zero, 0, int.MinValue));
-                squares[square] = (sum + new Vector3(cell.X + 0.5f, 0f, cell.Z + 0.5f), count + 1, Math.Max(top, cell.Y));
-            }
-        }
-
-        return [.. squares.Values
-            .Select(square => (square.Sum / square.Count) with { Y = square.Top + 1 })
-            .OrderBy(place => Vector3.DistanceSquared(place, near))
-            .Take(slots)];
-    }
-}
-
-/// <summary>When a grass fire's scar grows back, cell by cell (#10296): patchily, each cell somewhere in the regrowth time.</summary>
+/// <summary>When a grass fire's scar grows back, column by column (#10296): patchily, each column somewhere in the regrowth time.</summary>
 internal static class ScarHealing
 {
     /// <summary>

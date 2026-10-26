@@ -53,7 +53,7 @@ internal sealed class GrassFireLook : IDisposable
     private const float FlameHeat = 300f, FlameSpacing = 1.8f;
 
     /// <summary>A flame stands this far over its cell's floor, leans this much a cell a second of drift, and grows with heat.</summary>
-    private const float FlameAboveCell = 0.55f, FlameLean = 0.25f, FlameScaleAtHeat = 900f, FlameScaleMost = 2.4f, FlameScaleLeast = 1.4f;
+    private const float FlameAboveCell = 0.55f, FlameLean = 0.7f, FlameScaleAtHeat = 900f, FlameScaleMost = 2.4f, FlameScaleLeast = 1.4f;
 
     // A square's light, linear (#9844): its intensity for one burning cell and its most, its range for one and its most,
     // and the flicker: how deep and how fast.
@@ -69,7 +69,7 @@ internal sealed class GrassFireLook : IDisposable
     // The plume: a column standing a little over the fire, so the fire's light catches its underside rather than filling it,
     // and leaning downwind, dark, drifting up and with the wind. It is as thick as the field's smoke over the square.
     private const float PlumeDensityPerSmoke = 0.6f, PlumeDensityLeast = 0.15f, PlumeDensityMost = 0.65f;
-    private const float PlumeAbove = 6.5f, PlumeDownwindSeconds = 2f, PlumeHalfHeight = 5f, PlumeReachLeast = 1.6f, PlumeReachPerCell = 0.18f, PlumeReachMost = 3.6f;
+    private const float PlumeAbove = 6.5f, PlumeDownwindSeconds = 6f, PlumeHalfHeight = 5f, PlumeReachLeast = 1.6f, PlumeReachPerCell = 0.18f, PlumeReachMost = 3.6f;
     private const float PlumeEdge = 0.8f, PlumeNoiseScale = 1.2f, PlumeNoiseStrength = 0.8f, PlumeRise = 1.4f;
     private static readonly Vector3 PlumeAlbedo = new(0.2f, 0.19f, 0.18f), PlumeEmission = Vector3.Zero;
 
