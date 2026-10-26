@@ -587,7 +587,8 @@ internal sealed class DayNightSky : IDisposable
         underground = below;
         skylit = below && skyOpen;
         hazed = below && hallHaze;
-        HallAir(hazed, below && mist);
+        misted = below && mist;
+        HallAir(hazed, misted || (!below && outdoorVolumes), outdoor: !below && outdoorVolumes);
         litDaylight = double.NaN;
         skyShadowAround = null;
         ShowWetness();
@@ -637,8 +638,32 @@ internal sealed class DayNightSky : IDisposable
     private static readonly Vector3 HallMediumAlbedo = new(0.85f, 0.9f, 1f);
     private const VolumetricFogQuality HallFogQuality = VolumetricFogQuality.Low;
 
+    /// <summary>Fog volumes in the open world (a grass fire's smoke, #10296) scatter the sky's ambient in full, and are drawn this far.</summary>
+    private const float OutdoorVolumeAmbient = 1f, OutdoorVolumeDistance = 140f;
+
     /// <summary>The volumetric fog setting before a great hall turned it on, restored on leaving; null while not in a hall.</summary>
     private VolumetricFogQuality? volumetricBefore;
+
+    /// <summary>Mist lies in the space underground; and fog volumes stand in the open world (a grass fire's smoke, #10296).</summary>
+    private bool misted, outdoorVolumes;
+
+    /// <summary>
+    /// Fog volumes stand in the open world (a grass fire's smoke and glow, #10296), or no longer do: the volumetric fog is on
+    /// to draw them, with no medium of its own, while any stand and the player is above ground.
+    /// </summary>
+    internal void OutdoorFogVolumes(bool on)
+    {
+        if (disposed || on == outdoorVolumes)
+        {
+            return;
+        }
+
+        outdoorVolumes = on;
+        if (!underground)
+        {
+            HallAir(false, on, outdoor: on);
+        }
+    }
 
     /// <summary>
     /// A great hall's air lit by its own lights (owner, 2026-10-19: haze giving large spaces a diffuse glow): the volumetric
@@ -646,7 +671,8 @@ internal sealed class DayNightSky : IDisposable
     /// round it and its shadows fall through the air as shafts. Nothing in the air glows of itself: its light is the lights'.
     /// </summary>
     /// <param name="mist">Mist lies in the space (fog volumes): the volumetric fog is on to draw it even with no haze in the air.</param>
-    private void HallAir(bool on, bool mist = false)
+    /// <param name="outdoor">The volumes stand in the open world (#10296): lit by the sky's ambient as well as the lights, and drawn further.</param>
+    private void HallAir(bool on, bool mist = false, bool outdoor = false)
     {
         RendererSettingsRequest now = engine.RendererSettings.Read().Requested;
         if (on || mist)
@@ -654,7 +680,7 @@ internal sealed class DayNightSky : IDisposable
             volumetricBefore ??= now.VolumetricFog;
             engine.RendererSettings.Set(now with { VolumetricFog = HallFogQuality });
             engine.CameraView.SetVolumetricFog(new VolumetricFogRequest(Density: on ? HallMediumDensity : 0f, Albedo: HallMediumAlbedo, Anisotropy: HallMediumAnisotropy,
-                BaseHeight: 0f, FalloffHeight: 0f, Distance: HallMediumDistance, Ambient: 0f));
+                BaseHeight: 0f, FalloffHeight: 0f, Distance: outdoor ? OutdoorVolumeDistance : HallMediumDistance, Ambient: outdoor ? OutdoorVolumeAmbient : 0f));
         }
         else if (volumetricBefore is VolumetricFogQuality before)
         {

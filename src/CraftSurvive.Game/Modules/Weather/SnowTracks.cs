@@ -15,11 +15,12 @@ namespace CraftSurvive.Game.Modules.Weather;
 internal sealed class SnowTracks : IProductModule
 {
     /// <summary>
-    /// The scene's one decal atlas (textures/decals/atlas.png, asset-pipeline decal_atlas.py), shared with the dungeons'
-    /// marks (#10092): the footprints keep its top-left quarter, so their regions are scaled into it.
+    /// The scene's one decal atlas (textures/decals/atlas.png, asset-pipeline decal_atlas.py and grass-fire/fire_art.py),
+    /// shared with the dungeons' marks (#10092) and the grass fire's (#10296): the footprints keep its top-left 128 x 64
+    /// of 256 x 256, so their regions are scaled into it.
     /// </summary>
     private const string AtlasPath = "textures/decals/atlas.png";
-    private const float FootprintsU = 0.5f, FootprintsV = 0.5f;
+    private const float FootprintsU = 0.5f, FootprintsV = 0.25f;
     /// <summary>Prints are made once this much snow lies (metres).</summary>
     internal const double TracksFrom = 0.03;
     /// <summary>The pool's size: a few hundred metres of the party's trail and the creatures' near them.</summary>

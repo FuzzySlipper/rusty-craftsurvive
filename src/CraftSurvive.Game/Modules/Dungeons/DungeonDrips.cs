@@ -14,9 +14,9 @@ internal static class DungeonDrips
     /// <summary>A mark: its box's centre (layout metres), its turn (box +y the surface's outward normal, +z down the atlas region), its size, and its atlas region.</summary>
     internal readonly record struct Mark(Vector3 Centre, Quaternion Turn, Vector3 Size, Vector4 Region);
 
-    // The atlas (decal_atlas.py): 256 x 128 texels. Wall marks 32 x 96 from x 128 (two dark, two calcite), floor stains
+    // The atlas (decal_atlas.py; grown to 256 x 256 by grass-fire/fire_art.py, the fire marks below y 128). Wall marks 32 x 96 from x 128 (two dark, two calcite), floor stains
     // 32 x 32 from x 128 at y 96, damp washes 64 x 64 from y 64.
-    private const float AtlasWidth = 256f, AtlasHeight = 128f;
+    private const float AtlasWidth = 256f, AtlasHeight = 256f;
 
     // Sizes (metres; 32 texels a metre): a wall mark 1 across and 3 down, a floor stain 1 across, a wash 2; how deep a box
     // projects through the surface.

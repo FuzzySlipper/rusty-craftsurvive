@@ -52,6 +52,22 @@ internal static class Fires
             PresentationParticleBlendMode.Alpha, SmokeSoftness, SmokeParticles),
     ];
 
+    /// <summary>
+    /// A grass fire's flame (#10296): a pixel-art tongue (a flipbook drawn nearest, stepped) blended by alpha with a hard
+    /// edge, short-lived and low, leaning with the wind; the fire's glow is its light and lit smoke, not the sheet.
+    /// </summary>
+    internal static PresentationParticleDescriptor FrontFlame(ulong id, string signal, Vector3 at, Vector3 lean, float scale, RenderResource flame) =>
+        Fire(id, signal, at, flame, FrontFlameFrames, FrontFlameFramesPerSecond, FrontFlameRate, 0.45f, 0.8f,
+            new Vector3(-0.25f, 0.15f, -0.25f) + lean, new Vector3(0.25f, 0.45f, 0.25f) + lean, Vector3.Zero,
+            [new(0f, 0.55f * scale), new(0.35f, 0.9f * scale), new(1f, 0.35f * scale)],
+            [new(0f, new Color(1f, 1f, 1f, 1f)), new(0.8f, new Color(1f, 0.9f, 0.8f, 1f)), new(1f, new Color(0.6f, 0.4f, 0.3f, 0f))],
+            PresentationParticleBlendMode.Alpha, 0f, FrontFlameParticles);
+
+    internal const string FrontFlameContentPath = "textures/fire-front-flame.png";
+    private const ushort FrontFlameFrames = 8;
+    private const float FrontFlameFramesPerSecond = 8f, FrontFlameRate = 7f;
+    private const uint FrontFlameParticles = 16;
+
     private static PresentationParticleDescriptor Fire(ulong id, string signal, Vector3 at, RenderResource sprite, ushort frames, float framesPerSecond,
         float rate, float lifeMin, float lifeMax, Vector3 velocityMin, Vector3 velocityMax, Vector3 acceleration,
         PresentationParticleScalarKey[] size, PresentationParticleColorKey[] colour, PresentationParticleBlendMode blend, float softness, uint maximum) => new()

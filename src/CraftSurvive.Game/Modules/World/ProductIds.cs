@@ -134,8 +134,19 @@ internal static class ProductIds
     internal const ulong LampFireBase = 0x300UL;
     internal const ulong DungeonFireBase = 0x400UL;
 
-    /// <summary>Burning ground the chemistry field shows (#10293): three retained emitters per fire slot.</summary>
+    /// <summary>The grass fire's flames (#10296): one retained emitter per flame, at most <see cref="ChemistryFlames"/>.</summary>
     internal const ulong ChemistryFireBase = 0x700UL;
+    internal const int ChemistryFlames = 0x40;
+
+    /// <summary>The grass fire's lights (#10296): one per shown fire square.</summary>
+    internal const ulong ChemistryFireLightBase = 0x800UL;
+
+    /// <summary>The grass fire's glow and smoke (#10296): two fog volumes per shown fire square (fog volumes are their own id space).</summary>
+    internal const uint ChemistryFireVolumeBase = 0x200U;
+
+    /// <summary>The grass fire's ground (#10296): burning cells' and burnt cells' projected decals, at most <see cref="ChemistryFireDecals"/>.</summary>
+    internal const ulong ChemistryFireDecalBase = 0x9_F000UL;
+    internal const int ChemistryFireDecals = 0x800;
 
     /// <summary>A chasm's waterfalls (#10094): their stream and spray emitters, two per fall.</summary>
     internal const ulong DungeonWaterfallBase = 0x480UL;

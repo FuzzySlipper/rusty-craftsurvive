@@ -65,7 +65,7 @@ internal sealed record ChemistrySettings(
             new AmbientSetting(Number(ambient, "warmHeat"), Number(ambient, "coldHeat"), Number(ambient, "windCellsPerSecond"),
                 Number(ambient, "refreshSeconds")),
             new FireSetting([.. Member(fires, "materials").EnumerateArray().Select(material => Text(material, "fires.materials"))],
-                Whole(fires, "slots"), Whole(fires, "clusterCells")));
+                Whole(fires, "slots"), Whole(fires, "clusterCells"), Text(Member(fires, "burnt"), "fires.burnt")));
     }
 
     private static JsonElement Member(JsonElement element, string name) => element.TryGetProperty(name, out JsonElement value)
@@ -109,5 +109,8 @@ internal sealed record FieldSetting(int ReachChunks, int BurningReachChunks, int
 /// <summary>The weather as ambient: air heat from warm to bitter by the Cold channel, wind speed at full Wind, how often it is read.</summary>
 internal sealed record AmbientSetting(float WarmHeat, float ColdHeat, float WindCellsPerSecond, float RefreshSeconds);
 
-/// <summary>Which materials show as fire, how many fires the field may show, and the cells across one shown fire stands for.</summary>
-internal sealed record FireSetting(IReadOnlyList<string> Materials, int Slots, int ClusterCells);
+/// <summary>
+/// Which materials show as fire, how many squares of it are lit and smoke, the cells across one square, and the material a
+/// burnt-out cell becomes (its ground shown as char).
+/// </summary>
+internal sealed record FireSetting(IReadOnlyList<string> Materials, int Slots, int ClusterCells, string Burnt);

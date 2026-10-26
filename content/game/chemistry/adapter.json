@@ -33,7 +33,7 @@
   // The weather as ambient: air heat between warm and bitter by the Cold channel; Wind along the flow carries
   // heat and smoke at up to this many cells a second; Precipitation scales rain's wetting.
   "ambient": { "warmHeat": 22, "coldHeat": -12, "windCellsPerSecond": 0.8, "refreshSeconds": 2 },
-  // Burning cells are shown as fires: at most this many, each standing for the burning cells in a square
-  // this many cells across.
-  "fires": { "materials": ["burning-grass"], "slots": 12, "clusterCells": 4 }
+  // Burning cells are shown as fire (#10296): each burning cell's ground, and over the nearest squares of this many
+  // cells across, at most this many, a light and smoke. A cell that becomes "burnt" shows as cooling, then cold, char.
+  "fires": { "materials": ["burning-grass"], "slots": 12, "clusterCells": 4, "burnt": "burnt-ground" }
 }

@@ -41,7 +41,8 @@ internal sealed class ChemistryModule : IProductModule
     private readonly ChemistrySettings settings;
     private readonly ChemistryPack pack;
     private readonly BlockChemistry blocks;
-    private readonly FireEmitters fires;
+    private readonly GrassFireLook look;
+    private readonly int burntMaterial, heatQuantity;
     private readonly ushort[] chunkMaterials = new ushort[CellsPerChunk];
     private readonly Queue<(Cell Cell, WriteBackSetting Rule)> waiting = [];
     private readonly Dictionary<(int X, int Z), SurfaceBand> bands = [];
@@ -54,8 +55,9 @@ internal sealed class ChemistryModule : IProductModule
     private (long Step, Dictionary<Cell, float[]> Kept)? changesFrom;
 
     /// <param name="snowCover">The snow cover's share of the ground where the player stands, 0..1.</param>
+    /// <param name="fogVolumes">Tells the sky the fire's smoke stands in the open world as fog volumes, or no longer does.</param>
     internal ChemistryModule(IEngineContext engine, ProductContent content, TerrainWorld terrain, WeatherModule weather, WorldFrame frame,
-        Func<Vector3> playerWorld, Func<bool> away, Func<double> snowCover)
+        Func<Vector3> playerWorld, Func<bool> away, Func<double> snowCover, Action<bool> fogVolumes)
     {
         ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(content);
@@ -68,7 +70,9 @@ internal sealed class ChemistryModule : IProductModule
         settings = ChemistrySettings.Parse(content.ReadText(ChemistrySettings.ContentPath));
         pack = ChemistryPack.Read(content.ReadText(settings.PackPath));
         blocks = new BlockChemistry(settings, pack);
-        fires = new FireEmitters(engine, ProductIds.ChemistryFireBase, "craftsurvive.chemistry.fire", settings.Fires.Slots);
+        look = new GrassFireLook(engine, frame, fogVolumes, settings.Fires.Slots, settings.Fires.ClusterCells);
+        burntMaterial = pack.Material(settings.Fires.Burnt);
+        heatQuantity = pack.Quantity("heat");
         field = NewField();
         terrain.Edited += Reload;
     }
@@ -81,10 +85,12 @@ internal sealed class ChemistryModule : IProductModule
     {
         if (away())
         {
-            // A dungeon or study is its own space: the field waits, and its fires are not drawn there.
-            fires.Show([]);
+            // A dungeon or study is its own space: the field waits, and its fire is not drawn there.
+            look.Hide();
             return;
         }
+
+        look.Tick(step.ElapsedSeconds);
 
         Vector3 player = playerWorld();
         Follow(player);
@@ -116,8 +122,7 @@ internal sealed class ChemistryModule : IProductModule
         if (steps > 0)
         {
             burningColumns = FieldWindow.BurningColumns(field, blocks.Burning);
-            List<Vector3> places = BurningPlaces.Pick(field, blocks.Burning, player, settings.Fires.Slots, settings.Fires.ClusterCells);
-            fires.Show([.. places.Select(place => frame.ToLocal(place))]);
+            look.Show(field, blocks.Burning, heatQuantity, player);
         }
     }
 
@@ -129,13 +134,13 @@ internal sealed class ChemistryModule : IProductModule
         waiting.Clear();
         bands.Clear();
         burningColumns = [];
-        fires.Show([]);
+        look.Hide();
     }
 
     public void Dispose()
     {
         terrain.Edited -= Reload;
-        fires.Dispose();
+        look.Dispose();
     }
 
     /// <summary>Heats the ground at a world column's surface, as a torch would; the fire, if any, is the field's.</summary>
@@ -235,7 +240,8 @@ internal sealed class ChemistryModule : IProductModule
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"chemistry chunks={field.ChunkCount} active={field.ActiveChunkCount} step={field.StepIndex} stepMs={stepMilliseconds:0.00} fires={fires.Burning} ") +
+        $"chemistry chunks={field.ChunkCount} active={field.ActiveChunkCount} step={field.StepIndex} stepMs={stepMilliseconds:0.00} fires={look.Squares} ") +
+        look.Readout() + " " +
         string.Create(CultureInfo.InvariantCulture,
         $"written={written} waiting={waiting.Count} dropped={dropped} refused={refused} overlay={terrain.OverlayEntries}/{TerrainConstants.MaximumOverlayEntries} ") +
         string.Create(CultureInfo.InvariantCulture,
@@ -358,6 +364,7 @@ internal sealed class ChemistryModule : IProductModule
         long began = Stopwatch.GetTimestamp();
         field.Step();
         stepMilliseconds = (stepMilliseconds * 0.9) + (Stopwatch.GetElapsedTime(began).TotalMilliseconds * 0.1);
+        look.Burnt(field.MaterialChanges, burntMaterial);
         foreach ((Cell Cell, WriteBackSetting Rule) entry in WriteBack.Wanted(field.MaterialChanges, blocks))
         {
             waiting.Enqueue(entry);
