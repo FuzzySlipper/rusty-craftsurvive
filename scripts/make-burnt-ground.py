@@ -22,7 +22,7 @@ SOURCE, TARGET, NAME = FOLDER / "sage-ground.png", FOLDER / "burnt-ground.png", 
 # Char: every colour takes this hue (a warm brown-black) and saturation, its value falls to FLOOR plus a share of
 # what it was, so the painted strokes stay legible in the dark.
 CHAR_HUE, CHAR_SATURATION = 0.07, 0.28
-FLOOR, KEPT = 0.07, 0.32
+FLOOR, KEPT = 0.1, 0.38
 # Ash: drifts where a wrapping noise (LATTICE cells across the tile) passes ASH_FROM, lifted toward ASH grey in two
 # crisp steps (ASH_THIN, then ASH_THICK past ASH_DEEP), so they read as painted shapes like the strokes under them.
 ASH = (0.47, 0.45, 0.42)

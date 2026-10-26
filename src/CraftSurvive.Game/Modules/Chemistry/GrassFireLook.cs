@@ -42,6 +42,12 @@ internal sealed class GrassFireLook : IDisposable
     /// <summary>A burnt cell shows cooling coals for this long, then cold char.</summary>
     private const double CoolingSeconds = 25;
 
+    // The embers' glow (linear, times the emission atlas's ember colours; above 1 blooms): a burning cell's, at least the
+    // least share of it by the cell's hash; and a cooling cell's as it burnt out, dimmed every refresh as it cools.
+    private static readonly Vector3 BurningGlow = new(1.6f, 0.75f, 0.2f), CoolingGlow = new(0.9f, 0.4f, 0.1f);
+    private const float BurningGlowLeast = 0.6f;
+    private const double CoolingRefreshSeconds = 1;
+
     /// <summary>Flames: at most this many, on burning cells at least this hot and this far apart (metres).</summary>
     private const int MostFlames = ProductIds.ChemistryFlames;
     private const float FlameHeat = 300f, FlameSpacing = 1.8f;
@@ -86,7 +92,7 @@ internal sealed class GrassFireLook : IDisposable
     private RenderResource? flameSprite;
     private (long X, long Y, long Z) placedOrigin;
     private Vector3 lean;
-    private double seconds;
+    private double seconds, sinceCooled;
     private bool shown;
 
     /// <param name="fogVolumes">Tells the sky fog volumes stand in the open world (the volumetric fog draws them), or no longer do.</param>
@@ -147,7 +153,7 @@ internal sealed class GrassFireLook : IDisposable
 
             burnt[slot] = (change.Cell, seconds, false);
             cooling.Enqueue(slot);
-            Place(BurntId(slot), change.Cell, CoolingRegion(change.Cell));
+            Place(BurntId(slot), change.Cell, CoolingRegion(change.Cell), CoolingGlow);
         }
     }
 
@@ -204,12 +210,19 @@ internal sealed class GrassFireLook : IDisposable
             }
 
             burnt[slot] = entry with { Cold = true };
-            Place(BurntId(slot), entry.Cell, CharRegion(entry.Cell));
+            Place(BurntId(slot), entry.Cell, CharRegion(entry.Cell), Vector3.Zero);
         }
 
         while (cooling.TryPeek(out int stale) && burnt[stale] is null or { Cold: true })
         {
             cooling.Dequeue();
+        }
+
+        sinceCooled += elapsed;
+        if (sinceCooled >= CoolingRefreshSeconds)
+        {
+            sinceCooled = 0;
+            Cool();
         }
 
         if (shown)
@@ -337,7 +350,7 @@ internal sealed class GrassFireLook : IDisposable
             if (!burningDecals.ContainsKey(cell) && freeBurning.TryPop(out int slot))
             {
                 burningDecals[cell] = slot;
-                Place(BurningId(slot), cell, BurningRegion(cell));
+                Place(BurningId(slot), cell, BurningRegion(cell), Burning(cell));
             }
         }
     }
@@ -507,26 +520,49 @@ internal sealed class GrassFireLook : IDisposable
     {
         foreach ((Cell cell, int slot) in burningDecals)
         {
-            Place(BurningId(slot), cell, BurningRegion(cell));
+            Place(BurningId(slot), cell, BurningRegion(cell), Burning(cell));
         }
 
         for (int slot = 0; slot < burnt.Length; slot++)
         {
             if (burnt[slot] is { } entry)
             {
-                Place(BurntId(slot), entry.Cell, entry.Cold ? CharRegion(entry.Cell) : CoolingRegion(entry.Cell));
+                Place(BurntId(slot), entry.Cell, entry.Cold ? CharRegion(entry.Cell) : CoolingRegion(entry.Cell), entry.Cold ? Vector3.Zero : Cooling(entry.At));
             }
         }
     }
 
-    /// <summary>Lays a cell's decal over the ground alone: on the grass's blades the projection smears into streaks down them.</summary>
-    private void Place(ulong id, Cell cell, Vector4 region)
+    /// <summary>Each cooling cell's coals dimmed to how far it has cooled, placed again by its id.</summary>
+    private void Cool()
+    {
+        foreach (int slot in cooling)
+        {
+            if (burnt[slot] is { Cold: false } entry)
+            {
+                Place(BurntId(slot), entry.Cell, CoolingRegion(entry.Cell), Cooling(entry.At));
+            }
+        }
+    }
+
+    /// <summary>A burning cell's embers' glow: a little more or less by the cell, so the front does not glow as one sheet.</summary>
+    private static Vector3 Burning(Cell cell) => BurningGlow * (BurningGlowLeast + ((1 - BurningGlowLeast) * Unit(cell, 9)));
+
+    /// <summary>A cooling cell's coals' glow, from whole as it burnt out to none as it goes cold.</summary>
+    private Vector3 Cooling(double burntAt) => CoolingGlow * (float)Math.Clamp(1 - ((seconds - burntAt) / CoolingSeconds), 0, 1);
+
+    /// <summary>
+    /// Lays a cell's decal over the ground alone: on the grass's blades the projection smears into streaks down them. Its
+    /// embers (the emission atlas's texels, rusty-engine #10396) glow by <paramref name="emission"/>, after lighting, so the
+    /// front and the cooling coals read at night.
+    /// </summary>
+    private void Place(ulong id, Cell cell, Vector4 region, Vector3 emission)
     {
         float across = DecalLeast + ((DecalMost - DecalLeast) * Unit(cell, 4));
         double x = cell.X + 0.5 + (DecalJitter * ((2 * Unit(cell, 5)) - 1)), z = cell.Z + 0.5 + (DecalJitter * ((2 * Unit(cell, 6)) - 1));
         engine.CameraView.SetDecal(new DecalRequest(id, frame.ToLocal(x, cell.Y + 0.5, z),
             Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2 * (Hash(cell, 7) % 4)), new Vector3(across, DecalDepth, across), region, Tone(cell),
-            Roughness: 0f, NormalStrength: 0f, AngleFalloff: true, OnVegetation: false, OnAnimatedMeshes: false, LifeSeconds: 0f, FadeSeconds: 0f));
+            Roughness: 0f, NormalStrength: 0f, Emission: emission, AngleFalloff: true, OnVegetation: false, OnAnimatedMeshes: false,
+            LifeSeconds: 0f, FadeSeconds: 0f));
     }
 
     private void Remove(ulong id) => engine.CameraView.RemoveDecal(new DecalRemoval(id));

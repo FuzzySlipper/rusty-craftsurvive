@@ -20,6 +20,9 @@ internal sealed class SnowTracks : IProductModule
     /// of 256 x 256, so their regions are scaled into it.
     /// </summary>
     private const string AtlasPath = "textures/decals/atlas.png";
+
+    /// <summary>The atlas's emission, laid out like it (rusty-engine #10396): black but for the grass fire's embers.</summary>
+    private const string EmissionPath = "textures/decals/emission.png";
     private const float FootprintsU = 0.5f, FootprintsV = 0.25f;
     /// <summary>Prints are made once this much snow lies (metres).</summary>
     internal const double TracksFrom = 0.03;
@@ -46,7 +49,7 @@ internal sealed class SnowTracks : IProductModule
     private readonly Func<IEnumerable<(int Id, Vector3 Feet)>> creatures;
     private readonly FootprintPool pool;
     private readonly Dictionary<int, (Vector3 Last, float Walked, bool Left)> walkers = [];
-    private RenderResource? atlas;
+    private RenderResource? atlas, emission;
     private (Vector3 Last, float Walked, bool Left)? walking;
     private (long X, long Y, long Z) placedOrigin;
     private bool shown = true;
@@ -72,7 +75,8 @@ internal sealed class SnowTracks : IProductModule
     {
         // Crisp texels up close, as every product texture (the crunch rule).
         atlas = engine.Graphics.OpenResource(new RenderResourceRequest(AtlasPath, TextureFilter.NearestMipmapped, TextureWrap.Clamp)).Handle;
-        engine.CameraView.SetDecalAtlas(new DecalAtlasRequest(atlas, default));
+        emission = engine.Graphics.OpenResource(new RenderResourceRequest(EmissionPath, TextureFilter.NearestMipmapped, TextureWrap.Clamp)).Handle;
+        engine.CameraView.SetDecalAtlas(new DecalAtlasRequest(atlas, default, emission));
         placedOrigin = frame.Origin;
     }
 
@@ -168,7 +172,7 @@ internal sealed class SnowTracks : IProductModule
         if (print.Left) (u0, u1) = (u1, u0);
         Vector4 region = new(u0 * FootprintsU, row / Rows * FootprintsV, u1 * FootprintsU, (row + 1) / Rows * FootprintsV);
         return new DecalRequest(Id(index), frame.ToLocal(print.At.X, print.At.Y, print.At.Z), Quaternion.CreateFromAxisAngle(Vector3.UnitY, print.Heading),
-            new Vector3(size, PrintDepth, size), region, new Color(1, 1, 1, 1), Roughness: 0, NormalStrength: 0, AngleFalloff: true,
+            new Vector3(size, PrintDepth, size), region, new Color(1, 1, 1, 1), Roughness: 0, NormalStrength: 0, Emission: Vector3.Zero, AngleFalloff: true,
             OnVegetation: false, OnAnimatedMeshes: false, LifeSeconds: 0, FadeSeconds: 0);
     }
 
@@ -204,6 +208,8 @@ internal sealed class SnowTracks : IProductModule
         engine.CameraView.SetDecalAtlas(default);
         atlas?.Dispose();
         atlas = null;
+        emission?.Dispose();
+        emission = null;
     }
 
     internal string Readout()

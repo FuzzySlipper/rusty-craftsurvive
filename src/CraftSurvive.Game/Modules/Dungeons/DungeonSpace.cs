@@ -565,8 +565,8 @@ internal sealed class DungeonSpace : IDisposable
             {
                 DungeonDrips.Mark mark = layout.Drips[i];
                 engine.CameraView.SetDecal(new DecalRequest(ProductIds.DungeonDecalBase + (ulong)i, InSession(mark.Centre), mark.Turn, mark.Size, mark.Region,
-                    new Color(1f, 1f, 1f, 1f), Roughness: DripRoughness, NormalStrength: 0f, AngleFalloff: true, OnVegetation: false, OnAnimatedMeshes: false,
-                    LifeSeconds: 0f, FadeSeconds: 0f));
+                    new Color(1f, 1f, 1f, 1f), Roughness: DripRoughness, NormalStrength: 0f, Emission: Vector3.Zero, AngleFalloff: true, OnVegetation: false,
+                    OnAnimatedMeshes: false, LifeSeconds: 0f, FadeSeconds: 0f));
                 drips++;
             }
 
