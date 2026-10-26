@@ -42,7 +42,7 @@ internal sealed class ChemistryModule : IProductModule
     private readonly ChemistryPack pack;
     private readonly BlockChemistry blocks;
     private readonly GrassFireLook look;
-    private readonly int burntMaterial, heatQuantity;
+    private readonly int burntMaterial, heatQuantity, smokeQuantity;
     private readonly ushort[] chunkMaterials = new ushort[CellsPerChunk];
     private readonly Queue<(Cell Cell, WriteBackSetting Rule)> waiting = [];
     private readonly Dictionary<(int X, int Z), SurfaceBand> bands = [];
@@ -73,6 +73,7 @@ internal sealed class ChemistryModule : IProductModule
         look = new GrassFireLook(engine, frame, fogVolumes, settings.Fires.Slots, settings.Fires.ClusterCells);
         burntMaterial = pack.Material(settings.Fires.Burnt);
         heatQuantity = pack.Quantity("heat");
+        smokeQuantity = pack.Quantity("smoke");
         field = NewField();
         terrain.Edited += Reload;
     }
@@ -122,7 +123,7 @@ internal sealed class ChemistryModule : IProductModule
         if (steps > 0)
         {
             burningColumns = FieldWindow.BurningColumns(field, blocks.Burning);
-            look.Show(field, blocks.Burning, heatQuantity, player);
+            look.Show(field, blocks.Burning, heatQuantity, smokeQuantity, player);
         }
     }
 
@@ -364,7 +365,7 @@ internal sealed class ChemistryModule : IProductModule
         long began = Stopwatch.GetTimestamp();
         field.Step();
         stepMilliseconds = (stepMilliseconds * 0.9) + (Stopwatch.GetElapsedTime(began).TotalMilliseconds * 0.1);
-        look.Burnt(field.MaterialChanges, burntMaterial);
+        look.Burnt(field.MaterialChanges, burntMaterial, playerWorld());
         foreach ((Cell Cell, WriteBackSetting Rule) entry in WriteBack.Wanted(field.MaterialChanges, blocks))
         {
             waiting.Enqueue(entry);

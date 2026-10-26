@@ -641,6 +641,9 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>Fog volumes in the open world (a grass fire's smoke, #10296) scatter the sky's ambient in full, and are drawn this far.</summary>
     private const float OutdoorVolumeAmbient = 1f, OutdoorVolumeDistance = 140f;
 
+    /// <summary>Smoke scatters a little forward: looked at toward a fire's light, its column glows less than a hall's haze.</summary>
+    private const float OutdoorVolumeAnisotropy = 0.2f;
+
     /// <summary>The volumetric fog setting before a great hall turned it on, restored on leaving; null while not in a hall.</summary>
     private VolumetricFogQuality? volumetricBefore;
 
@@ -679,7 +682,8 @@ internal sealed class DayNightSky : IDisposable
         {
             volumetricBefore ??= now.VolumetricFog;
             engine.RendererSettings.Set(now with { VolumetricFog = HallFogQuality });
-            engine.CameraView.SetVolumetricFog(new VolumetricFogRequest(Density: on ? HallMediumDensity : 0f, Albedo: HallMediumAlbedo, Anisotropy: HallMediumAnisotropy,
+            engine.CameraView.SetVolumetricFog(new VolumetricFogRequest(Density: on ? HallMediumDensity : 0f, Albedo: HallMediumAlbedo,
+                Anisotropy: outdoor ? OutdoorVolumeAnisotropy : HallMediumAnisotropy,
                 BaseHeight: 0f, FalloffHeight: 0f, Distance: outdoor ? OutdoorVolumeDistance : HallMediumDistance, Ambient: outdoor ? OutdoorVolumeAmbient : 0f));
         }
         else if (volumetricBefore is VolumetricFogQuality before)

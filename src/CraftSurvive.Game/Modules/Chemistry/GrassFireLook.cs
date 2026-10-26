@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.World;
@@ -31,7 +32,7 @@ internal sealed class GrassFireLook : IDisposable
     /// A cell's decal box (metres): a little wider than the cell, so the tiles' ragged rims overlap, and deep enough to reach the
     /// ground in it. Each cell's box is moved and sized a little by its hash, so the tiles do not line up as paving.
     /// </summary>
-    private const float DecalLeast = 1.6f, DecalMost = 2f, DecalDepth = 3f, DecalJitter = 0.25f;
+    private const float DecalLeast = 1.6f, DecalMost = 2f, DecalDepth = 2.2f, DecalJitter = 0.25f;
 
     /// <summary>The decal pool: up to this many burning cells (the nearest), the rest of the pool for burnt ones.</summary>
     private const int MostBurningDecals = 768;
@@ -58,10 +59,11 @@ internal sealed class GrassFireLook : IDisposable
     private const float GlowDensity = 0.08f, GlowEdge = 0.8f, GlowNoiseScale = 0.9f, GlowNoiseStrength = 0.6f, GlowRise = 0.8f;
     private static readonly Vector3 GlowAlbedo = new(0.08f, 0.06f, 0.05f), GlowEmission = new(1.6f, 0.48f, 0.09f);
 
-    // The plume: a column standing on the fire (its foot a little into the ground) and leaning downwind, dark, drifting up
-    // and with the wind.
-    private const float PlumeAbove = 4f, PlumeDownwindSeconds = 2f, PlumeHalfHeight = 5f, PlumeReachLeast = 1.6f, PlumeReachPerCell = 0.18f, PlumeReachMost = 3.6f;
-    private const float PlumeDensity = 0.3f, PlumeEdge = 0.8f, PlumeNoiseScale = 1.2f, PlumeNoiseStrength = 0.8f, PlumeRise = 1.4f;
+    // The plume: a column standing a little over the fire, so the fire's light catches its underside rather than filling it,
+    // and leaning downwind, dark, drifting up and with the wind. It is as thick as the field's smoke over the square.
+    private const float PlumeDensityPerSmoke = 0.6f, PlumeDensityLeast = 0.15f, PlumeDensityMost = 0.65f;
+    private const float PlumeAbove = 6.5f, PlumeDownwindSeconds = 2f, PlumeHalfHeight = 5f, PlumeReachLeast = 1.6f, PlumeReachPerCell = 0.18f, PlumeReachMost = 3.6f;
+    private const float PlumeEdge = 0.8f, PlumeNoiseScale = 1.2f, PlumeNoiseStrength = 0.8f, PlumeRise = 1.4f;
     private static readonly Vector3 PlumeAlbedo = new(0.2f, 0.19f, 0.18f), PlumeEmission = Vector3.Zero;
 
     private readonly IEngineContext engine;
@@ -69,15 +71,16 @@ internal sealed class GrassFireLook : IDisposable
     private readonly Action<bool> fogVolumes;
     private readonly int slots, cluster;
     private readonly Light?[] lights;
-    private readonly (Vector3 At, int Cells)?[] squares;
+    private readonly (Vector3 At, int Cells, float Smoke)?[] squares;
     private readonly Dictionary<Cell, int> burningDecals = [];
     private readonly Stack<int> freeBurning = new(Enumerable.Range(0, MostBurningDecals).Reverse());
     private readonly (Cell Cell, double At, bool Cold)?[] burnt = new (Cell, double, bool)?[MostBurntDecals];
     private readonly Queue<int> cooling = [];
     private readonly (Cell Cell, PresentationEmitter Emitter)?[] flames = new (Cell, PresentationEmitter)?[MostFlames];
     private readonly ushort[] materials = new ushort[CellsPerChunk];
-    private readonly float[] heat = new float[CellsPerChunk];
-    private int nextBurnt, volumesPlaced;
+    private readonly float[] heat = new float[CellsPerChunk], smoke = new float[CellsPerChunk];
+    private readonly Stack<int> freeBurnt = new(Enumerable.Range(0, MostBurntDecals).Reverse());
+    private int volumesPlaced;
     private RenderResource? flameSprite;
     private (long X, long Y, long Z) placedOrigin;
     private Vector3 lean;
@@ -93,7 +96,7 @@ internal sealed class GrassFireLook : IDisposable
         this.slots = slots;
         this.cluster = cluster;
         lights = new Light?[slots];
-        squares = new (Vector3, int)?[slots];
+        squares = new (Vector3, int, float)?[slots];
         placedOrigin = frame.Origin;
     }
 
@@ -105,11 +108,22 @@ internal sealed class GrassFireLook : IDisposable
 
     internal int Squares => squares.Count(square => square is not null);
 
+    /// <summary>The most smoke over any square shown, as the field holds it.</summary>
+    internal float MostSmoke { get; private set; }
+
+    /// <summary>A burning cell's smoke is read in the air this many cells over it.</summary>
+    private const int SmokeCellsOver = 3;
+
     internal string Readout() =>
-        $"look burning={BurningDecals} burnt={BurntDecals} cooling={cooling.Count} flames={Flames} squares={Squares} volumes={volumesPlaced}";
+        string.Create(CultureInfo.InvariantCulture,
+            $"look burning={BurningDecals} burnt={BurntDecals} cooling={cooling.Count} flames={Flames} squares={Squares} volumes={volumesPlaced} smoke={MostSmoke:0.00}");
 
     /// <summary>Marks the cells that burnt out this step: their ground cools, then lies as char.</summary>
-    internal void Burnt(IReadOnlyList<MaterialChange> changes, int burntMaterial)
+    /// <remarks>
+    /// When the pool is full, the burnt cell farthest from <paramref name="near"/> gives up its decal, if it is farther than the
+    /// new one: a big fire keeps its scar around the player, not wherever it burnt last.
+    /// </remarks>
+    internal void Burnt(IReadOnlyList<MaterialChange> changes, int burntMaterial, Vector3 near)
     {
         foreach (MaterialChange change in changes)
         {
@@ -118,8 +132,15 @@ internal sealed class GrassFireLook : IDisposable
                 continue;
             }
 
-            int slot = nextBurnt;
-            nextBurnt = (nextBurnt + 1) % MostBurntDecals;
+            if (!freeBurnt.TryPop(out int slot))
+            {
+                slot = Farthest(near);
+                if (Vector3.DistanceSquared(Centre(burnt[slot]!.Value.Cell), near) <= Vector3.DistanceSquared(Centre(change.Cell), near))
+                {
+                    continue;
+                }
+            }
+
             burnt[slot] = (change.Cell, seconds, false);
             cooling.Enqueue(slot);
             Place(BurntId(slot), change.Cell, CoolingRegion(change.Cell));
@@ -130,7 +151,7 @@ internal sealed class GrassFireLook : IDisposable
     /// Shows the field's fire as it stands after this update's steps: the burning cells' ground, the squares' lights and
     /// smoke, and the flames. Reads only active chunks, since a sleeping one cannot be burning.
     /// </summary>
-    internal void Show(ChemistryField field, IReadOnlySet<int> burning, int heatQuantity, Vector3 near)
+    internal void Show(ChemistryField field, IReadOnlySet<int> burning, int heatQuantity, int smokeQuantity, Vector3 near)
     {
         if (!shown)
         {
@@ -140,10 +161,26 @@ internal sealed class GrassFireLook : IDisposable
 
         Rebase();
         lean = new Vector3(field.Drift.X, 0f, field.Drift.Z) * FlameLean;
-        List<(Cell Cell, float Heat)> cells = Burning(field, burning, heatQuantity);
+        List<(Cell Cell, float Heat, float Smoke)> cells = Burning(field, burning, heatQuantity, smokeQuantity);
         Ground(cells, near);
         Gather(cells, near, field.Drift);
         Kindle(cells, near);
+    }
+
+    private int Farthest(Vector3 near)
+    {
+        int farthest = 0;
+        float most = -1f;
+        for (int slot = 0; slot < burnt.Length; slot++)
+        {
+            float distance = burnt[slot] is { } entry ? Vector3.DistanceSquared(Centre(entry.Cell), near) : -1f;
+            if (distance > most)
+            {
+                (farthest, most) = (slot, distance);
+            }
+        }
+
+        return farthest;
     }
 
     /// <summary>Advances the flicker and the cooling; called every update while shown.</summary>
@@ -192,6 +229,12 @@ internal sealed class GrassFireLook : IDisposable
             }
         }
 
+        freeBurnt.Clear();
+        foreach (int slot in Enumerable.Range(0, MostBurntDecals).Reverse())
+        {
+            freeBurnt.Push(slot);
+        }
+
         cooling.Clear();
         for (int slot = 0; slot < flames.Length; slot++)
         {
@@ -217,10 +260,10 @@ internal sealed class GrassFireLook : IDisposable
         flameSprite = null;
     }
 
-    /// <summary>The burning cells of the active chunks and their heat.</summary>
-    private List<(Cell Cell, float Heat)> Burning(ChemistryField field, IReadOnlySet<int> burning, int heatQuantity)
+    /// <summary>The burning cells of the active chunks, their heat, and the smoke in the air just over them (in their chunk).</summary>
+    private List<(Cell Cell, float Heat, float Smoke)> Burning(ChemistryField field, IReadOnlySet<int> burning, int heatQuantity, int smokeQuantity)
     {
-        List<(Cell, float)> found = [];
+        List<(Cell, float, float)> found = [];
         foreach (Cell origin in field.LoadedChunks())
         {
             if (!field.IsActive(origin))
@@ -241,11 +284,19 @@ internal sealed class GrassFireLook : IDisposable
             }
 
             field.ReadChunk(origin, heatQuantity, heat);
+            field.ReadChunk(origin, smokeQuantity, smoke);
             for (int index = 0; index < CellsPerChunk; index++)
             {
                 if (burning.Contains(materials[index]))
                 {
-                    found.Add((origin.Offset(index % Size, index / Size % Size, index / (Size * Size)), heat[index]));
+                    int y = index / Size % Size;
+                    float over = 0f;
+                    for (int up = 1; up <= SmokeCellsOver && y + up < Size; up++)
+                    {
+                        over = Math.Max(over, smoke[index + (up * Size)]);
+                    }
+
+                    found.Add((origin.Offset(index % Size, y, index / (Size * Size)), heat[index], over));
                 }
             }
         }
@@ -254,7 +305,7 @@ internal sealed class GrassFireLook : IDisposable
     }
 
     /// <summary>The burning cells' decals: placed as cells catch, taken away as they burn out or go out (the nearest kept).</summary>
-    private void Ground(List<(Cell Cell, float Heat)> cells, Vector3 near)
+    private void Ground(List<(Cell Cell, float Heat, float Smoke)> cells, Vector3 near)
     {
         HashSet<Cell> now = [.. cells
             .Select(entry => entry.Cell)
@@ -278,21 +329,25 @@ internal sealed class GrassFireLook : IDisposable
         }
     }
 
-    /// <summary>The fire's squares, the nearest: each one's middle (on top of its highest burning cell) and how many cells burn in it.</summary>
-    private void Gather(List<(Cell Cell, float Heat)> cells, Vector3 near, Vector3 drift)
+    /// <summary>
+    /// The fire's squares, the nearest: each one's middle (on top of its highest burning cell), how many cells burn in it,
+    /// and the most smoke in the field's air over them.
+    /// </summary>
+    private void Gather(List<(Cell Cell, float Heat, float Smoke)> cells, Vector3 near, Vector3 drift)
     {
-        Dictionary<(int X, int Z), (Vector3 Sum, int Count, int Top)> found = [];
-        foreach ((Cell cell, _) in cells)
+        Dictionary<(int X, int Z), (Vector3 Sum, int Count, int Top, float Smoke)> found = [];
+        foreach ((Cell cell, _, float over) in cells)
         {
             (int, int) key = ((int)Math.Floor(cell.X / (double)cluster), (int)Math.Floor(cell.Z / (double)cluster));
-            (Vector3 sum, int count, int top) = found.GetValueOrDefault(key, (Vector3.Zero, 0, int.MinValue));
-            found[key] = (sum + new Vector3(cell.X + 0.5f, 0f, cell.Z + 0.5f), count + 1, Math.Max(top, cell.Y));
+            (Vector3 sum, int count, int top, float most) = found.GetValueOrDefault(key, (Vector3.Zero, 0, int.MinValue, 0f));
+            found[key] = (sum + new Vector3(cell.X + 0.5f, 0f, cell.Z + 0.5f), count + 1, Math.Max(top, cell.Y), Math.Max(most, over));
         }
 
-        (Vector3 At, int Cells)[] nearest = [.. found.Values
-            .Select(square => ((square.Sum / square.Count) with { Y = square.Top + 1 }, square.Count))
+        (Vector3 At, int Cells, float Smoke)[] nearest = [.. found.Values
+            .Select(square => ((square.Sum / square.Count) with { Y = square.Top + 1 }, square.Count, square.Smoke))
             .OrderBy(square => Vector3.DistanceSquared(square.Item1, near))
             .Take(slots)];
+        MostSmoke = nearest.Length > 0 ? nearest.Max(square => square.Smoke) : 0f;
         for (int slot = 0; slot < slots; slot++)
         {
             squares[slot] = slot < nearest.Length ? nearest[slot] : null;
@@ -302,7 +357,7 @@ internal sealed class GrassFireLook : IDisposable
     }
 
     /// <summary>Keeps each flame on its cell while it burns; fills empty flames from the hottest cells not too near another.</summary>
-    private void Kindle(List<(Cell Cell, float Heat)> cells, Vector3 near)
+    private void Kindle(List<(Cell Cell, float Heat, float Smoke)> cells, Vector3 near)
     {
         Dictionary<Cell, float> hot = cells.Where(entry => entry.Heat >= FlameHeat).ToDictionary(entry => entry.Cell, entry => entry.Heat);
         List<Vector3> standing = [];
@@ -373,7 +428,7 @@ internal sealed class GrassFireLook : IDisposable
         for (int slot = 0; slot < slots; slot++)
         {
             bool on = squares[slot] is not null;
-            (Vector3 at, int count) = squares[slot] ?? (Vector3.Zero, 0);
+            (Vector3 at, int count, _) = squares[slot] ?? (Vector3.Zero, 0, 0f);
             double phase = (seconds * FlickerHertz) + (slot * 1.7);
             float flicker = 1f - (FlickerDepth * (float)(0.5 + (0.3 * Math.Sin(phase)) + (0.2 * Math.Sin(phase * 2.3 + 1.1))));
             LightDescriptor descriptor = new(
@@ -399,7 +454,7 @@ internal sealed class GrassFireLook : IDisposable
         int placed = 0;
         for (int slot = 0; slot < slots; slot++)
         {
-            if (squares[slot] is not (Vector3 at, int count))
+            if (squares[slot] is not (Vector3 at, int count, float smoky))
             {
                 continue;
             }
@@ -411,7 +466,8 @@ internal sealed class GrassFireLook : IDisposable
             float plume = Math.Clamp(PlumeReachLeast + (PlumeReachPerCell * count), PlumeReachLeast, PlumeReachMost);
             Vector3 downwind = new Vector3(drift.X, 0f, drift.Z) * PlumeDownwindSeconds;
             engine.CameraView.SetFogVolume(new FogVolumeRequest(ProductIds.ChemistryFireVolumeBase + (uint)placed++, FogVolumeShape.Ellipsoid,
-                frame.ToLocal(at.X + downwind.X, at.Y + PlumeAbove, at.Z + downwind.Z), new Vector3(plume, PlumeHalfHeight, plume), 0f, PlumeDensity,
+                frame.ToLocal(at.X + downwind.X, at.Y + PlumeAbove, at.Z + downwind.Z), new Vector3(plume, PlumeHalfHeight, plume), 0f,
+                Math.Clamp(PlumeDensityPerSmoke * smoky, PlumeDensityLeast, PlumeDensityMost),
                 PlumeAlbedo, PlumeEmission, PlumeEdge, PlumeNoiseScale, PlumeNoiseStrength, new Vector3(drift.X, PlumeRise, drift.Z)));
         }
 
@@ -456,7 +512,7 @@ internal sealed class GrassFireLook : IDisposable
         float across = DecalLeast + ((DecalMost - DecalLeast) * Unit(cell, 4));
         double x = cell.X + 0.5 + (DecalJitter * ((2 * Unit(cell, 5)) - 1)), z = cell.Z + 0.5 + (DecalJitter * ((2 * Unit(cell, 6)) - 1));
         engine.CameraView.SetDecal(new DecalRequest(id, frame.ToLocal(x, cell.Y + 0.5, z),
-            Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2 * (Hash(cell, 7) % 4)), new Vector3(across, DecalDepth, across), region, new Color(1f, 1f, 1f, 1f),
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2 * (Hash(cell, 7) % 4)), new Vector3(across, DecalDepth, across), region, Tone(cell),
             Roughness: 0f, NormalStrength: 0f, AngleFalloff: true, OnVegetation: false, OnAnimatedMeshes: false, LifeSeconds: 0f, FadeSeconds: 0f));
     }
 
@@ -475,6 +531,15 @@ internal sealed class GrassFireLook : IDisposable
     private static Vector4 Region(float x, float y) => new(x / AtlasTexels, y / AtlasTexels, (x + Tile) / AtlasTexels, (y + Tile) / AtlasTexels);
 
     private static Vector3 Centre(Cell cell) => new(cell.X + 0.5f, cell.Y + 0.5f, cell.Z + 0.5f);
+
+    /// <summary>Each cell's tiles a little lighter or darker, so neighbouring tiles of the same kind do not read as one paving.</summary>
+    private static Color Tone(Cell cell)
+    {
+        float tone = 1f - (ToneReach * Unit(cell, 8));
+        return new Color(tone, tone, tone, 1f);
+    }
+
+    private const float ToneReach = 0.3f;
 
     /// <summary>The cell's hash as a number from 0 to 1.</summary>
     private static float Unit(Cell cell, uint salt) => (Hash(cell, salt) & 0xFFFF) / 65535f;
