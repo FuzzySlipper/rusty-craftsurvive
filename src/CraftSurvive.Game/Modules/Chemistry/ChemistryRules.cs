@@ -232,25 +232,9 @@ internal static class FieldWindow
         return [.. wanted.OrderBy(chunk => ColumnsApart(chunk, columnX, columnZ))];
     }
 
-    /// <summary>The chunk columns holding a burning cell; only active chunks are read, since a sleeping one cannot be burning.</summary>
-    internal static HashSet<(int X, int Z)> BurningColumns(ChemistryField field, IReadOnlySet<int> burning)
-    {
-        HashSet<(int X, int Z)> columns = [];
-        ushort[] materials = new ushort[Size * Size * Size];
-        foreach (Cell origin in field.LoadedChunks())
-        {
-            if (field.IsActive(origin) && !columns.Contains((Column(origin.X), Column(origin.Z))))
-            {
-                field.ReadChunkMaterials(origin, materials);
-                if (materials.AsSpan().ContainsAny([.. burning.Select(material => (ushort)material)]))
-                {
-                    columns.Add((Column(origin.X), Column(origin.Z)));
-                }
-            }
-        }
-
-        return columns;
-    }
+    /// <summary>The chunk columns holding a burning cell.</summary>
+    internal static HashSet<(int X, int Z)> BurningColumns(IEnumerable<BurningCell> burning) =>
+        [.. burning.Select(burnt => (Column(burnt.Cell.X), Column(burnt.Cell.Z)))];
 
     /// <summary>The chunk column a world position stands in.</summary>
     internal static (int X, int Z) ColumnOf(Vector3 world) =>
@@ -287,5 +271,68 @@ internal static class ScarHealing
         h = (h ^ (h >> 31)) * 0xBF58_476D_1CE4_E5B9UL;
         h ^= h >> 29;
         return (h >> 11) / (double)(1UL << 53);
+    }
+}
+
+/// <summary>A burning cell as the fire's look reads it (#10296): where, how hot, and the most smoke in the air just over it.</summary>
+internal readonly record struct BurningCell(Cell Cell, float Heat, float Smoke);
+
+/// <summary>
+/// Reads the field's fire in one pass (#10384): the burning cells of its active chunks (a sleeping chunk cannot be
+/// burning), each with its heat and the smoke over it. Engine-free, so the field's worker reads it with the step.
+/// </summary>
+internal static class FireScan
+{
+    private const int Size = ChemistryField.ChunkSize;
+    private const int CellsPerChunk = Size * Size * Size;
+
+    /// <summary>A burning cell's smoke is read in the air this many cells over it, within its chunk.</summary>
+    private const int SmokeCellsOver = 3;
+
+    internal static List<BurningCell> Read(ChemistryField field, IReadOnlySet<int> burning, int heatQuantity, int smokeQuantity)
+    {
+        List<BurningCell> found = [];
+        ushort[] materials = new ushort[CellsPerChunk];
+        float[] heat = new float[CellsPerChunk], smoke = new float[CellsPerChunk];
+        foreach (Cell origin in field.LoadedChunks())
+        {
+            if (!field.IsActive(origin))
+            {
+                continue;
+            }
+
+            field.ReadChunkMaterials(origin, materials);
+            bool any = false;
+            for (int index = 0; index < CellsPerChunk && !any; index++)
+            {
+                any = burning.Contains(materials[index]);
+            }
+
+            if (!any)
+            {
+                continue;
+            }
+
+            field.ReadChunk(origin, heatQuantity, heat);
+            field.ReadChunk(origin, smokeQuantity, smoke);
+            for (int index = 0; index < CellsPerChunk; index++)
+            {
+                if (!burning.Contains(materials[index]))
+                {
+                    continue;
+                }
+
+                int y = index / Size % Size;
+                float over = 0f;
+                for (int up = 1; up <= SmokeCellsOver && y + up < Size; up++)
+                {
+                    over = Math.Max(over, smoke[index + (up * Size)]);
+                }
+
+                found.Add(new BurningCell(origin.Offset(index % Size, y, index / (Size * Size)), heat[index], over));
+            }
+        }
+
+        return found;
     }
 }

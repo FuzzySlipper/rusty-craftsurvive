@@ -23,6 +23,9 @@ public sealed class ChemistryDebugModule : IDebugCommandModule
     [DebugCommand("craft.chem.changes", Description = "Diagnoses sleep: the first call keeps the field's quantities; the next lists, for each awake chunk, each quantity's largest change since then and where.")]
     public string Changes() => chemistrySource().ChangesReadout();
 
+    [DebugCommand("craft.chem.inline", Description = "Comparison (#10384): 1 has the update wait for the field's steps, as before the worker; 0 (the default) steps on the worker.")]
+    public string Inline(int on) => chemistrySource().SetInline(on != 0);
+
     [DebugCommand("craft.chem.weather", Description = "Reads the ambient the field took from the weather: air heat, the wind's drift in cells a second, rain, and the lying snow's cover.")]
     public string Weather() => chemistrySource().AmbientReadout();
 

@@ -27,11 +27,13 @@
   // Each written cell takes one of the terrain overlay's 65,536 entries until its scar grows back. Fire writes only while the
   // overlay keeps this many free for the player's own edits. Writes are gathered and applied together every so
   // many seconds, at most this many cells at once, since each edit also refreshes residency and presentation.
+  // A write's terrain edit costs the update about 25 ms whatever its size (#10384: residency and presentation), so
+  // writes are few and full rather than small and frequent.
   "budget": { "keepFreeEntries": 32768, "cellsPerWrite": 256, "writeSeconds": 1 },
   // The field: chunk columns this far around the player's, the chunk holding each column's surface and the
   // one above it, loading at most this many chunks an update. Beside a burning column the field reaches this
   // much further, so a fire carries on past the window; beyond it, it stops at the field's edge.
-  "field": { "reachChunks": 1, "burningReachChunks": 2, "loadsPerUpdate": 2, "stepSeconds": 0.1, "stepsPerUpdate": 2 },
+  "field": { "reachChunks": 1, "burningReachChunks": 2, "loadsPerUpdate": 1, "stepSeconds": 0.1, "stepsPerUpdate": 2 },
   // The weather as ambient: air heat between warm and bitter by the Cold channel; Wind along the flow carries
   // heat and smoke at up to this many cells a second; Precipitation scales rain's wetting.
   "ambient": { "warmHeat": 22, "coldHeat": -12, "windCellsPerSecond": 0.8, "refreshSeconds": 2 },

@@ -841,7 +841,8 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>
     /// What the recipe made at a cell, its columns kept (the recipe is deterministic): an edit's overlay asks this of every
-    /// cell it newly touches, and a blast touches hundreds in a few columns.
+    /// cell it newly touches, a blast touches hundreds in a few columns, and reading a chunk's cells (the chemistry field
+    /// loading one, #10384) asks 16 cells of each column.
     /// </summary>
     internal ushort GeneratedAt(VoxelAddress address)
     {
@@ -858,7 +859,7 @@ internal sealed class TerrainWorld : IDisposable
     private readonly Dictionary<(long X, long Z), TerrainColumn> generatedColumns = [];
 
     internal ushort MaterialAt(VoxelAddress address) =>
-        overlayStore.Overlay.TryGetMaterial(address, out ushort material) ? material : recipe.MaterialAt(address);
+        overlayStore.Overlay.TryGetMaterial(address, out ushort material) ? material : GeneratedAt(address);
 
     /// <summary>
     /// Applies an edit whose cells the caller has already decided on - the volume of a charge, the

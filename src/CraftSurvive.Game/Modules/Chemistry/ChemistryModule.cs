@@ -50,6 +50,15 @@ internal sealed class ChemistryModule : IProductModule
     private ChemistryField field;
     private ChemistryAmbient? applied;
     private HashSet<(int X, int Z)> burningColumns = [];
+    private Task<StepResult>? pending;
+    private bool inline;
+
+    /// <summary>For comparison (#10384): whether the update waits for its own steps, as the field stepped before the worker.</summary>
+    internal string SetInline(bool on)
+    {
+        inline = on;
+        return $"chemistry steps {(on ? "on the update (inline)" : "on the worker")}";
+    }
     private double owed, sinceAmbient, sinceWrite, stepMilliseconds;
     private long written, dropped, refused;
     private string lastRefusal = "none";
@@ -85,11 +94,52 @@ internal sealed class ChemistryModule : IProductModule
 
     public void Start() => scars.Start();
 
+    /// <remarks>
+    /// The field steps off the update (#10384): an update hands the steps its time owes to a worker, which steps the field
+    /// and reads its fire, and a later update takes what it left - the material changes and the burning cells - and shows
+    /// them. Only the update's elapsed time decides how many steps run; the worker is no loop of its own. While a step
+    /// runs nothing else touches the field: this update leaves it alone, and anything else that must (a terrain edit, a
+    /// debug read) waits for the step first.
+    /// </remarks>
     public void Update(ProductStep step)
+    {
+        long began = Stopwatch.GetTimestamp();
+        UpdateOnThread(step);
+        double milliseconds = Stopwatch.GetElapsedTime(began).TotalMilliseconds;
+        updateMilliseconds = (updateMilliseconds * StepCostKept) + (milliseconds * (1 - StepCostKept));
+        worstUpdateMilliseconds = Math.Max(worstUpdateMilliseconds * WorstUpdateKept, milliseconds);
+    }
+
+    /// <summary>The update's worst cost decays by this share an update, so the readout shows the recent worst.</summary>
+    private const double WorstUpdateKept = 0.995;
+
+    private double updateMilliseconds, worstUpdateMilliseconds;
+
+    /// <summary>The update's parts whose recent worst the readout shows, to tell where a slow update went.</summary>
+    private enum UpdatePart
+    {
+        Take,
+        Follow,
+        Write,
+        Reload,
+    }
+
+    private readonly double[] worstPart = new double[Enum.GetValues<UpdatePart>().Length];
+
+    private void Part(UpdatePart part, ref long mark)
+    {
+        long now = Stopwatch.GetTimestamp();
+        worstPart[(int)part] = Math.Max(worstPart[(int)part] * WorstUpdateKept, Stopwatch.GetElapsedTime(mark, now).TotalMilliseconds);
+        mark = now;
+    }
+
+    private void UpdateOnThread(ProductStep step)
     {
         if (away())
         {
             // A dungeon or study is its own space: the field waits, and its fire is not drawn there.
+            Idle();
+            pending = null;
             look.Hide();
             return;
         }
@@ -98,41 +148,103 @@ internal sealed class ChemistryModule : IProductModule
 
         Vector3 player = playerWorld();
         scars.Update(step.ElapsedSeconds, weather.Hours, player);
-        Follow(player);
+        owed += step.ElapsedSeconds;
         sinceAmbient += step.ElapsedSeconds;
+        sinceWrite += step.ElapsedSeconds;
+        if (pending is { IsCompleted: false })
+        {
+            return;
+        }
+
+        long mark = Stopwatch.GetTimestamp();
+        Take(player);
+        Part(UpdatePart.Take, ref mark);
+        Follow(player);
+        Part(UpdatePart.Follow, ref mark);
         if (applied is null || sinceAmbient >= settings.Ambient.RefreshSeconds)
         {
             sinceAmbient = 0;
             Ambient(player);
         }
 
-        owed += step.ElapsedSeconds;
-        int steps = 0;
-        while (owed >= settings.Field.StepSeconds && steps < settings.Field.StepsPerUpdate)
-        {
-            owed -= settings.Field.StepSeconds;
-            Step();
-            steps++;
-        }
-
-        // Time beyond the steps one update may run is dropped, not owed.
-        owed = Math.Min(owed, settings.Field.StepSeconds);
-        sinceWrite += step.ElapsedSeconds;
         if (sinceWrite >= settings.Budget.WriteSeconds)
         {
             sinceWrite = 0;
             Write();
         }
 
+        Part(UpdatePart.Write, ref mark);
+
+        // Time beyond the steps one hand-off may run is dropped, not owed.
+        int steps = Math.Min((int)(owed / settings.Field.StepSeconds), settings.Field.StepsPerUpdate);
+        owed = Math.Min(owed - (steps * settings.Field.StepSeconds), settings.Field.StepSeconds);
         if (steps > 0)
         {
-            burningColumns = FieldWindow.BurningColumns(field, blocks.Burning);
-            look.Show(field, blocks.Burning, heatQuantity, smokeQuantity, player);
+            ChemistryField stepping = field;
+            pending = Task.Run(() => Run(stepping, steps));
+            if (inline)
+            {
+                // The comparison (#10384): the update waits for its steps and shows them at once, as before the worker.
+                pending.Wait();
+                Take(player);
+            }
         }
     }
 
+    /// <summary>The worker's part: the steps, then the fire as they left it. It touches nothing but the field.</summary>
+    private StepResult Run(ChemistryField stepping, int steps)
+    {
+        List<MaterialChange> changes = [];
+        long began = Stopwatch.GetTimestamp();
+        for (int index = 0; index < steps; index++)
+        {
+            stepping.Step();
+            changes.AddRange(stepping.MaterialChanges);
+        }
+
+        double milliseconds = Stopwatch.GetElapsedTime(began).TotalMilliseconds / steps;
+        return new StepResult(changes, FireScan.Read(stepping, blocks.Burning, heatQuantity, smokeQuantity), stepping.Drift, milliseconds);
+    }
+
+    /// <summary>Takes a finished step's result: its burnt cells to the look and the write-back, its fire to the look.</summary>
+    private void Take(Vector3 player)
+    {
+        if (pending is not { IsCompleted: true } done)
+        {
+            return;
+        }
+
+        pending = null;
+        StepResult result = done.Result;
+        stepMilliseconds = (stepMilliseconds * StepCostKept) + (result.Milliseconds * (1 - StepCostKept));
+        look.Burnt(result.Changes, burntMaterial, player);
+        foreach ((Cell Cell, WriteBackSetting Rule) entry in WriteBack.Wanted(result.Changes, blocks))
+        {
+            waiting.Enqueue(entry);
+            if (waiting.Count > MostWaiting)
+            {
+                waiting.Dequeue();
+                dropped++;
+            }
+        }
+
+        burningColumns = FieldWindow.BurningColumns(result.Burning);
+        look.Show(result.Burning, result.Drift, player);
+    }
+
+    /// <summary>Waits for a running step, so the field can be touched; its result is taken by the next update.</summary>
+    private void Idle() => pending?.Wait();
+
+    /// <summary>What a worker's steps left: the identity changes, the burning cells, the drift, and the mean step's cost.</summary>
+    private sealed record StepResult(List<MaterialChange> Changes, List<BurningCell> Burning, Vector3 Drift, double Milliseconds);
+
+    /// <summary>The step cost readout is a running mean keeping this share of the last.</summary>
+    private const double StepCostKept = 0.9;
+
     public void Restart()
     {
+        Idle();
+        pending = null;
         field = NewField();
         applied = null;
         owed = 0;
@@ -144,6 +256,7 @@ internal sealed class ChemistryModule : IProductModule
 
     public void Dispose()
     {
+        Idle();
         terrain.Edited -= Reload;
         look.Dispose();
         scars.Flush();
@@ -152,6 +265,7 @@ internal sealed class ChemistryModule : IProductModule
     /// <summary>Heats the ground at a world column's surface, as a torch would; the fire, if any, is the field's.</summary>
     internal string IgniteAt(double x, double z)
     {
+        Idle();
         long cellX = (long)Math.Floor(x), cellZ = (long)Math.Floor(z);
         Cell top = new((int)cellX, (int)terrain.Recipe.SurfaceAt(cellX, cellZ), (int)cellZ);
         if (!field.IsLoaded(top))
@@ -167,6 +281,7 @@ internal sealed class ChemistryModule : IProductModule
     /// <summary>A cell's material, sky exposure and quantities.</summary>
     internal string CellReadout(long x, long y, long z)
     {
+        Idle();
         Cell cell = new((int)x, (int)y, (int)z);
         if (!field.IsLoaded(cell))
         {
@@ -179,7 +294,13 @@ internal sealed class ChemistryModule : IProductModule
     }
 
     /// <summary>Each loaded chunk: its first cell, whether it is awake, and its commonest materials.</summary>
-    internal string ChunksReadout() => string.Join(" | ", field.LoadedChunks().Select(origin =>
+    internal string ChunksReadout()
+    {
+        Idle();
+        return ChunksReadoutNow();
+    }
+
+    private string ChunksReadoutNow() => string.Join(" | ", field.LoadedChunks().Select(origin =>
     {
         field.ReadChunkMaterials(origin, chunkMaterials);
         IEnumerable<string> commonest = chunkMaterials.GroupBy(material => material).OrderByDescending(group => group.Count()).Take(3)
@@ -194,6 +315,7 @@ internal sealed class ChemistryModule : IProductModule
     /// </summary>
     internal string ChangesReadout()
     {
+        Idle();
         if (changesFrom is not (long fromStep, Dictionary<Cell, float[]> kept))
         {
             changesFrom = (field.StepIndex, field.LoadedChunks().ToDictionary(origin => origin, Snapshot));
@@ -245,8 +367,16 @@ internal sealed class ChemistryModule : IProductModule
         return values;
     }
 
-    internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"chemistry chunks={field.ChunkCount} active={field.ActiveChunkCount} step={field.StepIndex} stepMs={stepMilliseconds:0.00} fires={look.Squares} ") +
+    internal string Readout()
+    {
+        Idle();
+        return ReadoutNow();
+    }
+
+    private string ReadoutNow() => string.Create(CultureInfo.InvariantCulture,
+        $"chemistry chunks={field.ChunkCount} active={field.ActiveChunkCount} step={field.StepIndex} stepMs={stepMilliseconds:0.00} updateMs={updateMilliseconds:0.00} updateWorst={worstUpdateMilliseconds:0.00} ") +
+        string.Create(CultureInfo.InvariantCulture,
+        $"worstTake={worstPart[(int)UpdatePart.Take]:0.00} worstFollow={worstPart[(int)UpdatePart.Follow]:0.00} worstWrite={worstPart[(int)UpdatePart.Write]:0.00} worstReload={worstPart[(int)UpdatePart.Reload]:0.00} fires={look.Squares} ") +
         look.Readout() + " " +
         string.Create(CultureInfo.InvariantCulture,
         $"written={written} waiting={waiting.Count} dropped={dropped} refused={refused} overlay={terrain.OverlayEntries}/{TerrainConstants.MaximumOverlayEntries} ") +
@@ -254,7 +384,13 @@ internal sealed class ChemistryModule : IProductModule
         $"keepFree={settings.Budget.KeepFreeEntries} writable={WriteBack.Allowed(terrain.OverlayEntries, TerrainConstants.MaximumOverlayEntries, settings.Budget)} lastRefusal={lastRefusal} ") +
         scars.Readout();
 
-    internal string AmbientReadout() => applied is ChemistryAmbient ambient
+    internal string AmbientReadout()
+    {
+        Idle();
+        return AmbientReadoutNow();
+    }
+
+    private string AmbientReadoutNow() => applied is ChemistryAmbient ambient
         ? string.Create(CultureInfo.InvariantCulture,
             $"heat={ambient.Heat:0.0} drift=({ambient.Drift.X:0.00},{ambient.Drift.Z:0.00}) rain={ambient.Rain:0.00} rainModulator={field.Modulator("rain"):0.00} snow={ambient.Snow:0.00} snowModulator={field.Modulator("snow"):0.00}")
         : "not read yet";
@@ -366,23 +502,6 @@ internal sealed class ChemistryModule : IProductModule
         applied = ambient;
     }
 
-    private void Step()
-    {
-        long began = Stopwatch.GetTimestamp();
-        field.Step();
-        stepMilliseconds = (stepMilliseconds * 0.9) + (Stopwatch.GetElapsedTime(began).TotalMilliseconds * 0.1);
-        look.Burnt(field.MaterialChanges, burntMaterial, playerWorld());
-        foreach ((Cell Cell, WriteBackSetting Rule) entry in WriteBack.Wanted(field.MaterialChanges, blocks))
-        {
-            waiting.Enqueue(entry);
-            if (waiting.Count > MostWaiting)
-            {
-                waiting.Dequeue();
-                dropped++;
-            }
-        }
-    }
-
     /// <summary>Writes waiting burnt cells into the terrain, a batch at a time, within the overlay reserve.</summary>
     private void Write()
     {
@@ -421,6 +540,14 @@ internal sealed class ChemistryModule : IProductModule
 
     /// <summary>Reloads edited cells the field holds, so a cell the player or a fire changed reads as its new block.</summary>
     private void Reload(IReadOnlyList<TerrainVoxelEdit> edits)
+    {
+        Idle();
+        long mark = Stopwatch.GetTimestamp();
+        ReloadCells(edits);
+        Part(UpdatePart.Reload, ref mark);
+    }
+
+    private void ReloadCells(IReadOnlyList<TerrainVoxelEdit> edits)
     {
         foreach (TerrainVoxelEdit edit in edits)
         {

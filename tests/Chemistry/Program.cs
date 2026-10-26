@@ -221,7 +221,7 @@ Check.Section("grass fire", () =>
         }
     }
 
-    Check.That(holding.Count > 0 && FieldWindow.BurningColumns(dry, blocks.Burning).SetEquals(holding),
+    Check.That(holding.Count > 0 && FieldWindow.BurningColumns(FireScan.Read(dry, blocks.Burning, pack.Quantity("heat"), pack.Quantity("smoke"))).SetEquals(holding),
         "the burning columns are the chunk columns holding burning cells");
 
     ChemistryField burns = Meadow(dryGrass);

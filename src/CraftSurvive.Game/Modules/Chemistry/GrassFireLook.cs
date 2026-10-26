@@ -21,9 +21,6 @@ namespace CraftSurvive.Game.Modules.Chemistry;
 /// </summary>
 internal sealed class GrassFireLook : IDisposable
 {
-    private const int Size = ChemistryField.ChunkSize;
-    private const int CellsPerChunk = Size * Size * Size;
-
     // The atlas (textures/decals/atlas.png, grass-fire/fire_art.py): 256 x 256; the fire's 32 x 32 tiles from y 128.
     private const float AtlasTexels = 256f, Tile = 32f;
     private const int BurningTiles = 4, CharTiles = 4, CoolingTiles = 8;
@@ -85,8 +82,6 @@ internal sealed class GrassFireLook : IDisposable
     private readonly (Cell Cell, double At, bool Cold)?[] burnt = new (Cell, double, bool)?[MostBurntDecals];
     private readonly Queue<int> cooling = [];
     private readonly (Cell Cell, PresentationEmitter Emitter)?[] flames = new (Cell, PresentationEmitter)?[MostFlames];
-    private readonly ushort[] materials = new ushort[CellsPerChunk];
-    private readonly float[] heat = new float[CellsPerChunk], smoke = new float[CellsPerChunk];
     private readonly Stack<int> freeBurnt = new(Enumerable.Range(0, MostBurntDecals).Reverse());
     private int volumesPlaced;
     private RenderResource? flameSprite;
@@ -121,8 +116,7 @@ internal sealed class GrassFireLook : IDisposable
     /// <summary>The most smoke over any square shown, as the field holds it.</summary>
     internal float MostSmoke { get; private set; }
 
-    /// <summary>A burning cell's smoke is read in the air this many cells over it.</summary>
-    private const int SmokeCellsOver = 3;
+
 
     internal string Readout() =>
         string.Create(CultureInfo.InvariantCulture,
@@ -158,10 +152,10 @@ internal sealed class GrassFireLook : IDisposable
     }
 
     /// <summary>
-    /// Shows the field's fire as it stands after this update's steps: the burning cells' ground, the squares' lights and
-    /// smoke, and the flames. Reads only active chunks, since a sleeping one cannot be burning.
+    /// Shows the field's fire as its last steps left it (<see cref="FireScan"/>): the burning cells' ground, the squares'
+    /// lights and smoke, and the flames, leaning with the field's drift.
     /// </summary>
-    internal void Show(ChemistryField field, IReadOnlySet<int> burning, int heatQuantity, int smokeQuantity, Vector3 near)
+    internal void Show(IReadOnlyList<BurningCell> cells, Vector3 drift, Vector3 near)
     {
         if (!shown)
         {
@@ -170,10 +164,9 @@ internal sealed class GrassFireLook : IDisposable
         }
 
         Rebase();
-        lean = new Vector3(field.Drift.X, 0f, field.Drift.Z) * FlameLean;
-        List<(Cell Cell, float Heat, float Smoke)> cells = Burning(field, burning, heatQuantity, smokeQuantity);
+        lean = new Vector3(drift.X, 0f, drift.Z) * FlameLean;
         Ground(cells, near);
-        Gather(cells, near, field.Drift);
+        Gather(cells, near, drift);
         Kindle(cells, near);
     }
 
@@ -286,52 +279,8 @@ internal sealed class GrassFireLook : IDisposable
         flameSprite = null;
     }
 
-    /// <summary>The burning cells of the active chunks, their heat, and the smoke in the air just over them (in their chunk).</summary>
-    private List<(Cell Cell, float Heat, float Smoke)> Burning(ChemistryField field, IReadOnlySet<int> burning, int heatQuantity, int smokeQuantity)
-    {
-        List<(Cell, float, float)> found = [];
-        foreach (Cell origin in field.LoadedChunks())
-        {
-            if (!field.IsActive(origin))
-            {
-                continue;
-            }
-
-            field.ReadChunkMaterials(origin, materials);
-            bool any = false;
-            for (int index = 0; index < CellsPerChunk && !any; index++)
-            {
-                any = burning.Contains(materials[index]);
-            }
-
-            if (!any)
-            {
-                continue;
-            }
-
-            field.ReadChunk(origin, heatQuantity, heat);
-            field.ReadChunk(origin, smokeQuantity, smoke);
-            for (int index = 0; index < CellsPerChunk; index++)
-            {
-                if (burning.Contains(materials[index]))
-                {
-                    int y = index / Size % Size;
-                    float over = 0f;
-                    for (int up = 1; up <= SmokeCellsOver && y + up < Size; up++)
-                    {
-                        over = Math.Max(over, smoke[index + (up * Size)]);
-                    }
-
-                    found.Add((origin.Offset(index % Size, y, index / (Size * Size)), heat[index], over));
-                }
-            }
-        }
-
-        return found;
-    }
-
     /// <summary>The burning cells' decals: placed as cells catch, taken away as they burn out or go out (the nearest kept).</summary>
-    private void Ground(List<(Cell Cell, float Heat, float Smoke)> cells, Vector3 near)
+    private void Ground(IReadOnlyList<BurningCell> cells, Vector3 near)
     {
         HashSet<Cell> now = [.. cells
             .Select(entry => entry.Cell)
@@ -359,7 +308,7 @@ internal sealed class GrassFireLook : IDisposable
     /// The fire's squares, the nearest: each one's middle (on top of its highest burning cell), how many cells burn in it,
     /// and the most smoke in the field's air over them.
     /// </summary>
-    private void Gather(List<(Cell Cell, float Heat, float Smoke)> cells, Vector3 near, Vector3 drift)
+    private void Gather(IReadOnlyList<BurningCell> cells, Vector3 near, Vector3 drift)
     {
         Dictionary<(int X, int Z), (Vector3 Sum, int Count, int Top, float Smoke)> found = [];
         foreach ((Cell cell, _, float over) in cells)
@@ -383,7 +332,7 @@ internal sealed class GrassFireLook : IDisposable
     }
 
     /// <summary>Keeps each flame on its cell while it burns; fills empty flames from the hottest cells not too near another.</summary>
-    private void Kindle(List<(Cell Cell, float Heat, float Smoke)> cells, Vector3 near)
+    private void Kindle(IReadOnlyList<BurningCell> cells, Vector3 near)
     {
         Dictionary<Cell, float> hot = cells.Where(entry => entry.Heat >= FlameHeat).ToDictionary(entry => entry.Cell, entry => entry.Heat);
         List<Vector3> standing = [];
