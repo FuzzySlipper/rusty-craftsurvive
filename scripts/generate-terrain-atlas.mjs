@@ -15,7 +15,7 @@ const TILE = 64;
 const GRID = 4;
 // A fifth row holds the blocks added after the V1 floor (#10041: dry grass; #10095: the cave's own rock, which
 // runs on into a sixth). The cave rock's tiles are stand-ins: caves draw it in their own materials.
-const ROWS = 6;
+const ROWS = 7;
 const EXTENT = TILE * GRID;
 const HEIGHT = TILE * ROWS;
 
@@ -194,7 +194,15 @@ const painters = {
   'mossy-rock': (x, y) => tint(sourcePixel(TILE, TILE, x, y), [0.55, 0.85, 0.45]),
   'slimy-rock': (x, y) => tint(sourcePixel(TILE, TILE, x, y), [0.6, 0.65, 0.4]),
   moonmilk: (x, y) => tint(sourcePixel(TILE, TILE, x, y), [1.6, 1.58, 1.5]),
+  // A grass fire's scar (#10296): the grass top charred, as scripts/make-burnt-ground.py chars the walking ground.
+  'burnt-ground': (x, y) => charred(sourcePixel(0, 0, x, y)),
 };
+
+function charred([r, g, b, a]) {
+  const value = Math.max(r, g, b) / 255;
+  const level = 0.07 + 0.32 * value;
+  return [Math.round(level * 255), Math.round(level * 0.9 * 255), Math.round(level * 0.78 * 255), a];
+}
 
 function tint([r, g, b, a], [tr, tg, tb]) {
   const byte = (value) => Math.max(0, Math.min(255, Math.round(value)));
@@ -251,6 +259,7 @@ const layout = [
   { id: 'mossy-rock', block: 'mossy-rock', face: 'base', at: [TILE, TILE * 5] },
   { id: 'slimy-rock', block: 'slimy-rock', face: 'base', at: [TILE * 2, TILE * 5] },
   { id: 'moonmilk', block: 'moonmilk', face: 'base', at: [TILE * 3, TILE * 5] },
+  { id: 'burnt-ground', block: 'burnt-ground', face: 'base', at: [0, TILE * 6] },
 ];
 
 // The source tiles keep their coordinates in every atlas so far (128 and 256 wide), so they copy across.

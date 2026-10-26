@@ -78,7 +78,8 @@ internal static class WriteBack
 
     /// <summary>
     /// Of the cells waiting, the ones to write now, grouped by the block each becomes: at most <paramref name="allowed"/>,
-    /// and only where the world still holds a block the rule may replace (an edit since the burn wins).
+    /// and only where the world still holds a block the rule may replace (an edit since the burn wins). The cell under each
+    /// is written too where the world holds one of the rule's blocks beneath, within the same allowance.
     /// </summary>
     internal static Dictionary<BlockId, List<Cell>> Choose(IEnumerable<(Cell Cell, WriteBackSetting Rule)> waiting, Func<Cell, ushort> worldBlock, int allowed)
     {
@@ -103,6 +104,12 @@ internal static class WriteBack
 
             cells.Add(cell);
             count++;
+            Cell under = cell.Offset(0, -1, 0);
+            if (count < allowed && rule.Beneath.Contains((BlockId)worldBlock(under)))
+            {
+                cells.Add(under);
+                count++;
+            }
         }
 
         return chosen;
@@ -286,5 +293,29 @@ internal static class BurningPlaces
             .Select(square => (square.Sum / square.Count) with { Y = square.Top + 1 })
             .OrderBy(place => Vector3.DistanceSquared(place, near))
             .Take(slots)];
+    }
+}
+
+/// <summary>When a grass fire's scar grows back, cell by cell (#10296): patchily, each cell somewhere in the regrowth time.</summary>
+internal static class ScarHealing
+{
+    /// <summary>
+    /// Whether a scar cell is due to grow back: its column burnt at <paramref name="burntHours"/>, and its column's hash puts
+    /// it between the <paramref name="earliest"/> share of the regrowth time and the whole of it. A column heals whole, the
+    /// charred ground beneath with the surface, so a healed surface never blends with char under it.
+    /// </summary>
+    internal static bool Due(long x, long z, double burntHours, double hours, double regrowHours, double earliest)
+    {
+        double share = earliest + ((1 - earliest) * Unit(x, z));
+        return hours - burntHours >= regrowHours * share;
+    }
+
+    /// <summary>The column's hash as a number from 0 to 1.</summary>
+    internal static double Unit(long x, long z)
+    {
+        ulong h = ((ulong)x * 0x9E37_79B9_7F4A_7C15UL) ^ ((ulong)z * 0x1656_67B1_9E37_79F9UL);
+        h = (h ^ (h >> 31)) * 0xBF58_476D_1CE4_E5B9UL;
+        h ^= h >> 29;
+        return (h >> 11) / (double)(1UL << 53);
     }
 }

@@ -39,6 +39,7 @@
     <Compile Include="$(ProductModules)Water/RiverStageCodec.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/RiverStageState.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Weather/SnowCoverCodec.cs" LinkBase="Product/Weather" />
+    <Compile Include="$(ProductModules)Chemistry/BurnScarsCodec.cs" LinkBase="Product/Chemistry" />
     <Compile Include="$(ProductModules)Weather/SnowCell.cs" LinkBase="Product/Weather" />
     <Compile Include="$(ProductModules)Travel/BoatKind.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Travel/Sled.cs" LinkBase="Product/Travel" />

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
   "image": "terrain-atlas.png",
-  "contentHash": "sha256:323c361089969e3a632bdda2d096657e8725d05fc7e86ce51af628c0b9e622a3",
+  "contentHash": "sha256:9778d41df8100def7808849ce753455b83b3e67edc8dfabec37e4ac6878cece4",
   "extent": [
     256,
-    384
+    448
   ],
   "tileExtent": [
     64,
@@ -251,6 +251,16 @@
       "contentMin": [
         192,
         320
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "burnt-ground",
+      "block": "burnt-ground",
+      "face": "base",
+      "contentMin": [
+        0,
+        384
       ],
       "authored": "scripts/generate-terrain-atlas.mjs"
     }

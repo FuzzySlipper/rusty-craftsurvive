@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Chemistry;
 using CraftSurvive.Game.Modules.Weather;
 using CraftSurvive.Game.Modules.Water;
 using System.Buffers;
@@ -99,6 +100,9 @@ SavedForm[] forms =
     SavedForm.For(SaveManifest.WeatherSnow, new SnowCoverCodec(identity),
         (IReadOnlyList<SnowCell>)[new SnowCell(-3, -1, 0.25, 610.5), new SnowCell(4, -1, 0, 611), new SnowCell(-2, 7, 0.8, 2.25)], SnowCoverCodec.RecordBytes,
         (left, right) => left.SequenceEqual(right), seed => new SnowCoverCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.ChemistryScars, new BurnScarsCodec(identity),
+        (IReadOnlyList<ScarColumn>)[new ScarColumn(-6779, 2028, 9250.5), new ScarColumn(1187, 2028, 9251), new ScarColumn(-2, 8187, 12)], BurnScarsCodec.RecordBytes,
+        (left, right) => left.SequenceEqual(right), seed => new BurnScarsCodec(identity with { Seed = seed })),
 ];
 
 // --- known places (#9471): home first, then the journal, newest first, entrances marked as such --------

@@ -51,4 +51,10 @@ internal enum BlockId : ushort
 
     /// <summary>Moonmilk: a pale, pasty microbial deposit on long-dry rock under a light drip.</summary>
     Moonmilk = 23,
+
+    /// <summary>
+    /// Ground a grass fire burnt (#10296): written by the chemistry field over the grass it burnt, and grown back to
+    /// the generator's ground over days (BurnScars). Drawn as charred ground near the player, as ordinary ground far off.
+    /// </summary>
+    BurntGround = 24,
 }

@@ -2,7 +2,9 @@ namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
 /// Sole mutable owner of terrain overrides. A zero stored material means an
-/// accepted clear operation; absent entries use the deterministic recipe.
+/// accepted clear operation; absent entries use the deterministic recipe. Given the
+/// recipe's own materials, an edit that sets a cell back to what the recipe made
+/// releases its override (#10296: a burnt scar growing back frees its entries).
 /// </summary>
 internal sealed class TerrainOverlayState
 {
@@ -11,17 +13,20 @@ internal sealed class TerrainOverlayState
     /// <summary>How many overrides fall in each chunk, so "does the player touch this chunk" is one lookup.</summary>
     private readonly Dictionary<TerrainChunkAddress, int> perChunk = [];
 
-    /// <summary>The columns any override stands in, and the area changed since the vegetation tiles last asked (#10016).</summary>
-    private readonly HashSet<(long X, long Z)> columns = [];
+    /// <summary>How many overrides stand in each column, and the area changed since the vegetation tiles last asked (#10016).</summary>
+    private readonly Dictionary<(long X, long Z), int> columns = [];
     private (long MinX, long MinZ, long MaxX, long MaxZ)? changedColumns;
     private readonly ulong seed;
+    private readonly Func<VoxelAddress, ushort>? generated;
     private ulong revision;
     private TerrainOverlaySnapshot? snapshot;
     private ulong snapshotRevision = ulong.MaxValue;
 
-    internal TerrainOverlayState(ulong seed)
+    /// <param name="generated">The recipe's material at a cell; without it every edited cell keeps its override for good.</param>
+    internal TerrainOverlayState(ulong seed, Func<VoxelAddress, ushort>? generated = null)
     {
         this.seed = seed;
+        this.generated = generated;
     }
 
     internal int Count => materials.Count;
@@ -37,11 +42,11 @@ internal sealed class TerrainOverlayState
     internal bool TouchesChunk(TerrainChunkAddress chunk) => perChunk.ContainsKey(chunk);
 
     /// <summary>Whether the player has changed any cell in the column.</summary>
-    internal bool TouchesColumn(long x, long z) => columns.Contains((x, z));
+    internal bool TouchesColumn(long x, long z) => columns.ContainsKey((x, z));
 
     /// <summary>Whether the player has changed any column in the rectangle (inclusive).</summary>
     internal bool TouchesColumns(long minX, long minZ, long maxX, long maxZ) =>
-        columns.Any(column => column.X >= minX && column.X <= maxX && column.Z >= minZ && column.Z <= maxZ);
+        columns.Keys.Any(column => column.X >= minX && column.X <= maxX && column.Z >= minZ && column.Z <= maxZ);
 
     /// <summary>The columns changed since the last call, as one bounding rectangle, and forgets them.</summary>
     internal (long MinX, long MinZ, long MaxX, long MaxZ)? TakeChangedColumns()
@@ -53,7 +58,6 @@ internal sealed class TerrainOverlayState
 
     private void MarkColumn(long x, long z)
     {
-        columns.Add((x, z));
         changedColumns = changedColumns is var (minX, minZ, maxX, maxZ)
             ? (Math.Min(minX, x), Math.Min(minZ, z), Math.Max(maxX, x), Math.Max(maxZ, z))
             : (x, z, x, z);
@@ -70,9 +74,14 @@ internal sealed class TerrainOverlayState
         return materials.Count + NewEntries(edits) <= TerrainConstants.MaximumOverlayEntries;
     }
 
-    /// <summary>How many entries these edits add: each distinct cell not already overridden. Admission and apply both count this way.</summary>
+    /// <summary>
+    /// How many entries these edits add: each distinct cell not already overridden, unless it is set to what the recipe
+    /// made there. Admission and apply both count this way.
+    /// </summary>
     private int NewEntries(IEnumerable<TerrainVoxelEdit> edits) =>
-        edits.Select(edit => edit.Address).Distinct().Count(address => !materials.ContainsKey(address));
+        edits.DistinctBy(edit => edit.Address).Count(edit => !materials.ContainsKey(edit.Address) && !Generated(edit));
+
+    private bool Generated(TerrainVoxelEdit edit) => generated is not null && generated(edit.Address) == edit.Material;
 
     /// <summary>
     /// The overlay as a sorted, validated value. It is rebuilt only when the overlay has changed
@@ -101,13 +110,16 @@ internal sealed class TerrainOverlayState
 
         foreach (TerrainVoxelEdit edit in edits)
         {
-            if (!materials.ContainsKey(edit.Address))
+            if (Generated(edit))
             {
-                TerrainChunkAddress chunk = edit.Address.Chunk;
-                perChunk[chunk] = perChunk.GetValueOrDefault(chunk) + 1;
+                if (materials.Remove(edit.Address)) Release(edit.Address);
+            }
+            else
+            {
+                if (!materials.ContainsKey(edit.Address)) Take(edit.Address);
+                materials[edit.Address] = edit.Material;
             }
 
-            materials[edit.Address] = edit.Material;
             MarkColumn(edit.Address.X, edit.Address.Z);
         }
 
@@ -132,7 +144,7 @@ internal sealed class TerrainOverlayState
         materials.Clear();
         perChunk.Clear();
         // The columns edited before the restore change back too.
-        foreach ((long x, long z) in columns.ToArray()) MarkColumn(x, z);
+        foreach ((long x, long z) in columns.Keys.ToArray()) MarkColumn(x, z);
         columns.Clear();
         foreach (TerrainOverlayEntry entry in snapshot.Entries)
         {
@@ -143,12 +155,27 @@ internal sealed class TerrainOverlayState
                 throw new InvalidOperationException("Terrain overlay entries must have unique addresses.");
             }
 
-            TerrainChunkAddress chunk = entry.Address.Chunk;
-            perChunk[chunk] = perChunk.GetValueOrDefault(chunk) + 1;
+            Take(entry.Address);
             MarkColumn(entry.Address.X, entry.Address.Z);
         }
 
         revision = checked(revision + 1UL);
+    }
+
+    /// <summary>Counts a new override in its chunk and column.</summary>
+    private void Take(VoxelAddress address)
+    {
+        TerrainChunkAddress chunk = address.Chunk;
+        perChunk[chunk] = perChunk.GetValueOrDefault(chunk) + 1;
+        columns[(address.X, address.Z)] = columns.GetValueOrDefault((address.X, address.Z)) + 1;
+    }
+
+    /// <summary>Uncounts a released override; a chunk or column left with none is untouched again.</summary>
+    private void Release(VoxelAddress address)
+    {
+        TerrainChunkAddress chunk = address.Chunk;
+        if (--perChunk[chunk] == 0) perChunk.Remove(chunk);
+        if (--columns[(address.X, address.Z)] == 0) columns.Remove((address.X, address.Z));
     }
 
     private static void ValidateMaterial(ushort material)

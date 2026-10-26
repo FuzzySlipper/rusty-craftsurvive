@@ -1,5 +1,13 @@
 [
   {
+    "id": "burnt-ground",
+    "width": 512,
+    "height": 512,
+    "sha256": "fcb06d772e4de4d7de2409921f4fb719a6677f35232cc4fc9f08e5bcb51ebfb4",
+    "metresPerTile": 6,
+    "triplanarSharpness": 4
+  },
+  {
     "id": "cave-rock",
     "width": 512,
     "height": 512,

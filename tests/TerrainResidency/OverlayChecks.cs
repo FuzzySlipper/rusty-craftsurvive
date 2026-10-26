@@ -74,6 +74,21 @@ internal static class OverlayChecks
                 Check.That(small.TouchesChunk(chunk) == after.TouchesChunk(chunk), $"per-chunk counts disagree with the snapshot at {chunk}");
             }
 
+            // An edit back to what the recipe made releases the cell's override (#10296: a scar growing back).
+            VoxelAddress scar = new(70, 9, -12);
+            TerrainOverlayState healing = new(seed, address => address == scar ? TerrainConstants.GrassMaterial : TerrainConstants.StoneMaterial);
+            TerrainEditAccepted Set(ushort material) => new([new TerrainVoxelEdit(scar, material)]);
+            healing.Apply(Set(TerrainConstants.DirtMaterial));
+            Check.That(healing.Count == 1 && healing.TouchesChunk(scar.Chunk) && healing.TouchesColumn(scar.X, scar.Z), "a changed cell takes an override");
+            Check.That(healing.Admits([new TerrainVoxelEdit(scar, TerrainConstants.GrassMaterial)]), "an edit back to the recipe is admitted");
+            healing.Apply(Set(TerrainConstants.GrassMaterial));
+            Check.That(healing.Count == 0 && !healing.TouchesChunk(scar.Chunk) && !healing.TouchesColumn(scar.X, scar.Z)
+                && !healing.TryGetMaterial(scar, out _), "setting it back to what the recipe made releases the override, chunk and column");
+            healing.Apply(Set(TerrainConstants.GrassMaterial));
+            Check.That(healing.Count == 0, "an edit to what the recipe made takes no override");
+            healing.Apply(Set(TerrainConstants.DirtMaterial));
+            Check.That(healing.Count == 1 && healing.Snapshot().Entries.Single().Material == TerrainConstants.DirtMaterial, "a released cell can be changed again");
+
             Console.WriteLine($"Overlay: capacity refused at admission at {TerrainConstants.MaximumOverlayEntries} entries; chunk index and cached snapshot agree.");
         }
     }

@@ -16,7 +16,8 @@ internal sealed record ChemistrySettings(
     WriteBackBudgetSetting Budget,
     FieldSetting Field,
     AmbientSetting Ambient,
-    FireSetting Fires)
+    FireSetting Fires,
+    ScarSetting Scars)
 {
     internal const string ContentPath = "chemistry/adapter.json";
 
@@ -49,7 +50,14 @@ internal sealed record ChemistrySettings(
             throw new InvalidDataException($"{ContentPath}: blocks needs a \"default\" material");
         }
 
-        JsonElement budget = Member(root, "budget"), field = Member(root, "field"), ambient = Member(root, "ambient"), fires = Member(root, "fires");
+        JsonElement budget = Member(root, "budget"), field = Member(root, "field"), ambient = Member(root, "ambient"), fires = Member(root, "fires"),
+            scars = Member(root, "scars");
+        float earliest = Number(scars, "earliest");
+        if (earliest is < 0 or > 1)
+        {
+            throw new InvalidDataException($"{ContentPath}: scars.earliest must be a share from 0 to 1");
+        }
+
         return new ChemistrySettings(
             Text(Member(root, "pack"), "pack"),
             named,
@@ -58,14 +66,17 @@ internal sealed record ChemistrySettings(
             [.. Member(root, "writeBack").EnumerateArray().Select((rule, index) => new WriteBackSetting(
                 Text(Member(rule, "material"), $"writeBack[{index}].material"),
                 Block(Text(Member(rule, "block"), $"writeBack[{index}].block"), $"writeBack[{index}].block"),
-                [.. Member(rule, "over").EnumerateArray().Select(over => Block(Text(over, $"writeBack[{index}].over"), $"writeBack[{index}].over"))]))],
+                [.. Member(rule, "over").EnumerateArray().Select(over => Block(Text(over, $"writeBack[{index}].over"), $"writeBack[{index}].over"))],
+                [.. Member(rule, "beneath").EnumerateArray().Select(under => Block(Text(under, $"writeBack[{index}].beneath"), $"writeBack[{index}].beneath"))]))],
             new WriteBackBudgetSetting(Whole(budget, "keepFreeEntries"), Whole(budget, "cellsPerWrite"), Number(budget, "writeSeconds")),
             new FieldSetting(Whole(field, "reachChunks"), Whole(field, "burningReachChunks"), Whole(field, "loadsPerUpdate"),
                 Number(field, "stepSeconds"), Whole(field, "stepsPerUpdate")),
             new AmbientSetting(Number(ambient, "warmHeat"), Number(ambient, "coldHeat"), Number(ambient, "windCellsPerSecond"),
                 Number(ambient, "refreshSeconds")),
             new FireSetting([.. Member(fires, "materials").EnumerateArray().Select(material => Text(material, "fires.materials"))],
-                Whole(fires, "slots"), Whole(fires, "clusterCells"), Text(Member(fires, "burnt"), "fires.burnt")));
+                Whole(fires, "slots"), Whole(fires, "clusterCells"), Text(Member(fires, "burnt"), "fires.burnt")),
+            new ScarSetting(Block(Text(Member(scars, "block"), "scars.block"), "scars.block"), Number(scars, "regrowDays"), earliest,
+                Number(scars, "healSeconds"), Whole(scars, "cellsPerHeal"), Number(scars, "healReach")));
     }
 
     private static JsonElement Member(JsonElement element, string name) => element.TryGetProperty(name, out JsonElement value)
@@ -90,8 +101,12 @@ internal sealed record ChemistrySettings(
         : throw new InvalidDataException($"{ContentPath}: {path}: no block named '{name}'");
 }
 
-/// <summary>A cell that becomes <see cref="Material"/> is written as <see cref="Block"/> where the world still holds one of <see cref="Over"/>.</summary>
-internal sealed record WriteBackSetting(string Material, BlockId Block, IReadOnlyList<BlockId> Over);
+/// <summary>
+/// A cell that becomes <see cref="Material"/> is written as <see cref="Block"/> where the world still holds one of
+/// <see cref="Over"/>, and so is the cell under it where that holds one of <see cref="Beneath"/>: the smooth ground takes
+/// its look from the cells about each vertex, so a surface written one cell deep would half show the ground beneath it.
+/// </summary>
+internal sealed record WriteBackSetting(string Material, BlockId Block, IReadOnlyList<BlockId> Over, IReadOnlyList<BlockId> Beneath);
 
 /// <summary>
 /// How many terrain overlay entries chemistry leaves free for the player's own edits (it writes only while more
@@ -114,3 +129,10 @@ internal sealed record AmbientSetting(float WarmHeat, float ColdHeat, float Wind
 /// burnt-out cell becomes (its ground shown as char).
 /// </summary>
 internal sealed record FireSetting(IReadOnlyList<string> Materials, int Slots, int ClusterCells, string Burnt);
+
+/// <summary>
+/// The scar a grass fire leaves (#10296): the block burnt ground is written as, the days it takes to grow back (each cell
+/// due from the earliest share of them), how often due cells near the player are grown back, how many at once, and how
+/// near (metres).
+/// </summary>
+internal sealed record ScarSetting(BlockId Block, float RegrowDays, float Earliest, float HealSeconds, int CellsPerHeal, float HealReach);

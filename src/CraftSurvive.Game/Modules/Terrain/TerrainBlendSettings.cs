@@ -31,7 +31,7 @@ internal readonly record struct TerrainBlendSettings(uint TransitionCells, float
 /// <summary>Physical ground identities stay distinct; Engine interpolates their visual layers (four a chunk at most).</summary>
 internal static class TerrainLayers
 {
-    internal static readonly string[] Names = ["sage-ground", "ochre-rock", "dune-sand", "frost-stone", "dry-meadow"];
+    internal static readonly string[] Names = ["sage-ground", "ochre-rock", "dune-sand", "frost-stone", "dry-meadow", "burnt-ground"];
     private static readonly uint[] Slots = BlockRegistry.MaterialBlocks
         .Where(block => Layer(block.Id) >= 0).Select(block => (uint)block.Id).ToArray();
     private static readonly uint[] Layers = Slots.Select(slot => (uint)Layer((BlockId)slot)).ToArray();
@@ -43,6 +43,7 @@ internal static class TerrainLayers
         BlockId.Sand => 2,
         BlockId.Snow or BlockId.Gravel => 3,
         BlockId.DryGrass => 4,
+        BlockId.BurntGround => 5,
         _ => -1,
     };
 

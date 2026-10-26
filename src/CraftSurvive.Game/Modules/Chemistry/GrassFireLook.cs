@@ -11,7 +11,8 @@ namespace CraftSurvive.Game.Modules.Chemistry;
 /// A grass fire drawn from the chemistry field (#10296), not as a lamp's flame repeated:
 /// <list type="bullet">
 /// <item>the ground: every burning cell a projected decal of char under glowing seams, every cell that burnt out a decal of
-/// cooling char that settles to cold char (the scene's decal atlas, painted at 32 texels a metre);</item>
+/// cooling char; once cool, the terrain's scar block shows the char, and a cell not written as one keeps a cold-char decal
+/// (the scene's decal atlas, painted at 32 texels a metre);</item>
 /// <item>light: a warm, flickering light over each square of the fire, as strong as the cells burning in it;</item>
 /// <item>smoke: over each square a low fog volume glowing with the fire under it, and a dark plume leaning downwind;</item>
 /// <item>flames: pixel-art tongues on the hottest burning cells, a few metres apart, kept on a cell while it burns.</item>
@@ -69,6 +70,7 @@ internal sealed class GrassFireLook : IDisposable
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
     private readonly Action<bool> fogVolumes;
+    private readonly Func<Cell, bool> scarred;
     private readonly int slots, cluster;
     private readonly Light?[] lights;
     private readonly (Vector3 At, int Cells, float Smoke)?[] squares;
@@ -88,8 +90,10 @@ internal sealed class GrassFireLook : IDisposable
     private bool shown;
 
     /// <param name="fogVolumes">Tells the sky fog volumes stand in the open world (the volumetric fog draws them), or no longer do.</param>
-    internal GrassFireLook(IEngineContext engine, WorldFrame frame, Action<bool> fogVolumes, int slots, int cluster)
+    /// <param name="scarred">Whether a burnt cell stands in the terrain as the scar block, which shows its char without a decal.</param>
+    internal GrassFireLook(IEngineContext engine, WorldFrame frame, Action<bool> fogVolumes, int slots, int cluster, Func<Cell, bool> scarred)
     {
+        this.scarred = scarred ?? throw new ArgumentNullException(nameof(scarred));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.fogVolumes = fogVolumes ?? throw new ArgumentNullException(nameof(fogVolumes));
@@ -190,6 +194,15 @@ internal sealed class GrassFireLook : IDisposable
         while (cooling.TryPeek(out int slot) && burnt[slot] is { } entry && seconds - entry.At >= CoolingSeconds)
         {
             cooling.Dequeue();
+            if (scarred(entry.Cell))
+            {
+                // The terrain's scar block shows the char now: the decal and its slot are let go.
+                Remove(BurntId(slot));
+                burnt[slot] = null;
+                freeBurnt.Push(slot);
+                continue;
+            }
+
             burnt[slot] = entry with { Cold = true };
             Place(BurntId(slot), entry.Cell, CharRegion(entry.Cell));
         }

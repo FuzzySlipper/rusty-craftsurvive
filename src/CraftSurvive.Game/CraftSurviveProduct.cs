@@ -203,7 +203,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             () => !player.InSeparateSpace && !player.HeadSubmerged && !weather.Exposure.Sheltered,
             () => creatures.AwakeWithin(player.WorldPosition, ColdModule.CreatureBreathMetres), sky.Frost);
 
-        chemistry = new ChemistryModule(context.Engine, context.Content, terrain, weather, frame, () => player.WorldPosition,
+        chemistry = new ChemistryModule(context.Engine, context.Content, store, terrain, weather, frame, () => player.WorldPosition,
             () => player.InSeparateSpace, () => SnowModule.CoverOf(snow.Depth), sky.OutdoorFogVolumes);
 
         tracks = new SnowTracks(context.Engine, frame, snow.Cover, () => weather.Hours,

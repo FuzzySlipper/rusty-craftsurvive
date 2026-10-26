@@ -99,6 +99,12 @@ internal static class BlockRegistry
             BlastResistance: 0.6f, LightEmission: 0f, LightAttenuation: 1f,
             Climbable: true),
 
+        // Ground a grass fire burnt (#10296): placeable by the chemistry field only, and grown back over days.
+        new(BlockId.BurntGround, "burnt-ground", "burnt-ground", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 0.6f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
+
         // The cave's own rock (#10095): drawn in caves by the cave materials; their atlas tiles (tinted stone) are
         // stand-ins, as they are never placed in the open world.
         new(BlockId.WashedRock, "washed-rock", "washed-rock", null, BlockTransparency.Opaque,

@@ -78,6 +78,11 @@ internal static class SaveManifest
     internal static SaveKey WeatherSnow { get; } =
         new("weather/snow", "weather/snow.backup", "SnowModule", 0x574F_4E53, 1);
 
+    /// <summary>Grass fire scars (#10296): when each column of burnt ground burnt, so it grows back on time.</summary>
+    internal static SaveKey ChemistryScars { get; } =
+        new("chemistry/scars", "chemistry/scars.backup", "BurnScars", 0x5352_4353, 1);
+
     internal static IReadOnlyList<SaveKey> All { get; } =
-        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, BuildPieces, BuildRemnants, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome, TravelSled, TravelBoat, WaterStage, WeatherSnow];
+        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, BuildPieces, BuildRemnants, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome, TravelSled, TravelBoat, WaterStage, WeatherSnow,
+            ChemistryScars];
 }

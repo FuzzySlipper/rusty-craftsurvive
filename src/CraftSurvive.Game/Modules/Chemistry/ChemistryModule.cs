@@ -42,6 +42,7 @@ internal sealed class ChemistryModule : IProductModule
     private readonly ChemistryPack pack;
     private readonly BlockChemistry blocks;
     private readonly GrassFireLook look;
+    private readonly BurnScars scars;
     private readonly int burntMaterial, heatQuantity, smokeQuantity;
     private readonly ushort[] chunkMaterials = new ushort[CellsPerChunk];
     private readonly Queue<(Cell Cell, WriteBackSetting Rule)> waiting = [];
@@ -56,8 +57,9 @@ internal sealed class ChemistryModule : IProductModule
 
     /// <param name="snowCover">The snow cover's share of the ground where the player stands, 0..1.</param>
     /// <param name="fogVolumes">Tells the sky the fire's smoke stands in the open world as fog volumes, or no longer does.</param>
-    internal ChemistryModule(IEngineContext engine, ProductContent content, TerrainWorld terrain, WeatherModule weather, WorldFrame frame,
-        Func<Vector3> playerWorld, Func<bool> away, Func<double> snowCover, Action<bool> fogVolumes)
+    /// <param name="store">Where the scars' ledger is saved.</param>
+    internal ChemistryModule(IEngineContext engine, ProductContent content, ProductStore store, TerrainWorld terrain, WeatherModule weather,
+        WorldFrame frame, Func<Vector3> playerWorld, Func<bool> away, Func<double> snowCover, Action<bool> fogVolumes)
     {
         ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(content);
@@ -70,7 +72,10 @@ internal sealed class ChemistryModule : IProductModule
         settings = ChemistrySettings.Parse(content.ReadText(ChemistrySettings.ContentPath));
         pack = ChemistryPack.Read(content.ReadText(settings.PackPath));
         blocks = new BlockChemistry(settings, pack);
-        look = new GrassFireLook(engine, frame, fogVolumes, settings.Fires.Slots, settings.Fires.ClusterCells);
+        scars = new BurnScars(engine, store, terrain.SaveIdentity, terrain, settings.Scars);
+        // Once a burnt cell is written as the scar block, the block shows its char; the look keeps a decal only where it is not.
+        look = new GrassFireLook(engine, frame, fogVolumes, settings.Fires.Slots, settings.Fires.ClusterCells,
+            cell => terrain.MaterialAt(Address(cell)) == (ushort)scars.Block);
         burntMaterial = pack.Material(settings.Fires.Burnt);
         heatQuantity = pack.Quantity("heat");
         smokeQuantity = pack.Quantity("smoke");
@@ -78,9 +83,7 @@ internal sealed class ChemistryModule : IProductModule
         terrain.Edited += Reload;
     }
 
-    public void Start()
-    {
-    }
+    public void Start() => scars.Start();
 
     public void Update(ProductStep step)
     {
@@ -94,6 +97,7 @@ internal sealed class ChemistryModule : IProductModule
         look.Tick(step.ElapsedSeconds);
 
         Vector3 player = playerWorld();
+        scars.Update(step.ElapsedSeconds, weather.Hours, player);
         Follow(player);
         sinceAmbient += step.ElapsedSeconds;
         if (applied is null || sinceAmbient >= settings.Ambient.RefreshSeconds)
@@ -142,6 +146,7 @@ internal sealed class ChemistryModule : IProductModule
     {
         terrain.Edited -= Reload;
         look.Dispose();
+        scars.Flush();
     }
 
     /// <summary>Heats the ground at a world column's surface, as a torch would; the fire, if any, is the field's.</summary>
@@ -246,7 +251,8 @@ internal sealed class ChemistryModule : IProductModule
         string.Create(CultureInfo.InvariantCulture,
         $"written={written} waiting={waiting.Count} dropped={dropped} refused={refused} overlay={terrain.OverlayEntries}/{TerrainConstants.MaximumOverlayEntries} ") +
         string.Create(CultureInfo.InvariantCulture,
-        $"keepFree={settings.Budget.KeepFreeEntries} writable={WriteBack.Allowed(terrain.OverlayEntries, TerrainConstants.MaximumOverlayEntries, settings.Budget)} lastRefusal={lastRefusal}");
+        $"keepFree={settings.Budget.KeepFreeEntries} writable={WriteBack.Allowed(terrain.OverlayEntries, TerrainConstants.MaximumOverlayEntries, settings.Budget)} lastRefusal={lastRefusal} ") +
+        scars.Readout();
 
     internal string AmbientReadout() => applied is ChemistryAmbient ambient
         ? string.Create(CultureInfo.InvariantCulture,
@@ -398,6 +404,10 @@ internal sealed class ChemistryModule : IProductModule
             if (result is TerrainWorldEditApplied)
             {
                 written += cells.Count;
+                if (block == scars.Block)
+                {
+                    scars.Burnt(cells.Select(Address), weather.Hours);
+                }
             }
             else
             {

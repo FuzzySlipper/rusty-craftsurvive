@@ -17,11 +17,12 @@ internal sealed class TerrainOverlayStore
     private bool dirty;
     private long changedAtStep;
 
-    internal TerrainOverlayStore(IEngineContext engine, ProductStore store, SaveIdentity identity)
+    /// <param name="generated">The recipe's material at a cell: an edit back to it releases the cell's override.</param>
+    internal TerrainOverlayStore(IEngineContext engine, ProductStore store, SaveIdentity identity, Func<VoxelAddress, ushort> generated)
     {
         slot = new ProductSaveSlot<TerrainOverlaySnapshot>(
             engine, store, SaveManifest.TerrainOverlay, new TerrainOverlayCodec(identity));
-        Overlay = new TerrainOverlayState(identity.Seed);
+        Overlay = new TerrainOverlayState(identity.Seed, generated);
     }
 
     internal TerrainOverlayState Overlay { get; }

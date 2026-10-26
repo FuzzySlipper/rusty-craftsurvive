@@ -7,6 +7,7 @@
     "Air": "air",
     "Grass": "grass",
     "DryGrass": "dry-grass",
+    "BurntGround": "burnt-ground",
     "Dirt": "soil",
     "Sand": "soil",
     "Gravel": "soil",
@@ -18,11 +19,12 @@
   },
   "water": "water",
   // A cell that becomes one of these materials is written into the world as this block, but only while the
-  // world still holds one of the blocks it came from there (a player's edit since then wins).
+  // world still holds one of the blocks it came from there (a player's edit since then wins); and so is the cell
+  // beneath it where that holds one of "beneath", so the smooth ground shows the block rather than a blend with it.
   "writeBack": [
-    { "material": "burnt-ground", "block": "Dirt", "over": ["Grass", "DryGrass"] }
+    { "material": "burnt-ground", "block": "BurntGround", "over": ["Grass", "DryGrass"], "beneath": ["Dirt"] }
   ],
-  // Each written cell permanently takes one of the terrain overlay's 65,536 entries. Fire writes only while the
+  // Each written cell takes one of the terrain overlay's 65,536 entries until its scar grows back. Fire writes only while the
   // overlay keeps this many free for the player's own edits. Writes are gathered and applied together every so
   // many seconds, at most this many cells at once, since each edit also refreshes residency and presentation.
   "budget": { "keepFreeEntries": 32768, "cellsPerWrite": 256, "writeSeconds": 1 },
@@ -35,5 +37,10 @@
   "ambient": { "warmHeat": 22, "coldHeat": -12, "windCellsPerSecond": 0.8, "refreshSeconds": 2 },
   // Burning cells are shown as fire (#10296): each burning cell's ground, and over the nearest squares of this many
   // cells across, at most this many, a light and smoke. A cell that becomes "burnt" shows as cooling, then cold, char.
-  "fires": { "materials": ["burning-grass"], "slots": 12, "clusterCells": 4, "burnt": "burnt-ground" }
+  "fires": { "materials": ["burning-grass"], "slots": 12, "clusterCells": 4, "burnt": "burnt-ground" },
+  // A fire's scar (#10296; owner 2026-10-26: it grows back): ground written as this block grows back to what the
+  // generator made there over this many days, each cell due from the earliest share of them, so a scar heals in
+  // patches. Every so many seconds, at most this many due cells within this many metres of the player grow back;
+  // each frees the overlay entry its burning took.
+  "scars": { "block": "BurntGround", "regrowDays": 8, "earliest": 0.4, "healSeconds": 5, "cellsPerHeal": 256, "healReach": 160 }
 }

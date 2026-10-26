@@ -26,8 +26,9 @@ Check.Section("content", () =>
     Check.Equal(stone, (int)blocks.MaterialOf((ushort)BlockId.Bedrock), "an unnamed block takes the default");
     Check.Equal(pack.Material("water"), (int)blocks.CellMaterial((ushort)BlockId.Air, 4, 5.5), "air below a water surface is water");
     Check.Equal(air, (int)blocks.CellMaterial((ushort)BlockId.Air, 6, 5.5), "air above it stays air");
-    Check.That(blocks.WriteBacks.TryGetValue(burnt, out WriteBackSetting? rule) && rule.Block == BlockId.Dirt
-        && rule.Over.Contains(BlockId.Grass) && rule.Over.Contains(BlockId.DryGrass), "burnt ground writes back as dirt over grass");
+    Check.That(blocks.WriteBacks.TryGetValue(burnt, out WriteBackSetting? rule) && rule.Block == BlockId.BurntGround
+        && rule.Over.Contains(BlockId.Grass) && rule.Over.Contains(BlockId.DryGrass), "burnt ground writes back as the scar block over grass");
+    Check.Equal(burnt, (int)blocks.MaterialOf((ushort)BlockId.BurntGround), "a scar loads as burnt ground, which does not burn again");
     Check.That(blocks.Burning.SetEquals([burning]), "burning grass is what shows as fire");
     Check.Throws<InvalidDataException>(() => ChemistrySettings.Parse(Resource("Chemistry.adapter.json").Replace("\"Grass\": \"grass\"", "\"Grasss\": \"grass\"")),
         "a misspelt block fails at load");
@@ -42,11 +43,37 @@ Check.Section("write-back budget", () =>
 
     WriteBackSetting rule = blocks.WriteBacks[burnt];
     (Cell, WriteBackSetting)[] waiting = [(new Cell(1, 1, 1), rule), (new Cell(2, 1, 1), rule), (new Cell(3, 1, 1), rule)];
-    Dictionary<Cell, BlockId> world = new() { [new(1, 1, 1)] = BlockId.Grass, [new(2, 1, 1)] = BlockId.Cobblestone, [new(3, 1, 1)] = BlockId.DryGrass };
+    Dictionary<Cell, BlockId> world = new() { [new(1, 1, 1)] = BlockId.Grass, [new(2, 1, 1)] = BlockId.Cobblestone, [new(3, 1, 1)] = BlockId.DryGrass,
+        [new(1, 0, 1)] = BlockId.Dirt, [new(2, 0, 1)] = BlockId.Dirt, [new(3, 0, 1)] = BlockId.Stone };
     Dictionary<BlockId, List<Cell>> chosen = WriteBack.Choose(waiting, cell => (ushort)world[cell], allowed: 8);
-    Check.That(chosen.Count == 1 && chosen[BlockId.Dirt].SequenceEqual([new Cell(1, 1, 1), new Cell(3, 1, 1)]),
-        "only cells the world still holds as grass are written, as dirt; a player's edit since wins");
-    Check.Equal(1, WriteBack.Choose(waiting, cell => (ushort)world[cell], allowed: 1)[BlockId.Dirt].Count, "a write takes no more than allowed");
+    Check.That(chosen.Count == 1 && chosen[BlockId.BurntGround].SequenceEqual([new Cell(1, 1, 1), new Cell(1, 0, 1), new Cell(3, 1, 1)]),
+        "only cells the world still holds as grass are written, as the scar, with the dirt beneath; a player's edit since wins");
+    Check.Equal(1, WriteBack.Choose(waiting, cell => (ushort)world[cell], allowed: 1)[BlockId.BurntGround].Count, "a write takes no more than allowed");
+});
+
+Check.Section("scars heal", () =>
+{
+    ScarSetting scars = settings.Scars;
+    Check.That(scars.Block == BlockId.BurntGround && scars.RegrowDays > 0 && scars.Earliest is > 0 and < 1, "a scar is the burnt-ground block and grows back over days");
+    double regrow = scars.RegrowDays * 24;
+    int cells = 0, early = 0, byEnd = 0, late = 0;
+    for (long x = 0; x < 32; x++)
+    {
+        for (long z = 0; z < 32; z++)
+        {
+            cells++;
+            if (ScarHealing.Due(x, z, 100, 100 + (regrow * scars.Earliest * 0.99), regrow, scars.Earliest)) early++;
+            if (ScarHealing.Due(x, z, 100, 100 + (regrow * 0.6), regrow, scars.Earliest)) late++;
+            if (ScarHealing.Due(x, z, 100, 100 + regrow, regrow, scars.Earliest)) byEnd++;
+        }
+    }
+
+    Check.That(early == 0 && byEnd == cells, $"no cell heals before the earliest share and every cell by the whole time ({early}, {byEnd} of {cells})");
+    Check.That(late > cells / 10 && late < cells * 9 / 10, $"part way, a scar has healed in patches ({late} of {cells})");
+    Check.That(ScarHealing.Due(3, 5, 100, 100 + (regrow * 0.6), regrow, scars.Earliest) == ScarHealing.Due(3, 5, 100, 100 + (regrow * 0.6), regrow, scars.Earliest),
+        "a column's turn is its own, the same every time");
+    Check.Throws<InvalidDataException>(() => ChemistrySettings.Parse(Resource("Chemistry.adapter.json").Replace("\"earliest\": 0.4", "\"earliest\": 1.5")),
+        "an earliest share past the whole fails at load");
 });
 
 Check.Section("weather as ambient", () =>

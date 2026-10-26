@@ -89,6 +89,8 @@ internal static class FarGroundBlend
         BlockId.Sand => 2,
         BlockId.Snow or BlockId.Gravel => drySet ? 1 : 3,
         BlockId.DryGrass => drySet ? 3 : 0,
+        // A fire's scar is too small to read from afar (#10296): it weighs as the meadow it burnt.
+        BlockId.BurntGround => 0,
         _ => 0,
     };
 

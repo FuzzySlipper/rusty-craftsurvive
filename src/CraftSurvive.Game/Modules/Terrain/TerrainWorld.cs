@@ -67,7 +67,7 @@ internal sealed class TerrainWorld : IDisposable
         TerrainChunkGenerator generator = new(recipe, chunkCache);
         policy = new TerrainResidencyPolicy(recipe, generator);
         SaveIdentity = new SaveIdentity(recipe.Contract.Version, recipe.Contract.Seed);
-        overlayStore = new TerrainOverlayStore(engine, store, SaveIdentity);
+        overlayStore = new TerrainOverlayStore(engine, store, SaveIdentity, GeneratedAt);
         streamer = new TerrainResidencyStreamer(engine, policy, generator, chunkCache, overlayStore.Overlay, configuration.Seed);
         Moss = new SurfaceMoss(engine);
         presentation = new TerrainPresentation(engine, content, Moss);
@@ -826,11 +826,36 @@ internal sealed class TerrainWorld : IDisposable
     internal ulong EditRevision => overlayStore.Overlay.Revision;
 
     /// <summary>The material standing at a cell now: the player's override, else the recipe's.</summary>
-    /// <summary>How many cells the edit overlay holds now, of <see cref="TerrainConstants.MaximumOverlayEntries"/>; it keeps every edited cell for good.</summary>
+    /// <summary>
+    /// How many cells the edit overlay holds now, of <see cref="TerrainConstants.MaximumOverlayEntries"/>; it keeps every
+    /// edited cell until an edit sets it back to what the recipe made there.
+    /// </summary>
     internal int OverlayEntries => overlayStore.Overlay.Count;
 
     /// <summary>Whether an edit has changed this cell from what the recipe generated.</summary>
     internal bool IsEdited(VoxelAddress address) => overlayStore.Overlay.TryGetMaterial(address, out _);
+
+    /// <summary>The edited cells that hold this material now (a grass fire's scar, #10296), from the overlay as it stands.</summary>
+    internal IEnumerable<VoxelAddress> EditedTo(ushort material) =>
+        overlayStore.Overlay.Snapshot().Entries.Where(entry => entry.Material == material).Select(entry => entry.Address);
+
+    /// <summary>
+    /// What the recipe made at a cell, its columns kept (the recipe is deterministic): an edit's overlay asks this of every
+    /// cell it newly touches, and a blast touches hundreds in a few columns.
+    /// </summary>
+    internal ushort GeneratedAt(VoxelAddress address)
+    {
+        if (!generatedColumns.TryGetValue((address.X, address.Z), out TerrainColumn column))
+        {
+            if (generatedColumns.Count >= MostGeneratedColumns) generatedColumns.Clear();
+            column = generatedColumns[(address.X, address.Z)] = recipe.ColumnAt(address.X, address.Z);
+        }
+
+        return recipe.MaterialAt(address, column);
+    }
+
+    private const int MostGeneratedColumns = 4096;
+    private readonly Dictionary<(long X, long Z), TerrainColumn> generatedColumns = [];
 
     internal ushort MaterialAt(VoxelAddress address) =>
         overlayStore.Overlay.TryGetMaterial(address, out ushort material) ? material : recipe.MaterialAt(address);

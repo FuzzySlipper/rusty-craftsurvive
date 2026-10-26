@@ -16,7 +16,8 @@ internal static class TerrainDensity
     private const float MinimumMagnitude = 0.001f;
 
     internal static bool IsGround(ushort material) => (BlockId)material is
-        BlockId.Grass or BlockId.Dirt or BlockId.Stone or BlockId.Sand or BlockId.Gravel or BlockId.Snow or BlockId.DryGrass;
+        BlockId.Grass or BlockId.Dirt or BlockId.Stone or BlockId.Sand or BlockId.Gravel or BlockId.Snow or BlockId.DryGrass
+        or BlockId.BurntGround;
 
     internal static float At(long y, double height, ushort generatedMaterial, ushort material)
     {
