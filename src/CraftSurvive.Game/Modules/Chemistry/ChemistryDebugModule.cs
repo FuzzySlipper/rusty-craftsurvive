@@ -17,7 +17,7 @@ public sealed class ChemistryDebugModule : IDebugCommandModule
     [DebugCommand("craft.chem.readout", Description = "Reads the chemistry field (#10293): chunks loaded and active, step cost, fires shown, and burnt ground written, waiting and refused against the terrain overlay's reserve.")]
     public string Readout() => chemistrySource().Readout();
 
-    [DebugCommand("craft.chem.weather", Description = "Reads the ambient the field took from the weather: air heat, the wind's drift in cells a second, and rain.")]
+    [DebugCommand("craft.chem.weather", Description = "Reads the ambient the field took from the weather: air heat, the wind's drift in cells a second, rain, and the lying snow's cover.")]
     public string Weather() => chemistrySource().AmbientReadout();
 
     [DebugCommand("craft.chem.ignite", Description = "Assisted: heats the ground at the surface of world column x z, as a torch would. Whether it catches is the field's.")]

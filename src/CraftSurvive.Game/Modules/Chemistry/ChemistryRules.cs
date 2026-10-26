@@ -109,27 +109,35 @@ internal static class WriteBack
     }
 }
 
-/// <summary>The weather as the field's ambient (#10293): air heat, the wind's drift and how hard it rains. Engine-free.</summary>
-internal readonly record struct ChemistryAmbient(float Heat, Vector3 Drift, float Rain)
+/// <summary>
+/// The weather as the field's ambient (#10293): air heat, the wind's drift, how hard it rains, and how much of the
+/// ground the lying snow covers. Engine-free.
+/// </summary>
+internal readonly record struct ChemistryAmbient(float Heat, Vector3 Drift, float Rain, float Snow)
 {
     /// <summary>
     /// From the weather's channels where the field is: <paramref name="cold"/>, <paramref name="wind"/> and
     /// <paramref name="precipitation"/> are 0..1; <paramref name="flow"/> is the wind's unit direction over the
-    /// ground (world x, z).
+    /// ground (world x, z); <paramref name="snowCover"/> is the snow cover's share of the ground there, 0..1. The
+    /// snow cover's cells are far wider than the field, so one value stands for all of it, as the weather's does.
     /// </summary>
-    internal static ChemistryAmbient From(double cold, double wind, double precipitation, Vector2 flow, AmbientSetting setting)
+    internal static ChemistryAmbient From(double cold, double wind, double precipitation, Vector2 flow, double snowCover, AmbientSetting setting)
     {
         float heat = setting.WarmHeat + ((setting.ColdHeat - setting.WarmHeat) * (float)Math.Clamp(cold, 0, 1));
         Vector3 drift = new Vector3(flow.X, 0f, flow.Y) * (float)(Math.Clamp(wind, 0, 1) * setting.WindCellsPerSecond);
-        return new ChemistryAmbient(heat, drift, (float)Math.Clamp(precipitation, 0, 1));
+        return new ChemistryAmbient(heat, drift, (float)Math.Clamp(precipitation, 0, 1), (float)Math.Clamp(snowCover, 0, 1));
     }
 
     /// <summary>
     /// Whether this differs from <paramref name="applied"/> enough to apply: each change wakes the whole field, so
-    /// weather that barely moved is left alone.
+    /// weather that barely moved is left alone. Rain or snow stopping always applies, so a last trace of either
+    /// does not go on wetting the ground.
     /// </summary>
     internal bool Differs(ChemistryAmbient applied) =>
-        Math.Abs(Heat - applied.Heat) >= 0.5f || Vector3.Distance(Drift, applied.Drift) >= 0.05f || Math.Abs(Rain - applied.Rain) >= 0.05f;
+        Math.Abs(Heat - applied.Heat) >= 0.5f || Vector3.Distance(Drift, applied.Drift) >= 0.05f || Wetting(Rain, applied.Rain)
+        || Wetting(Snow, applied.Snow);
+
+    private static bool Wetting(float now, float applied) => Math.Abs(now - applied) >= 0.05f || ((now == 0f) != (applied == 0f));
 }
 
 /// <summary>Which chunks the field keeps around the player (#10293). Engine-free.</summary>
@@ -139,9 +147,10 @@ internal static class FieldWindow
 
     /// <summary>
     /// The first cell of each chunk wanted around a chunk column, nearest first: in every column within
-    /// <paramref name="reach"/>, the chunk holding the column's surface and the one above it, where smoke rises.
+    /// <paramref name="reach"/>, the chunks holding the column's surface, from its lowest cell to its highest
+    /// (<paramref name="band"/>, by chunk column), and the one above them, where smoke rises.
     /// </summary>
-    internal static List<Cell> Around(int columnX, int columnZ, int reach, Func<int, int, long> surfaceY)
+    internal static List<Cell> Around(int columnX, int columnZ, int reach, Func<int, int, SurfaceBand> band)
     {
         List<(int Distance, Cell Chunk)> wanted = [];
         for (int dz = -reach; dz <= reach; dz++)
@@ -149,14 +158,33 @@ internal static class FieldWindow
             for (int dx = -reach; dx <= reach; dx++)
             {
                 int x = columnX + dx, z = columnZ + dz;
-                int chunkY = (int)Math.Floor(surfaceY((x * Size) + (Size / 2), (z * Size) + (Size / 2)) / (double)Size);
+                SurfaceBand surface = band(x, z);
                 int distance = Math.Max(Math.Abs(dx), Math.Abs(dz));
-                wanted.Add((distance, new Cell(x * Size, chunkY * Size, z * Size)));
-                wanted.Add((distance, new Cell(x * Size, (chunkY + 1) * Size, z * Size)));
+                for (int chunkY = Column(surface.Low); chunkY <= Column(surface.High) + 1; chunkY++)
+                {
+                    wanted.Add((distance, new Cell(x * Size, chunkY * Size, z * Size)));
+                }
             }
         }
 
         return [.. wanted.OrderBy(entry => entry.Distance).Select(entry => entry.Chunk)];
+    }
+
+    /// <summary>The lowest and highest surface cells of a chunk column, from the surface height of each of its cells.</summary>
+    internal static SurfaceBand BandOf(int columnX, int columnZ, Func<long, long, long> surfaceY)
+    {
+        long low = long.MaxValue, high = long.MinValue;
+        for (int z = 0; z < Size; z++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                long y = surfaceY(((long)columnX * Size) + x, ((long)columnZ * Size) + z);
+                low = Math.Min(low, y);
+                high = Math.Max(high, y);
+            }
+        }
+
+        return new SurfaceBand(low, high);
     }
 
     /// <summary>
@@ -165,13 +193,13 @@ internal static class FieldWindow
     /// nearest the player first.
     /// </summary>
     internal static List<Cell> Around(int columnX, int columnZ, int reach, int burningReach, IEnumerable<(int X, int Z)> burningColumns,
-        Func<int, int, long> surfaceY)
+        Func<int, int, SurfaceBand> band)
     {
-        List<Cell> wanted = Around(columnX, columnZ, reach, surfaceY);
+        List<Cell> wanted = Around(columnX, columnZ, reach, band);
         HashSet<Cell> seen = [.. wanted];
         foreach ((int x, int z) in burningColumns)
         {
-            foreach (Cell chunk in Around(x, z, 1, surfaceY))
+            foreach (Cell chunk in Around(x, z, 1, band))
             {
                 if (ColumnsApart(chunk, columnX, columnZ) <= burningReach && seen.Add(chunk))
                 {
@@ -211,8 +239,11 @@ internal static class FieldWindow
     internal static int ColumnsApart(Cell chunk, int columnX, int columnZ) =>
         Math.Max(Math.Abs(Column(chunk.X) - columnX), Math.Abs(Column(chunk.Z) - columnZ));
 
-    private static int Column(int cell) => (int)Math.Floor(cell / (double)Size);
+    private static int Column(long cell) => (int)Math.Floor(cell / (double)Size);
 }
+
+/// <summary>The lowest and highest surface cell heights of a chunk column.</summary>
+internal readonly record struct SurfaceBand(long Low, long High);
 
 /// <summary>Where the field's fires are shown (#10293). Engine-free.</summary>
 internal static class BurningPlaces

@@ -29,17 +29,22 @@ internal sealed class ChemistryModule : IProductModule
     /// <summary>Burnt cells waiting for a write; beyond this the oldest are dropped, and their scar is not kept.</summary>
     private const int MostWaiting = 4096;
 
+    /// <summary>Chunk columns whose surface band is kept; past this the kept bands are forgotten and read again.</summary>
+    private const int MostBands = 1024;
+
     private readonly TerrainWorld terrain;
     private readonly WeatherModule weather;
     private readonly WorldFrame frame;
     private readonly Func<Vector3> playerWorld;
     private readonly Func<bool> away;
+    private readonly Func<double> snowCover;
     private readonly ChemistrySettings settings;
     private readonly ChemistryPack pack;
     private readonly BlockChemistry blocks;
     private readonly FireEmitters fires;
     private readonly ushort[] chunkMaterials = new ushort[CellsPerChunk];
     private readonly Queue<(Cell Cell, WriteBackSetting Rule)> waiting = [];
+    private readonly Dictionary<(int X, int Z), SurfaceBand> bands = [];
     private ChemistryField field;
     private ChemistryAmbient? applied;
     private HashSet<(int X, int Z)> burningColumns = [];
@@ -47,8 +52,9 @@ internal sealed class ChemistryModule : IProductModule
     private long written, dropped, refused;
     private string lastRefusal = "none";
 
+    /// <param name="snowCover">The snow cover's share of the ground where the player stands, 0..1.</param>
     internal ChemistryModule(IEngineContext engine, ProductContent content, TerrainWorld terrain, WeatherModule weather, WorldFrame frame,
-        Func<Vector3> playerWorld, Func<bool> away)
+        Func<Vector3> playerWorld, Func<bool> away, Func<double> snowCover)
     {
         ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(content);
@@ -57,6 +63,7 @@ internal sealed class ChemistryModule : IProductModule
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.playerWorld = playerWorld ?? throw new ArgumentNullException(nameof(playerWorld));
         this.away = away ?? throw new ArgumentNullException(nameof(away));
+        this.snowCover = snowCover ?? throw new ArgumentNullException(nameof(snowCover));
         settings = ChemistrySettings.Parse(content.ReadText(ChemistrySettings.ContentPath));
         pack = ChemistryPack.Read(content.ReadText(settings.PackPath));
         blocks = new BlockChemistry(settings, pack);
@@ -119,6 +126,7 @@ internal sealed class ChemistryModule : IProductModule
         applied = null;
         owed = 0;
         waiting.Clear();
+        bands.Clear();
         burningColumns = [];
         fires.Show([]);
     }
@@ -167,7 +175,7 @@ internal sealed class ChemistryModule : IProductModule
 
     internal string AmbientReadout() => applied is ChemistryAmbient ambient
         ? string.Create(CultureInfo.InvariantCulture,
-            $"heat={ambient.Heat:0.0} drift=({ambient.Drift.X:0.00},{ambient.Drift.Z:0.00}) rain={ambient.Rain:0.00} rainModulator={field.Modulator("rain"):0.00}")
+            $"heat={ambient.Heat:0.0} drift=({ambient.Drift.X:0.00},{ambient.Drift.Z:0.00}) rain={ambient.Rain:0.00} rainModulator={field.Modulator("rain"):0.00} snow={ambient.Snow:0.00} snowModulator={field.Modulator("snow"):0.00}")
         : "not read yet";
 
     private ChemistryField NewField() => new(pack, new ChemistryFieldSettings(pack.Materials[blocks.Air].Id, settings.Field.StepSeconds,
@@ -181,7 +189,7 @@ internal sealed class ChemistryModule : IProductModule
     {
         (int columnX, int columnZ) = FieldWindow.ColumnOf(player);
         List<Cell> wanted = FieldWindow.Around(columnX, columnZ, settings.Field.ReachChunks, settings.Field.BurningReachChunks, burningColumns,
-            (x, z) => terrain.Recipe.SurfaceAt(x, z));
+            Band);
         HashSet<Cell> keep = [.. wanted];
         foreach (Cell chunk in field.LoadedChunks().ToList())
         {
@@ -205,6 +213,25 @@ internal sealed class ChemistryModule : IProductModule
                 loads++;
             }
         }
+    }
+
+    /// <summary>
+    /// A chunk column's surface band, from the recipe's surface (edits do not move it): read once per column and
+    /// kept, since every update asks for the window's.
+    /// </summary>
+    private SurfaceBand Band(int columnX, int columnZ)
+    {
+        if (bands.TryGetValue((columnX, columnZ), out SurfaceBand band))
+        {
+            return band;
+        }
+
+        if (bands.Count >= MostBands)
+        {
+            bands.Clear();
+        }
+
+        return bands[(columnX, columnZ)] = FieldWindow.BandOf(columnX, columnZ, terrain.Recipe.SurfaceAt);
     }
 
     /// <summary>Loads one chunk from the world: each cell's block as its material, open air under water as water.</summary>
@@ -237,12 +264,15 @@ internal sealed class ChemistryModule : IProductModule
         }
     }
 
-    /// <summary>The weather over the player as the field's ambient, applied only when it has moved enough to matter.</summary>
+    /// <summary>
+    /// The weather and the lying snow over the player as the field's ambient, applied only when it has moved enough
+    /// to matter. The snow's modulator wets open ground, already loaded or not, for as long as the cover lies.
+    /// </summary>
     private void Ambient(Vector3 player)
     {
         EnvironmentChannels channels = weather.Field.Sample(player.X, player.Z, weather.Hours).Channels;
         ChemistryAmbient ambient = ChemistryAmbient.From(channels.Cold, channels.Wind, channels.Precipitation, weather.Field.Flow(player.X, player.Z),
-            settings.Ambient);
+            snowCover(), settings.Ambient);
         if (applied is ChemistryAmbient last && !ambient.Differs(last))
         {
             return;
@@ -251,6 +281,7 @@ internal sealed class ChemistryModule : IProductModule
         field.SetAmbient(pack.Quantity("heat"), ambient.Heat);
         field.Drift = ambient.Drift;
         field.SetModulator("rain", ambient.Rain);
+        field.SetModulator("snow", ambient.Snow);
         applied = ambient;
     }
 

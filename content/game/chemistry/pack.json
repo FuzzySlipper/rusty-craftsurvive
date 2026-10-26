@@ -1,9 +1,10 @@
 // CraftSurvive's chemistry (#10293): what the rusty-chemistry kernel simulates around the player. Rules name
 // properties, never pairs of things (rusty-chemistry docs/chemistry.md). Fire spreads because heat transfers
 // and grass ignites when hot and dry; green grass must dry out first and catches unevenly, so a fire creeps
-// through it, while dry grass goes up at once and the fire races; rain wets
-// what lies open to the sky and everything slowly dries, but living grass draws its water back up; water and
-// snow wet what touches them; smoke rises and vents to the open sky.
+// through it, while dry grass goes up at once and the fire races; rain wets what lies open to the sky, snow
+// lying on the ground keeps it wet (the "snow" modulator is the cover where the player stands), and
+// everything slowly dries, but living grass draws its water back up; water and snow wet what touches them;
+// smoke rises and vents to the open sky.
 {
   "quantities": [
     { "id": "heat", "ambient": 20, "min": -50, "max": 1500, "settle": 0.05, "epsilon": 0.01, "transfer": { "rate": 3, "drift": true } },
@@ -31,7 +32,9 @@
     { "id": "drying", "when": [{ "quantity": "heat", "atLeast": 100 }], "rate": 0.1, "consumes": { "moisture": 1 } },
     { "id": "grass-draws-water", "in": ["grass"], "when": [{ "quantity": "moisture", "atMost": 0.4 }], "rate": 0.06, "produces": { "moisture": 1 } },
     { "id": "rain-wets", "in": ["grass", "dry-grass", "burning-grass", "burnt-ground", "soil"], "when": [{ "open": true }],
-      "rate": 0.2, "modulator": "rain", "produces": { "moisture": 1 } }
+      "rate": 0.2, "modulator": "rain", "produces": { "moisture": 1 } },
+    { "id": "snow-wets", "in": ["grass", "dry-grass", "burning-grass", "burnt-ground", "soil"], "when": [{ "open": true }],
+      "rate": 2, "modulator": "snow", "produces": { "moisture": 1 } }
   ],
   "transforms": [
     { "id": "ignite-dry", "from": ["dry-grass"], "to": "burning-grass", "chance": 3,

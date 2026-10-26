@@ -52,26 +52,39 @@ Check.Section("write-back budget", () =>
 Check.Section("weather as ambient", () =>
 {
     AmbientSetting ambient = settings.Ambient;
-    ChemistryAmbient mild = ChemistryAmbient.From(cold: 0, wind: 0, precipitation: 0, Vector2.UnitX, ambient);
-    ChemistryAmbient bitter = ChemistryAmbient.From(cold: 1, wind: 1, precipitation: 0.7, Vector2.UnitY, ambient);
+    ChemistryAmbient mild = ChemistryAmbient.From(cold: 0, wind: 0, precipitation: 0, Vector2.UnitX, snowCover: 0, ambient);
+    ChemistryAmbient bitter = ChemistryAmbient.From(cold: 1, wind: 1, precipitation: 0.7, Vector2.UnitY, snowCover: 1.4, ambient);
     Check.That(mild.Heat == ambient.WarmHeat && bitter.Heat == ambient.ColdHeat, "the Cold channel moves air heat from warm to bitter");
     Check.That(mild.Drift == Vector3.Zero && Vector3.Distance(bitter.Drift, new Vector3(0, 0, ambient.WindCellsPerSecond)) < 1e-4f,
         "full Wind drifts along the flow at the authored speed");
     Check.That(Math.Abs(bitter.Rain - 0.7f) < 1e-6f, "Precipitation becomes the rain modulator");
+    Check.That(mild.Snow == 0f && bitter.Snow == 1f, "the snow cover becomes the snow modulator, no more than whole");
+    Check.That((mild with { Snow = 0.5f }).Differs(mild), "snow laid since is applied, even in still weather");
+    Check.That(mild.Differs(mild with { Rain = 0.01f, Snow = 0f }) && mild.Differs(mild with { Snow = 0.04f }),
+        "rain or snow stopping is applied, however little was left");
     Check.That(!(mild with { Heat = mild.Heat + 0.2f }).Differs(mild) && bitter.Differs(mild), "weather that barely moved is not applied again");
 });
 
 Check.Section("field window", () =>
 {
-    List<Cell> chunks = FieldWindow.Around(0, 0, 1, (_, _) => 20);
+    List<Cell> chunks = FieldWindow.Around(0, 0, 1, (_, _) => new SurfaceBand(20, 20));
     Check.Equal(18, chunks.Count, "nine columns, each its surface chunk and the one above");
     Check.That(chunks[0] == new Cell(0, 16, 0) && chunks[1] == new Cell(0, 32, 0), "the player's own column comes first");
     Check.Equal((-1, 2), FieldWindow.ColumnOf(new Vector3(-0.5f, 3, 40)), "columns floor below zero");
     Check.Equal(2, FieldWindow.ColumnsApart(new Cell(-32, 0, 16), 0, 0), "columns apart is the larger axis");
-    List<Cell> withFire = FieldWindow.Around(0, 0, 1, 2, [(1, 0), (5, 5)], (_, _) => 20);
+    List<Cell> withFire = FieldWindow.Around(0, 0, 1, 2, [(1, 0), (5, 5)], (_, _) => new SurfaceBand(20, 20));
     Check.Equal(24, withFire.Count, "a burning column at the window's edge brings in its outer neighbours out to the burning reach");
     Check.That(withFire.All(chunk => FieldWindow.ColumnsApart(chunk, 0, 0) <= 2), "but never past it");
     Check.That(withFire.Take(18).All(chunk => FieldWindow.ColumnsApart(chunk, 0, 0) <= 1), "and the player's own window still loads first");
+
+    // A slope rising one cell in eight across a chunk-height boundary: its midpoint stands at 16, its foot at 15.
+    static long Slope(long x, long z) => 15 + (x / 8);
+    SurfaceBand slope = FieldWindow.BandOf(0, 0, Slope);
+    Check.Equal(new SurfaceBand(15, 16), slope, "a column's band runs from its lowest surface cell to its highest");
+    List<Cell> sloped = FieldWindow.Around(0, 0, 0, (x, z) => FieldWindow.BandOf(x, z, Slope));
+    Check.That(sloped.SequenceEqual([new Cell(0, 0, 0), new Cell(0, 16, 0), new Cell(0, 32, 0)]),
+        "a slope across a chunk boundary loads both chunks holding its surface, and the one above");
+    Check.That(sloped.Any(chunk => chunk.Y <= 15 && chunk.Y + ChemistryField.ChunkSize > 15), "so the foot of the slope, (0, 15, 0), is in the field");
 });
 
 Check.Section("grass fire", () =>
@@ -111,6 +124,23 @@ Check.Section("grass fire", () =>
     ChemistryField drying = Meadow(grass);
     Run(drying, 3000);
     Check.That(drying.Quantity(new(5, 1, 5), moisture) > 0.3f, "living grass keeps its water while dry grass loses it");
+
+    // Snow lying after the snowfall has stopped: no precipitation, only the cover.
+    ChemistryField snowed = Meadow(dryGrass);
+    snowed.SetModulator("snow", 1f);
+    Run(snowed, 100);
+    Check.That(snowed.Quantity(new(5, 1, 5), moisture) >= 0.5f, "dry grass under lying snow is wet with no precipitation falling");
+    Ignite(snowed, 24, 24);
+    Run(snowed, 200);
+    Check.Equal(0, Count(snowed, burning) + Count(snowed, burnt), "and a torch cannot light it");
+
+    ChemistryField snowfall = Meadow(dryGrass);
+    Ignite(snowfall, 24, 24);
+    Run(snowfall, 30);
+    int before = Count(snowfall, burning);
+    snowfall.SetModulator("snow", 1f);
+    Run(snowfall, 30);
+    Check.That(before > 0 && Count(snowfall, burning) == 0, $"snow laid over a burning meadow puts the fire out ({before} cells were burning)");
 
     ChemistryField windy = Meadow(dryGrass);
     windy.Drift = new Vector3(settings.Ambient.WindCellsPerSecond, 0, 0);
@@ -162,6 +192,7 @@ ChemistryField Meadow(int cover)
     field.MarkOpenColumns();
     field.SetAmbient(heat, settings.Ambient.WarmHeat);
     field.SetModulator("rain", 0f);
+    field.SetModulator("snow", 0f);
     return field;
 }
 
