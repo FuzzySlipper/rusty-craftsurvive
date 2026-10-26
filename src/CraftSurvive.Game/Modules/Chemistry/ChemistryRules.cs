@@ -79,12 +79,17 @@ internal static class WriteBack
     /// <summary>
     /// Of the cells waiting, the ones to write now, grouped by the block each becomes: at most <paramref name="allowed"/>,
     /// and only where the world still holds a block the rule may replace (an edit since the burn wins). The cell under each
-    /// is written too where the world holds one of the rule's blocks beneath, within the same allowance.
+    /// is written too where the world holds one of the rule's blocks beneath, within the same allowance: a cell and the one
+    /// under it are written together, unless the allowance cannot hold two even alone, when the cell is written by itself.
+    /// <paramref name="consumed"/> is how many of the waiting cells were dealt with (written or passed over); the rest wait
+    /// for the next write (R10296-1).
     /// </summary>
-    internal static Dictionary<BlockId, List<Cell>> Choose(IEnumerable<(Cell Cell, WriteBackSetting Rule)> waiting, Func<Cell, ushort> worldBlock, int allowed)
+    internal static Dictionary<BlockId, List<Cell>> Choose(IEnumerable<(Cell Cell, WriteBackSetting Rule)> waiting, Func<Cell, ushort> worldBlock, int allowed,
+        out int consumed)
     {
         Dictionary<BlockId, List<Cell>> chosen = [];
         int count = 0;
+        consumed = 0;
         foreach ((Cell cell, WriteBackSetting rule) in waiting)
         {
             if (count >= allowed)
@@ -94,7 +99,15 @@ internal static class WriteBack
 
             if (!rule.Over.Contains((BlockId)worldBlock(cell)))
             {
+                consumed++;
                 continue;
+            }
+
+            Cell under = cell.Offset(0, -1, 0);
+            bool beneath = rule.Beneath.Contains((BlockId)worldBlock(under));
+            if (beneath && count + 2 > allowed && count > 0)
+            {
+                break;
             }
 
             if (!chosen.TryGetValue(rule.Block, out List<Cell>? cells))
@@ -104,12 +117,13 @@ internal static class WriteBack
 
             cells.Add(cell);
             count++;
-            Cell under = cell.Offset(0, -1, 0);
-            if (count < allowed && rule.Beneath.Contains((BlockId)worldBlock(under)))
+            if (beneath && count < allowed)
             {
                 cells.Add(under);
                 count++;
             }
+
+            consumed++;
         }
 
         return chosen;

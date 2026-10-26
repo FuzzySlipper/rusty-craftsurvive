@@ -45,10 +45,42 @@ Check.Section("write-back budget", () =>
     (Cell, WriteBackSetting)[] waiting = [(new Cell(1, 1, 1), rule), (new Cell(2, 1, 1), rule), (new Cell(3, 1, 1), rule)];
     Dictionary<Cell, BlockId> world = new() { [new(1, 1, 1)] = BlockId.Grass, [new(2, 1, 1)] = BlockId.Cobblestone, [new(3, 1, 1)] = BlockId.DryGrass,
         [new(1, 0, 1)] = BlockId.Dirt, [new(2, 0, 1)] = BlockId.Dirt, [new(3, 0, 1)] = BlockId.Stone };
-    Dictionary<BlockId, List<Cell>> chosen = WriteBack.Choose(waiting, cell => (ushort)world[cell], allowed: 8);
+    Dictionary<BlockId, List<Cell>> chosen = WriteBack.Choose(waiting, cell => (ushort)world[cell], allowed: 8, out int took);
     Check.That(chosen.Count == 1 && chosen[BlockId.BurntGround].SequenceEqual([new Cell(1, 1, 1), new Cell(1, 0, 1), new Cell(3, 1, 1)]),
         "only cells the world still holds as grass are written, as the scar, with the dirt beneath; a player's edit since wins");
-    Check.Equal(1, WriteBack.Choose(waiting, cell => (ushort)world[cell], allowed: 1)[BlockId.BurntGround].Count, "a write takes no more than allowed");
+    Check.Equal(3, took, "every waiting cell was dealt with");
+    Check.Equal(1, WriteBack.Choose(waiting, cell => (ushort)world[cell], allowed: 1, out _)[BlockId.BurntGround].Count, "a write takes no more than allowed");
+
+    // R10296-1: batches drain a long burn whole. Each grass cell over dirt takes two of the allowance; none is lost.
+    Dictionary<Cell, BlockId> meadow = [];
+    Queue<(Cell, WriteBackSetting)> queue = new();
+    for (int x = 0; x < 300; x++)
+    {
+        meadow[new(x, 1, 0)] = BlockId.Grass;
+        meadow[new(x, 0, 0)] = BlockId.Dirt;
+        queue.Enqueue((new Cell(x, 1, 0), rule));
+    }
+
+    HashSet<Cell> writtenCells = [];
+    int writes = 0;
+    bool withinAllowance = true;
+    while (queue.Count > 0 && writes < 100)
+    {
+        Dictionary<BlockId, List<Cell>> batch = WriteBack.Choose(queue.Take(256), cell => (ushort)meadow[cell], allowed: 256, out int dealt);
+        for (int index = 0; index < dealt; index++) queue.Dequeue();
+        int cellsWritten = batch.Values.Sum(cells => cells.Count);
+        withinAllowance &= cellsWritten <= 256;
+        foreach (Cell cell in batch.Values.SelectMany(cells => cells))
+        {
+            writtenCells.Add(cell);
+            meadow[cell] = BlockId.BurntGround;
+        }
+
+        writes++;
+    }
+
+    Check.That(queue.Count == 0 && writtenCells.Count == 600 && withinAllowance && writes == 3,
+        $"300 burnt cells over dirt drain in batches of 256 cells, each surface with its ground beneath ({writtenCells.Count} cells in {writes} writes)");
 });
 
 Check.Section("scars heal", () =>

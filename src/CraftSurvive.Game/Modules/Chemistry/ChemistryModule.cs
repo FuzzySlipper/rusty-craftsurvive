@@ -392,13 +392,15 @@ internal sealed class ChemistryModule : IProductModule
             return;
         }
 
-        List<(Cell Cell, WriteBackSetting Rule)> batch = [];
-        while (batch.Count < allowed && waiting.Count > 0)
+        // Only the cells the write dealt with leave the queue: a cell and the ground beneath it share the allowance, so a
+        // batch may take fewer cells than it looked at (R10296-1).
+        Dictionary<BlockId, List<Cell>> chosen = WriteBack.Choose(waiting.Take(allowed), cell => terrain.MaterialAt(Address(cell)), allowed, out int consumed);
+        for (int index = 0; index < consumed; index++)
         {
-            batch.Add(waiting.Dequeue());
+            waiting.Dequeue();
         }
 
-        foreach ((BlockId block, List<Cell> cells) in WriteBack.Choose(batch, cell => terrain.MaterialAt(Address(cell)), allowed))
+        foreach ((BlockId block, List<Cell> cells) in chosen)
         {
             TerrainWorldEditResult result = terrain.TryEditCells([.. cells.Select(Address)], TerrainEditKind.Set, (ushort)block);
             if (result is TerrainWorldEditApplied)
