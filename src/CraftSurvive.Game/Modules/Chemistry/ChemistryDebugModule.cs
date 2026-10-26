@@ -17,6 +17,12 @@ public sealed class ChemistryDebugModule : IDebugCommandModule
     [DebugCommand("craft.chem.readout", Description = "Reads the chemistry field (#10293): chunks loaded and active, step cost, fires shown, and burnt ground written, waiting and refused against the terrain overlay's reserve.")]
     public string Readout() => chemistrySource().Readout();
 
+    [DebugCommand("craft.chem.chunks", Description = "Lists the field's loaded chunks: each one's first cell, whether it is awake (stepped) or asleep, and its commonest materials.")]
+    public string Chunks() => chemistrySource().ChunksReadout();
+
+    [DebugCommand("craft.chem.changes", Description = "Diagnoses sleep: the first call keeps the field's quantities; the next lists, for each awake chunk, each quantity's largest change since then and where.")]
+    public string Changes() => chemistrySource().ChangesReadout();
+
     [DebugCommand("craft.chem.weather", Description = "Reads the ambient the field took from the weather: air heat, the wind's drift in cells a second, rain, and the lying snow's cover.")]
     public string Weather() => chemistrySource().AmbientReadout();
 

@@ -51,6 +51,7 @@ internal sealed class ChemistryModule : IProductModule
     private double owed, sinceAmbient, sinceWrite, stepMilliseconds;
     private long written, dropped, refused;
     private string lastRefusal = "none";
+    private (long Step, Dictionary<Cell, float[]> Kept)? changesFrom;
 
     /// <param name="snowCover">The snow cover's share of the ground where the player stands, 0..1.</param>
     internal ChemistryModule(IEngineContext engine, ProductContent content, TerrainWorld terrain, WeatherModule weather, WorldFrame frame,
@@ -164,6 +165,73 @@ internal sealed class ChemistryModule : IProductModule
         IEnumerable<string> quantities = pack.Quantities.Select((quantity, index) =>
             string.Create(CultureInfo.InvariantCulture, $"{quantity.Id}={field.Quantity(cell, index):0.###}"));
         return $"{pack.Materials[field.MaterialAt(cell)].Id} open={field.IsOpen(cell)} {string.Join(" ", quantities)}";
+    }
+
+    /// <summary>Each loaded chunk: its first cell, whether it is awake, and its commonest materials.</summary>
+    internal string ChunksReadout() => string.Join(" | ", field.LoadedChunks().Select(origin =>
+    {
+        field.ReadChunkMaterials(origin, chunkMaterials);
+        IEnumerable<string> commonest = chunkMaterials.GroupBy(material => material).OrderByDescending(group => group.Count()).Take(3)
+            .Select(group => $"{pack.Materials[group.Key].Id}:{group.Count()}");
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{origin.X},{origin.Y},{origin.Z} {(field.IsActive(origin) ? "awake" : "asleep")} {string.Join(",", commonest)}");
+    }));
+
+    /// <summary>
+    /// For diagnosing sleep: the first call keeps every loaded chunk's quantities; the next reports, for each chunk
+    /// awake now, the largest change of each quantity since then, the cell it was in, and the steps between.
+    /// </summary>
+    internal string ChangesReadout()
+    {
+        if (changesFrom is not (long fromStep, Dictionary<Cell, float[]> kept))
+        {
+            changesFrom = (field.StepIndex, field.LoadedChunks().ToDictionary(origin => origin, Snapshot));
+            return $"kept {field.ChunkCount} chunks at step {field.StepIndex}; call again to compare";
+        }
+
+        changesFrom = null;
+        List<string> lines = [string.Create(CultureInfo.InvariantCulture, $"steps={field.StepIndex - fromStep}")];
+        foreach (Cell origin in field.LoadedChunks().Where(field.IsActive))
+        {
+            if (!kept.TryGetValue(origin, out float[]? before))
+            {
+                continue;
+            }
+
+            float[] after = Snapshot(origin);
+            IEnumerable<string> largest = pack.Quantities.Select((quantity, index) =>
+            {
+                int at = 0;
+                float most = 0f;
+                for (int cell = 0; cell < CellsPerChunk; cell++)
+                {
+                    float change = Math.Abs(after[(index * CellsPerChunk) + cell] - before[(index * CellsPerChunk) + cell]);
+                    if (change > most)
+                    {
+                        (most, at) = (change, cell);
+                    }
+                }
+
+                Cell where = origin.Offset(at % ChemistryField.ChunkSize, at / ChemistryField.ChunkSize % ChemistryField.ChunkSize,
+                    at / (ChemistryField.ChunkSize * ChemistryField.ChunkSize));
+                return string.Create(CultureInfo.InvariantCulture,
+                    $"{quantity.Id}={most:g3}@{where.X},{where.Y},{where.Z}:{pack.Materials[field.MaterialAt(where)].Id}");
+            });
+            lines.Add($"{origin.X},{origin.Y},{origin.Z} {string.Join(" ", largest)}");
+        }
+
+        return string.Join(" | ", lines);
+    }
+
+    private float[] Snapshot(Cell origin)
+    {
+        float[] values = new float[pack.Quantities.Length * CellsPerChunk];
+        for (int quantity = 0; quantity < pack.Quantities.Length; quantity++)
+        {
+            field.ReadChunk(origin, quantity, values.AsSpan(quantity * CellsPerChunk, CellsPerChunk));
+        }
+
+        return values;
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,

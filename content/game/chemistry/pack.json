@@ -3,7 +3,7 @@
 // and grass ignites when hot and dry; green grass must dry out first and catches unevenly, so a fire creeps
 // through it, while dry grass goes up at once and the fire races; rain wets what lies open to the sky, snow
 // lying on the ground keeps it wet (the "snow" modulator is the cover where the player stands), and
-// everything slowly dries, but living grass draws its water back up; water and snow wet what touches them;
+// everything slowly dries, but living grass draws its water back up (it rests at its own moisture); water and snow wet what touches them;
 // smoke rises and vents to the open sky.
 {
   "quantities": [
@@ -19,7 +19,8 @@
     { "id": "wood", "conduct": { "heat": 0.04 } },
     { "id": "snow", "conduct": { "heat": 0.02, "moisture": 0.5 }, "initial": { "moisture": 1 } },
     { "id": "water", "sky": true, "conduct": { "heat": 0.3, "moisture": 1 }, "initial": { "moisture": 1 } },
-    { "id": "grass", "sky": true, "conduct": { "heat": 0.06, "smoke": 0.5, "moisture": 0.5 }, "initial": { "fuel": 6, "moisture": 0.4 } },
+    { "id": "grass", "sky": true, "conduct": { "heat": 0.06, "smoke": 0.5, "moisture": 0.5 }, "initial": { "fuel": 6, "moisture": 0.4 },
+      "rest": { "moisture": { "to": 0.4, "settle": 0.3 } } },
     { "id": "dry-grass", "sky": true, "conduct": { "heat": 0.12, "smoke": 0.5, "moisture": 0.5 }, "initial": { "fuel": 4, "moisture": 0.05 } },
     { "id": "burning-grass", "sky": true, "conduct": { "heat": 0.12, "smoke": 0.5, "moisture": 0.5 } },
     { "id": "burnt-ground", "sky": true, "conduct": { "heat": 0.05, "smoke": 0.5, "moisture": 0.5 } }
@@ -30,7 +31,6 @@
     { "id": "water-wets", "in": ["water", "snow"], "rate": 5, "produces": { "moisture": 1 } },
     { "id": "quench", "in": ["water"], "when": [{ "quantity": "heat", "atLeast": 30 }], "rate": 2, "per": "heat", "consumes": { "heat": 1 } },
     { "id": "drying", "when": [{ "quantity": "heat", "atLeast": 100 }], "rate": 0.1, "consumes": { "moisture": 1 } },
-    { "id": "grass-draws-water", "in": ["grass"], "when": [{ "quantity": "moisture", "atMost": 0.4 }], "rate": 0.06, "produces": { "moisture": 1 } },
     { "id": "rain-wets", "in": ["grass", "dry-grass", "burning-grass", "burnt-ground", "soil"], "when": [{ "open": true }],
       "rate": 0.2, "modulator": "rain", "produces": { "moisture": 1 } },
     { "id": "snow-wets", "in": ["grass", "dry-grass", "burning-grass", "burnt-ground", "soil"], "when": [{ "open": true }],
