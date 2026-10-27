@@ -74,6 +74,12 @@ internal static class OverlayChecks
                 Check.That(small.TouchesChunk(chunk) == after.TouchesChunk(chunk), $"per-chunk counts disagree with the snapshot at {chunk}");
             }
 
+            // The state's snapshot, taken without sorting or checking again (#10407), is the canonical one its entries make.
+            TerrainOverlaySnapshot trusted = full.Snapshot();
+            TerrainOverlaySnapshot checkedOne = new(seed, [.. trusted.Entries.Reverse()]);
+            Check.That(trusted.Entries.SequenceEqual(checkedOne.Entries) && trusted.View.Length == checkedOne.Entries.Length,
+                "the overlay's own snapshot is in canonical order, as the checking constructor would make it");
+
             // An edit back to what the recipe made releases the cell's override (#10296: a scar growing back).
             VoxelAddress scar = new(70, 9, -12);
             TerrainOverlayState healing = new(seed, address => address == scar ? TerrainConstants.GrassMaterial : TerrainConstants.StoneMaterial);

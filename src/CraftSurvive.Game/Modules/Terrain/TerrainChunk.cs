@@ -117,14 +117,22 @@ internal sealed class TerrainChunkGenerator
         ushort[] materials = previous.Materials.ToArray();
         float[] densities = previous.Densities.ToArray();
         VoxelAddress origin = previous.Address.Origin;
+        // An edit's cells share columns (a blast's sphere, a burnt surface and the ground beneath it), and a column's
+        // query samples the map several times, so each is asked once (#10407).
+        Dictionary<(long X, long Z), (TerrainColumn Column, double Height)> columns = [];
         foreach (VoxelAddress voxel in edited)
         {
             if (voxel.Chunk != previous.Address) continue;
+            if (!columns.TryGetValue((voxel.X, voxel.Z), out (TerrainColumn Column, double Height) column))
+            {
+                column = columns[(voxel.X, voxel.Z)] = (recipe.ColumnAt(voxel.X, voxel.Z), recipe.ContinuousHeightAt(voxel.X, voxel.Z));
+            }
+
             int index = ToIndex((int)(voxel.X - origin.X), (int)(voxel.Y - origin.Y), (int)(voxel.Z - origin.Z));
-            ushort generated = recipe.MaterialAt(voxel, recipe.ColumnAt(voxel.X, voxel.Z));
+            ushort generated = recipe.MaterialAt(voxel, column.Column);
             ushort material = overlay.TryGetMaterial(voxel, out ushort overridden) ? overridden : generated;
             materials[index] = material;
-            densities[index] = TerrainDensity.At(voxel.Y, recipe.ContinuousHeightAt(voxel.X, voxel.Z), generated, material);
+            densities[index] = TerrainDensity.At(voxel.Y, column.Height, generated, material);
         }
 
         return new TerrainChunk(previous.Address, materials, densities);

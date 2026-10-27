@@ -82,6 +82,17 @@ internal sealed class TerrainResidencyPolicy
         return cachedPlan;
     }
 
+    /// <summary>
+    /// A chunk already produced for the overlay at <paramref name="overlayRevision"/>: its materials are the world's now,
+    /// edits included (each edit patches it; any other overlay change drops the produced chunks). False when none is held,
+    /// or the policy has not caught up with the overlay.
+    /// </summary>
+    internal bool TryProduced(TerrainChunkAddress address, ulong overlayRevision, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TerrainChunk? chunk)
+    {
+        chunk = null;
+        return cachedOverlay is not null && cachedOverlayRevision == overlayRevision && cachedChunks.TryGetValue(address, out chunk);
+    }
+
     /// <summary>Refreshes only edited candidate chunks in the current global plan.</summary>
     internal void RefreshAfterOverlayChange(TerrainOverlayState overlay, TerrainOverlayReceipt receipt)
     {

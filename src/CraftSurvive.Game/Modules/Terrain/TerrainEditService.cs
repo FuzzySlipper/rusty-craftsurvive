@@ -57,7 +57,7 @@ internal sealed class TerrainEditService(
     internal bool TimingEnabled { get; set; }
 
     /// <summary>The last timed edit's cost by part; diagnostics, not game state.</summary>
-    internal string LastTiming => TimingEnabled ? lastTiming?.ToString() ?? "none" : "off";
+    internal string LastTiming => TimingEnabled ? lastTiming is { } timing ? $"{timing} residencyParts[{residencyPolicy.LastRefresh}]" : "none" : "off";
 
     internal TerrainWorldEditResult Apply(SpatialSession session, TerrainEditRequest request, VoxelAddress target,
         VoxelAddress center, SpatialFace face, Func<VoxelAddress, bool>? playerOverlaps, long step)

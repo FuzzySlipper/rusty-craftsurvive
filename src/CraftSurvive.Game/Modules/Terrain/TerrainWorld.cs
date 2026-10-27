@@ -835,9 +835,35 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>Whether an edit has changed this cell from what the recipe generated.</summary>
     internal bool IsEdited(VoxelAddress address) => overlayStore.Overlay.TryGetMaterial(address, out _);
 
+    /// <summary>
+    /// Copies a chunk's materials as the world holds them now (x + 16y + 256z), when the terrain has the chunk produced
+    /// for its residency: a reader of a whole chunk (the chemistry field, #10407) then copies it instead of asking for
+    /// each of its 4,096 cells. False when the chunk is not held; ask <see cref="MaterialAt"/> instead.
+    /// </summary>
+    internal bool TryReadChunkMaterials(TerrainChunkAddress address, Span<ushort> materials)
+    {
+        if (!policy.TryProduced(address, overlayStore.Overlay.Revision, out TerrainChunk? chunk))
+        {
+            return false;
+        }
+
+        chunk.Materials.Span.CopyTo(materials);
+        return true;
+    }
+
     /// <summary>The edited cells that hold this material now (a grass fire's scar, #10296), from the overlay as it stands.</summary>
-    internal IEnumerable<VoxelAddress> EditedTo(ushort material) =>
-        overlayStore.Overlay.Snapshot().Entries.Where(entry => entry.Material == material).Select(entry => entry.Address);
+    internal IEnumerable<VoxelAddress> EditedTo(ushort material)
+    {
+        ReadOnlyMemory<TerrainOverlayEntry> entries = overlayStore.Overlay.Snapshot().View;
+        for (int index = 0; index < entries.Length; index++)
+        {
+            TerrainOverlayEntry entry = entries.Span[index];
+            if (entry.Material == material)
+            {
+                yield return entry.Address;
+            }
+        }
+    }
 
     /// <summary>
     /// What the recipe made at a cell, its columns kept (the recipe is deterministic): an edit's overlay asks this of every

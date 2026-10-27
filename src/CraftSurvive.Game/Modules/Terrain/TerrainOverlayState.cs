@@ -91,7 +91,17 @@ internal sealed class TerrainOverlayState
     {
         if (snapshot is null || snapshotRevision != revision)
         {
-            snapshot = new(seed, materials.Select(pair => new TerrainOverlayEntry(pair.Key, pair.Value)).ToArray());
+            // The dictionary keeps its entries sorted, unique and validated (Apply, Restore), so the snapshot takes them in
+            // order without sorting or checking them again: every edit rebuilds it, and re-sorting tens of thousands of
+            // entries cost an edit about 8 ms (#10407).
+            TerrainOverlayEntry[] entries = new TerrainOverlayEntry[materials.Count];
+            int index = 0;
+            foreach (KeyValuePair<VoxelAddress, ushort> pair in materials)
+            {
+                entries[index++] = new TerrainOverlayEntry(pair.Key, pair.Value);
+            }
+
+            snapshot = TerrainOverlaySnapshot.FromCanonical(seed, entries);
             snapshotRevision = revision;
         }
 
@@ -206,9 +216,24 @@ internal sealed class TerrainOverlaySnapshot
         ValidateCanonical(this.entries);
     }
 
+    private TerrainOverlaySnapshot(TerrainOverlayEntry[] canonical, ulong seed)
+    {
+        Seed = seed;
+        entries = canonical;
+    }
+
+    /// <summary>
+    /// A snapshot of entries already sorted by unique address and validated, taken as they are (the overlay state's own,
+    /// #10407). Anything read from outside the state - a save, a test - goes through the checking constructor.
+    /// </summary>
+    internal static TerrainOverlaySnapshot FromCanonical(ulong seed, TerrainOverlayEntry[] canonical) => new(canonical, seed);
+
     internal ulong Seed { get; }
 
     internal TerrainOverlayEntry[] Entries => entries.ToArray();
+
+    /// <summary>The entries in address order, without a copy.</summary>
+    internal ReadOnlyMemory<TerrainOverlayEntry> View => entries;
 
     /// <summary>Every chunk an edit falls in, once each, in address order.</summary>
     internal IEnumerable<TerrainChunkAddress> TouchedChunks()

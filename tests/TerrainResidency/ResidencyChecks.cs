@@ -121,6 +121,26 @@ internal static class ResidencyChecks
         Check.That(afterEdit.Chunk(edited).Materials.Span[4 * TerrainConstants.ChunkEdgeLength + 1 + TerrainConstants.ChunkPlaneLength] == TerrainConstants.StoneMaterial,
             "prepared payload did not contain the edit");
         Check.That(ReferenceEquals(beforeEdit.Chunk(unchanged), afterEdit.Chunk(unchanged)), "edit regenerated untouched chunk");
+        // #10407: a produced chunk read whole holds what the world holds cell by cell, the edit included, and is refused
+        // once the overlay moves on without the policy.
+        Check.That(policy.TryProduced(edited, state.Revision, out TerrainChunk? produced)
+            && produced.Materials.Span[4 * TerrainConstants.ChunkEdgeLength + 1 + TerrainConstants.ChunkPlaneLength] == TerrainConstants.StoneMaterial,
+            "a produced chunk read whole carries the edit");
+        TerrainChunkAddress ground = new VoxelAddress(0, recipe.SurfaceAt(0, 0), 0).Chunk;
+        TerrainChunk groundChunk = afterEdit.Chunk(ground);
+        bool same = policy.TryProduced(ground, state.Revision, out TerrainChunk? groundRead);
+        VoxelAddress groundOrigin = ground.Origin;
+        for (int index = 0; same && index < TerrainConstants.ChunkVolume; index++)
+        {
+            VoxelAddress cell = new(groundOrigin.X + (index % TerrainConstants.ChunkEdgeLength),
+                groundOrigin.Y + (index / TerrainConstants.ChunkEdgeLength % TerrainConstants.ChunkEdgeLength),
+                groundOrigin.Z + (index / TerrainConstants.ChunkPlaneLength));
+            ushort world = state.TryGetMaterial(cell, out ushort overridden) ? overridden : recipe.MaterialAt(cell);
+            same = groundRead!.Materials.Span[index] == world && ReferenceEquals(groundRead, groundChunk);
+        }
+
+        Check.That(same, "a surface chunk read whole matches every cell the recipe and overlay give");
+        Check.That(!policy.TryProduced(ground, state.Revision + 1, out _), "a produced chunk is refused once the overlay has moved on");
         // The earlier plan either never held the edited chunk or holds its unedited payload.
         bool earlierUntouched;
         try { earlierUntouched = beforeEdit.Chunk(edited).SolidVoxelCount == 0; }

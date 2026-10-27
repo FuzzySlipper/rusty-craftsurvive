@@ -44,7 +44,10 @@ internal sealed class ChemistryModule : IProductModule
     private readonly GrassFireLook look;
     private readonly BurnScars scars;
     private readonly int burntMaterial, heatQuantity, smokeQuantity;
-    private readonly ushort[] chunkMaterials = new ushort[CellsPerChunk];
+    private readonly ushort[] chunkMaterials = new ushort[CellsPerChunk], chunkBlocks = new ushort[CellsPerChunk];
+
+    /// <summary>A chemistry chunk is a terrain chunk: 16 cells, so a cell's chunk is its coordinate shifted by four.</summary>
+    private const int ChunkShift = 4;
     private readonly Queue<(Cell Cell, WriteBackSetting Rule)> waiting = [];
     private readonly Dictionary<(int X, int Z), SurfaceBand> bands = [];
     private ChemistryField field;
@@ -448,22 +451,36 @@ internal sealed class ChemistryModule : IProductModule
         return bands[(columnX, columnZ)] = FieldWindow.BandOf(columnX, columnZ, terrain.Recipe.SurfaceAt);
     }
 
-    /// <summary>Loads one chunk from the world: each cell's block as its material, open air under water as water.</summary>
+    /// <summary>
+    /// Loads one chunk from the world: each cell's block as its material, open air under water as water. The blocks come
+    /// from the terrain's own chunk when it holds one (a chemistry chunk is a terrain chunk), else cell by cell; a
+    /// column's water is read only if it has open air to fill (#10407).
+    /// </summary>
     private void Load(Cell origin)
     {
         const int Size = ChemistryField.ChunkSize;
+        bool whole = terrain.TryReadChunkMaterials(
+            new TerrainChunkAddress(origin.X >> ChunkShift, origin.Y >> ChunkShift, origin.Z >> ChunkShift), chunkBlocks);
         for (int z = 0; z < Size; z++)
         {
             for (int x = 0; x < Size; x++)
             {
                 long worldX = origin.X + x, worldZ = origin.Z + z;
-                Water.WaterSample water = terrain.Water.Sample(worldX, worldZ);
-                double? top = water.Wet && !water.Ice ? water.Top : null;
+                double? top = null;
+                bool sampled = false;
                 for (int y = 0; y < Size; y++)
                 {
                     long worldY = origin.Y + y;
-                    ushort block = terrain.MaterialAt(new VoxelAddress(worldX, worldY, worldZ));
-                    chunkMaterials[x + (y * Size) + (z * Size * Size)] = blocks.CellMaterial(block, worldY, top);
+                    int index = x + (y * Size) + (z * Size * Size);
+                    ushort block = whole ? chunkBlocks[index] : terrain.MaterialAt(new VoxelAddress(worldX, worldY, worldZ));
+                    if (!sampled && blocks.MaterialOf(block) == blocks.Air)
+                    {
+                        Water.WaterSample water = terrain.Water.Sample(worldX, worldZ);
+                        top = water.Wet && !water.Ice ? water.Top : null;
+                        sampled = true;
+                    }
+
+                    chunkMaterials[index] = blocks.CellMaterial(block, worldY, top);
                 }
             }
         }
