@@ -336,3 +336,55 @@ internal static class FireScan
         return found;
     }
 }
+
+/// <summary>
+/// The field's steps handed to a worker (#10384): one run at a time, its result kept until the update takes it. Waiting
+/// for a run (before anything else touches the field, or on leaving for a separate space) keeps its result, so its burnt
+/// cells still reach the write-back once the update next takes it (R10384-2). Only a restart, whose field is new,
+/// discards it. Engine-free.
+/// </summary>
+internal sealed class StepHandoff<TResult>
+{
+    private Task<TResult>? pending;
+
+    /// <summary>Whether a run is still working: nothing else may touch the field meanwhile.</summary>
+    internal bool Running => pending is { IsCompleted: false };
+
+    /// <summary>Whether a run is handed off and its result not yet taken.</summary>
+    internal bool Holding => pending is not null;
+
+    /// <summary>Hands a run to the worker; the previous run's result must have been taken.</summary>
+    internal void Start(Func<TResult> run)
+    {
+        if (pending is not null)
+        {
+            throw new InvalidOperationException("the field's last steps have not been taken");
+        }
+
+        pending = Task.Run(run);
+    }
+
+    /// <summary>Takes a finished run's result, once; false while it runs or when there is none.</summary>
+    internal bool TryTake(out TResult result)
+    {
+        if (pending is not { IsCompleted: true } done)
+        {
+            result = default!;
+            return false;
+        }
+
+        pending = null;
+        result = done.Result;
+        return true;
+    }
+
+    /// <summary>Waits for a running run, keeping its result for the next take.</summary>
+    internal void Wait() => pending?.Wait();
+
+    /// <summary>Waits for a running run and drops its result: its field is gone (a restart).</summary>
+    internal void Discard()
+    {
+        Wait();
+        pending = null;
+    }
+}

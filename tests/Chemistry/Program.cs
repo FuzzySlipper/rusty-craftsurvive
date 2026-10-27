@@ -34,6 +34,46 @@ Check.Section("content", () =>
         "a misspelt block fails at load");
 });
 
+Check.Section("step hand-off", () =>
+{
+    // R10384-2: a burn the worker stepped reaches the write-back exactly once, even when the player left for a separate
+    // space (the update only waits there) while it ran, or after it had already finished.
+    foreach (bool finishedFirst in new[] { false, true })
+    {
+        ChemistryField field = Meadow(dryGrass);
+        Ignite(field, 24, 24);
+        StepHandoff<List<MaterialChange>> handoff = new();
+        handoff.Start(() =>
+        {
+            List<MaterialChange> changes = [];
+            for (int step = 0; step < 150; step++)
+            {
+                field.Step();
+                changes.AddRange(field.MaterialChanges);
+            }
+
+            return changes;
+        });
+        if (finishedFirst)
+        {
+            SpinWait.SpinUntil(() => !handoff.Running);
+        }
+
+        handoff.Wait();
+        bool held = handoff.Holding && !handoff.Running;
+        bool took = handoff.TryTake(out List<MaterialChange> result);
+        int wanted = WriteBack.Wanted(result, blocks).Count();
+        bool again = handoff.TryTake(out _);
+        Check.That(held && took && !again && wanted > 0 && wanted == result.Count(change => change.To == burnt),
+            $"a step run kept over a separate space is taken once, its {wanted} burnt cells all wanted for write-back (finished first: {finishedFirst})");
+    }
+
+    StepHandoff<int> dropped = new();
+    dropped.Start(() => 7);
+    dropped.Discard();
+    Check.That(!dropped.Holding && !dropped.TryTake(out _), "a restart drops the run of the field it replaced");
+});
+
 Check.Section("write-back budget", () =>
 {
     WriteBackBudgetSetting budget = new(KeepFreeEntries: 32768, CellsPerWrite: 256, WriteSeconds: 1);

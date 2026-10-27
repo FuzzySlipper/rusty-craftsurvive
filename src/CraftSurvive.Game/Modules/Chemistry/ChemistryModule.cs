@@ -50,7 +50,7 @@ internal sealed class ChemistryModule : IProductModule
     private ChemistryField field;
     private ChemistryAmbient? applied;
     private HashSet<(int X, int Z)> burningColumns = [];
-    private Task<StepResult>? pending;
+    private readonly StepHandoff<StepResult> handoff = new();
     private bool inline;
 
     /// <summary>For comparison (#10384): whether the update waits for its own steps, as the field stepped before the worker.</summary>
@@ -138,8 +138,8 @@ internal sealed class ChemistryModule : IProductModule
         if (away())
         {
             // A dungeon or study is its own space: the field waits, and its fire is not drawn there.
+            // The field waits; a step finished meanwhile is kept for the update back, its burnt cells not lost (R10384-2).
             Idle();
-            pending = null;
             look.Hide();
             return;
         }
@@ -151,7 +151,7 @@ internal sealed class ChemistryModule : IProductModule
         owed += step.ElapsedSeconds;
         sinceAmbient += step.ElapsedSeconds;
         sinceWrite += step.ElapsedSeconds;
-        if (pending is { IsCompleted: false })
+        if (handoff.Running)
         {
             return;
         }
@@ -181,11 +181,11 @@ internal sealed class ChemistryModule : IProductModule
         if (steps > 0)
         {
             ChemistryField stepping = field;
-            pending = Task.Run(() => Run(stepping, steps));
+            handoff.Start(() => Run(stepping, steps));
             if (inline)
             {
                 // The comparison (#10384): the update waits for its steps and shows them at once, as before the worker.
-                pending.Wait();
+                handoff.Wait();
                 Take(player);
             }
         }
@@ -209,13 +209,11 @@ internal sealed class ChemistryModule : IProductModule
     /// <summary>Takes a finished step's result: its burnt cells to the look and the write-back, its fire to the look.</summary>
     private void Take(Vector3 player)
     {
-        if (pending is not { IsCompleted: true } done)
+        if (!handoff.TryTake(out StepResult result))
         {
             return;
         }
 
-        pending = null;
-        StepResult result = done.Result;
         stepMilliseconds = (stepMilliseconds * StepCostKept) + (result.Milliseconds * (1 - StepCostKept));
         look.Burnt(result.Changes, burntMaterial, player);
         foreach ((Cell Cell, WriteBackSetting Rule) entry in WriteBack.Wanted(result.Changes, blocks))
@@ -233,7 +231,7 @@ internal sealed class ChemistryModule : IProductModule
     }
 
     /// <summary>Waits for a running step, so the field can be touched; its result is taken by the next update.</summary>
-    private void Idle() => pending?.Wait();
+    private void Idle() => handoff.Wait();
 
     /// <summary>What a worker's steps left: the identity changes, the burning cells, the drift, and the mean step's cost.</summary>
     private sealed record StepResult(List<MaterialChange> Changes, List<BurningCell> Burning, Vector3 Drift, double Milliseconds);
@@ -243,8 +241,7 @@ internal sealed class ChemistryModule : IProductModule
 
     public void Restart()
     {
-        Idle();
-        pending = null;
+        handoff.Discard();
         field = NewField();
         applied = null;
         owed = 0;
