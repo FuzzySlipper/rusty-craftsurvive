@@ -614,7 +614,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   (about 250 triangles each) on one representative site, so every ring, ruin or look-out of a kind looks
   alike from afar, enlarged to stay at least a degree tall. Home keeps its box house. The terrain keeps only a cave mouth's recess, a descent's shaft and the
   vantage lamp. Consequences:
-  - **Not editable, by design (owner, 2026-10-17).** Places are impervious: a blast breaks only the
+  - **Not editable, by design (Patch, 2026-10-17).** Places are impervious: a blast breaks only the
     terrain round them and the carves.
   - **Seating.** Each piece sinks a fixed skirt (`sink`) below the ground it stands on: ring steles,
     the cairn and ruin pieces on their own ground, the rest on the site's. A slope steeper than the

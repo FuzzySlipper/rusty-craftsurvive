@@ -1,6 +1,6 @@
 # Human characters: style sheet
 
-Owner-chosen direction (2026-10-15, Den #10027): direction 3 with storybook proportions.
+Direction chosen by Patch (2026-10-15, Den #10027): direction 3 with storybook proportions.
 Anything marked **Open** still waits on a test.
 
 ## The idea in one line
@@ -25,7 +25,7 @@ It is not anime, a toy cartoon, middle realism, or an emulation of old hardware.
   elbows, hat brims, coat hems), never as visible triangles on surfaces.
 - **Few, large modelled masses.** Body, coat, apron, hat, boots, pack. Folds, seams, buttons,
   straps and stitching are painted, unless they change the silhouette.
-- **Proportions: storybook (owner, 2026-10-15; `storybook-lineup.png`).**
+- **Proportions: storybook (Patch, 2026-10-15; `storybook-lineup.png`).**
   - About 6 heads tall: the head is larger than real.
   - Big, capable hands and boots.
   - Simplified, rounded noses and small, calm eyes.

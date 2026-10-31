@@ -27,7 +27,7 @@ Den project `rusty-craftsurvive`:
 
 - **Work state**: live tasks and their context hold scope, dependencies, and
   implementation progress. Historical campaign restrictions do not override
-  later explicit owner decisions or the task implementing them.
+  later explicit decisions from Patch or the task implementing them.
 - **History**: retired study records and superseded sections are documents with
   `history/` slugs — for example `history/courtyard-verdict`,
   `history/procgen-workbench`, `history/known-limitations-full`,

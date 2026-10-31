@@ -1,6 +1,6 @@
 # Town mood and camera references
 
-These eight owner-selected concept screenshots are positive references for
+These eight concept screenshots selected by Patch are positive references for
 warm, welcoming towns in Wandering Year / CraftSurvive. They show how a small
 inhabited place can provide an inviting contrast to the surrounding landscape,
 and how camera distance changes the feeling of arrival.

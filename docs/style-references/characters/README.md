@@ -1,6 +1,6 @@
 # Human character style references
 
-The owner chose these on 2026-10-15 (Den #10027) as the target look for human characters:
+Patch chose these on 2026-10-15 (Den #10027) as the target look for human characters:
 **direction 3**, painted surfaces on simple, smooth-shaded forms, with **storybook proportions**.
 
 | Image | What it shows |

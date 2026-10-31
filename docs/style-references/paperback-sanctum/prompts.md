@@ -6,7 +6,7 @@ painted canyon used the original canyon as its composition reference. These are
 concept illustrations, not Engine captures. Both canyon treatments and the
 tundra and dungeon studies are positive references.
 
-The owner's [source style prompt](source-style.md) is preserved verbatim. It
+Patch's [source style prompt](source-style.md) is preserved verbatim. It
 contains alternative treatments; the prompts below record the specific synthesis
 used for each image. Prompt exclusions describe generation requests, not a reason
 to reject a visible quality in the approved results. See the

@@ -5,7 +5,7 @@ direction. The more detailed studies and the broader painted canyon belong to
 the accepted range; neither treatment supersedes the other.
 
 Use them with the [visual direction guide](../../visual-direction.md). The
-[exact generation prompts](prompts.md) and the owner's unmodified
+[exact generation prompts](prompts.md) and Patch's unmodified
 [source style prompt](source-style.md) are retained alongside the original PNGs.
 These are GPT-generated concept illustrations, not Engine screenshots or
 production assets. Their architectural vocabulary guides design without fixing

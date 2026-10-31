@@ -31,7 +31,7 @@ six ingredients from it, and not its Norse setting, creatures or building kit.
   moss patches. They do not carry photographic grain, pores or fabric weave.
 - A surface shows at most three levels of variation at play distance: the broad
   colour of the mass, a few large marks, and one finer texture. Nothing finer.
-- **Texture crunch (owner, 2026-10-14):**
+- **Texture crunch (Patch, 2026-10-14):**
   - **Objects** (props, scatter, buildings, gear and other meshes) use small textures,
     about 32 texels per metre, magnified nearest so texels show crisply up close.
     They are mipmapped and smoothly filtered at distance, so they never sparkle.
@@ -42,7 +42,7 @@ six ingredients from it, and not its Norse setting, creatures or building kit.
     32 they read as painted colour.
 
   The comparison is the Den task "Texture crunch calibration" (#10010).
-- **Authored detail, not wrapped texture (owner, 2026-10-17):** a prop or place is a calm surface,
+- **Authored detail, not wrapped texture (Patch, 2026-10-17):** a prop or place is a calm surface,
   nearly flat broad colour, carrying a couple of strong authored details (a few bold cracks, one
   ceramic accent) rather than a busy texture tiled over the whole mesh. The approved method paints a
   concept of the object and projects it back onto the clean shape. It then reduces the result as
@@ -50,7 +50,7 @@ six ingredients from it, and not its Norse setting, creatures or building kit.
   few stone colours plus the accent's own. The comparison is in the Den task for overworld places
   as meshes (#9992); the recipe is in asset-pipeline `legacy/experiments/stele-place-study/`.
 
-### Style pillar: meshes are painted, then drawn as 3D pixel art (owner, 2026-10-20)
+### Style pillar: meshes are painted, then drawn as 3D pixel art (Patch, 2026-10-20)
 
 This is how CraftSurvive textures its meshes. It came out of the dungeon kit (#10089); places and props should
 move to it as they are reworked.
@@ -70,7 +70,7 @@ move to it as they are reworked.
    turned down, while dark line work (joints, cracks, outlines) keeps its contrast. The drawing holds at range, and
    the fine speckle that would read as noise quietens.
 
-Busy is welcome here when it is authored. The owner liked the Qwen paint's density: it reads as hand-made 3D pixel
+Busy is welcome here when it is authored. Patch liked the Qwen paint's density: it reads as hand-made 3D pixel
 art, not as a texture wrapped over the mesh. The failure to avoid is a tiled or procedural texture repeating
 across a mesh.
 
@@ -195,7 +195,7 @@ small practical expedition gear. The ancient openings, tapered ribs and
 ceramic-like insets are an approved architectural vocabulary to develop. They do
 not fix every ruin's doorway or settle the civilization's lore.
 
-The [ancients set](style-references/ancients/README.md) holds two images that set the language of the ancients' ruins (owner, 2026-10-20). Whim gives the vocabulary: impossible, whimsical proportions, slot-and-eye doorways, shell alcoves, hung spheres, cosmic ceramic mosaics, and one light discordant technology element. Bones gives the ruin state: the same grandeur reduced to its ribs. Who the ancients were is in the design atlas. They are not an Earth antiquity: no Greek, Roman, Egyptian, Gothic or elvish forms. The dungeon kit (#10089) builds from this set.
+The [ancients set](style-references/ancients/README.md) holds two images that set the language of the ancients' ruins (Patch, 2026-10-20). Whim gives the vocabulary: impossible, whimsical proportions, slot-and-eye doorways, shell alcoves, hung spheres, cosmic ceramic mosaics, and one light discordant technology element. Bones gives the ruin state: the same grandeur reduced to its ribs. Who the ancients were is in the design atlas. They are not an Earth antiquity: no Greek, Roman, Egyptian, Gothic or elvish forms. The dungeon kit (#10089) builds from this set.
 
 The [town set](style-references/town/README.md) holds eight references for warm,
 inhabited sanctuaries: a lowland port, a rainy upriver town and a small
@@ -260,10 +260,10 @@ historical region, an industrial aesthetic or a glowing ancient-machine motif.
     light and moisture allow. Detail comes from the features, not the mesher.
   - Cave rock reads as 3D pixel art: small lit facets of flat colour on the
     smooth voxel surface, coloured by a palette with no painted forms (strata,
-    staining, wetness), so detail never comes from a picture of rock (owner,
+    staining, wetness), so detail never comes from a picture of rock (Patch,
     2026-10-19).
   - Nothing of the earlier faceted dungeon look is assumed. That includes how
-    darkness is made (owner, 2026-10-18; see the atlas's Combat & Delving).
+    darkness is made (Patch, 2026-10-18; see the atlas's Combat & Delving).
 
 ## Scavenging has a physical presence
 

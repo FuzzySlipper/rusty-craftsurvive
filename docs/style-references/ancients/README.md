@@ -1,6 +1,6 @@
 # Ancients style references
 
-The owner approved both images on 2026-10-20 as the language of the ancients' ruins: the dungeon kit (#10089), and in time the overworld ruins. Who the ancients were is set out in the design atlas (World & Setting, "Era and fiction"):
+Patch approved both images on 2026-10-20 as the language of the ancients' ruins: the dungeon kit (#10089), and in time the overworld ruins. Who the ancients were is set out in the design atlas (World & Setting, "Era and fiction"):
 - a fallen fusion of magic and technology, of unimaginable power and whim;
 - aristocratic, vintage stylings, with discordant technology lightly present;
 - found long after as weird bones, never as an Earth antiquity.

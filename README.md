@@ -199,5 +199,5 @@ Run NativeAOT verification only when the task needs fidelity/release evidence:
 rusty build --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --aot
 ```
 
-For the deferred owner-machine pacing investigation, the capture recipe is in Den
+For the deferred pacing investigation on Patch's machine, the capture recipe is in Den
 (`history/performance-investigation`).

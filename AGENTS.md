@@ -11,7 +11,7 @@ design references before design-shaping work.
 Design changes often, and old design lingers in task descriptions, Den documents
 and repository Markdown. Where they disagree with the atlas about game design,
 the atlas is current; raise the conflict rather than following the older text.
-Record owner design decisions in the atlas: pull first, keep its Direction,
+Record Patch's design decisions in the atlas: pull first, keep its Direction,
 Proposal and Open labels, and push. `docs/visual-direction.md` holds the approved
 visual references; `docs/survival-direction.md` is an older design assessment,
 which the atlas supersedes for game design.

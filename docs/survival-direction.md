@@ -138,7 +138,7 @@ is dynamic but stays locked to the party, orbiting and zooming around it rather
 than flying freely. Long-distance travel then carries a sense of expedition
 without shrinking the world to something walkable on foot, while local
 exploration, home building, and dungeon dives use detailed first-person spaces.
-Owner decisions so far: a 10 km world takes about two in-game days to cross as a starting
+Decisions from Patch so far: a 10 km world takes about two in-game days to cross as a starting
 point; travelling at night is allowed but very slow, so camping is encouraged rather than
 required; the clock keeps its normal pace in first person while map travel fast-forwards it;
 the whole map's geography is visible, and places are what is discovered; the first transport
