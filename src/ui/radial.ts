@@ -7,6 +7,13 @@ import { layers, open as openLayer } from './layers.js';
 /** The key that opens and closes the ring; C (gameplay) casts what it composed. Escape closes it too. */
 const RING_KEY = 'KeyV';
 const CLOSE_KEY = 'Escape';
+/**
+ * How long the ring waits, after the second choice, for the product to show the composition before it gives
+ * play the pointer back anyway, in milliseconds. Play takes input back only once the claim has arrived: in the
+ * desktop window the shell's taking of the lock changes the runtime's input control, which drops a claim still
+ * on its way.
+ */
+const COMPOSE_WAIT_MS = 1000;
 
 /**
  * The trigrams round the ring in the Earlier Heaven (Fu Xi) arrangement, clockwise from the top, so each faces its
@@ -118,6 +125,9 @@ export function mountCastingRing(root: Element, intents: RustyApplicationUiInten
   let hovered: string | null = null;
   let trigrams = new Map<string, Trigram>();
   let hexagrams: Hexagram[] = [];
+  // The composition claimed and not yet shown by the product, with the fallback that returns to play without it.
+  let composing: { readonly upper: string; readonly lower: string } | null = null;
+  let composeTimer = 0;
 
   const claim = (data: Readonly<Record<string, string>>): void => {
     intents?.claim(ACTION_INTENT, { kind: 'product-payload', contract: ACTION_CONTRACT, data });
@@ -166,6 +176,8 @@ export function mountCastingRing(root: Element, intents: RustyApplicationUiInten
   const close = (): void => {
     if (!open) return;
     open = false;
+    composing = null;
+    window.clearTimeout(composeTimer);
     overlay.style.display = 'none';
     // Leaving the last surface gives play its pointer back (interaction.ts): at once in the window, and in
     // a browser on a click, which is the gesture a browser takes the lock on.
@@ -192,7 +204,10 @@ export function mountCastingRing(root: Element, intents: RustyApplicationUiInten
     }
 
     claim({ action: 'compose', upper: outer, lower: id });
-    close();
+    // The ring goes at once; the pointer returns when the product shows what was composed.
+    composing = { upper: outer, lower: id };
+    overlay.style.display = 'none';
+    composeTimer = window.setTimeout(close, COMPOSE_WAIT_MS);
   };
 
   buttons.forEach(({ button }) => {
@@ -222,6 +237,7 @@ export function mountCastingRing(root: Element, intents: RustyApplicationUiInten
   let published = '';
   const read = (values: Values | null): void => {
     if (values === null) return;
+    if (composing !== null && text(values, 'castUpper') === composing.upper && text(values, 'castLower') === composing.lower) close();
     const now = `${text(values, 'castTrigrams') ?? ''}/${text(values, 'castHexagrams') ?? ''}`;
     if (now === published) return;
     published = now;
@@ -237,6 +253,7 @@ export function mountCastingRing(root: Element, intents: RustyApplicationUiInten
     unsubscribe?.();
     window.removeEventListener('keydown', onKey, true);
     openLayer('ring', false);
+    window.clearTimeout(composeTimer);
     overlay.remove();
   };
 }

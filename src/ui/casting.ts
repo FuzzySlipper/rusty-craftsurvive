@@ -19,7 +19,9 @@ export function mountCasting(host: HTMLElement, intents: RustyApplicationUiInten
     intents?.claim(ACTION_INTENT, { kind: 'product-payload', contract: ACTION_CONTRACT, data });
   };
 
+  // It is a developer tools tab of its own, so it starts open.
   const section = element('details', 'margin-top:.5rem;');
+  section.open = true;
   section.append(element('summary', 'cursor:pointer;font-weight:700;', 'Casting (development compiler)'));
   const compose = element('div', 'display:flex;flex-wrap:wrap;gap:.25rem;align-items:center;margin-top:.25rem;');
   const upper = element('select');

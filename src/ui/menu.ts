@@ -10,6 +10,14 @@ const MENU_KEY = 'Escape';
 /** The world actions that hold the game and let it run again; the journey's own "pause" is apart (#9916 review). */
 const MENU_PAUSE = 'menu-pause';
 const MENU_RESUME = 'menu-resume';
+/**
+ * How often a pause asked for when play lost the pointer is asked again until the product shows it, and when
+ * to stop asking, in milliseconds. In the desktop window the shell's release of the lock changes the runtime's
+ * input control, and a claim the page makes as the lock ends can be dropped with the old binding; asking again
+ * on the next projections reaches the product once the page holds input again.
+ */
+const PAUSE_RETRY_MS = 100;
+const PAUSE_GIVE_UP_MS = 2000;
 /** The controller's Start (the standard pad's button 9): C# reads it in play, the menu while it holds the interface. */
 const START_BUTTON = 'button-9';
 
@@ -119,6 +127,9 @@ export function mountMenu(host: Element, input: RustyApplicationUiInputPort | un
 
   let page: Page = 'main';
   let paused = false;
+  // When a pause was asked for on losing the pointer and is not yet shown (0 when none), and how often it was asked.
+  let pauseAsked = 0;
+  let pauseTries = 0;
   let message = '';
   const show = (next: Page): void => {
     page = next;
@@ -136,6 +147,12 @@ export function mountMenu(host: Element, input: RustyApplicationUiInputPort | un
   const render = (values: Values | null): void => {
     if (values === null) return;
     const now = number(values, 'menuPaused') === 1;
+    if (now) pauseAsked = 0;
+    else if (pauseAsked !== 0) {
+      const since = performance.now() - pauseAsked;
+      if (since > PAUSE_GIVE_UP_MS) pauseAsked = 0;
+      else if (since > PAUSE_RETRY_MS * pauseTries) { pauseTries += 1; claim({ action: MENU_PAUSE }); }
+    }
     const canQuit = number(values, 'menuQuit') === 1;
     quit.disabled = !canQuit; quit.title = canQuit ? '' : QUIT_HERE; quit.style.cssText = ENTRY + (canQuit ? '' : UNOFFERED);
     // A refused new world or quit says why on the menu.
@@ -171,7 +188,12 @@ export function mountMenu(host: Element, input: RustyApplicationUiInputPort | un
   render(projectionValues(projection?.current() ?? null));
   const unsubscribe = projection?.subscribe((envelope) => render(projectionValues(envelope)));
   return {
-    pause: () => { if (!paused) claim({ action: MENU_PAUSE }); },
+    pause: () => {
+      if (paused) return;
+      pauseAsked = performance.now();
+      pauseTries = 1;
+      claim({ action: MENU_PAUSE });
+    },
     dispose: () => {
       unsubscribe?.();
       unsubscribeInput?.();

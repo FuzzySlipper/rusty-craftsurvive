@@ -53,6 +53,13 @@ an open surface closes only that surface, innermost first: the developer tools,
 then the casting ring, the pack or journal, a town conversation, then the town
 itself. In the menu it steps back out of a page, then closes the menu.
 
+**Claims around a lock change.** In the desktop window the shell's taking or
+release of the lock changes the runtime's input control, and a claim the page
+makes at that moment can be dropped. So a surface that claims and then returns
+to play waits until the product publishes the answer before it gives play the
+pointer (Continue waits for `menuPaused`, the ring for `castUpper`/`castLower`),
+and the pause asked for on a lost lock is asked again until `menuPaused` shows it.
+
 **Controller.** In play C# reads the pad (Start toggles the menu). While a surface
 holds interface mode the pad's buttons reach the page through `context.input`; the
 menu takes Start there to step back or continue.
