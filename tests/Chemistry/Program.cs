@@ -365,6 +365,24 @@ Check.Section("casting", () =>
     Check.That(blowing.SelectMany(entry => entry.Sparks).Count(spark => !spark.Discharge && spark.Quantity == pack.Quantity("gust")) > 10,
         "a cast front is seen along its leading edge");
 
+    // Heaven's radiance is a heat front from the air over the aim; it crosses the air, so it heats the meadow far out.
+    ChemistryField radiant = Meadow(grass);
+    Cast(radiant, grammar.Compile(grammar.Hexagram("heaven", "heaven")), middle, 40);
+    int hot = 0, farthest = 0;
+    for (int x = 0; x < 48; x++)
+    {
+        for (int z = 0; z < 48; z++)
+        {
+            if (radiant.Quantity(new Cell(x, 1, z), heat) >= 90f)
+            {
+                hot++;
+                farthest = Math.Max(farthest, Math.Max(Math.Abs(x - 24), Math.Abs(z - 24)));
+            }
+        }
+    }
+
+    Check.That(hot >= 100 && farthest >= 8, $"heaven over heaven heats the meadow far around the aim ({hot} cells, out to {farthest})");
+
     // Bare soil, which does not burn, so the heat stays heat.
     List<CastSeen> heating = Watched(Meadow(soil), grammar.Compile(grammar.Hexagram("heaven", "fire")), middle, 20);
     Check.That(heating.Any(entry => entry.Marks is { Count: > 0 } marks && marks.Any(mark => settings.CastLooks.Marks[mark.Mark].Quantity == "heat")),
