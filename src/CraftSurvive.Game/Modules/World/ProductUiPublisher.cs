@@ -115,12 +115,12 @@ internal readonly record struct TownServiceUiFacts(string Speaker, string Role, 
     string Choices, string Outcome, string Hint);
 
 /// <summary>
-/// The casting panel (#10529): the trigrams to compose from (id|glyph|name, ';' between), the composition chosen, what it
-/// compiles to (its label, its trigrams and balance, its steps, and its JSON), the shipped formulas (id|label), the
-/// overlays (quantity|label) and the one shown, and what the last cast did.
+/// The casting panel (#10529): the trigrams to compose from (id|glyph|name|lines, ';' between), every hexagram
+/// (number|upper|lower|name), the composition chosen, what it compiles to (its label, its trigrams and balance, its steps,
+/// and its JSON), the shipped formulas (id|label), the overlays (quantity|label) and the one shown, and what the last cast did.
 /// </summary>
-internal readonly record struct ChemistryUiFacts(string Trigrams, string Upper, string Lower, string Composed, string Detail, string Steps,
-    string Json, string Formulas, string Overlays, string Overlay, string Last);
+internal readonly record struct ChemistryUiFacts(string Trigrams, string Hexagrams, string Upper, string Lower, string Composed, string Detail,
+    string Steps, string Json, string Formulas, string Overlays, string Overlay, string Last);
 
 internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation,
     string Travel, string TravelPhase, string Supplies, string Event, int TravelSpeed);

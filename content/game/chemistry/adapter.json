@@ -46,8 +46,9 @@
   // each frees the overlay entry its burning took.
   "scars": { "block": "BurntGround", "regrowDays": 8, "earliest": 0.4, "healSeconds": 5, "cellsPerHeal": 256, "healReach": 160 },
   // Casting (#10529): the development compiler's grammar, and the compiled formulas the game carries (a relic's, or the
-  // torch the ignite command lights with), which cast without the grammar.
-  "casting": { "grammar": "chemistry/bagua.json", "formulas": "chemistry/formulas.json" },
+  // torch the ignite command lights with), which cast without the grammar. A cast aims this many metres, further than
+  // an edit's reach and within the field's window around the player.
+  "casting": { "grammar": "chemistry/bagua.json", "formulas": "chemistry/formulas.json", "reach": 24 },
   // What the quantity overlay can show (#10529): one quantity at a time as cubes in the field's cells, invisible below
   // "low" and full at "high"; colours are sRGB.
   "overlays": [

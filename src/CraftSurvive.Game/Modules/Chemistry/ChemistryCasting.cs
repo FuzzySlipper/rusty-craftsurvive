@@ -20,16 +20,20 @@ internal sealed class ChemistryCasting : IProductModule
     /// <summary>The composition a world starts with: fire under heaven, 13 同人 Fellowship.</summary>
     private const string FirstUpper = "heaven", FirstLower = "fire";
 
+    /// <summary>The overlay choice that shows whatever quantity the last cast acted through, so a cast's effect can be seen.</summary>
+    private const string FollowCast = "cast";
+
     private readonly ChemistryModule chemistry;
-    private readonly Func<TerrainPick> aim;
+    private readonly Func<double, TerrainPick> aim;
     private readonly Func<bool> castRequested;
     private readonly ProductUiPublisher ui;
     private string upper = FirstUpper, lower = FirstLower;
     private string last = "nothing cast yet";
+    private bool followCast = true;
 
-    /// <param name="aim">What the player is aiming at, within reach.</param>
+    /// <param name="aim">What the player is aiming at within a reach in metres.</param>
     /// <param name="castRequested">Whether the player pressed the cast key this update.</param>
-    internal ChemistryCasting(ProductContent content, ChemistryModule chemistry, Func<TerrainPick> aim, Func<bool> castRequested,
+    internal ChemistryCasting(ProductContent content, ChemistryModule chemistry, Func<double, TerrainPick> aim, Func<bool> castRequested,
         ProductUiPublisher ui)
     {
         ArgumentNullException.ThrowIfNull(content);
@@ -99,19 +103,22 @@ internal sealed class ChemistryCasting : IProductModule
         return at is (long x, long y, long z) ? Land(formula, Above(x, y, z)) : CastAtAim(formula);
     }
 
+    /// <summary>Shows one quantity, nothing ("none"), or ("cast") whatever the last cast acted through.</summary>
     internal string ShowOverlay(string quantity)
     {
-        string outcome = chemistry.ShowOverlay(quantity);
+        followCast = quantity == FollowCast;
+        string outcome = followCast ? "overlay follows each cast" : chemistry.ShowOverlay(quantity);
         Publish();
         return outcome;
     }
 
     private string CastAtAim(Formula formula)
     {
-        TerrainPick pick = aim();
+        float reach = chemistry.Settings.Casting.Reach;
+        TerrainPick pick = aim(reach);
         if (pick.Outcome != TerrainPickOutcome.Picked)
         {
-            return Refused("aim at the ground within reach to cast");
+            return Refused(string.Create(CultureInfo.InvariantCulture, $"aim at the ground within {reach:0} m to cast"));
         }
 
         return Land(formula, new CastTarget(CellOf(pick.Target), CellOf(pick.Adjacent)));
@@ -119,6 +126,16 @@ internal sealed class ChemistryCasting : IProductModule
 
     private string Land(Formula formula, CastTarget target)
     {
+        if (followCast)
+        {
+            FormulaStep first = formula.Steps[0];
+            string acted = first.Emit?.Quantity ?? first.Discharge?.Quantity ?? first.Front!.Quantity;
+            if (chemistry.Overlay?.Quantity != acted && chemistry.Settings.Overlays.Any(overlay => overlay.Quantity == acted))
+            {
+                chemistry.ShowOverlay(acted);
+            }
+        }
+
         last = chemistry.Cast(new FormulaTool(formula, chemistry.Pack), target);
         Publish();
         return last;
@@ -142,11 +159,14 @@ internal sealed class ChemistryCasting : IProductModule
 
     private void Publish()
     {
-        string trigrams = string.Join(";", Grammar.Trigrams.Select(pair => $"{pair.Key}|{pair.Value.Glyph}|{pair.Value.Name}"));
+        string trigrams = string.Join(";", Grammar.Trigrams.Select(pair => $"{pair.Key}|{pair.Value.Glyph}|{pair.Value.Name}|{pair.Value.Lines}"));
+        string hexagrams = string.Join(";", Grammar.Hexagrams.Select(hexagram => string.Create(CultureInfo.InvariantCulture,
+            $"{hexagram.Number}|{hexagram.Upper}|{hexagram.Lower}|{hexagram.Name}")));
         string formulas = string.Join(";", chemistry.Formulas.Select(formula => $"{formula.Id}|{formula.Label}"));
         string overlays = string.Join(";", chemistry.Settings.Overlays.Select(overlay => $"{overlay.Quantity}|{overlay.Label}"));
-        ui.PublishChemistry(new ChemistryUiFacts(trigrams, upper, lower, Composed.Label, Composed.Detail ?? "", FormulaTool.Describe(Composed),
-            Composed.WriteIndented(), formulas, overlays, chemistry.Overlay?.Quantity ?? "none", last));
+        string shown = followCast ? FollowCast : chemistry.Overlay?.Quantity ?? "none";
+        ui.PublishChemistry(new ChemistryUiFacts(trigrams, hexagrams, upper, lower, Composed.Label, Composed.Detail ?? "", FormulaTool.Describe(Composed),
+            Composed.WriteIndented(), formulas, overlays, shown, last));
     }
 
     /// <summary>The compiled composition as JSON, to keep as a shipped formula.</summary>

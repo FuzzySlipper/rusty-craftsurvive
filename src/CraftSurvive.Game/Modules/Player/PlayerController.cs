@@ -402,12 +402,15 @@ internal sealed class PlayerController : IDisposable
     internal Vector3 LocalAhead(float metres) => EyePosition() + (aimForward * metres);
 
     /// <summary>What the player is aiming at now, within edit reach. Nothing in a dungeon is aimed at: it is not built on.</summary>
-    internal TerrainPick Aim()
+    internal TerrainPick Aim() => Aim(TerrainConstants.EditReach);
+
+    /// <summary>What the player is aiming at now, within <paramref name="reach"/> metres, as a cast aims further than an edit.</summary>
+    internal TerrainPick Aim(double reach)
     {
         EnsureStarted();
         return aimForward == Vector3.Zero || away is not null
             ? TerrainPick.Missed(TerrainPickOutcome.CastMiss)
-            : terrain.PickFromView(EyePosition(), aimForward);
+            : terrain.PickFromView(EyePosition(), aimForward, reach);
     }
 
     /// <summary>Whether the player is in natural rock, climbed by reading the rock (#10126).</summary>

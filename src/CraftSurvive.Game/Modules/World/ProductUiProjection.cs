@@ -21,6 +21,7 @@ internal static class ProductUiProjection
         if (chemistry is ChemistryUiFacts casting)
         {
             values.AddText("castTrigrams", casting.Trigrams);
+            values.AddText("castHexagrams", casting.Hexagrams);
             values.AddText("castUpper", casting.Upper);
             values.AddText("castLower", casting.Lower);
             values.AddText("castComposed", casting.Composed);

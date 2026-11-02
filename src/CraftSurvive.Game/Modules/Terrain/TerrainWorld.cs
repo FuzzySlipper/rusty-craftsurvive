@@ -920,10 +920,10 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>What the view from this origin is aimed at, within edit reach.</summary>
-    internal TerrainPick PickFromView(Vector3 origin, Vector3 direction)
+    internal TerrainPick PickFromView(Vector3 origin, Vector3 direction, double reach = TerrainConstants.EditReach)
     {
         EnsureStarted();
-        return edits.Pick(Session, origin, direction);
+        return edits.Pick(Session, origin, direction, reach);
     }
 
     /// <summary>

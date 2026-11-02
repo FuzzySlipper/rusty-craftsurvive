@@ -2,6 +2,7 @@ import type { RustyApplicationUiContext } from '@rusty-engine/product-ui';
 import { mountWorld } from './world.js';
 import { mountActions } from './actions.js';
 import { mountCasting } from './casting.js';
+import { mountCastingRing } from './radial.js';
 import { mountDeveloperTools } from './developer.js';
 import { element, isolateEvents } from './dom.js';
 import { mountHud } from './hud.js';
@@ -13,7 +14,7 @@ import { mountTown } from './town.js';
 
 const CONTROLS_HELP = 'WASD and mouse to move and look; Space jumps, Shift sprints, Ctrl crouches; E takes hold of a wall to climb '
   + '(and lets go); J attacks; F digs; T starts building, where G places and F removes a piece (Q steps the piece, Z its material), T again switches to the terrain brush (G places, F clears, B changes the brush) and T a third time stops building; 1-9 or the wheel select a hotbar slot and R uses it; '
-  + 'C casts the development compiler\'s formula where you aim (Casting, below); I opens the pack, M the journal of places, Esc closes them. Esc otherwise pauses the game under the menu (Continue, New world, Options, Quit). '
+  + 'V opens the casting ring (outer trigram, then inner) and C casts what it composed where you aim (Casting, below); I opens the pack, M the journal of places, Esc closes them. Esc otherwise pauses the game under the menu (Continue, New world, Options, Quit). '
   + 'Controller: left stick moves, right stick looks, A jumps, B crouches, Y climbs, RT clears, LT places, D-pad down steps building as T does, LB and RB step the hotbar, D-pad up uses, Start pauses.';
 
 /**
@@ -53,6 +54,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   const disposeLoading = mountLoading(gameUi, context.projection);
   const disposeScreens = mountScreens(gameUi, context.intents, context.projection);
   const disposeTown = mountTown(root, context.ui, context.intents, context.projection);
+  const disposeRing = mountCastingRing(root, context.ui, context.intents, context.projection);
   // After the screens/town, so their own Esc takes precedence.
   const disposeMenu = mountMenu(root, context.ui, context.intents, context.projection);
 
@@ -64,6 +66,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
       unsubscribeActions();
       disposeCasting();
       disposeTown();
+      disposeRing();
       disposeMenu();
       disposeOverlay();
       disposeLoading();

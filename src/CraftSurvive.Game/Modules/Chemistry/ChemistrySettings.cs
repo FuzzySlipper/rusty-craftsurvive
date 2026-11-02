@@ -79,7 +79,8 @@ internal sealed record ChemistrySettings(
                 Whole(fires, "slots"), Whole(fires, "clusterCells"), Text(Member(fires, "burnt"), "fires.burnt")),
             new ScarSetting(Block(Text(Member(scars, "block"), "scars.block"), "scars.block"), Number(scars, "regrowDays"), earliest,
                 Number(scars, "healSeconds"), Whole(scars, "cellsPerHeal"), Number(scars, "healReach")),
-            new CastingSetting(Text(Member(casting, "grammar"), "casting.grammar"), Text(Member(casting, "formulas"), "casting.formulas")),
+            new CastingSetting(Text(Member(casting, "grammar"), "casting.grammar"), Text(Member(casting, "formulas"), "casting.formulas"),
+                Number(casting, "reach")),
             [.. Member(root, "overlays").EnumerateArray().Select((overlay, index) => new OverlaySetting(
                 Text(Member(overlay, "quantity"), $"overlays[{index}].quantity"), Text(Member(overlay, "label"), $"overlays[{index}].label"),
                 Colour(Text(Member(overlay, "color"), $"overlays[{index}].color"), $"overlays[{index}].color"),
@@ -150,8 +151,8 @@ internal sealed record FireSetting(IReadOnlyList<string> Materials, int Slots, i
 /// </summary>
 internal sealed record ScarSetting(BlockId Block, float RegrowDays, float Earliest, float HealSeconds, int CellsPerHeal, float HealReach);
 
-/// <summary>Casting (#10529): the development compiler's grammar, and the compiled formulas the game carries.</summary>
-internal sealed record CastingSetting(string GrammarPath, string FormulasPath);
+/// <summary>Casting (#10529): the development compiler's grammar, the compiled formulas the game carries, and how far (metres) a cast aims.</summary>
+internal sealed record CastingSetting(string GrammarPath, string FormulasPath, float Reach);
 
 /// <summary>
 /// A quantity the overlay can show (#10529): invisible below <see cref="Low"/>, full at <see cref="High"/>, in a colour

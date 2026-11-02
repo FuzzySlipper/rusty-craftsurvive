@@ -159,13 +159,14 @@ internal sealed class TerrainEditService(
     }
 
     /// <summary>The voxel the view meets within reach, the face it meets it on, and the open cell in front of that face.</summary>
-    internal TerrainPick Pick(SpatialSession session, Vector3 origin, Vector3 direction)
+    /// <param name="reach">How far the view reaches; editing reaches <see cref="TerrainConstants.EditReach"/>.</param>
+    internal TerrainPick Pick(SpatialSession session, Vector3 origin, Vector3 direction, double reach = TerrainConstants.EditReach)
     {
         SpatialHit cast = engine.Spatial.CastRay(new SpatialRaycastRequest(
             session,
             origin,
             direction,
-            TerrainConstants.EditReach,
+            reach,
             new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
             ReadOnlyMemory<SpatialEntityCollider>.Empty,
             ReadOnlyMemory<ulong>.Empty,
@@ -175,7 +176,7 @@ internal sealed class TerrainEditService(
             return TerrainPick.Missed(TerrainPickOutcome.CastMiss);
         }
 
-        SpatialHit picked = engine.Spatial.PickVoxel(new SpatialPickRequest(session, origin, direction, TerrainConstants.EditReach));
+        SpatialHit picked = engine.Spatial.PickVoxel(new SpatialPickRequest(session, origin, direction, reach));
         if (!picked.Present || picked.Kind != SpatialHitKind.Voxel)
         {
             return TerrainPick.Missed(TerrainPickOutcome.PickMiss);

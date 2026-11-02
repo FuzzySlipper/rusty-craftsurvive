@@ -206,7 +206,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         chemistry = new ChemistryModule(context.Engine, context.Content, store, terrain, weather, frame, () => player.WorldPosition,
             () => player.InSeparateSpace, () => SnowModule.CoverOf(snow.Depth), sky.OutdoorFogVolumes);
-        casting = new ChemistryCasting(context.Content, chemistry, player.Aim, () => player.CastRequested, ui);
+        casting = new ChemistryCasting(context.Content, chemistry, reach => player.Aim(reach), () => player.CastRequested, ui);
 
         tracks = new SnowTracks(context.Engine, frame, snow.Cover, () => weather.Hours,
             () => (player.WorldFeetPosition, player.Grounded, !player.InSeparateSpace && !player.HeadSubmerged),

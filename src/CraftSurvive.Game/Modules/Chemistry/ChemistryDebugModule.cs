@@ -62,6 +62,6 @@ public sealed class ChemistryDebugModule : IDebugCommandModule
     [DebugCommand("craft.chem.table", Description = "What each of the 64 hexagrams compiles to in the grammar, one line each.")]
     public string Table() => castingSource().Table();
 
-    [DebugCommand("craft.chem.overlay", Description = "Shows one quantity of the field as cubes (heat, moisture, smoke, charge, gust, bind), or none.")]
+    [DebugCommand("craft.chem.overlay", Description = "Shows one quantity of the field as cubes (heat, moisture, smoke, charge, gust, bind), none, or cast: whatever each cast acts through (the default).")]
     public string Overlay(string quantity) => castingSource().ShowOverlay(quantity);
 }

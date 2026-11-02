@@ -27,7 +27,7 @@ export function mountCasting(host: HTMLElement, intents: RustyApplicationUiInten
   const lower = element('select');
   lower.title = 'The inner (lower) trigram: what acts';
   const cast = button('Cast');
-  cast.title = 'Cast the composed formula where you are aiming (C in the world)';
+  cast.title = 'Cast the composed formula where you are aiming (C in the world; V opens the casting ring)';
   compose.append(upper, element('span', 'opacity:.75;', 'over'), lower, cast);
 
   const composed = element('p', 'margin:.25rem 0 0;font-weight:700;');
@@ -79,8 +79,8 @@ export function mountCasting(host: HTMLElement, intents: RustyApplicationUiInten
     fill(upper, trigrams, text(values, 'castUpper') ?? '');
     fill(lower, trigrams, text(values, 'castLower') ?? '');
     fill(formula, entries(values, 'castFormulas').map(([id = '', label = '']) => [id, label] as const), formula.value);
-    fill(overlay, [['none', 'nothing'] as const, ...entries(values, 'castOverlays').map(([id = '', label = '']) => [id, label] as const)],
-      text(values, 'castOverlay') ?? 'none');
+    fill(overlay, [['cast', 'what each cast acts on'] as const, ['none', 'nothing'] as const, ...entries(values, 'castOverlays').map(([id = '', label = '']) => [id, label] as const)],
+      text(values, 'castOverlay') ?? 'cast');
     composed.textContent = text(values, 'castComposed');
     detail.textContent = text(values, 'castDetail');
     steps.textContent = text(values, 'castSteps');
