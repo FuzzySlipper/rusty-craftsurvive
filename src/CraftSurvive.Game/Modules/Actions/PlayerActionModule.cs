@@ -67,6 +67,9 @@ internal sealed class PlayerActionModule
     /// <summary>Changes one of the game's own options (#9759) and says what it now is; refuses with <see cref="FormatException"/>.</summary>
     internal Func<string, int, string>? ChooseOption { get; set; }
 
+    /// <summary>The development magic compiler (#10529), which composes, casts and shows the field's quantities.</summary>
+    internal Chemistry.ChemistryCasting? Casting { get; set; }
+
     /// <summary>
     /// Applies the player's hotbar keys - a slot picked or stepped to, and the use of what it holds -
     /// then every action the UI claimed in this update, in the order it claimed them. The game's
@@ -166,6 +169,26 @@ internal sealed class PlayerActionModule
                 Refuse($"{name}: {refusal.Message}");
             }
 
+            return;
+        }
+
+        if (action.Kind is PlayerActionKind.Compose or PlayerActionKind.Cast or PlayerActionKind.Formula or PlayerActionKind.Overlay)
+        {
+            if (Casting is null)
+            {
+                Refuse($"{name}: casting is not ready");
+                return;
+            }
+
+            string outcome = action.Kind switch
+            {
+                PlayerActionKind.Compose => Casting.Compose(action.Name, action.Other),
+                PlayerActionKind.Cast => Casting.Cast(),
+                PlayerActionKind.Formula => Casting.CastFormula(action.Name),
+                _ => Casting.ShowOverlay(action.Name),
+            };
+            if (outcome.StartsWith("refused", StringComparison.Ordinal)) Refuse($"{name}: {outcome}");
+            else Accept($"{name}: {outcome}");
             return;
         }
 

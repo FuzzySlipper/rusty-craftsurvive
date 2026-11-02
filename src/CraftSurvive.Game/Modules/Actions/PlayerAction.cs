@@ -24,6 +24,12 @@ internal enum PlayerActionKind
     Select,
     Landscape,
     Option,
+
+    /// <summary>The development magic compiler (#10529): compose a hexagram, cast it, cast a carried formula, or show a quantity.</summary>
+    Compose,
+    Cast,
+    Formula,
+    Overlay,
 }
 
 /// <summary>Which actions build (#9811 review): they are taken only while the player is building.</summary>
@@ -40,7 +46,8 @@ internal static class PlayerActions
 /// carries the <see cref="BuildPalette"/> block it is built from. A move names the slots it drags a
 /// stack between and how many (zero for all); a use may name the slot it takes from.
 /// </summary>
-internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 0, int Size2 = 0, BlockId Material = BlockId.Air, string Name = "", int Count = 0)
+internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 0, int Size2 = 0, BlockId Material = BlockId.Air, string Name = "", int Count = 0,
+    string Other = "")
 {
     /// <summary>The intent the UI claims, as declared in the product project.</summary>
     internal const string Intent = "craftsurvive.ui";
@@ -105,6 +112,10 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
             "leave" => new(PlayerActionKind.Leave),
             "difficulty" => new(PlayerActionKind.Difficulty, Name: Named(root, "level")),
             "landscape" => new(PlayerActionKind.Landscape, Name: Named(root, "name")),
+            "compose" => new(PlayerActionKind.Compose, Name: Named(root, "upper"), Other: Named(root, "lower")),
+            "cast" => new(PlayerActionKind.Cast),
+            "formula" => new(PlayerActionKind.Formula, Name: Named(root, "formula")),
+            "overlay" => new(PlayerActionKind.Overlay, Name: Named(root, "quantity")),
             "option" => new(PlayerActionKind.Option, Name: Named(root, "name"), Count: Size(root, "value", -MaximumOptionValue, MaximumOptionValue)),
             string other => throw new FormatException($"\"{other}\" is not an action the UI can ask for."),
             null => throw new FormatException("A UI action names what it asks for in \"action\"."),

@@ -114,6 +114,14 @@ internal readonly record struct TownUiFacts(bool Open, string Title, string Subt
 internal readonly record struct TownServiceUiFacts(string Speaker, string Role, string Text, string Portrait,
     string Choices, string Outcome, string Hint);
 
+/// <summary>
+/// The casting panel (#10529): the trigrams to compose from (id|glyph|name, ';' between), the composition chosen, what it
+/// compiles to (its label, its trigrams and balance, its steps, and its JSON), the shipped formulas (id|label), the
+/// overlays (quantity|label) and the one shown, and what the last cast did.
+/// </summary>
+internal readonly record struct ChemistryUiFacts(string Trigrams, string Upper, string Lower, string Composed, string Detail, string Steps,
+    string Json, string Formulas, string Overlays, string Overlay, string Last);
+
 internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation,
     string Travel, string TravelPhase, string Supplies, string Event, int TravelSpeed);
 
@@ -145,6 +153,7 @@ internal sealed class ProductUiPublisher : IDisposable
     private WorldMapUiFacts? map;
     private TownUiFacts? town;
     private SledUiFacts? sled;
+    private ChemistryUiFacts? chemistry;
 
     /// <summary>How many projections this publisher has sent.</summary>
     internal ulong Published => sequence;
@@ -166,6 +175,7 @@ internal sealed class ProductUiPublisher : IDisposable
     internal void ResetWorld()
     {
         world = null; player = null; discovery = null; actions = null; conditions = null; survival = null; inventory = null; dungeon = null; sled = null;
+        chemistry = null;
     }
 
     internal void PublishTown(TownUiFacts facts) { town = facts; Publish(); }
@@ -196,6 +206,13 @@ internal sealed class ProductUiPublisher : IDisposable
     {
         if (sled == facts) return;
         sled = facts;
+        Publish();
+    }
+
+    internal void PublishChemistry(ChemistryUiFacts facts)
+    {
+        if (chemistry == facts) return;
+        chemistry = facts;
         Publish();
     }
 
@@ -252,7 +269,8 @@ internal sealed class ProductUiPublisher : IDisposable
         WorldUiFacts? facts = world?.Invoke();
         sequence++;
         engine.Ui.PublishProjection(new UiProjection(stream,
-            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map, sled, gameOptions, menu, town)));
+            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map, sled, gameOptions, menu, town,
+                chemistry)));
     }
 
     public void Dispose()

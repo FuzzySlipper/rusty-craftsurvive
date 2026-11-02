@@ -17,5 +17,7 @@
     <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />
     <EmbeddedResource Include="../../content/game/chemistry/adapter.json" LogicalName="Chemistry.adapter.json" />
     <EmbeddedResource Include="../../content/game/chemistry/pack.json" LogicalName="Chemistry.pack.json" />
+    <EmbeddedResource Include="../../content/game/chemistry/bagua.json" LogicalName="Chemistry.bagua.json" />
+    <EmbeddedResource Include="../../content/game/chemistry/formulas.json" LogicalName="Chemistry.formulas.json" />
   </ItemGroup>
 </Project>

@@ -148,6 +148,10 @@ internal static class ProductIds
     internal const ulong ChemistryFireDecalBase = 0x9_F000UL;
     internal const int ChemistryFireDecals = 0x800;
 
+    /// <summary>The chemistry field's quantity overlay (#10529): one mesh object per field chunk shown, at most <see cref="ChemistryOverlayObjects"/>.</summary>
+    internal const ulong ChemistryOverlayBase = 0xA_0000UL;
+    internal const int ChemistryOverlayObjects = 0x400;
+
     /// <summary>A chasm's waterfalls (#10094): their stream and spray emitters, two per fall.</summary>
     internal const ulong DungeonWaterfallBase = 0x480UL;
 

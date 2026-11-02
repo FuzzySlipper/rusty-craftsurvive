@@ -2,16 +2,18 @@ using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game.Modules.Chemistry;
 
-/// <summary>Live-debug adapter over the chemistry field around the player (#10293): read it, light it, and read a cell.</summary>
+/// <summary>Live-debug adapter over the chemistry field around the player (#10293): read it, light it, read a cell, and cast on it (#10529).</summary>
 public sealed class ChemistryDebugModule : IDebugCommandModule
 {
     private readonly Func<ChemistryModule> chemistrySource;
     private readonly Func<(double X, double Z)> playerColumn;
+    private readonly Func<ChemistryCasting> castingSource;
 
-    internal ChemistryDebugModule(Func<ChemistryModule> chemistry, Func<(double X, double Z)> playerColumn)
+    internal ChemistryDebugModule(Func<ChemistryModule> chemistry, Func<(double X, double Z)> playerColumn, Func<ChemistryCasting> casting)
     {
         chemistrySource = chemistry ?? throw new ArgumentNullException(nameof(chemistry));
         this.playerColumn = playerColumn ?? throw new ArgumentNullException(nameof(playerColumn));
+        castingSource = casting ?? throw new ArgumentNullException(nameof(casting));
     }
 
     [DebugCommand("craft.chem.readout", Description = "Reads the chemistry field (#10293): chunks loaded and active, step cost, fires shown, and burnt ground written, waiting and refused against the terrain overlay's reserve.")]
@@ -41,4 +43,25 @@ public sealed class ChemistryDebugModule : IDebugCommandModule
 
     [DebugCommand("craft.chem.cell", Description = "Reads a world cell in the field: its material, whether it is open to the sky, and every quantity.")]
     public string Cell(long x, long y, long z) => chemistrySource().CellReadout(x, y, z);
+
+    [DebugCommand("craft.chem.compose", Description = "The magic compiler (#10529): composes a hexagram, outer (upper) trigram over inner (lower), and says what it compiles to: craft.chem.compose heaven fire.")]
+    public string Compose(string outer, string inner) => castingSource().Compose(outer, inner);
+
+    [DebugCommand("craft.chem.cast", Description = "Casts the composed formula where the player aims, as the C key does.")]
+    public string Cast() => castingSource().Cast();
+
+    [DebugCommand("craft.chem.cast.at", Description = "Casts the composed formula at a world cell, as aiming at its top face would: craft.chem.cast.at x y z.")]
+    public string CastAt(long x, long y, long z) => castingSource().CastAt(x, y, z);
+
+    [DebugCommand("craft.chem.formula", Description = "The composed formula as compiled JSON: what a relic would carry, castable without the grammar.")]
+    public string Formula() => castingSource().FormulaJson();
+
+    [DebugCommand("craft.chem.formula.cast", Description = "Casts one of the formulas the game carries (content/game/chemistry/formulas.json) at a world cell: craft.chem.formula.cast torch x y z.")]
+    public string CastFormula(string id, long x, long y, long z) => castingSource().CastFormula(id, (x, y, z));
+
+    [DebugCommand("craft.chem.table", Description = "What each of the 64 hexagrams compiles to in the grammar, one line each.")]
+    public string Table() => castingSource().Table();
+
+    [DebugCommand("craft.chem.overlay", Description = "Shows one quantity of the field as cubes (heat, moisture, smoke, charge, gust, bind), or none.")]
+    public string Overlay(string quantity) => castingSource().ShowOverlay(quantity);
 }

@@ -76,6 +76,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     private ColdModule cold = null!;
     /// <summary>Heat, moisture, smoke and fuel in the cells around the player: grass fire and the weather acting on it (#10293).</summary>
     private ChemistryModule chemistry = null!;
+    private ChemistryCasting casting = null!;
     /// <summary>Footprints in the snow (#10068).</summary>
     private SnowTracks tracks = null!;
 
@@ -205,6 +206,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         chemistry = new ChemistryModule(context.Engine, context.Content, store, terrain, weather, frame, () => player.WorldPosition,
             () => player.InSeparateSpace, () => SnowModule.CoverOf(snow.Depth), sky.OutdoorFogVolumes);
+        casting = new ChemistryCasting(context.Content, chemistry, player.Aim, () => player.CastRequested, ui);
 
         tracks = new SnowTracks(context.Engine, frame, snow.Cover, () => weather.Hours,
             () => (player.WorldFeetPosition, player.Grounded, !player.InSeparateSpace && !player.HeadSubmerged),
@@ -228,11 +230,12 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 PlaceStands = at => terrain.PlaceStands(at),
             },
         };
-        gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, chemistry, feedback, cold, tracks, horizon];
+        gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, chemistry, casting, feedback, cold, tracks, horizon];
         CreateTowns();
         styleTest = new CharacterStyleTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
         placeStudy = new PlaceStudyTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition, terrain.Moss);
         actions.ChooseOption = ChooseOption;
+        actions.Casting = casting;
         worldBuilt = true;
         ApplyOptions();
         // Registering again replaces the earlier store (rusty-engine #9868): last write wins.
@@ -355,7 +358,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(new DungeonDebugModule(() => Owner(dungeons))));
         RequireRegistration(registrar.Register(new FeedbackDebugModule(() => Owner(feedback))));
         RequireRegistration(registrar.Register(new ChemistryDebugModule(() => Owner(chemistry),
-            () => { System.Numerics.Vector3 at = Owner(player).WorldPosition; return (at.X, at.Z); })));
+            () => { System.Numerics.Vector3 at = Owner(player).WorldPosition; return (at.X, at.Z); }, () => Owner(casting))));
         RequireRegistration(registrar.Register(CraftPlaytest.Create(() => Owner(player))));
     }
 
@@ -589,7 +592,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     }
 
     /// <summary>The overworld's water, studies, places and build pieces, unless the player is in a separate space (a dungeon or a study).</summary>
-    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts()];
+    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts(), .. chemistry.OverlayFacts];
 
     /// <summary>The style test's travellers and the place study's variants, unless the player is in a separate space.</summary>
     private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : [.. styleTest.Facts, .. placeStudy.Facts];
@@ -612,6 +615,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();
         terrain.AfterAppearanceSnapshot();
+        chemistry.AfterAppearanceSnapshot();
         townPresence?.AfterAppearanceSnapshot();
         styleTest.AfterAppearanceSnapshot();
         if (mapOpen) mapView?.AfterAppearanceSnapshot();

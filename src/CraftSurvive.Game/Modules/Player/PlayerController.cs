@@ -185,6 +185,9 @@ internal sealed class PlayerController : IDisposable
     /// <summary>A press-only attack request for this update, for the systems that act on it.</summary>
     internal bool AttackRequested => lastInputFrame.AttackRequested;
 
+    /// <summary>Whether the player pressed the cast key this update (#10529): the development magic compiler casts its composition.</summary>
+    internal bool CastRequested => lastInputFrame.CastRequested;
+
     /// <summary>This update's hotbar requests: a slot picked by number (-1 for none), steps along it, and a use of what it holds.</summary>
     internal (int Pick, int Steps, bool Use) HotbarRequests => (lastInputFrame.HotbarPick, lastInputFrame.HotbarSteps, lastInputFrame.UseRequested);
 

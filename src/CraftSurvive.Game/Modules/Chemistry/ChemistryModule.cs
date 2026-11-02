@@ -7,6 +7,7 @@ using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.Weather;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
+using RustyChemistry.Casting;
 using RustyChemistry.Content;
 using RustyChemistry.Simulation;
 using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
@@ -17,14 +18,15 @@ namespace CraftSurvive.Game.Modules.Chemistry;
 /// The fast, local layer of the world's elements around the player (#10293): heat, moisture, smoke and fuel in
 /// 1 m cells, stepped by the rusty-chemistry kernel. It owns only its field. It reads the terrain, the water and
 /// the weather (as ambient), writes burnt ground back through the terrain's own edits within a budget, and shows
-/// burning cells as fires. Nothing of the field is saved: what lasts is what it wrote into the terrain.
+/// burning cells as fires. Casts (#10529) land on it through its caster, on field time, and its quantity overlay draws
+/// one quantity at a time. Nothing of the field is saved: what lasts is what it wrote into the terrain.
 /// </summary>
 internal sealed class ChemistryModule : IProductModule
 {
     private const int CellsPerChunk = ChemistryField.ChunkSize * ChemistryField.ChunkSize * ChemistryField.ChunkSize;
 
-    /// <summary>A lit torch's heat: deposited around a cell for a moment, enough to ignite dry grass.</summary>
-    private const float IgniteRadius = 1.2f, IgniteHeatPerSecond = 4000f, IgniteSeconds = 0.6f;
+    /// <summary>The shipped formula the ignite command casts: a lit torch held to the ground.</summary>
+    private const string IgniteFormula = "torch";
 
     /// <summary>Burnt cells waiting for a write; beyond this the oldest are dropped, and their scar is not kept.</summary>
     private const int MostWaiting = 4096;
@@ -43,6 +45,8 @@ internal sealed class ChemistryModule : IProductModule
     private readonly BlockChemistry blocks;
     private readonly GrassFireLook look;
     private readonly BurnScars scars;
+    private readonly Caster caster = new();
+    private readonly QuantityOverlay overlay;
     private readonly int burntMaterial, heatQuantity, smokeQuantity;
     private readonly ushort[] chunkMaterials = new ushort[CellsPerChunk], chunkBlocks = new ushort[CellsPerChunk];
 
@@ -91,9 +95,35 @@ internal sealed class ChemistryModule : IProductModule
         burntMaterial = pack.Material(settings.Fires.Burnt);
         heatQuantity = pack.Quantity("heat");
         smokeQuantity = pack.Quantity("smoke");
+        Formulas = Formula.ReadList(content.ReadText(settings.Casting.FormulasPath), pack, settings.Casting.FormulasPath);
+        foreach (OverlaySetting shown in settings.Overlays)
+        {
+            pack.Quantity(shown.Quantity);
+        }
+
+        int air = blocks.Air, water = pack.Material(settings.WaterMaterial);
+        overlay = new QuantityOverlay(engine, frame, material => material == air ? OverlayCell.Open
+            : material == water ? OverlayCell.Translucent : OverlayCell.Opaque);
         field = NewField();
         terrain.Edited += Reload;
     }
+
+    /// <summary>The field's pack, which casts name their quantities in.</summary>
+    internal ChemistryPack Pack => pack;
+
+    internal ChemistrySettings Settings => settings;
+
+    /// <summary>The compiled formulas the game carries (#10529), which cast without any grammar.</summary>
+    internal IReadOnlyList<Formula> Formulas { get; }
+
+    /// <summary>The quantity the overlay shows, or null.</summary>
+    internal OverlaySetting? Overlay => overlay.Shown;
+
+    /// <summary>The overlay's objects, for the product's appearance snapshot.</summary>
+    internal IEnumerable<AppearanceFact> OverlayFacts => overlay.Facts;
+
+    /// <summary>Releases what the overlay replaced, once a snapshot without it is published.</summary>
+    internal void AfterAppearanceSnapshot() => overlay.AfterAppearanceSnapshot();
 
     public void Start() => scars.Start();
 
@@ -144,6 +174,7 @@ internal sealed class ChemistryModule : IProductModule
             // The field waits; a step finished meanwhile is kept for the update back, its burnt cells not lost (R10384-2).
             Idle();
             look.Hide();
+            overlay.Hide();
             return;
         }
 
@@ -177,6 +208,8 @@ internal sealed class ChemistryModule : IProductModule
         }
 
         Part(UpdatePart.Write, ref mark);
+        // No step runs here, so the overlay may read the field.
+        overlay.Refresh(field);
 
         // Time beyond the steps one hand-off may run is dropped, not owed.
         int steps = Math.Min((int)(owed / settings.Field.StepSeconds), settings.Field.StepsPerUpdate);
@@ -194,13 +227,15 @@ internal sealed class ChemistryModule : IProductModule
         }
     }
 
-    /// <summary>The worker's part: the steps, then the fire as they left it. It touches nothing but the field.</summary>
+    /// <summary>The worker's part: the casts falling due and the steps, then the fire as they left it. It touches nothing but the field and its casts.</summary>
     private StepResult Run(ChemistryField stepping, int steps)
     {
         List<MaterialChange> changes = [];
         long began = Stopwatch.GetTimestamp();
         for (int index = 0; index < steps; index++)
         {
+            // Casts land on field time, before the step they fall due in.
+            caster.Advance(stepping, settings.Field.StepSeconds);
             stepping.Step();
             changes.AddRange(stepping.MaterialChanges);
         }
@@ -245,6 +280,7 @@ internal sealed class ChemistryModule : IProductModule
     public void Restart()
     {
         handoff.Discard();
+        caster.Clear();
         field = NewField();
         applied = null;
         owed = 0;
@@ -259,23 +295,54 @@ internal sealed class ChemistryModule : IProductModule
         Idle();
         terrain.Edited -= Reload;
         look.Dispose();
+        overlay.Dispose();
         scars.Flush();
     }
 
-    /// <summary>Heats the ground at a world column's surface, as a torch would; the fire, if any, is the field's.</summary>
+    /// <summary>Casts the torch formula at a world column's surface; the fire, if any, is the field's.</summary>
     internal string IgniteAt(double x, double z)
     {
-        Idle();
         long cellX = (long)Math.Floor(x), cellZ = (long)Math.Floor(z);
         Cell top = new((int)cellX, (int)terrain.Recipe.SurfaceAt(cellX, cellZ), (int)cellZ);
-        if (!field.IsLoaded(top))
+        Formula torch = Formulas.First(formula => formula.Id == IgniteFormula);
+        return Cast(new FormulaTool(torch, pack), new CastTarget(top, top.Offset(0, 1, 0)));
+    }
+
+    /// <summary>
+    /// Casts at a target (#10529): its operations land on field time, the first before the next step its delay reaches.
+    /// A target outside the field around the player is refused.
+    /// </summary>
+    internal string Cast(ICastTool tool, CastTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(tool);
+        Idle();
+        Cell hit = target.Hit;
+        if (!field.IsLoaded(hit))
         {
-            return string.Create(CultureInfo.InvariantCulture, $"refused: {top.X},{top.Y},{top.Z} is outside the field around the player");
+            return string.Create(CultureInfo.InvariantCulture, $"refused: {hit.X},{hit.Y},{hit.Z} is outside the field around the player");
         }
 
-        field.AddEmitter(new EmitterSpec(EmitterShape.Sphere(top.Center, IgniteRadius), pack.Quantity("heat"), IgniteHeatPerSecond,
-            Lifetime: IgniteSeconds));
-        return $"heating {pack.Materials[field.MaterialAt(top)].Id} at {top.X},{top.Y},{top.Z}";
+        CastPlan plan = caster.Cast(field, tool, target, CastFeel.Plain);
+        return $"{tool.Label} {plan.Summary}";
+    }
+
+    /// <summary>Shows one quantity in the overlay, by its id, or nothing for "none".</summary>
+    internal string ShowOverlay(string quantity)
+    {
+        if (quantity == "none")
+        {
+            overlay.Show(null, 0);
+            return "overlay off";
+        }
+
+        OverlaySetting? shown = settings.Overlays.FirstOrDefault(entry => entry.Quantity == quantity);
+        if (shown is null)
+        {
+            return $"refused: no overlay for '{quantity}'; overlays: none, {string.Join(", ", settings.Overlays.Select(entry => entry.Quantity))}";
+        }
+
+        overlay.Show(shown, pack.Quantity(quantity));
+        return $"overlay {shown.Label.ToLowerInvariant()}";
     }
 
     /// <summary>A cell's material, sky exposure and quantities.</summary>
@@ -382,6 +449,8 @@ internal sealed class ChemistryModule : IProductModule
         $"written={written} waiting={waiting.Count} dropped={dropped} refused={refused} overlay={terrain.OverlayEntries}/{TerrainConstants.MaximumOverlayEntries} ") +
         string.Create(CultureInfo.InvariantCulture,
         $"keepFree={settings.Budget.KeepFreeEntries} writable={WriteBack.Allowed(terrain.OverlayEntries, TerrainConstants.MaximumOverlayEntries, settings.Budget)} lastRefusal={lastRefusal} ") +
+        string.Create(CultureInfo.InvariantCulture,
+        $"casting={caster.Pending} shown={overlay.Shown?.Quantity ?? "none"} shownMeshes={overlay.Drawn.Meshes} shownCubes={overlay.Drawn.Cubes} ") +
         scars.Readout();
 
     internal string AmbientReadout()

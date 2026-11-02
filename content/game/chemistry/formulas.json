@@ -1,0 +1,7 @@
+// Compiled formulas the game carries (#10529): each casts as it stands, without the grammar that may have made it,
+// as a relic would (atlas, 2026-11-01). Steps act at the struck cell ("hit") or the open cell in front of it ("above").
+[
+  // A lit torch held to the ground: enough heat for a moment to light dry grass. craft.chem.ignite casts it.
+  { "id": "torch", "label": "Torch",
+    "steps": [{ "anchor": "hit", "emit": { "quantity": "heat", "radius": 1.2, "rate": 4000, "seconds": 0.6 } }] }
+]

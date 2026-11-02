@@ -31,6 +31,7 @@ internal sealed class PlayerInputState
     private bool buildModeToggle;
 
     private bool attackPending;
+    private bool castPending;
 
     /// <summary>A press of the climb action, waiting for the next frame: take hold of a face, or let go of one.</summary>
     private bool climbPending;
@@ -125,13 +126,15 @@ internal sealed class PlayerInputState
             usePending,
             pieceSteps,
             materialSteps,
-            buildModeToggle);
+            buildModeToggle,
+            castPending);
         pendingLookDelta = Vector2.Zero;
         pieceSteps = 0;
         materialSteps = 0;
         buildModeToggle = false;
         pendingEdit = null;
         attackPending = false;
+        castPending = false;
         climbPending = false;
         hotbarPick = -1;
         hotbarSteps = 0;
@@ -187,6 +190,9 @@ internal sealed class PlayerInputState
             case KeyboardControl.KeyJ:
                 attackPending = true;
                 break;
+            case KeyboardControl.KeyC:
+                castPending = true;
+                break;
             case KeyboardControl.KeyE:
                 climbPending = true;
                 break;
@@ -224,6 +230,7 @@ internal sealed class PlayerInputState
         pendingLookDelta = Vector2.Zero;
         pendingEdit = null;
         attackPending = false;
+        castPending = false;
         climbPending = false;
         hotbarPick = -1;
         hotbarSteps = 0;
@@ -364,4 +371,5 @@ internal readonly record struct PlayerInputFrame(
     bool UseRequested,
     int PieceSteps = 0,
     int MaterialSteps = 0,
-    bool BuildModeToggle = false);
+    bool BuildModeToggle = false,
+    bool CastRequested = false);

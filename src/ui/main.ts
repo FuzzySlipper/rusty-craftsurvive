@@ -1,6 +1,7 @@
 import type { RustyApplicationUiContext } from '@rusty-engine/product-ui';
 import { mountWorld } from './world.js';
 import { mountActions } from './actions.js';
+import { mountCasting } from './casting.js';
 import { mountDeveloperTools } from './developer.js';
 import { element, isolateEvents } from './dom.js';
 import { mountHud } from './hud.js';
@@ -12,7 +13,7 @@ import { mountTown } from './town.js';
 
 const CONTROLS_HELP = 'WASD and mouse to move and look; Space jumps, Shift sprints, Ctrl crouches; E takes hold of a wall to climb '
   + '(and lets go); J attacks; F digs; T starts building, where G places and F removes a piece (Q steps the piece, Z its material), T again switches to the terrain brush (G places, F clears, B changes the brush) and T a third time stops building; 1-9 or the wheel select a hotbar slot and R uses it; '
-  + 'I opens the pack, M the journal of places, Esc closes them. Esc otherwise pauses the game under the menu (Continue, New world, Options, Quit). '
+  + 'C casts the development compiler\'s formula where you aim (Casting, below); I opens the pack, M the journal of places, Esc closes them. Esc otherwise pauses the game under the menu (Continue, New world, Options, Quit). '
   + 'Controller: left stick moves, right stick looks, A jumps, B crouches, Y climbs, RT clears, LT places, D-pad down steps building as T does, LB and RB step the hotbar, D-pad up uses, Start pauses.';
 
 /**
@@ -44,6 +45,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
 
   const unsubscribe = mountHud(contents, context.projection);
   const unsubscribeActions = mountActions(contents, context.intents, context.projection);
+  const disposeCasting = mountCasting(contents, context.intents, context.projection);
   contents.append(element('p', 'margin:.35rem 0 0;opacity:.75;', CONTROLS_HELP));
   const disposeDeveloperTools = mountDeveloperTools(contents, status);
   gameUi.append(panel);
@@ -60,6 +62,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
     dispose: () => {
       unsubscribe();
       unsubscribeActions();
+      disposeCasting();
       disposeTown();
       disposeMenu();
       disposeOverlay();

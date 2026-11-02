@@ -15,9 +15,23 @@ internal static class ProductUiProjection
 {
     internal static UiValue Create(WorldUiFacts? sceneFacts, PlayerUiFacts? player,
         DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory, DungeonUiFacts? dungeon, WorldMapUiFacts? map = null, SledUiFacts? sled = null, string? gameOptions = null,
-        GameMenuUiFacts? menu = null, TownUiFacts? town = null)
+        GameMenuUiFacts? menu = null, TownUiFacts? town = null, ChemistryUiFacts? chemistry = null)
     {
         NumericObjectBuilder values = new();
+        if (chemistry is ChemistryUiFacts casting)
+        {
+            values.AddText("castTrigrams", casting.Trigrams);
+            values.AddText("castUpper", casting.Upper);
+            values.AddText("castLower", casting.Lower);
+            values.AddText("castComposed", casting.Composed);
+            values.AddText("castDetail", casting.Detail);
+            values.AddText("castSteps", casting.Steps);
+            values.AddText("castJson", casting.Json);
+            values.AddText("castFormulas", casting.Formulas);
+            values.AddText("castOverlays", casting.Overlays);
+            values.AddText("castOverlay", casting.Overlay);
+            values.AddText("castLast", casting.Last);
+        }
         // The game's own options for the options panel (#9759): id|label|min|max|step|unit|value|description, ';' between.
         if (gameOptions is not null) values.AddText("gameOptions", gameOptions);
         if (menu is GameMenuUiFacts paused)

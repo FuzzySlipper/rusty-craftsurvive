@@ -3,12 +3,14 @@ using System.Reflection;
 using CraftSurvive.Game.Modules.Chemistry;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Tests;
+using RustyChemistry.Casting;
 using RustyChemistry.Content;
 using RustyChemistry.Simulation;
 
 // The chemistry adapter's rules and the product's own pack (#10293), checked without a host: the authored
 // content resolves, write-back keeps the terrain overlay's reserve, the weather becomes ambient, and grass fire
-// behaves as the slice promises on small meadows of the real pack.
+// behaves as the slice promises on small meadows of the real pack; the magic compiler's grammar and carried formulas
+// (#10529) cast as their content says.
 
 ChemistrySettings settings = ChemistrySettings.Parse(Resource("Chemistry.adapter.json"));
 ChemistryPack pack = ChemistryPack.Read(Resource("Chemistry.pack.json"));
@@ -275,6 +277,54 @@ Check.Section("grass fire", () =>
 
     Check.That(Count(burns, burnt) > 0 && wanted == Count(burns, burnt), $"every cell that burns out asks to be written back ({wanted})");
     Check.That(burns.Quantity(new(24, 1, 24), moisture) < 0.2f, "burnt ground is left dry");
+});
+
+Check.Section("casting", () =>
+{
+    BaguaGrammar grammar = BaguaGrammar.Read(Resource("Chemistry.bagua.json"), pack, "bagua.json");
+    Check.Equal(settings.Casting.GrammarPath, "chemistry/bagua.json", "the adapter names the grammar beside it");
+    Check.That(settings.Overlays.All(overlay => pack.Quantities.Any(quantity => quantity.Id == overlay.Quantity)), "every overlay names a quantity of the pack");
+    foreach (HexagramDefinition hexagram in grammar.Hexagrams)
+    {
+        grammar.Compile(hexagram).Check(pack, $"hexagram {hexagram.Number}");
+    }
+
+    Check.Equal(grammar.Hexagram("earth", "heaven").Number, 11, "earth over heaven is 11, Peace, in the King Wen order");
+    Check.Equal(grammar.Hexagram("water", "fire").Number, 63, "water over fire is 63, After Completion");
+    IReadOnlyList<Formula> carried = Formula.ReadList(Resource("Chemistry.formulas.json"), pack, "formulas.json");
+    Check.That(carried.Single(formula => formula.Id == "torch").Steps.Single().Emit is { Quantity: "heat", Rate: 4000f, Radius: 1.2f, Seconds: 0.6f },
+        "the carried torch is the ignite command's torch");
+
+    // A cast lands on field time, as the module does: the caster advances before each step.
+    void Cast(ChemistryField field, Formula formula, Cell at, int steps)
+    {
+        Caster caster = new();
+        caster.Cast(field, new FormulaTool(formula, pack), new CastTarget(at, at.Offset(0, 1, 0)), CastFeel.Plain);
+        for (int step = 0; step < steps; step++)
+        {
+            caster.Advance(field, settings.Field.StepSeconds);
+            field.Step();
+        }
+    }
+
+    ChemistryField struck = Meadow(grass);
+    Cast(struck, grammar.Compile(grammar.Hexagram("thunder", "thunder")), new Cell(24, 1, 24), 10);
+    Check.That(Count(struck, burning) + Count(struck, burnt) > 0, "thunder strikes green grass alight, which heat alone would only dry");
+
+    // Fire is lit inside a binding and in an unbound meadow alike; the bound grass is slow to catch.
+    int CaughtNear(ChemistryField field) => Count(field, burning, 22, 26, 22, 26) + Count(field, burnt, 22, 26, 22, 26);
+    ChemistryField bound = Meadow(dryGrass), loose = Meadow(dryGrass);
+    Cast(bound, grammar.Compile(grammar.Hexagram("mountain", "mountain")), new Cell(24, 1, 24), 40);
+    Ignite(bound, 24, 24);
+    Ignite(loose, 24, 24);
+    Run(bound, 15);
+    Run(loose, 15);
+    Check.That(CaughtNear(bound) < CaughtNear(loose), $"a mountain binding holds dry grass from catching ({CaughtNear(bound)} caught bound, {CaughtNear(loose)} loose)");
+
+    ChemistryField dried = Meadow(grass);
+    float wet = dried.Quantity(new Cell(24, 1, 24), moisture);
+    Cast(dried, grammar.Compile(grammar.Hexagram("earth", "water")), new Cell(24, 1, 24), 15);
+    Check.That(dried.Quantity(new Cell(24, 1, 24), moisture) < wet - 0.1f, "yin water under earth draws water out of the ground");
 });
 
 return Check.Finish("Chemistry");

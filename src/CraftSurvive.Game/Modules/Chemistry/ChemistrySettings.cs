@@ -17,7 +17,9 @@ internal sealed record ChemistrySettings(
     FieldSetting Field,
     AmbientSetting Ambient,
     FireSetting Fires,
-    ScarSetting Scars)
+    ScarSetting Scars,
+    CastingSetting Casting,
+    IReadOnlyList<OverlaySetting> Overlays)
 {
     internal const string ContentPath = "chemistry/adapter.json";
 
@@ -51,7 +53,7 @@ internal sealed record ChemistrySettings(
         }
 
         JsonElement budget = Member(root, "budget"), field = Member(root, "field"), ambient = Member(root, "ambient"), fires = Member(root, "fires"),
-            scars = Member(root, "scars");
+            scars = Member(root, "scars"), casting = Member(root, "casting");
         float earliest = Number(scars, "earliest");
         if (earliest is < 0 or > 1)
         {
@@ -76,7 +78,12 @@ internal sealed record ChemistrySettings(
             new FireSetting([.. Member(fires, "materials").EnumerateArray().Select(material => Text(material, "fires.materials"))],
                 Whole(fires, "slots"), Whole(fires, "clusterCells"), Text(Member(fires, "burnt"), "fires.burnt")),
             new ScarSetting(Block(Text(Member(scars, "block"), "scars.block"), "scars.block"), Number(scars, "regrowDays"), earliest,
-                Number(scars, "healSeconds"), Whole(scars, "cellsPerHeal"), Number(scars, "healReach")));
+                Number(scars, "healSeconds"), Whole(scars, "cellsPerHeal"), Number(scars, "healReach")),
+            new CastingSetting(Text(Member(casting, "grammar"), "casting.grammar"), Text(Member(casting, "formulas"), "casting.formulas")),
+            [.. Member(root, "overlays").EnumerateArray().Select((overlay, index) => new OverlaySetting(
+                Text(Member(overlay, "quantity"), $"overlays[{index}].quantity"), Text(Member(overlay, "label"), $"overlays[{index}].label"),
+                Colour(Text(Member(overlay, "color"), $"overlays[{index}].color"), $"overlays[{index}].color"),
+                Number(overlay, "low"), Number(overlay, "high")))]);
     }
 
     private static JsonElement Member(JsonElement element, string name) => element.TryGetProperty(name, out JsonElement value)
@@ -95,6 +102,12 @@ internal sealed record ChemistrySettings(
         && value.TryGetInt32(out int whole) && whole >= 0
         ? whole
         : throw new InvalidDataException($"{ContentPath}: {name} must be a whole number, not negative");
+
+    /// <summary>A <c>#rrggbb</c> sRGB colour, as its number.</summary>
+    private static int Colour(string hex, string path) => hex.Length == 7 && hex[0] == '#'
+        && int.TryParse(hex.AsSpan(1), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int rgb)
+        ? rgb
+        : throw new InvalidDataException($"{ContentPath}: {path} must be a #rrggbb colour");
 
     private static BlockId Block(string name, string path) => Enum.TryParse(name, ignoreCase: false, out BlockId block) && Enum.IsDefined(block)
         ? block
@@ -136,3 +149,12 @@ internal sealed record FireSetting(IReadOnlyList<string> Materials, int Slots, i
 /// near (metres).
 /// </summary>
 internal sealed record ScarSetting(BlockId Block, float RegrowDays, float Earliest, float HealSeconds, int CellsPerHeal, float HealReach);
+
+/// <summary>Casting (#10529): the development compiler's grammar, and the compiled formulas the game carries.</summary>
+internal sealed record CastingSetting(string GrammarPath, string FormulasPath);
+
+/// <summary>
+/// A quantity the overlay can show (#10529): invisible below <see cref="Low"/>, full at <see cref="High"/>, in a colour
+/// given as its sRGB number.
+/// </summary>
+internal sealed record OverlaySetting(string Quantity, string Label, int Srgb, float Low, float High);
