@@ -1,7 +1,7 @@
-import type { RustyApplicationUiIntentsPort, RustyApplicationUiPort, RustyApplicationUiProjectionView } from '@rusty-engine/product-ui';
+import type { RustyApplicationUiInputPort, RustyApplicationUiIntentsPort, RustyApplicationUiProjectionView } from '@rusty-engine/product-ui';
 import { button, element, isolateEvents } from './dom.js';
 import { number, projectionValues, text, type Values } from './hud.js';
-import { layers } from './layers.js';
+import { layers, open as openLayer } from './layers.js';
 import { mountOptions } from './options.js';
 import { WORLD_CONTRACT, WORLD_INTENT } from './world.js';
 
@@ -10,6 +10,8 @@ const MENU_KEY = 'Escape';
 /** The world actions that hold the game and let it run again; the journey's own "pause" is apart (#9916 review). */
 const MENU_PAUSE = 'menu-pause';
 const MENU_RESUME = 'menu-resume';
+/** The controller's Start (the standard pad's button 9): C# reads it in play, the menu while it holds the interface. */
+const START_BUTTON = 'button-9';
 
 /** The new world's choices, as the product offers them (WorldSelection's NewWorldSizes). */
 const WORLD_SIZES = [[4096, '4 km'], [8192, '8 km'], [16384, '16 km'], [390000, '390 km continent (experimental)']] as const;
@@ -27,19 +29,28 @@ const UNOFFERED = 'background:transparent;color:#a99f88;border:1px dashed #84775
 
 type Page = 'main' | 'world' | 'options';
 
+/** What the menu can do beside its own pages. */
+export interface Menu {
+  /** Claims the pause, as Escape does in play; the interaction owner calls it when play loses the pointer. */
+  pause(): void;
+  dispose(): void;
+}
+
 /**
- * The pause menu (#9916): a centred column - Continue, New world, Load, Options, Quit - over the held
- * game. Whether the game is paused is the product's fact (`menuPaused`); Esc, or losing the pointer
- * while playing, claims a pause, and Continue claims the game back. The menu shows only what the
- * product publishes and remembers only which of its pages is open.
+ * The pause menu (#9916): a centred column - Continue, New world, Load, Options, Developer tools, Quit -
+ * over the held game. Whether the game is paused is the product's fact (`menuPaused`); Escape in play,
+ * or losing the pointer while playing (`interaction.ts`), claims a pause, and Continue claims the game
+ * back. While it is open it holds the interface, so the pointer is the player's and the pad's Start
+ * reaches it here. The menu shows only what the product publishes and remembers only which of its pages
+ * is open.
  */
-export function mountMenu(host: Element, ui: RustyApplicationUiPort, intents: RustyApplicationUiIntentsPort | undefined,
-  projection: RustyApplicationUiProjectionView | undefined): () => void {
+export function mountMenu(host: Element, input: RustyApplicationUiInputPort | undefined, intents: RustyApplicationUiIntentsPort | undefined,
+  projection: RustyApplicationUiProjectionView | undefined, openDeveloper: () => void): Menu {
   const claim = (data: Readonly<Record<string, string | number>>): void => {
     intents?.claim(WORLD_INTENT, { kind: 'product-payload', contract: WORLD_CONTRACT, data });
   };
 
-  // The backdrop lets clicks through, so the drawer and developer tools stay usable while paused.
+  // The backdrop lets clicks through to the developer tools, which dock above it.
   const overlay = element('div', 'position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;'
     + 'background:rgb(6 8 10 / 45%);pointer-events:none;font:15px/1.45 system-ui,sans-serif;');
   const panel = element('section', PANEL + 'width:min(19rem,calc(100vw - 2rem));');
@@ -70,6 +81,7 @@ export function mountMenu(host: Element, ui: RustyApplicationUiPort, intents: Ru
   load.disabled = true; load.title = LOAD_LATER; load.style.cssText = ENTRY + UNOFFERED;
   load.append(element('small', 'display:block;font-weight:400;font-size:.72rem;opacity:.85;margin-top:.15rem;', 'Coming with save slots'));
   entry('Options', () => show('options'));
+  entry('Developer tools', openDeveloper);
   const quit = entry('Quit', () => claim({ action: 'quit' }));
 
   const back = (): HTMLButtonElement => {
@@ -121,8 +133,6 @@ export function mountMenu(host: Element, ui: RustyApplicationUiPort, intents: Ru
   };
   show('main');
 
-  const freeScene = (values: Values | null): boolean => values !== null && (number(values, 'worldMapOpen') === 1 || number(values, 'townOpen') === 1);
-
   const render = (values: Values | null): void => {
     if (values === null) return;
     const now = number(values, 'menuPaused') === 1;
@@ -134,48 +144,41 @@ export function mountMenu(host: Element, ui: RustyApplicationUiPort, intents: Ru
     message = said;
     if (now === paused) return;
     paused = now;
-    layers.menu = paused;
     overlay.style.display = paused ? 'flex' : 'none';
-    if (paused) {
-      show('main');
-      // The pointer is the player's while the game is held, and a click on the view does not take it back.
-      ui.setCursorMode('unlocked');
-    } else if (!freeScene(values)) {
-      ui.setCursorMode('pointer-lock');
-      ui.focusGameplay();
-    }
+    if (paused) show('main');
+    // The pointer is the player's while the game is held; leaving the menu gives play its pointer back.
+    openLayer('menu', paused);
   };
 
   const onKey = (event: KeyboardEvent): void => {
-    // The pack or journal takes its own Esc first.
-    if (event.code !== MENU_KEY || event.repeat || event.defaultPrevented || layers.screen) return;
+    // The innermost surface takes its own Escape first (it prevents the default); under the developer tools
+    // the menu waits.
+    if (event.code !== MENU_KEY || event.repeat || event.defaultPrevented || layers.screen || layers.ring || layers.developer) return;
     event.preventDefault();
     if (!paused) claim({ action: MENU_PAUSE });
     else if (page !== 'main') show('main');
     else claim({ action: MENU_RESUME });
   };
 
-  // A browser takes the Esc that frees a held pointer for itself, so losing the pointer while
-  // playing - not to the pack, journal or map, which free it on purpose - is what opens the menu.
-  let locked = document.pointerLockElement !== null;
-  const onPointerLock = (): void => {
-    const now = document.pointerLockElement !== null;
-    const lost = locked && !now;
-    locked = now;
-    if (!lost || paused || layers.screen || freeScene(projectionValues(projection?.current() ?? null))) return;
-    claim({ action: MENU_PAUSE });
-  };
+  // In play C# reads Start itself; while the menu holds the interface the pad's buttons come here.
+  const unsubscribeInput = input?.subscribe(({ fact }) => {
+    if (fact.kind !== 'controller-button' || fact.button !== START_BUTTON || fact.edge !== 'pressed' || !paused) return;
+    if (page !== 'main') show('main');
+    else claim({ action: MENU_RESUME });
+  });
 
   window.addEventListener('keydown', onKey, true);
-  document.addEventListener('pointerlockchange', onPointerLock);
   render(projectionValues(projection?.current() ?? null));
   const unsubscribe = projection?.subscribe((envelope) => render(projectionValues(envelope)));
-  return () => {
-    unsubscribe?.();
-    window.removeEventListener('keydown', onKey, true);
-    document.removeEventListener('pointerlockchange', onPointerLock);
-    options.dispose();
-    layers.menu = false;
-    overlay.remove();
+  return {
+    pause: () => { if (!paused) claim({ action: MENU_PAUSE }); },
+    dispose: () => {
+      unsubscribe?.();
+      unsubscribeInput?.();
+      window.removeEventListener('keydown', onKey, true);
+      options.dispose();
+      openLayer('menu', false);
+      overlay.remove();
+    },
   };
 }

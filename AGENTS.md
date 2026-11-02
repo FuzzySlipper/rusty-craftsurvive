@@ -137,9 +137,9 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
   and ownership). Den and this repository do not keep evolving copies of design:
   link to the atlas page instead, and treat older design text elsewhere as history.
 - **The repository holds durable references only**: start at
-  [`docs/index.md`](docs/index.md), which maps the five live documents
+  [`docs/index.md`](docs/index.md), which maps the six live documents
   (`survival-direction.md`, `visual-direction.md`, `csharp-migration-map.md`,
-  `known-limitations.md`, `live-proofs.md`) and the root `README.md`.
+  `known-limitations.md`, `game-ui.md`, `live-proofs.md`) and the root `README.md`.
 - Do not record volatile state in a document: current Engine pair, run results,
   task status, "the current X", or dated observations belong in Den, not in the
   working tree.

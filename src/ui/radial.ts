@@ -1,8 +1,8 @@
-import type { RustyApplicationUiIntentsPort, RustyApplicationUiProjectionView, RustyApplicationUiPort } from '@rusty-engine/product-ui';
+import type { RustyApplicationUiIntentsPort, RustyApplicationUiProjectionView } from '@rusty-engine/product-ui';
 import { ACTION_CONTRACT, ACTION_INTENT } from './actions.js';
 import { element } from './dom.js';
 import { projectionValues, text, type Values } from './hud.js';
-import { layers } from './layers.js';
+import { layers, open as openLayer } from './layers.js';
 
 /** The key that opens and closes the ring; C (gameplay) casts what it composed. Escape closes it too. */
 const RING_KEY = 'KeyV';
@@ -51,7 +51,7 @@ const spot = (index: number): { x: number; y: number } => {
  * both. The second choice composes the hexagram in C# and returns to play, where C casts it. Moving over the ring
  * previews the hexagram the pointer would make. Escape or V closes it without composing.
  */
-export function mountCastingRing(root: Element, ui: RustyApplicationUiPort | undefined, intents: RustyApplicationUiIntentsPort | undefined,
+export function mountCastingRing(root: Element, intents: RustyApplicationUiIntentsPort | undefined,
   projection: RustyApplicationUiProjectionView | undefined): () => void {
   const overlay = element('div', 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:30;'
     + 'background:radial-gradient(circle, rgb(8 10 14 / 55%) 0%, rgb(8 10 14 / 20%) 60%, rgb(8 10 14 / 0%) 75%);pointer-events:auto;');
@@ -163,24 +163,24 @@ export function mountCastingRing(root: Element, ui: RustyApplicationUiPort | und
     }
   };
 
-  const close = (backToPlay: boolean): void => {
+  const close = (): void => {
     if (!open) return;
     open = false;
-    layers.screen = false;
     overlay.style.display = 'none';
-    // Returning from a click, which is a gesture the window and browsers take the pointer back on.
-    if (backToPlay) ui?.focusGameplay();
+    // Leaving the last surface gives play its pointer back (interaction.ts): at once in the window, and in
+    // a browser on a click, which is the gesture a browser takes the lock on.
+    openLayer('ring', false);
   };
 
   const show = (): void => {
     open = true;
     outer = null;
     hovered = null;
-    // Marked as a screen, so the pause menu does not take the pointer's release as Escape.
-    layers.screen = true;
-    if (document.pointerLockElement !== null) document.exitPointerLock();
     overlay.style.display = 'flex';
     draw();
+    // The ring holds the interface, which frees the pointer; its flag is set first, so the pause menu does
+    // not take the pointer's release as Escape.
+    openLayer('ring', true);
   };
 
   const choose = (id: string): void => {
@@ -192,7 +192,7 @@ export function mountCastingRing(root: Element, ui: RustyApplicationUiPort | und
     }
 
     claim({ action: 'compose', upper: outer, lower: id });
-    close(true);
+    close();
   };
 
   buttons.forEach(({ button }) => {
@@ -202,18 +202,18 @@ export function mountCastingRing(root: Element, ui: RustyApplicationUiPort | und
     button.addEventListener('click', (event) => { event.stopPropagation(); choose(id); });
   });
   // A click off the ring takes back the first choice, or closes it.
-  overlay.addEventListener('click', () => { if (outer !== null) { outer = null; draw(); } else close(true); });
+  overlay.addEventListener('click', () => { if (outer !== null) { outer = null; draw(); } else close(); });
   for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'wheel']) overlay.addEventListener(type, (event) => event.stopPropagation());
 
   const onKey = (event: KeyboardEvent): void => {
-    if (event.repeat || layers.menu || layers.town) return;
-    if (event.code === RING_KEY && (open || !layers.screen)) {
+    if (event.repeat || layers.menu || layers.town || layers.developer) return;
+    if (event.code === RING_KEY && !layers.screen) {
       event.preventDefault();
-      if (open) close(false); else show();
+      if (open) close(); else show();
     } else if (event.code === CLOSE_KEY && open) {
       // Escape closed the ring, so the pause menu does not open on the same press.
       event.preventDefault();
-      close(false);
+      close();
     }
   };
   window.addEventListener('keydown', onKey, true);
@@ -236,7 +236,7 @@ export function mountCastingRing(root: Element, ui: RustyApplicationUiPort | und
   return () => {
     unsubscribe?.();
     window.removeEventListener('keydown', onKey, true);
-    if (open) layers.screen = false;
+    openLayer('ring', false);
     overlay.remove();
   };
 }

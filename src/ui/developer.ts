@@ -1,87 +1,137 @@
-import {
-  createLiveDebugHttpTransport,
-  mountLiveDebugPanel,
-  mountRendererMetricsWidget,
-  type LiveDebugPanelMount,
-  type RendererMetricsWidgetMount,
-} from '@rusty-engine/live-debug';
-import { button, element, message } from './dom.js';
+import type { RustyApplicationUiContext } from '@rusty-engine/product-ui';
+import { createLiveDebugHttpTransport, mountDeveloperShell, type DeveloperShellMount, type DeveloperShellPanel } from '@rusty-engine/live-debug';
+import { mountActions } from './actions.js';
+import { mountCasting } from './casting.js';
+import { button, element, isolateEvents } from './dom.js';
+import { mountHud } from './hud.js';
+import { layers, open as openLayer } from './layers.js';
+
+/** The key that opens and closes the developer tools; Escape closes them too. */
+export const DEVELOPER_KEY = 'Backquote';
+const CLOSE_KEY = 'Escape';
+
+/** How the developer tools mark themselves, so nobody reads them as part of the game. */
+const DIAGNOSTIC = 'background:rgb(28 12 34 / 92%);border:1px dashed #c86bd8;color:#f0e2f4;'
+  + 'font:.76rem/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;';
+const BADGE = 'Diagnostic UI · not part of the game';
+const HOST_CLASS = 'craft-developer';
 
 /**
- * Developer tools over the live-debug channel: renderer metrics and the command panel. They work
- * only when the host was started with --live-debug, and nothing here is mounted, polled or asked
- * for until the player opens it.
+ * Developer tools: the Engine's developer shell docked beside play (rusty-dagger's model, `docs/game-ui.md`
+ * "Diagnostic UI"). It holds the product's own diagnostic panels - every published fact with the building
+ * and study shortcuts, and the development magic compiler (#10529) - and, when the host runs with
+ * --live-debug, the Engine's console, scene, view and metrics. It lives outside every game surface, is
+ * visibly marked, holds the interface while open and gives play its pointer back when closed; it carries
+ * no game state. ` opens it in play, as does the menu's Developer tools.
  */
-export function mountDeveloperTools(host: HTMLElement, status: HTMLElement): () => void {
-  const details = element('details', 'margin-top:.35rem;');
-  const summary = element('summary', 'cursor:pointer;opacity:.75;', 'Developer tools (needs --live-debug)');
-  const metricsButton = button('Show metrics');
-  const debugButton = button('Open live debug');
-  const metricsHost = element('div', 'margin-top:.3rem;max-width:min(24rem,calc(100vw - 2rem));overflow:auto;');
-  const debugHost = element('div');
-  metricsHost.hidden = true;
-  debugHost.hidden = true;
-  details.append(summary, metricsButton, debugButton, metricsHost, debugHost);
-  host.append(details);
+export interface DeveloperTools {
+  isOpen(): boolean;
+  /** Opens the shell, or closes it; resolves once it has decided. */
+  toggle(): Promise<void>;
+  dispose(): void;
+}
 
-  let transport: ReturnType<typeof createLiveDebugHttpTransport> | null = null;
-  let metrics: RendererMetricsWidgetMount | null = null;
-  let debugPanel: LiveDebugPanelMount | null = null;
-  let disposed = false;
-  const channel = (): ReturnType<typeof createLiveDebugHttpTransport> => (transport ??= createLiveDebugHttpTransport());
-  const report = (error: unknown, fallback: string): void => {
-    if (disposed) return;
-    status.textContent = message(error, fallback);
-    status.hidden = false;
+export function mountDeveloperTools(root: Element, context: RustyApplicationUiContext, controlsHelp: string): DeveloperTools {
+  const transport = createLiveDebugHttpTransport();
+  // The shell docks inside this layer, over every game surface; only the shell itself takes the pointer.
+  const host = element('div', 'position:fixed;inset:0;pointer-events:none;z-index:40;');
+  host.className = HOST_CLASS;
+  const sheet = element('style', '', `.${HOST_CLASS} > * { pointer-events: auto; }`);
+  host.append(sheet);
+  root.append(host);
+
+  // The one way in from the view: a small marked button where the old Details drawer was.
+  const opener = button('Dev tools (`)');
+  opener.style.cssText = DIAGNOSTIC + 'position:fixed;top:.5rem;left:.5rem;z-index:8;padding:.2rem .45rem;border-radius:.25rem;cursor:pointer;pointer-events:auto;opacity:.8;';
+  opener.title = BADGE;
+  opener.setAttribute('data-rusty-ui-interactive', '');
+  root.append(opener);
+
+  let shell: DeveloperShellMount | null = null;
+  let deciding: Promise<void> | null = null;
+
+  /** One of the product's panels: marked diagnostic, kept off the canvas's input. */
+  const productPanel = (title: string, fill: (element: HTMLElement) => () => void): DeveloperShellPanel => ({
+    kind: 'product',
+    title,
+    mount: (target) => {
+      target.style.cssText = DIAGNOSTIC + 'padding:.45rem .55rem;overflow:auto;';
+      isolateEvents(target);
+      target.append(element('p', 'margin:0 0 .3rem;color:#e7a6f2;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:.68rem;', BADGE));
+      const dispose = fill(target);
+      return { dispose: () => { dispose(); target.replaceChildren(); } };
+    },
+  });
+
+  const mountShell = (liveDebug: string | null): DeveloperShellMount => {
+    const panels: DeveloperShellPanel[] = [
+      productPanel('Craft', (target) => {
+        if (liveDebug !== null) target.append(element('p', 'margin:0 0 .3rem;opacity:.8;', `The Engine's console, scene, view and metrics need the host started with --live-debug (${liveDebug}).`));
+        const disposeFacts = mountHud(target, context.projection);
+        const disposeActions = mountActions(target, context.intents, context.projection);
+        target.append(element('p', 'margin:.35rem 0 0;opacity:.75;', controlsHelp));
+        return () => { disposeFacts(); disposeActions(); };
+      }),
+      productPanel('Casting', (target) => mountCasting(target, context.intents, context.projection)),
+    ];
+    if (liveDebug === null) {
+      panels.push({ kind: 'console' }, { kind: 'scene' },
+        { kind: 'view', title: 'View', options: { viewport: context.viewport, transport } }, { kind: 'metrics' });
+    }
+    return mountDeveloperShell(host, {
+      panels,
+      presentation: 'tabs',
+      side: 'right',
+      transport,
+      // However the shell closes, play gets its pointer back.
+      onClose: () => openLayer('developer', false),
+    });
   };
 
-  metricsButton.addEventListener('click', () => {
-    const show = metrics === null;
-    metricsButton.disabled = true;
-    status.hidden = true;
-    void channel().execute(show ? 'engine.renderer.show' : 'engine.renderer.hide').then((result) => {
-      if (disposed) return;
-      if (!result.succeeded) { report(new Error(result.message), 'Renderer metrics command failed.'); return; }
-      if (show) {
-        metrics = mountRendererMetricsWidget(metricsHost, { initiallyVisible: true, transport: channel() });
-      } else {
-        metrics?.dispose();
-        metrics = null;
-        metricsHost.replaceChildren();
+  const toggle = async (): Promise<void> => {
+    if (shell?.isOpen) { shell.close(); return; }
+    if (deciding !== null) return deciding;
+    deciding = (async () => {
+      if (shell === null) {
+        // Without the host's live-debug there is nothing for the Engine panels to talk to; the product's
+        // own panels work either way.
+        const refusal = await transport.catalog()
+          .then((catalog) => catalog.available ? null : 'the host serves no live-debug catalog')
+          .catch((error: unknown) => error instanceof Error ? error.message : String(error));
+        shell = mountShell(refusal);
       }
-      metricsHost.hidden = !show;
-      metricsButton.textContent = show ? 'Hide metrics' : 'Show metrics';
-    }).catch((error: unknown) => report(error, 'Renderer metrics command failed.'))
-      .finally(() => { if (!disposed) metricsButton.disabled = false; });
-  });
+      openLayer('developer', true);
+      await shell.open();
+    })().finally(() => { deciding = null; });
+    return deciding;
+  };
 
-  debugButton.addEventListener('click', () => {
-    if (debugPanel !== null) {
-      debugPanel.dispose();
-      debugPanel = null;
-      debugHost.replaceChildren();
-      debugHost.hidden = true;
-      debugButton.textContent = 'Open live debug';
-      return;
+  const typing = (): boolean => document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement;
+  const onKey = (event: KeyboardEvent): void => {
+    if (event.repeat) return;
+    if (event.code === DEVELOPER_KEY && !typing()) {
+      event.preventDefault();
+      void toggle();
+    } else if (event.code === CLOSE_KEY && layers.developer && !event.defaultPrevented) {
+      // The innermost surface: Escape closes the tools and nothing under them.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      shell?.close();
     }
+  };
+  opener.addEventListener('click', () => void toggle());
+  window.addEventListener('keydown', onKey, true);
 
-    debugButton.disabled = true;
-    status.hidden = true;
-    debugHost.hidden = false;
-    void mountLiveDebugPanel(debugHost, { enabled: true, presentation: 'inline', transport: channel() }).then((mounted) => {
-      if (disposed) { mounted.dispose(); return; }
-      debugPanel = mounted;
-      debugButton.textContent = 'Close live debug';
-    }).catch((error: unknown) => {
-      debugHost.replaceChildren();
-      debugHost.hidden = true;
-      report(error, 'Live debug panel could not start.');
-    }).finally(() => { if (!disposed) debugButton.disabled = false; });
-  });
-
-  return () => {
-    disposed = true;
-    debugPanel?.dispose();
-    metrics?.dispose();
+  return {
+    isOpen: () => shell?.isOpen === true,
+    toggle,
+    dispose() {
+      window.removeEventListener('keydown', onKey, true);
+      shell?.dispose();
+      shell = null;
+      openLayer('developer', false);
+      opener.remove();
+      host.remove();
+    },
   };
 }

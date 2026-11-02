@@ -879,16 +879,17 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   again. Items are drawn as a coloured block by use and an initial: there is no item art. The journal lists
   the 48 places most recently learned (`DiscoveryModule.JournalShown`), not every place found.
   Everything else - the published facts, the building actions, rest, difficulty, the controls - is
-  the Details drawer, closed by default. The UI holds no game state, only what it last drew and which
+  diagnostic UI in the developer tools beside play (` or the menu; [game-ui.md](game-ui.md)). The UI holds no game state, only what it last drew and which
   screen is open; the screens' keys are read by the page, so a controller cannot open them yet. The
   projection is the product's one UI channel, stream `craftsurvive.game` and contract
   `craftsurvive.game.v1` (`ProductUiPublisher.StreamName`); kind and stage enums travel as
   numbers and may be appended to but never renumbered.
-- **The pause menu (#9916)** is a centred column over the game: Continue, New world, Load, Options
-  and Quit. Whether the game is paused is C#'s fact: it holds the Engine's gameplay time at zero,
-  drops the player's input and advances nothing until Continue. Esc claims the pause (after a pack
-  or journal takes its own Esc), and so does losing the pointer while playing, since a browser keeps
-  the Esc that frees a held pointer for itself; the controller's Start button toggles it in C#.
+- **The pause menu (#9916)** is a centred column over the game: Continue, New world, Load, Options,
+  Developer tools and Quit. Whether the game is paused is C#'s fact: it holds the Engine's gameplay time at zero,
+  drops the player's input and advances nothing until Continue. Esc claims the pause (after an open
+  surface takes its own Esc), and so does losing the pointer while playing, since a browser and the
+  desktop shell keep the Esc that frees a held pointer for themselves ([game-ui.md](game-ui.md)); the
+  controller's Start button opens it in C# and, while the menu holds the interface, closes it from the page.
   New world validates the seed and width, then runs the game again on the map, where the world
   arrives. Load is shown but disabled until there are save slots: there is one active world, saved
   as it is played. Quit closes the window through the Engine host where the host has one

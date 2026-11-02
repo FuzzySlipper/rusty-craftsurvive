@@ -4,7 +4,7 @@ import { button, element, isolateEvents } from './dom.js';
 import { number, projectionValues, text, type Values } from './hud.js';
 import { drawMap, mark, places, standing } from './map.js';
 import { WORLD_CONTRACT, WORLD_INTENT } from './world.js';
-import { layers } from './layers.js';
+import { layers, open as openLayer } from './layers.js';
 import { EQUIPMENT, hotbarSlots, packSlots, selectedSlot, SLOT_PIXELS, SlotDrag, slotItems } from './slots.js';
 
 /** The keys that open each screen; Escape closes whichever is open. */
@@ -192,10 +192,10 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
 
   const show = (which: 'pack' | 'journal' | null): void => {
     open = open === which ? null : which;
-    layers.screen = open !== null;
-    // The pointer is the player's again while a screen is open, so its slots and buttons can be used.
-    if (open !== null && document.pointerLockElement !== null) document.exitPointerLock();
     draw(true);
+    // A screen holds the interface, so the pointer is the player's for its slots and buttons; closing the
+    // last surface gives play its pointer back.
+    openLayer('screen', open !== null);
   };
 
   const grid = (columns: number, cells: HTMLElement[]): HTMLElement => {
@@ -323,8 +323,8 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
   };
 
   const onKey = (event: KeyboardEvent): void => {
-    // Under the pause menu the screens wait (#9916).
-    if (event.repeat || layers.menu || layers.town) return;
+    // Under the pause menu, the town, the casting ring and the developer tools the screens wait (#9916).
+    if (event.repeat || layers.menu || layers.town || layers.ring || layers.developer) return;
     if (event.code === PACK_KEY) show('pack');
     else if (event.code === JOURNAL_KEY) show('journal');
     else if (event.code === CLOSE_KEY && open !== null) {
@@ -350,7 +350,7 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
     unsubscribe?.();
     window.removeEventListener('keydown', onKey, true);
     window.clearTimeout(refusalTimer);
-    layers.screen = false;
+    openLayer('screen', false);
     drag.dispose();
     corner.remove();
     hotbar.remove();
