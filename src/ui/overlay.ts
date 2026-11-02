@@ -5,15 +5,19 @@ import { number, projectionValues, text, type Values } from './hud.js';
 /** How many blocks a vital's bar is drawn in: chunky, so it reads at a glance. */
 const SEGMENTS = 10;
 
-/** How long a toast stays up, and how long the hit flash takes to fade, in milliseconds. */
+/** How long a short toast stays up, the extra time per character of a longer one, and how long the hit flash takes to fade, in milliseconds. */
 const TOAST_MS = 3200;
+const TOAST_MS_PER_CHARACTER = 45;
 const FLASH_MS = 420;
 
 /** The most toasts shown at once; older ones give way. */
 const MAXIMUM_TOASTS = 3;
 
-/** The longest a toast's text runs before it is cut. */
+/** A toast this long reads in the base time; longer ones wrap and stay up longer, never cut. */
 const TOAST_CHARACTERS = 72;
+
+/** The widest a toast runs before its text wraps. */
+const TOAST_WIDTH = 'min(44rem, 90vw)';
 
 /** Health at or below this share of its maximum tints the screen's edges. */
 const LOW_HEALTH_SHARE = 0.3;
@@ -124,7 +128,7 @@ export function mountOverlay(root: Element, projection: RustyApplicationUiProjec
   // The expedition's standing reminders (#9553): a sled far behind, exhaustion. Shown while they hold.
   const expedition = element('div', 'max-width:32rem;padding:.25rem .55rem;background:#0b0c10b3;border:2px solid #000;display:none;');
   corner.append(expedition, vitals);
-  const toasts = element('div', 'position:absolute;left:50%;top:1.2rem;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.3rem;');
+  const toasts = element('div', `position:absolute;left:50%;top:1.2rem;width:${TOAST_WIDTH};transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.3rem;`);
   const flash = element('div', `position:absolute;inset:0;box-shadow:inset 0 0 12vmin 4vmin #b0141480;opacity:0;transition:opacity ${FLASH_MS}ms ease-out;`);
   const lowHealth = element('div', 'position:absolute;inset:0;box-shadow:inset 0 0 10vmin 2vmin #7a0c0c66;display:none;');
 
@@ -133,12 +137,12 @@ export function mountOverlay(root: Element, projection: RustyApplicationUiProjec
   if (projection === undefined) return () => layer.remove();
 
   const toast = (message: string): void => {
-    const cut = message.length > TOAST_CHARACTERS ? `${message.slice(0, TOAST_CHARACTERS - 1)}…` : message;
-    const note = element('div', 'padding:.25rem .55rem;background:#0b0c10cc;border:2px solid #000;transition:opacity .4s;', cut);
+    const note = element('div', `text-align:center;overflow-wrap:anywhere;padding:.25rem .55rem;background:#0b0c10cc;border:2px solid #000;transition:opacity .4s;`, message);
     toasts.append(note);
     while (toasts.childElementCount > MAXIMUM_TOASTS) toasts.firstElementChild?.remove();
-    setTimeout(() => { note.style.opacity = '0'; }, TOAST_MS);
-    setTimeout(() => note.remove(), TOAST_MS + 500);
+    const shown = TOAST_MS + Math.max(0, message.length - TOAST_CHARACTERS) * TOAST_MS_PER_CHARACTER;
+    setTimeout(() => { note.style.opacity = '0'; }, shown);
+    setTimeout(() => note.remove(), shown + 500);
   };
 
   // What was last drawn: a first projection sets these without flashing or announcing anything.
