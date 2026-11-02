@@ -152,6 +152,14 @@ internal static class ProductIds
     internal const ulong ChemistryOverlayBase = 0xA_0000UL;
     internal const int ChemistryOverlayObjects = 0x400;
 
+    /// <summary>How casts are seen (#10529): a light per flash, at most <see cref="ChemistryCastLights"/>.</summary>
+    internal const ulong ChemistryCastLightBase = 0x900UL;
+    internal const int ChemistryCastLights = 0x10;
+
+    /// <summary>How casts are seen (#10529): the ground's marks around casts and the passing marks of landings, discharges and fronts, at most <see cref="ChemistryCastDecals"/>.</summary>
+    internal const ulong ChemistryCastDecalBase = 0xA_1000UL;
+    internal const int ChemistryCastDecals = 0x400;
+
     /// <summary>A chasm's waterfalls (#10094): their stream and spray emitters, two per fall.</summary>
     internal const ulong DungeonWaterfallBase = 0x480UL;
 

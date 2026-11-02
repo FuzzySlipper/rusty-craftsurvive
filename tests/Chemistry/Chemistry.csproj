@@ -14,6 +14,7 @@
     <ProjectReference Include="../../external/rusty-chemistry/src/RustyChemistry/RustyChemistry.csproj" />
     <Compile Include="$(ProductModules)Chemistry/ChemistrySettings.cs" LinkBase="Product/Chemistry" />
     <Compile Include="$(ProductModules)Chemistry/ChemistryRules.cs" LinkBase="Product/Chemistry" />
+    <Compile Include="$(ProductModules)Chemistry/CastWatch.cs" LinkBase="Product/Chemistry" />
     <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />
     <EmbeddedResource Include="../../content/game/chemistry/adapter.json" LogicalName="Chemistry.adapter.json" />
     <EmbeddedResource Include="../../content/game/chemistry/pack.json" LogicalName="Chemistry.pack.json" />

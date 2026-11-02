@@ -49,6 +49,22 @@
   // torch the ignite command lights with), which cast without the grammar. A cast aims this many metres, further than
   // an edit's reach and within the field's window around the player.
   "casting": { "grammar": "chemistry/bagua.json", "formulas": "chemistry/formulas.json", "reach": 24 },
+  // How casts are seen (#10529). Where a cast lands it flashes in its quantity's overlay colour; a discharge marks the
+  // cells it ran through and a front its leading edge. Around each cast, for "watchSeconds" after its last operation
+  // (and while anything there still shows), the "ground" materials' top cells take the first mark whose quantity has
+  // passed "from" towards "full" (a "from" above "full" marks a quantity drained below it): "glow" lights the ground in
+  // the quantity's colour, "wet" darkens it with a sheen, "dry" bleaches it. "only" limits a mark to those materials.
+  "castLooks": {
+    "watchSeconds": 20, "watchMargin": 3,
+    "ground": ["grass", "dry-grass", "soil", "burnt-ground", "stone", "wood", "snow"],
+    "marks": [
+      { "quantity": "heat", "look": "glow", "from": 90, "full": 500 },
+      { "quantity": "bind", "look": "glow", "from": 0.8, "full": 10 },
+      { "quantity": "charge", "look": "glow", "from": 0.5, "full": 30 },
+      { "quantity": "moisture", "look": "wet", "from": 0.55, "full": 1 },
+      { "quantity": "moisture", "look": "dry", "from": 0.2, "full": 0, "only": ["grass"] }
+    ]
+  },
   // What the quantity overlay can show (#10529): one quantity at a time as cubes in the field's cells, invisible below
   // "low" and full at "high"; colours are sRGB.
   "overlays": [

@@ -325,6 +325,50 @@ Check.Section("casting", () =>
     float wet = dried.Quantity(new Cell(24, 1, 24), moisture);
     Cast(dried, grammar.Compile(grammar.Hexagram("earth", "water")), new Cell(24, 1, 24), 15);
     Check.That(dried.Quantity(new Cell(24, 1, 24), moisture) < wet - 0.1f, "yin water under earth draws water out of the ground");
+
+    // How casts are seen (#10529): the watch notes each landing, what passes, and the ground's marks around the cast.
+    List<CastSeen> Watched(ChemistryField field, Formula formula, Cell at, int steps)
+    {
+        Caster caster = new();
+        CastWatch watch = new(settings.CastLooks, pack);
+        caster.Cast(field, new FormulaTool(formula, pack), new CastTarget(at, at.Offset(0, 1, 0)), CastFeel.Plain);
+        List<CastSeen> seen = [];
+        for (int step = 0; step < steps; step++)
+        {
+            caster.Advance(field, settings.Field.StepSeconds, watch.Landed);
+            field.Step();
+            watch.Stepped(field, caster.Now);
+            seen.Add(watch.Take(field, caster.Now));
+        }
+
+        return seen;
+    }
+
+    CastMarkLook? LookAt(List<CastSeen> seen, Cell cell) => seen.LastOrDefault(entry => entry.Marks is not null)?.Marks!
+        .Where(mark => mark.Cell == cell).Select(mark => (CastMarkLook?)settings.CastLooks.Marks[mark.Mark].Look).FirstOrDefault();
+
+    Cell middle = new(24, 1, 24);
+    List<CastSeen> drying = Watched(Meadow(grass), grammar.Compile(grammar.Hexagram("earth", "water")), middle, 15);
+    Check.That(drying.SelectMany(entry => entry.Landings).Any(landing => landing.Quantity == moisture && landing.Drains),
+        "a drying cast is seen landing, and draining");
+    Check.Equal(LookAt(drying, middle), CastMarkLook.Dry, "grass a cast has dried is marked dry");
+
+    List<CastSeen> watering = Watched(Meadow(grass), grammar.Compile(grammar.Hexagram("mountain", "water")), middle, 40);
+    Check.That(watering.Where(entry => entry.Marks is not null).Last().Marks!.Any(mark => settings.CastLooks.Marks[mark.Mark].Look == CastMarkLook.Wet),
+        "ground a cast has watered is marked wet");
+
+    List<CastSeen> striking = Watched(Meadow(grass), grammar.Compile(grammar.Hexagram("thunder", "thunder")), middle, 10);
+    Check.That(striking.SelectMany(entry => entry.Sparks).Any(spark => spark.Discharge && spark.Quantity == pack.Quantity("charge")),
+        "a discharge is seen in the cells it ran through");
+
+    List<CastSeen> blowing = Watched(Meadow(grass), grammar.Compile(grammar.Hexagram("wind", "wind")), middle, 30);
+    Check.That(blowing.SelectMany(entry => entry.Sparks).Count(spark => !spark.Discharge && spark.Quantity == pack.Quantity("gust")) > 10,
+        "a cast front is seen along its leading edge");
+
+    // Bare soil, which does not burn, so the heat stays heat.
+    List<CastSeen> heating = Watched(Meadow(soil), grammar.Compile(grammar.Hexagram("heaven", "fire")), middle, 20);
+    Check.That(heating.Any(entry => entry.Marks is { Count: > 0 } marks && marks.Any(mark => settings.CastLooks.Marks[mark.Mark].Quantity == "heat")),
+        "ground a cast has heated, short of burning, glows");
 });
 
 return Check.Finish("Chemistry");

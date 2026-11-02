@@ -47,6 +47,8 @@ internal sealed class ChemistryModule : IProductModule
     private readonly BurnScars scars;
     private readonly Caster caster = new();
     private readonly QuantityOverlay overlay;
+    private readonly CastWatch watch;
+    private readonly CastLook castLook;
     private readonly int burntMaterial, heatQuantity, smokeQuantity;
     private readonly ushort[] chunkMaterials = new ushort[CellsPerChunk], chunkBlocks = new ushort[CellsPerChunk];
 
@@ -104,6 +106,8 @@ internal sealed class ChemistryModule : IProductModule
         int air = blocks.Air, water = pack.Material(settings.WaterMaterial);
         overlay = new QuantityOverlay(engine, frame, material => material == air ? OverlayCell.Open
             : material == water ? OverlayCell.Translucent : OverlayCell.Opaque);
+        watch = new CastWatch(settings.CastLooks, pack);
+        castLook = new CastLook(engine, frame, settings, pack);
         field = NewField();
         terrain.Edited += Reload;
     }
@@ -175,10 +179,12 @@ internal sealed class ChemistryModule : IProductModule
             Idle();
             look.Hide();
             overlay.Hide();
+            castLook.Hide();
             return;
         }
 
         look.Tick(step.ElapsedSeconds);
+        castLook.Tick(step.ElapsedSeconds);
 
         Vector3 player = playerWorld();
         scars.Update(step.ElapsedSeconds, weather.Hours, player);
@@ -235,13 +241,15 @@ internal sealed class ChemistryModule : IProductModule
         for (int index = 0; index < steps; index++)
         {
             // Casts land on field time, before the step they fall due in.
-            caster.Advance(stepping, settings.Field.StepSeconds);
+            caster.Advance(stepping, settings.Field.StepSeconds, watch.Landed);
             stepping.Step();
             changes.AddRange(stepping.MaterialChanges);
+            watch.Stepped(stepping, caster.Now);
         }
 
+        CastSeen seen = watch.Take(stepping, caster.Now);
         double milliseconds = Stopwatch.GetElapsedTime(began).TotalMilliseconds / steps;
-        return new StepResult(changes, FireScan.Read(stepping, blocks.Burning, heatQuantity, smokeQuantity), stepping.Drift, milliseconds);
+        return new StepResult(changes, FireScan.Read(stepping, blocks.Burning, heatQuantity, smokeQuantity), stepping.Drift, seen, milliseconds);
     }
 
     /// <summary>Takes a finished step's result: its burnt cells to the look and the write-back, its fire to the look.</summary>
@@ -266,13 +274,14 @@ internal sealed class ChemistryModule : IProductModule
 
         burningColumns = FieldWindow.BurningColumns(result.Burning);
         look.Show(result.Burning, result.Drift, player);
+        castLook.Show(result.Seen);
     }
 
     /// <summary>Waits for a running step, so the field can be touched; its result is taken by the next update.</summary>
     private void Idle() => handoff.Wait();
 
-    /// <summary>What a worker's steps left: the identity changes, the burning cells, the drift, and the mean step's cost.</summary>
-    private sealed record StepResult(List<MaterialChange> Changes, List<BurningCell> Burning, Vector3 Drift, double Milliseconds);
+    /// <summary>What a worker's steps left: the identity changes, the burning cells, the drift, what casts did, and the mean step's cost.</summary>
+    private sealed record StepResult(List<MaterialChange> Changes, List<BurningCell> Burning, Vector3 Drift, CastSeen Seen, double Milliseconds);
 
     /// <summary>The step cost readout is a running mean keeping this share of the last.</summary>
     private const double StepCostKept = 0.9;
@@ -281,6 +290,7 @@ internal sealed class ChemistryModule : IProductModule
     {
         handoff.Discard();
         caster.Clear();
+        watch.Clear();
         field = NewField();
         applied = null;
         owed = 0;
@@ -288,6 +298,7 @@ internal sealed class ChemistryModule : IProductModule
         bands.Clear();
         burningColumns = [];
         look.Hide();
+        castLook.Hide();
     }
 
     public void Dispose()
@@ -295,6 +306,7 @@ internal sealed class ChemistryModule : IProductModule
         Idle();
         terrain.Edited -= Reload;
         look.Dispose();
+        castLook.Dispose();
         overlay.Dispose();
         scars.Flush();
     }
@@ -444,7 +456,7 @@ internal sealed class ChemistryModule : IProductModule
         $"chemistry chunks={field.ChunkCount} active={field.ActiveChunkCount} step={field.StepIndex} stepMs={stepMilliseconds:0.00} updateMs={updateMilliseconds:0.00} updateWorst={worstUpdateMilliseconds:0.00} ") +
         string.Create(CultureInfo.InvariantCulture,
         $"worstTake={worstPart[(int)UpdatePart.Take]:0.00} worstFollow={worstPart[(int)UpdatePart.Follow]:0.00} worstWrite={worstPart[(int)UpdatePart.Write]:0.00} worstReload={worstPart[(int)UpdatePart.Reload]:0.00} fires={look.Squares} ") +
-        look.Readout() + " " +
+        look.Readout() + " " + castLook.Readout() + " " +
         string.Create(CultureInfo.InvariantCulture,
         $"written={written} waiting={waiting.Count} dropped={dropped} refused={refused} overlay={terrain.OverlayEntries}/{TerrainConstants.MaximumOverlayEntries} ") +
         string.Create(CultureInfo.InvariantCulture,

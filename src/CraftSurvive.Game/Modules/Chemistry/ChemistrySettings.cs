@@ -19,6 +19,7 @@ internal sealed record ChemistrySettings(
     FireSetting Fires,
     ScarSetting Scars,
     CastingSetting Casting,
+    CastLookSetting CastLooks,
     IReadOnlyList<OverlaySetting> Overlays)
 {
     internal const string ContentPath = "chemistry/adapter.json";
@@ -53,7 +54,7 @@ internal sealed record ChemistrySettings(
         }
 
         JsonElement budget = Member(root, "budget"), field = Member(root, "field"), ambient = Member(root, "ambient"), fires = Member(root, "fires"),
-            scars = Member(root, "scars"), casting = Member(root, "casting");
+            scars = Member(root, "scars"), casting = Member(root, "casting"), castLooks = Member(root, "castLooks");
         float earliest = Number(scars, "earliest");
         if (earliest is < 0 or > 1)
         {
@@ -81,6 +82,15 @@ internal sealed record ChemistrySettings(
                 Number(scars, "healSeconds"), Whole(scars, "cellsPerHeal"), Number(scars, "healReach")),
             new CastingSetting(Text(Member(casting, "grammar"), "casting.grammar"), Text(Member(casting, "formulas"), "casting.formulas"),
                 Number(casting, "reach")),
+            new CastLookSetting(Number(castLooks, "watchSeconds"), Number(castLooks, "watchMargin"),
+                [.. Member(castLooks, "ground").EnumerateArray().Select(material => Text(material, "castLooks.ground"))],
+                [.. Member(castLooks, "marks").EnumerateArray().Select((mark, index) => new CastMarkSetting(
+                    Text(Member(mark, "quantity"), $"castLooks.marks[{index}].quantity"),
+                    Look(Text(Member(mark, "look"), $"castLooks.marks[{index}].look"), $"castLooks.marks[{index}].look"),
+                    Number(mark, "from"), Number(mark, "full"),
+                    mark.TryGetProperty("only", out JsonElement only)
+                        ? [.. only.EnumerateArray().Select(material => Text(material, $"castLooks.marks[{index}].only"))]
+                        : null))]),
             [.. Member(root, "overlays").EnumerateArray().Select((overlay, index) => new OverlaySetting(
                 Text(Member(overlay, "quantity"), $"overlays[{index}].quantity"), Text(Member(overlay, "label"), $"overlays[{index}].label"),
                 Colour(Text(Member(overlay, "color"), $"overlays[{index}].color"), $"overlays[{index}].color"),
@@ -109,6 +119,14 @@ internal sealed record ChemistrySettings(
         && int.TryParse(hex.AsSpan(1), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int rgb)
         ? rgb
         : throw new InvalidDataException($"{ContentPath}: {path} must be a #rrggbb colour");
+
+    private static CastMarkLook Look(string name, string path) => name switch
+    {
+        "glow" => CastMarkLook.Glow,
+        "wet" => CastMarkLook.Wet,
+        "dry" => CastMarkLook.Dry,
+        _ => throw new InvalidDataException($"{ContentPath}: {path} must be glow, wet or dry, not '{name}'"),
+    };
 
     private static BlockId Block(string name, string path) => Enum.TryParse(name, ignoreCase: false, out BlockId block) && Enum.IsDefined(block)
         ? block
@@ -153,6 +171,30 @@ internal sealed record ScarSetting(BlockId Block, float RegrowDays, float Earlie
 
 /// <summary>Casting (#10529): the development compiler's grammar, the compiled formulas the game carries, and how far (metres) a cast aims.</summary>
 internal sealed record CastingSetting(string GrammarPath, string FormulasPath, float Reach);
+
+/// <summary>
+/// How casts are seen (#10529): how long the ground around a cast is watched after its last operation, how far beyond its
+/// reach (cells), the materials that show marks, and the marks in the order they are tried.
+/// </summary>
+internal sealed record CastLookSetting(float WatchSeconds, float WatchMargin, IReadOnlyList<string> Ground, IReadOnlyList<CastMarkSetting> Marks);
+
+/// <summary>
+/// A mark on the ground around a cast: shown once <see cref="Quantity"/> passes <see cref="From"/> towards <see cref="Full"/>
+/// (a drained quantity when From is above Full), full at Full; on the <see cref="Only"/> materials, or every ground one.
+/// </summary>
+internal sealed record CastMarkSetting(string Quantity, CastMarkLook Look, float From, float Full, IReadOnlyList<string>? Only)
+{
+    /// <summary>How far an amount has gone from <see cref="From"/> to <see cref="Full"/>: 0 or less is not marked, 1 is full.</summary>
+    internal float Share(float amount) => (amount - From) / (Full - From);
+}
+
+/// <summary>How a cast's mark shows on the ground.</summary>
+internal enum CastMarkLook
+{
+    Glow,
+    Wet,
+    Dry,
+}
 
 /// <summary>
 /// A quantity the overlay can show (#10529): invisible below <see cref="Low"/>, full at <see cref="High"/>, in a colour
