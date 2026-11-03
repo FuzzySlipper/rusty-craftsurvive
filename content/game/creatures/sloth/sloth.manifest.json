@@ -2,8 +2,8 @@
   "species": "giant-ground-sloth",
   "family": "plantigrade",
   "body": {
-    "hindMetres": -0.98,
-    "foreMetres": 1.0
+    "hindMetres": -0.12,
+    "foreMetres": 1.6
   },
   "legs": [
     [

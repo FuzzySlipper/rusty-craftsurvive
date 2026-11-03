@@ -1,13 +1,15 @@
 """Builds a creature GLB from a species file: rig, body, skin and clips (#10568).
 
 usage: blender -b --factory-startup --python-exit-code 1 --python art/creatures/build_creature.py -- \
-           <species.json> <out.glb> [--mesh <body.glb>] [--blend <review.blend>]
+           <species.json> <out.glb> [--mesh <body.glb> [--texture <base colour.png>]] [--blend <review.blend>]
 
 - The rig is the species' family skeleton (only `plantigrade` so far), placed from the species'
   key points. Every bone's X axis is the animal's left, so a pitch is the same rotation whatever
   the bone points at.
-- The body is the mesh given with --mesh, already in the species' rest pose, or else a stand-in
-  built from metaball capsules along the bones. Either is skinned by automatic (heat) weights.
+- The body is the mesh given with --mesh (prepare_mesh.py's body.glb), already in the species' rest
+  pose, with --texture replacing its base colour (the pixel-reduced game texture); or else a
+  stand-in built from metaball capsules along the bones. Either is skinned by automatic (heat)
+  weights; vertices heat weighting cannot reach take their nearest bone.
 - Clips are generated, not hand-keyed: legs follow gait trajectories through IK (gait.py), the
   rest is keyed directly, and each clip is baked to plain joint keys before export. They are in
   place: the product plays a moving clip at `speed / clip speed` (the manifest has the speeds).
@@ -32,6 +34,9 @@ SIDES = {"L": 1.0, "R": -1.0}
 # A pole sits this far in front of a knee or behind an elbow.
 POLE_METRES = 1.2
 IK_CHAIN = 2
+WELD_METRES = 1e-5
+# More unweighted than this share means the rig doesn't fit the body: stop rather than patch it.
+UNWEIGHTED_SHARE = 0.05
 
 
 # ---------------------------------------------------------------- the family skeleton
@@ -203,13 +208,29 @@ def paint_proxy(species, rig, mesh):
     mesh.data.materials.append(material)
 
 
-def import_mesh(path):
+def import_mesh(path, texture=None):
     bpy.ops.import_scene.gltf(filepath=str(path))
     meshes = [o for o in bpy.context.selected_objects if o.type == "MESH"]
     if len(meshes) != 1:
         raise SystemExit(f"{path}: expected one mesh, found {len(meshes)}")
     mesh = meshes[0]
     mesh.parent = None
+    # glTF splits vertices along UV seams; weld them (UVs are per corner, so the seams stay in the
+    # charts), or each side of a seam is weighted on its own and the skin tears there.
+    bpy.ops.object.select_all(action="DESELECT")
+    mesh.select_set(True)
+    bpy.context.view_layer.objects.active = mesh
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.remove_doubles(threshold=WELD_METRES)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    if texture:
+        image = bpy.data.images.load(str(Path(texture).resolve()))
+        for material in mesh.data.materials:
+            for node in material.node_tree.nodes:
+                if node.type == "TEX_IMAGE":
+                    node.image = image
+                    node.interpolation = "Closest"
     return mesh
 
 
@@ -219,9 +240,16 @@ def skin(rig, mesh):
     rig.select_set(True)
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.parent_set(type="ARMATURE_AUTO")
-    unweighted = sum(1 for v in mesh.data.vertices if not v.groups)
-    if unweighted:
-        raise SystemExit(f"automatic weights left {unweighted} vertices unweighted")
+    # Heat weighting misses loose flaps (generated fur); those take their nearest bone outright.
+    bones = [(b.name, b.head_local, b.tail_local) for b in rig.data.bones if b.name != "root"]
+    unweighted = [v for v in mesh.data.vertices if not any(g.weight > 0 for g in v.groups)]
+    if len(unweighted) > UNWEIGHTED_SHARE * len(mesh.data.vertices):
+        raise SystemExit(f"automatic weights left {len(unweighted)} of {len(mesh.data.vertices)} vertices unweighted")
+    for vertex in unweighted:
+        nearest = min(bones, key=lambda b: segment_distance(vertex.co, b[1], b[2]))[0]
+        group = mesh.vertex_groups.get(nearest) or mesh.vertex_groups.new(name=nearest)
+        group.add([vertex.index], 1.0, "REPLACE")
+    print(f"skin: {len(unweighted)} of {len(mesh.data.vertices)} vertices took their nearest bone")
 
 
 # ---------------------------------------------------------------- IK controls
@@ -591,7 +619,8 @@ def main(argv):
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj)
     rig = build_armature(species)
-    mesh = import_mesh(mesh_path) if mesh_path else build_proxy(species, rig)
+    texture = argv[argv.index("--texture") + 1] if "--texture" in argv else None
+    mesh = import_mesh(mesh_path, texture) if mesh_path else build_proxy(species, rig)
     skin(rig, mesh)
     controls = Controls(rig)
     points = species["points"]

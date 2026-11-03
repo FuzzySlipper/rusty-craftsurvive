@@ -32,16 +32,19 @@ ungulate, graviportal, low-slung) has a skeleton and a clip generator in code:
 
 ```sh
 blender -b --factory-startup --python-exit-code 1 --python art/creatures/build_creature.py -- \
-    art/creatures/sloth/species.json content/game/creatures/sloth/sloth-proxy.glb [--mesh body.glb] [--blend review.blend]
+    art/creatures/sloth/species.json content/game/creatures/sloth/sloth.glb [--mesh body.glb --texture body-32.png] [--blend review.blend]
 blender -b --factory-startup --python-exit-code 1 --python art/creatures/preview.py -- \
-    content/game/creatures/sloth/sloth-proxy.glb <frames dir> --frames 5
+    content/game/creatures/sloth/sloth.glb <frames dir> --frames 5
 python3 -I art/creatures/montage.py <frames dir> sheet.png
 ```
 
 - **Body.** Without `--mesh`, the body is a stand-in built from metaball capsules along the
-  bones (`proxy` in the species file), with a palette texture. A real mesh comes in with `--mesh`,
-  already in the species' rest pose and facing +Z. Either way it is skinned by automatic weights;
-  the build stops if any vertex is left unweighted.
+  bones (`proxy` in the species file), with a palette texture: enough to prove a new family's rig
+  and clips before any art exists. A real mesh comes in with `--mesh` (and `--texture` for its
+  reduced paint), already in the species' rest pose and facing +Z. Either way it is skinned by
+  automatic weights. Vertices that heat weighting misses, such as loose fur flaps, take their
+  nearest bone. The build stops if more than 5% are missed, because then the rig doesn't fit the
+  body.
 - **IK poles.** Each leg's pole angle is chosen by search, so the rest pose stays put (the build
   prints the residual error, under 1 cm for the sloth).
 - **Engine rules met by the export.** Clip ids are lowercase. A `rest` clip is always present.
@@ -49,6 +52,37 @@ python3 -I art/creatures/montage.py <frames dir> sheet.png
 - **Manifest.** It lists each clip's seconds, whether it loops, and whether it keeps all feet on
   the ground (`plantsFeet`), plus the legs as IK chains and where the hind and fore feet stand.
   The product reads it (`CreatureStyleTest`).
+
+## A real body: the sloth (#10568)
+
+Patch's look for animals (2026-11-03, atlas wildlife page): faithful proportions, smooth clips,
+and a painted coat drawn as 3D pixel art. The route the sloth took:
+
+1. **Reference sheet** (`sloth/mesh/reference.png`, its spec beside it), a GPT image of the left
+   side, front and back on one sheet:
+   - in concept A's shape and concept C's paint;
+   - in a neutral stance on all fours, under flat light.
+   It is cut into four views at one pixel scale; the right view is the left mirrored.
+2. **Shape:** Tripo P2 multiview (`../asset-pipeline/tools/tripo/tripo.py generate --views ...`).
+3. **`prepare_mesh.py`** (Blender, with the xatlas package built for its Python 3.13). It:
+   - welds the generator's split vertices;
+   - faces the body forward;
+   - scales it to length and stands it on the ground;
+   - decimates it to about 6,000 triangles;
+   - charts it with xatlas at 128 texels/m;
+   - bakes the generated paint into `master.png`.
+
+   Blender's own projection cut the shaggy body into thousands of islands a few texels across.
+4. **`pixel_reduce.py`** (`../asset-pipeline/legacy/experiments/stele-place-study/`): `--factor 4`
+   gives 32 texels/m, `--factor 2` gives 64. The run used `--colors 14 --luminance 0.44
+   --saturation 0.85`: the Engine's tone mapping turned the master's own levels a deep red-brown
+   and hid the fawn face.
+5. **Fit the species points to the body.** Measure slices along it (back and belly heights, leg
+   columns, feet, tail), then check an overlay of the joints on side, front and top views.
+6. **`build_creature.py --mesh body.glb --texture body-32.png`.**
+
+The Tripo output, the prepared body and the master are kept at
+`/data/evidence/rusty-craftsurvive/sloth-10568/`.
 
 ## In game
 

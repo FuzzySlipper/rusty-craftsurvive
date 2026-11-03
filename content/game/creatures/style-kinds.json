@@ -2,9 +2,15 @@
   "purpose": "Creature style test (#10568): the kinds craft.creature.* places. Built by art/creatures/build_creature.py; a test aid, not wildlife.",
   "kinds": [
     {
-      "name": "sloth-proxy",
-      "mesh": "creatures/sloth/sloth-proxy.glb",
-      "manifest": "creatures/sloth/sloth-proxy.manifest.json",
+      "name": "sloth",
+      "mesh": "creatures/sloth/sloth.glb",
+      "manifest": "creatures/sloth/sloth.manifest.json",
+      "scale": 1.0
+    },
+    {
+      "name": "sloth-64",
+      "mesh": "creatures/sloth/sloth-64.glb",
+      "manifest": "creatures/sloth/sloth.manifest.json",
       "scale": 1.0
     }
   ]

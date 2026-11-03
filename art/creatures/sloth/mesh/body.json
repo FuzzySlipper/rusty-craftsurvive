@@ -1,0 +1,24 @@
+{
+  "source": "/tmp/claude-1000/-home-agent-dev-rusty-craftsurvive/b6315f77-0b07-4692-a357-fdadfc5e6180/scratchpad/sloth-mesh/tripo-1/generate-model.glb",
+  "triangles": 5998,
+  "areaSquareMetres": 50.46,
+  "charts": 1071,
+  "utilization": 0.7416,
+  "masterTexels": [
+    1694,
+    1689
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.8203505873680115,
+      -2.6932854652404785,
+      -0.003381506772711873
+    ],
+    [
+      0.8125216960906982,
+      2.7014853954315186,
+      2.032027006149292
+    ]
+  ]
+}
