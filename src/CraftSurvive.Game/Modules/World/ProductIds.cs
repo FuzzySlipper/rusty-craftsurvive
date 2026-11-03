@@ -174,6 +174,9 @@ internal static class ProductIds
     /// <summary>The character style test's travellers (#10014), a test aid placed by live debug.</summary>
     internal const ulong CharacterStyleBase = 0x9_8000UL;
 
+    /// <summary>The creature style test's creatures (#10568), a test aid placed by live debug.</summary>
+    internal const ulong CreatureStyleBase = 0xA_2000UL;
+
     /// <summary>The overworld places' kit pieces standing in the near ground (#9992), at most <see cref="PlaceMeshLimit"/>.</summary>
     internal const ulong PlaceMeshBase = 0x9_A000UL;
 

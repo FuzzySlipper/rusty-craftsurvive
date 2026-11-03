@@ -116,6 +116,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     /// <summary>The character style test's travellers (#10014): a test aid placed only by live debug.</summary>
     private CharacterStyleTest styleTest = null!;
+    /// <summary>The creature style test (#10568): a test aid placed only by live debug.</summary>
+    private CreatureStyleTest creatureStyle = null!;
     private PlaceStudyTest placeStudy = null!;
 
     /// <summary>One owner for block entities: placed by building, swept by every clearing edit.</summary>
@@ -233,6 +235,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, chemistry, casting, feedback, cold, tracks, horizon];
         CreateTowns();
         styleTest = new CharacterStyleTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
+        creatureStyle = new CreatureStyleTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
         placeStudy = new PlaceStudyTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition, terrain.Moss);
         actions.ChooseOption = ChooseOption;
         actions.Casting = casting;
@@ -303,9 +306,11 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         worldBuilt = false;
         ReleaseTowns();
         styleTest.Clear();
+        creatureStyle.Clear();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         townPresence?.AfterAppearanceSnapshot();
         styleTest.Dispose();
+        creatureStyle.Dispose();
         placeStudy.Dispose();
         foreach (IProductModule module in gameplay.Reverse())
         {
@@ -337,6 +342,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));
         RequireRegistration(registrar.Register(new CharacterStyleDebugModule(() => Owner(styleTest))));
+        RequireRegistration(registrar.Register(new CreatureStyleDebugModule(() => Owner(creatureStyle))));
         RequireRegistration(registrar.Register(new PlaceStudyDebugModule(() => Owner(placeStudy))));
         RequireRegistration(registrar.Register(new DiscoveryDebugModule(() => Owner(discovery))));
         RequireRegistration(registrar.Register(new BlastDebugModule(() => Owner(blast))));
@@ -424,6 +430,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             town.Update(update.Input, visit.ElapsedSeconds);
             townPresence?.Advance(update.Facts.HostElapsedSeconds);
             styleTest.Advance(update.Facts.HostElapsedSeconds);
+            creatureStyle.Advance(update.Facts.HostElapsedSeconds);
             terrain.AdvanceSea(visit.ElapsedSeconds, weather.Hours, sky.Look.Wind, sky.Look.Flow, player.WorldPosition);
             sky.Sway(visit.ElapsedSeconds);
             player.HoldResidency();
@@ -474,6 +481,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         terrain.Update(step);
         styleTest.Advance(update.Facts.HostElapsedSeconds);
+        creatureStyle.Advance(update.Facts.HostElapsedSeconds);
         PublishSled();
         PublishAppearanceSnapshot();
         return ProductUpdateResult.None;
@@ -545,13 +553,19 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         // The snapshot lets go of the map's appearances before they are disposed.
         town.Leave();
         townPresence?.Release();
-        if (worldBuilt) styleTest.Clear();
+        if (worldBuilt)
+        {
+            styleTest.Clear();
+            creatureStyle.Clear();
+        }
+
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         town.Dispose();
         mapView?.Dispose();
         if (worldBuilt)
         {
             styleTest.Dispose();
+            creatureStyle.Dispose();
             placeStudy.Dispose();
             foreach (IProductModule module in gameplay.Reverse())
             {
@@ -594,8 +608,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     /// <summary>The overworld's water, studies, places and build pieces, unless the player is in a separate space (a dungeon or a study).</summary>
     private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts(), .. chemistry.OverlayFacts];
 
-    /// <summary>The style test's travellers and the place study's variants, unless the player is in a separate space.</summary>
-    private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : [.. styleTest.Facts, .. placeStudy.Facts];
+    /// <summary>The style tests' travellers and creatures and the place study's variants, unless the player is in a separate space.</summary>
+    private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : [.. styleTest.Facts, .. creatureStyle.Facts, .. placeStudy.Facts];
 
     /// <summary>The product's one complete appearance snapshot: every object it publishes.</summary>
     private void PublishAppearanceSnapshot()
@@ -618,6 +632,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         chemistry.AfterAppearanceSnapshot();
         townPresence?.AfterAppearanceSnapshot();
         styleTest.AfterAppearanceSnapshot();
+        creatureStyle.AfterAppearanceSnapshot();
         if (mapOpen) mapView?.AfterAppearanceSnapshot();
         mapView?.Profile.Mark("snapshot.after");
     }

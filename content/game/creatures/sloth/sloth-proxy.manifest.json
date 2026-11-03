@@ -1,0 +1,79 @@
+{
+  "species": "giant-ground-sloth",
+  "family": "plantigrade",
+  "body": {
+    "hindMetres": -0.98,
+    "foreMetres": 1.0
+  },
+  "legs": [
+    [
+      "thigh.L",
+      "shin.L",
+      "foot.L"
+    ],
+    [
+      "upperarm.L",
+      "forearm.L",
+      "hand.L"
+    ],
+    [
+      "thigh.R",
+      "shin.R",
+      "foot.R"
+    ],
+    [
+      "upperarm.R",
+      "forearm.R",
+      "hand.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 2.0,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.75
+    },
+    "run": {
+      "seconds": 1.0,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 2.1
+    },
+    "graze": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "rear-browse": {
+      "seconds": 6.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "defend-swipe": {
+      "seconds": 1.8,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "die": {
+      "seconds": 2.5,
+      "loops": false,
+      "plantsFeet": false
+    }
+  }
+}
