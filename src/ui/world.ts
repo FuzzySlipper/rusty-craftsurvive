@@ -19,6 +19,8 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
     if (free === freedCursor) return;
     freedCursor = free;
     ui.setCursorMode(free ? 'unlocked' : 'pointer-lock');
+    // Back from the map or the town, play takes the pointer again (nothing happens under a surface).
+    if (!free) ui.focusGameplay();
   };
   const claim = (data: Readonly<Record<string, string | number>>): void => {
     intents?.claim(INTENT, { kind: 'product-payload', contract: CONTRACT, data });
@@ -91,7 +93,7 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
     const town = number(values, 'townOpen') === 1;
     const visible = number(values, 'worldMapOpen') === 1 && !town;
     screen.hidden = !visible; open.hidden = visible || town; gameUi.hidden = visible || town;
-    freeCursor(visible || town || number(values, 'menuPaused') === 1);
+    freeCursor(visible || town);
     identity.textContent = `Seed ${text(values, 'worldSeed') ?? ''} · ${((number(values, 'worldSize') ?? 0) / 1000).toFixed(1)} km across`;
     status.textContent = text(values, 'worldMessage') ?? ''; status.hidden = status.textContent.length === 0;
     const phase = text(values, 'worldTravelPhase') ?? 'idle';

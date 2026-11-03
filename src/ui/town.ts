@@ -1,7 +1,7 @@
 import type { RustyApplicationUiIntentsPort, RustyApplicationUiPort, RustyApplicationUiProjectionView } from '@rusty-engine/product-ui';
 import { button, element, isolateEvents } from './dom.js';
 import { number, projectionValues, text } from './hud.js';
-import { layers } from './layers.js';
+import { layers, open as openLayer } from './layers.js';
 
 export const TOWN_INTENT = 'craftsurvive.town';
 export const TOWN_CONTRACT = 'craftsurvive.town.action.v1';
@@ -93,7 +93,8 @@ export function mountTown(host: Element, ui: RustyApplicationUiPort, intents: Ru
   const heading = element('div'); heading.className = 'town-heading';
   const title = element('h1'), subtitle = element('p'); heading.append(title, subtitle);
   const leave = interactive('button', 'town-leave'); leave.type = 'button'; leave.textContent = 'Leave town';
-  leave.addEventListener('click', () => { claim('leave'); ui.focusGameplay(); });
+  const leaveTown = (): void => { claim('leave'); ui.focusGameplay(); };
+  leave.addEventListener('click', leaveTown);
   const markers = element('div'); markers.className = 'town-markers'; markers.setAttribute('aria-hidden', 'true');
 
   const overview = interactive('nav', 'town-overview'); overview.setAttribute('aria-label', 'Doors');
@@ -136,7 +137,7 @@ export function mountTown(host: Element, ui: RustyApplicationUiPort, intents: Ru
     const values = facts();
     const open = values !== null && number(values, 'townOpen') === 1;
     const offer = values === null ? '' : text(values, 'townPrompt') ?? '';
-    layers.town = open;
+    openLayer('town', open);
     scene.hidden = !open;
     doorstep.hidden = open || offer === '';
     doorstepName.textContent = offer;
@@ -216,19 +217,19 @@ export function mountTown(host: Element, ui: RustyApplicationUiPort, intents: Ru
   const visible = (scope: Element): HTMLElement[] => Array.from(scope.querySelectorAll<HTMLElement>('button:not(:disabled)'))
     .filter(node => node.getClientRects().length > 0);
   const onKey = (event: KeyboardEvent): void => {
-    if (layers.menu || event.repeat) return;
+    if (layers.menu || layers.developer || event.repeat) return;
     const values = facts();
     if (!layers.town) {
       // Walking up to a town: Enter accepts its doorstep offer, unless a control has the keyboard.
-      if (ENTER_KEYS.includes(event.code) && values !== null && (text(values, 'townPrompt') ?? '') !== '' && !layers.screen
+      if (ENTER_KEYS.includes(event.code) && values !== null && (text(values, 'townPrompt') ?? '') !== '' && !layers.screen && !layers.ring
         && !(document.activeElement instanceof HTMLButtonElement || document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement)) {
         event.preventDefault(); claim('enter');
       }
       return;
     }
     const reading = values !== null && (text(values, 'townSelected') ?? '') !== '';
-    // Esc closes a conversation; at the overview it is left to the pause menu.
-    if (event.code === 'Escape' && reading) { event.preventDefault(); event.stopImmediatePropagation(); claim('back'); }
+    // Escape backs out of the innermost surface: a conversation to the overview, the overview to the road.
+    if (event.code === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); if (reading) claim('back'); else leaveTown(); }
     else if (event.code === 'Tab') {
       const controls = visible(reading ? dialogue : scene);
       const at = controls.indexOf(document.activeElement as HTMLElement);
@@ -244,5 +245,5 @@ export function mountTown(host: Element, ui: RustyApplicationUiPort, intents: Ru
   window.addEventListener('keydown', onKey, true);
   render();
   const unsubscribe = projection?.subscribe(render);
-  return () => { unsubscribe?.(); window.removeEventListener('keydown', onKey, true); layers.town = false; root.remove(); };
+  return () => { unsubscribe?.(); window.removeEventListener('keydown', onKey, true); openLayer('town', false); root.remove(); };
 }

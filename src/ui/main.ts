@@ -1,11 +1,9 @@
 import type { RustyApplicationUiContext } from '@rusty-engine/product-ui';
 import { mountWorld } from './world.js';
-import { mountActions } from './actions.js';
-import { mountCasting } from './casting.js';
 import { mountCastingRing } from './radial.js';
 import { mountDeveloperTools } from './developer.js';
-import { element, isolateEvents } from './dom.js';
-import { mountHud } from './hud.js';
+import { element } from './dom.js';
+import { mountInteraction } from './interaction.js';
 import { mountLoading } from './loading.js';
 import { mountOverlay } from './overlay.js';
 import { mountMenu } from './menu.js';
@@ -14,64 +12,42 @@ import { mountTown } from './town.js';
 
 const CONTROLS_HELP = 'WASD and mouse to move and look; Space jumps, Shift sprints, Ctrl crouches; E takes hold of a wall to climb '
   + '(and lets go); J attacks; F digs; T starts building, where G places and F removes a piece (Q steps the piece, Z its material), T again switches to the terrain brush (G places, F clears, B changes the brush) and T a third time stops building; 1-9 or the wheel select a hotbar slot and R uses it; '
-  + 'V opens the casting ring (outer trigram, then inner) and C casts what it composed where you aim (Casting, below); I opens the pack, M the journal of places, Esc closes them. Esc otherwise pauses the game under the menu (Continue, New world, Options, Quit). '
+  + 'V opens the casting ring (outer trigram, then inner) and C casts what it composed where you aim (the Casting panel); I opens the pack, M the journal of places; Esc closes whichever surface is open (pack, journal, ring, town, these tools), and otherwise pauses the game under the menu (Continue, New world, Options, Developer tools, Quit). ` opens these tools. '
   + 'Controller: left stick moves, right stick looks, A jumps, B crouches, Y climbs, RT clears, LT places, D-pad down steps building as T does, LB and RB step the hotbar, D-pad up uses, Start pauses.';
 
 /**
  * The DOM companion. It shows what the product publishes through the projection and claims the
- * product's action intent; C# owns every game fact and decides what each request does. The game's
- * HUD sits over the view, with the pack and journal screens opened over it and the pause menu (new
- * world, options, quit) over everything; the drawer - every published fact, the building actions and
- * the tools - stays closed until the player opens it.
+ * product's action intent; C# owns every game fact and decides what each request does. Game UI - the
+ * HUD over the view, the pack and journal screens, the casting ring, the town, the world map and the
+ * pause menu over everything - is apart from the diagnostic UI, the developer tools docked beside play
+ * (`developer.ts`). One owner (`interaction.ts`) decides interface or gameplay from the open surfaces.
  */
 export function mountProductUi(root: Element, context: RustyApplicationUiContext): Readonly<{ dispose(): void }> {
+  // First, so Escape closes the tools before any game surface sees it.
+  const developer = mountDeveloperTools(root, context, CONTROLS_HELP);
   const gameUi = element('div');
   root.append(gameUi);
-  const panel = element('aside', 'background:rgb(15 19 25 / 88%);border:1px solid #62748a;border-radius:.35rem;color:#edf5ff;'
-    + 'font:.76rem/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:calc(100vh - 1rem);max-width:min(26rem,calc(100vw - 1rem));'
-    + 'overflow:auto;padding:.35rem .45rem;pointer-events:auto;position:relative;width:fit-content;z-index:1;');
-  panel.setAttribute('aria-label', 'Rusty CraftSurvive');
-  panel.setAttribute('data-rusty-ui-interactive', '');
-  isolateEvents(panel);
-
-  const drawer = element('details', '');
-  drawer.append(element('summary', 'cursor:pointer;font-weight:700;', 'Details'));
-  const contents = element('div', '');
-  drawer.append(contents);
-  panel.append(drawer);
-  const status = element('p', 'margin:.3rem 0 0;');
-  status.hidden = true;
-  status.setAttribute('role', 'alert');
-  panel.append(status);
-
-  const unsubscribe = mountHud(contents, context.projection);
-  const unsubscribeActions = mountActions(contents, context.intents, context.projection);
-  const disposeCasting = mountCasting(contents, context.intents, context.projection);
-  contents.append(element('p', 'margin:.35rem 0 0;opacity:.75;', CONTROLS_HELP));
-  const disposeDeveloperTools = mountDeveloperTools(contents, status);
-  gameUi.append(panel);
   const disposeOverlay = mountOverlay(gameUi, context.projection);
   const disposeLoading = mountLoading(gameUi, context.projection);
   const disposeScreens = mountScreens(gameUi, context.intents, context.projection);
   const disposeTown = mountTown(root, context.ui, context.intents, context.projection);
-  const disposeRing = mountCastingRing(root, context.ui, context.intents, context.projection);
-  // After the screens/town, so their own Esc takes precedence.
-  const disposeMenu = mountMenu(root, context.ui, context.intents, context.projection);
-
+  const disposeRing = mountCastingRing(root, context.intents, context.projection);
+  // After the screens, town and ring, so their own Escape takes precedence.
+  const menu = mountMenu(root, context.input, context.intents, context.projection, () => { if (!developer.isOpen()) void developer.toggle(); });
   const disposeWorld = mountWorld(root, gameUi, context.ui, context.intents, context.projection);
+  // Escape in play reaches the page only as the pointer lock ending; that is the player asking for the menu.
+  const interaction = mountInteraction(context.ui, { onLockLostInPlay: () => menu.pause() });
 
   return Object.freeze({
     dispose: () => {
-      unsubscribe();
-      unsubscribeActions();
-      disposeCasting();
+      interaction.dispose();
       disposeTown();
       disposeRing();
-      disposeMenu();
+      menu.dispose();
       disposeOverlay();
       disposeLoading();
       disposeScreens();
-      disposeDeveloperTools();
+      developer.dispose();
       disposeWorld();
       gameUi.remove();
     },

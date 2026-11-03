@@ -1,6 +1,6 @@
 # Documentation map
 
-Five documents carry current meaning. Everything else — experiment records,
+Six documents carry current meaning. Everything else — experiment records,
 provenance, and superseded state — lives in Den and is deliberately not copied here.
 
 | Document | What it is |
@@ -9,6 +9,7 @@ provenance, and superseded state — lives in Den and is deliberately not copied
 | [visual-direction.md](visual-direction.md) | The Valheim method (simple forms, small textures, atmosphere-led mood), palette, detail budget, references, and how to judge visual work |
 | [csharp-migration-map.md](csharp-migration-map.md) | Where product modules, Engine services, and content live |
 | [known-limitations.md](known-limitations.md) | What the product does not do today, and the limits a change must respect |
+| [game-ui.md](game-ui.md) | Game UI and diagnostic UI: the surfaces, the interaction owner, Escape and the developer tools |
 | [live-proofs.md](live-proofs.md) | The live lane: the client, what it proves, captures, and the operational traps |
 
 `README.md` at the repository root is the entry point for developing and running the

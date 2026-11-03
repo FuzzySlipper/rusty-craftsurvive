@@ -52,7 +52,7 @@ The map pauses local gameplay;
 **Return to exploration** returns to the place you left. Region visits are a
 prototype inspection affordance, not the proposed overland travel system.
 
-For terrain appearance comparisons, open **Details**, choose **Landscape study**, and
+For terrain appearance comparisons, open the developer tools (**`**), choose **Landscape study** on the **Craft** panel, and
 press **Visit landscape**. Ochre canyon, Sage uplands and Frost ridge are authored,
 separately loaded spaces with ordinary walking and collision.
 Their natural surfaces use the generated maps and exact prompts in
