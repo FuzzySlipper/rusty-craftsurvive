@@ -32,7 +32,7 @@ ungulate, graviportal, low-slung) has a skeleton and a clip generator in code:
 
 ```sh
 blender -b --factory-startup --python-exit-code 1 --python art/creatures/build_creature.py -- \
-    art/creatures/sloth/species.json content/game/creatures/sloth/sloth.glb [--mesh body.glb --texture body-32.png] [--blend review.blend]
+    art/creatures/sloth/species.json content/game/creatures/sloth/sloth.glb [--mesh body.glb --texture body-64.png] [--blend review.blend]
 blender -b --factory-startup --python-exit-code 1 --python art/creatures/preview.py -- \
     content/game/creatures/sloth/sloth.glb <frames dir> --frames 5
 python3 -I art/creatures/montage.py <frames dir> sheet.png
@@ -73,13 +73,13 @@ and a painted coat drawn as 3D pixel art. The route the sloth took:
    - bakes the generated paint into `master.png`.
 
    Blender's own projection cut the shaggy body into thousands of islands a few texels across.
-4. **`pixel_reduce.py`** (`../asset-pipeline/legacy/experiments/stele-place-study/`): `--factor 4`
-   gives 32 texels/m, `--factor 2` gives 64. The run used `--colors 14 --luminance 0.44
+4. **`pixel_reduce.py`** (`../asset-pipeline/legacy/experiments/stele-place-study/`): `--factor 2`
+   gives 64 texels/m, the density animals use (Patch, 2026-11-03; props stay at 32, `--factor 4`). The run used `--colors 14 --luminance 0.44
    --saturation 0.85`: the Engine's tone mapping turned the master's own levels a deep red-brown
    and hid the fawn face.
 5. **Fit the species points to the body.** Measure slices along it (back and belly heights, leg
    columns, feet, tail), then check an overlay of the joints on side, front and top views.
-6. **`build_creature.py --mesh body.glb --texture body-32.png`.**
+6. **`build_creature.py --mesh body.glb --texture body-64.png`.**
 
 The Tripo output, the prepared body and the master are kept at
 `/data/evidence/rusty-craftsurvive/sloth-10568/`.
@@ -103,3 +103,42 @@ The Tripo output, the prepared body and the master are kept at
 `sloth/concept/` holds the three GPT-image turnaround options (A faithful, B storybook bulk,
 C storybook with 3D-pixel-art paint) with their exact specs. They are concept images, not Engine
 captures.
+
+## The next families
+
+What the sloth proved and what each new family needs (#10570).
+
+- **Carries over unchanged:**
+  - the gait math and its IK bake (`gait.py`, `Controls`, `bake_clips`);
+  - the manifest;
+  - `prepare_mesh.py` and the `pixel_reduce` step at 64 texels/m;
+  - weld-then-skin with the nearest-bone fallback;
+  - the style test and its foot IK.
+- **Written per family:**
+  - **A bone list.** Today `plantigrade_bones` is the only one.
+  - **Its `LEGS` table.**
+  - **Clips for its own behaviour hooks.**
+- **Ungulate** (horse, deer, cave goat, entelodont): legs have a third long segment (the cannon)
+  and stand on hooves. The Engine has two-bone IK only, so either the thigh and shin take the IK
+  with the cannon keyed, or the shin and cannon do with the thigh keyed. Choose by how the trot
+  looks.
+- **Graviportal** (mammoth): columnar two-bone legs, as here. It adds a trunk chain of five or
+  six bones, keyed directly like the tail, plus ears.
+- **Low-slung** (glyptodon, giant beaver): short, slightly sprawled legs. The glyptodon's shell is
+  one rigid bone over the spine, and its hunker clip draws the legs and head in under it. The
+  beaver's flat tail is a short chain.
+- **Reference sheets:**
+  - **Pose:** keep the neutral stance on all fours, with all four legs separate.
+  - **Scale:** cut every view at one pixel scale. A long body leaves the front and back views
+    small, and that is correct.
+  - **Order:** Tripo's front view is the face; its left view is the head-left profile.
+
+Measured on the sloth in the live lane (RX 9070 XT, headless, pair ddbedd6365d6):
+- **Driving cost:** about 0.2 ms per animal per update to play, place and plant (nine sloths: mean
+  1.8 ms, worst 5.4 ms). Turning foot planting off barely changes it, so the cost is in playback
+  and the two ground casts per placement.
+- **Drawing cost:** within the stream's ±3 ms noise for one sloth, and roughly 2–3 ms for nine.
+
+S3 owns herd budgets, a hold for one-shot clips under a graph (graph states loop them), and a
+pitch limit where the ground cast lands on props (59° beside standing stones).
+

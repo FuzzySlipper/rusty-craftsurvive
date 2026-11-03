@@ -6,12 +6,6 @@
       "mesh": "creatures/sloth/sloth.glb",
       "manifest": "creatures/sloth/sloth.manifest.json",
       "scale": 1.0
-    },
-    {
-      "name": "sloth-64",
-      "mesh": "creatures/sloth/sloth-64.glb",
-      "manifest": "creatures/sloth/sloth.manifest.json",
-      "scale": 1.0
     }
   ]
 }

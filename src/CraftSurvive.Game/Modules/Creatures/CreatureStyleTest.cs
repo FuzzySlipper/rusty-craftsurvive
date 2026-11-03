@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
@@ -61,6 +62,9 @@ internal sealed class CreatureStyleTest : IDisposable
     private readonly List<Placed> retiring = [];
     private Dictionary<string, CreatureStyleKind>? kinds;
     private int nextId;
+
+    /// <summary>What driving the placed creatures has cost each update (playback, placement, feet), since the last readout.</summary>
+    private (double Total, int Count, double Worst) advanceMs;
 
     internal CreatureStyleTest(IEngineContext engine, ProductContent content, WorldFrame frame, Func<double, double, double> groundAt, Func<Vector3> playerWorld)
     {
@@ -152,6 +156,7 @@ internal sealed class CreatureStyleTest : IDisposable
     /// <summary>Advances every creature by host seconds: its clip time, its walk, its pose and its feet.</summary>
     internal void Advance(double seconds)
     {
+        long started = Stopwatch.GetTimestamp();
         seconds = Math.Max(0, seconds);
         foreach (Placed creature in placed)
         {
@@ -171,6 +176,12 @@ internal sealed class CreatureStyleTest : IDisposable
             Place(creature);
             if (creature.Published) Plant(creature);
         }
+
+        if (placed.Count == 0) return;
+        double ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        advanceMs.Total += ms;
+        advanceMs.Count++;
+        advanceMs.Worst = Math.Max(advanceMs.Worst, ms);
     }
 
     /// <summary>Moves the clip to a time: graph ticks up to it (contiguous, as the Engine requires) or a direct sample.</summary>
@@ -286,7 +297,15 @@ internal sealed class CreatureStyleTest : IDisposable
         retiring.Clear();
     }
 
+    /// <summary>Reports, and restarts the advance timing.</summary>
     internal string Readout()
+    {
+        string text = Report();
+        advanceMs = default;
+        return text;
+    }
+
+    private string Report()
     {
         IEnumerable<string> rows = placed.Select(c =>
         {
@@ -295,7 +314,7 @@ internal sealed class CreatureStyleTest : IDisposable
                 $"{c.Id}:{c.Kind.Name}:{c.Clip.Name}:at={c.World.X:F2},{c.World.Y:F2},{c.World.Z:F2}:pitch={c.PitchDegrees:F1}:scale={c.Scale:F2}:planted={c.Planted}:footCorrection={c.FootCorrection:F2}:driver={(c.Controller is null ? "direct" : "graph")}:state={controller.StateIndex}:tick={controller.ControllerTick}");
         });
         return string.Create(CultureInfo.InvariantCulture,
-            $"step={StepsPerSecond};plant={PlantFeet};direct={DirectPlayback};creatures={placed.Count};{string.Join(';', rows)}");
+            $"step={StepsPerSecond};plant={PlantFeet};direct={DirectPlayback};creatures={placed.Count};advanceMs=mean {(advanceMs.Count > 0 ? advanceMs.Total / advanceMs.Count : 0):F3} worst {advanceMs.Worst:F3} over {advanceMs.Count};{string.Join(';', rows)}");
     }
 
     /// <summary>A kind's mesh facts and the clips the Engine assembled for it.</summary>
