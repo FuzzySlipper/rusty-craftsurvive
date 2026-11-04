@@ -40,7 +40,7 @@
     "homeAttempts": 8,
     "waterRings": 8,
     "waterHeadings": 12,
-    "waterHomeSamplesPerSide": 32
+    "bankMetres": 14
   },
   "waking": {
     "wakeMetres": 300,
@@ -210,7 +210,7 @@
       "wariness": { "noticeMetres": 20, "actMetres": 10, "lookSeconds": 2, "warnSeconds": 1 },
       "pressed": "take-to-water",
       "schedule": "night-worker",
-      "population": { "herdsPerSquareKilometre": 0.3, "rangeMetres": 400, "recoveryDays": 6 },
+      "population": { "herdsPerSquareKilometre": 0.3, "rangeMetres": 150, "recoveryDays": 6 },
       "combat": { "health": 30, "evasion": 40, "armour": 2, "experience": 90 },
       "loot": [ { "item": "meat", "minimum": 2, "maximum": 3, "oneIn": 1 }, { "item": "hide", "minimum": 1, "maximum": 2, "oneIn": 1 } ]
     },

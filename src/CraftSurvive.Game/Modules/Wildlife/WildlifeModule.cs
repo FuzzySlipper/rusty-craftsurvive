@@ -58,6 +58,7 @@ internal sealed class WildlifeModule : IProductModule
     private readonly Dictionary<string, Vector2?> waters = [];
     private readonly Dictionary<string, int> waterRings = [];
     private int hops;
+    private readonly Dictionary<int, RiverBank[]> riverBanks = [];
     private readonly Stack<int> freeIds = [];
     private readonly ProductSaveSlot<IReadOnlyList<HerdLoss>> slot;
     private WildlifeCatalog? catalog;
@@ -128,7 +129,7 @@ internal sealed class WildlifeModule : IProductModule
 
         if (ledger is null)
         {
-            ledger = new WildlifeLedger(catalog, Seed, BiomeAt, (x, z) => Sanctuary?.Invoke(x, z) == true, MapWaterAt);
+            ledger = new WildlifeLedger(catalog, Seed, BiomeAt, (x, z) => Sanctuary?.Invoke(x, z) == true, terrain.Recipe.Regions is null ? null : RiversIn);
             if (slot.Restore() is { Outcome: SaveRestoreOutcome.Restored, State: IReadOnlyList<HerdLoss> losses }) ledger.Restore(losses);
         }
 
@@ -204,11 +205,31 @@ internal sealed class WildlifeModule : IProductModule
 
     private MapBiome BiomeAt(double x, double z) => WorldMap.Biome(terrain.Recipe.Map.Sample(x, z));
 
-    /// <summary>Whether the continent's map has a river or lake at a point, as cheaply as the biome.</summary>
-    private bool MapWaterAt(double x, double z)
+    /// <summary>The walked rivers in a rectangle, as points along them. A reach is shaped once, however many regions it crosses.</summary>
+    private IReadOnlyList<RiverBank> RiversIn(double minX, double minZ, double maxX, double maxZ)
     {
-        MapSample map = terrain.Recipe.Map.Sample(x, z);
-        return map.InRiver || map.InLake;
+        MapDrainage drainage = terrain.Recipe.Regions!.Drainage;
+        List<RiverBank> found = [];
+        foreach (int reach in drainage.ReachesWithin(minX, minZ, maxX, maxZ))
+        {
+            if (!riverBanks.TryGetValue(reach, out RiverBank[]? banks)) riverBanks[reach] = banks = Banks(drainage.Shaped(reach));
+            found.AddRange(banks.Where(bank => bank.X >= minX && bank.X < maxX && bank.Z >= minZ && bank.Z < maxZ));
+        }
+
+        return found;
+    }
+
+    private static RiverBank[] Banks(RiverPoint[] points)
+    {
+        RiverBank[] banks = new RiverBank[Math.Max(0, points.Length - 1)];
+        for (int i = 0; i < banks.Length; i++)
+        {
+            RiverPoint here = points[i], next = points[i + 1];
+            double length = Math.Max(double.Epsilon, Math.Sqrt(Math.Pow(next.X - here.X, 2) + Math.Pow(next.Z - here.Z, 2)));
+            banks[i] = new RiverBank(here.X, here.Z, here.HalfWidth, -(next.Z - here.Z) / length, (next.X - here.X) / length);
+        }
+
+        return banks;
     }
 
     /// <summary>Ground no animal stands on or crosses: the towns' sanctuary.</summary>

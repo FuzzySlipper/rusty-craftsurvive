@@ -617,19 +617,25 @@ Check.Section("region seeding", () =>
         }
     }
 
-    // A kind that takes to water lives beside it, and not where there is none.
-    bool River(double x, double z) => Math.Abs(x - 500) < 40;
+    // A kind that takes to water lives on a river's bank, and not where there is none.
+    const double RiverX = 500, RiverHalfWidth = 12;
+    IReadOnlyList<RiverBank> RiverIn(double minX, double minZ, double maxX, double maxZ) =>
+        minX <= RiverX && RiverX < maxX ? [.. Enumerable.Range(0, 20).Select(i => new RiverBank(RiverX, minZ + (i * 50), RiverHalfWidth, 1, 0))] : [];
     MapBiome Forest(double x, double z) => MapBiome.BorealForest;
-    List<HerdRecord> byRiver = [], byNothing = [];
+    List<HerdRecord> byRiver = [], byNothing = [], noDrainage = [];
     for (int i = 0; i < 144; i++)
     {
-        byRiver.AddRange(WildlifeSeeding.Seed(new WildlifeRegion(0, i), Seed, catalog, Forest, null, River).Herds.Where(h => h.KindId == "giant-beaver"));
-        byNothing.AddRange(WildlifeSeeding.Seed(new WildlifeRegion(5, i), Seed, catalog, Forest, null, River).Herds.Where(h => h.KindId == "giant-beaver"));
+        byRiver.AddRange(WildlifeSeeding.Seed(new WildlifeRegion(0, i), Seed, catalog, Forest, null, RiverIn).Herds.Where(h => h.KindId == "giant-beaver"));
+        byNothing.AddRange(WildlifeSeeding.Seed(new WildlifeRegion(5, i), Seed, catalog, Forest, null, RiverIn).Herds.Where(h => h.KindId == "giant-beaver"));
+        noDrainage.AddRange(WildlifeSeeding.Seed(new WildlifeRegion(5, i), Seed, catalog, Forest).Herds.Where(h => h.KindId == "giant-beaver"));
     }
 
+    double OffBank(HerdRecord herd) => Math.Abs(herd.Home.X - RiverX) - RiverHalfWidth;
     Check.That(byRiver.Count > 0, "beavers settle along a river");
-    Check.That(byRiver.All(h => !River(h.Home.X, h.Home.Y) && Math.Abs(h.Home.X - 500) <= catalog.Kind("giant-beaver").Population.RangeMetres), "a beaver's home is dry ground within its range of the water");
-    Check.Equal(0, byNothing.Count, "no beavers settle where there is no water");
+    Check.That(byRiver.All(h => Math.Abs(OffBank(h) - catalog.Placement.BankMetres) < 0.01), "a beaver's home is on the bank, clear of the water");
+    Check.That(byRiver.Any(h => h.Home.X > RiverX) && byRiver.Any(h => h.Home.X < RiverX), "beavers settle on either bank");
+    Check.Equal(0, byNothing.Count, "no beavers settle where there is no river");
+    Check.That(noDrainage.Count > 0, "a world with no drainage places them as any other kind");
     Check.That(sea.Count == 0, "nothing is seeded at sea");
     Check.That(west.All(h => catalog.Kind(h.KindId).HabitatWeight(MapBiome.Grassland) > 0), "only grassland kinds are seeded on grassland");
     Check.That(east.All(h => catalog.Kind(h.KindId).HabitatWeight(MapBiome.Desert) > 0), "only desert kinds are seeded in desert");

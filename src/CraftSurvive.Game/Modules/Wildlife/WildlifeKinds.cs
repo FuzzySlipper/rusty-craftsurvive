@@ -151,7 +151,7 @@ internal sealed record WildlifeKind(
 }
 
 /// <summary>How regions are seeded with herds, and how a herd's range is searched for water: rings out to its edge, at headings each.</summary>
-internal readonly record struct WildlifePlacement(double RegionMetres, int BiomeSamplesPerSide, int HomeAttempts, int WaterRings, int WaterHeadings, int WaterHomeSamplesPerSide);
+internal readonly record struct WildlifePlacement(double RegionMetres, int BiomeSamplesPerSide, int HomeAttempts, int WaterRings, int WaterHeadings, double BankMetres);
 
 /// <summary>
 /// When herds wake near the player and sleep again, by distance alone, and how many may be awake at
@@ -317,7 +317,7 @@ internal static class WildlifeKinds
                 placement.GetProperty("homeAttempts").GetInt32(),
                 placement.GetProperty("waterRings").GetInt32(),
                 placement.GetProperty("waterHeadings").GetInt32(),
-                placement.GetProperty("waterHomeSamplesPerSide").GetInt32()),
+                placement.GetProperty("bankMetres").GetDouble()),
             wake,
             new WildlifeBehaviour(
                 behaviour.GetProperty("alarmSpreadMetresPerSecond").GetDouble(),
