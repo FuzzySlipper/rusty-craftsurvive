@@ -52,6 +52,17 @@ internal sealed class WildlifeMember
 
     internal CombatantState Combat { get; set; }
 
+    /// <summary>A young animal (#10600): smaller and weaker, darting about an adult rather than keeping a slot.</summary>
+    internal bool Young { get; init; }
+
+    /// <summary>Where a young animal is darting to, and how long it stands or runs for before it picks again.</summary>
+    internal Vector2? DartGoal { get; set; }
+
+    internal double DartSeconds { get; set; }
+
+    /// <summary>How many darts it has made: each new one is drawn afresh.</summary>
+    internal int DartSerial { get; set; }
+
     /// <summary>Whether it is walking back to its slot: it leaves only when well out of place and stops only when there.</summary>
     internal bool Following { get; set; }
 
@@ -106,6 +117,22 @@ internal sealed class WildlifeHerd
 
     internal WildlifeMember Leader => Members[0];
 
+    /// <summary>The adult nearest a point; the leader, who is always grown, when the others have gone.</summary>
+    internal WildlifeMember NearestAdult(Vector2 point)
+    {
+        WildlifeMember nearest = Leader;
+        float best = float.MaxValue;
+        foreach (WildlifeMember member in Members)
+        {
+            float distance = Vector2.DistanceSquared(member.Position, point);
+            if (member.Young || distance >= best) continue;
+            best = distance;
+            nearest = member;
+        }
+
+        return nearest;
+    }
+
     /// <summary>The step of the day being kept (day × steps a day + step); -1 before the first decision.</summary>
     internal long Period { get; set; } = -1;
 
@@ -149,6 +176,9 @@ internal sealed class WildlifeHerd
         bool leading = Members.Count > 0 && Members[0] == member;
         Members.Remove(member);
         if (!leading || Members.Count == 0) return;
+        // The next grown animal leads; only an orphan's herd is led by the young.
+        int next = Math.Max(0, Members.FindIndex(other => !other.Young));
+        (Members[0], Members[next]) = (Members[next], Members[0]);
         Vector2 offset = Members[0].Slot;
         foreach (WildlifeMember other in Members) other.Slot -= offset;
     }

@@ -54,7 +54,7 @@ internal sealed class WildlifeModule : IProductModule
     private readonly List<WildlifeHerd> awake = [];
     private readonly List<WildlifeFallen> fallen = [];
     private readonly Dictionary<int, MemberBody> bodies = [];
-    private readonly Dictionary<string, CharacterControllerConfig> configs = [];
+    private readonly Dictionary<(string Kind, WildlifeSizeClass SizeClass), CharacterControllerConfig> configs = [];
     private readonly Dictionary<string, Vector2?> waters = [];
     private readonly Dictionary<string, int> waterRings = [];
     private readonly Stack<int> freeIds = [];
@@ -374,14 +374,17 @@ internal sealed class WildlifeModule : IProductModule
         return sample.Wet && !sample.Ice && sample.Body is WaterBody.River or WaterBody.Lake;
     }
 
-    private CharacterControllerConfig Config(WildlifeKind kind)
+    /// <summary>The body a kind's animal moves as: its size class's capsule, or its young's.</summary>
+    private CharacterControllerConfig Config(WildlifeKind kind, bool young)
     {
-        if (configs.TryGetValue(kind.Id, out CharacterControllerConfig config)) return config;
-        WildlifeCapsule capsule = Catalog.SizeClasses[kind.Body.SizeClass];
+        WildlifeSizeClass sizeClass = young && kind.Young is { } small ? small.SizeClass : kind.Body.SizeClass;
+        (string, WildlifeSizeClass) key = (kind.Id, sizeClass);
+        if (configs.TryGetValue(key, out CharacterControllerConfig config)) return config;
+        WildlifeCapsule capsule = Catalog.SizeClasses[sizeClass];
         config = CreatureBody.Configure(
             CreatureBody.Capsule(engine.Spatial.DefaultCharacterControllerConfig(), capsule.Radius, capsule.Height),
             (float)kind.Speeds.Flee);
-        configs[kind.Id] = config;
+        configs[key] = config;
         return config;
     }
 
@@ -393,9 +396,9 @@ internal sealed class WildlifeModule : IProductModule
     /// </summary>
     private void Apply(WildlifeHerd herd, Vector2 here, double seconds)
     {
-        CharacterControllerConfig config = Config(herd.Kind);
         foreach (WildlifeMember member in herd.Members)
         {
+            CharacterControllerConfig config = Config(herd.Kind, member.Young);
             MemberBody state = bodies[member.Id];
             float speed = member.Velocity.Length();
             double travel = speed * seconds;
@@ -502,7 +505,9 @@ internal sealed class WildlifeModule : IProductModule
         if (herd.Members.Count == 0) awake.Remove(herd);
         // Its death alarms the herd: the nearest takes it as a blow, and the alarm spreads from there.
         if (herd.Members.Count > 0) herd.Members.MinBy(mate => Vector2.Distance(mate.Position, member.Position))!.Struck = true;
-        EncounterReward reward = EncounterResolutionRules.Reward(herd.Kind.ExperienceAward, herd.Kind.Loot,
+        WildlifeYoung? young = member.Young ? herd.Kind.Young : null;
+        int experience = young is null ? herd.Kind.ExperienceAward : Math.Max(1, (int)(herd.Kind.ExperienceAward * young.YieldShare));
+        EncounterReward reward = EncounterResolutionRules.Reward(experience, young?.Loot ?? herd.Kind.Loot,
             string.Create(CultureInfo.InvariantCulture, $"wildlife:{herd.Key}:{swings}"), KeyedDraws.For(Seed));
         ProgressionOutcome progression = player.Progress.Award(reward);
         lastEvent = $"killed a {herd.Kind.Id} of {herd.Key}";
@@ -572,7 +577,7 @@ internal sealed class WildlifeModule : IProductModule
         string stages = string.Join(",", Enum.GetValues<Wariness>().Select(stage => $"{stage}={herd.Members.Count(m => m.Stage == stage)}"));
         Vector2? water = waters.GetValueOrDefault(herd.Key);
         return string.Create(CultureInfo.InvariantCulture,
-            $"{herd.Key} kind={herd.Kind.Id} n={herd.Members.Count} activity={herd.Activity} alarm={herd.Alarm} [{stages}] leader={herd.Leader.Position.X:F1},{FeetOf(herd.Leader):F1},{herd.Leader.Position.Y:F1} d={Vector2.Distance(herd.Leader.Position, here):F1} goal={herd.Goal.X:F0},{herd.Goal.Y:F0} water={(water is Vector2 w ? $"{w.X:F0},{w.Y:F0}" : "none")} spread={herd.Members.Max(m => Vector2.Distance(m.Position, herd.Leader.Position)):F1} ids={string.Join(",", herd.Members.Select(m => $"{m.Id}:{m.Stage}:{m.Clip}"))}");
+            $"{herd.Key} kind={herd.Kind.Id} n={herd.Members.Count} activity={herd.Activity} alarm={herd.Alarm} [{stages}] leader={herd.Leader.Position.X:F1},{FeetOf(herd.Leader):F1},{herd.Leader.Position.Y:F1} d={Vector2.Distance(herd.Leader.Position, here):F1} goal={herd.Goal.X:F0},{herd.Goal.Y:F0} water={(water is Vector2 w ? $"{w.X:F0},{w.Y:F0}" : "none")} young={string.Join(";", herd.Members.Where(m => m.Young).Select(m => string.Create(CultureInfo.InvariantCulture, $"{m.Position.X:F1},{FeetOf(m):F1},{m.Position.Y:F1}")))} spread={herd.Members.Max(m => Vector2.Distance(m.Position, herd.Leader.Position)):F1} ids={string.Join(",", herd.Members.Select(m => $"{m.Id}{(m.Young ? "y" : "")}:{m.Stage}:{m.Clip}:{m.Combat.Health}"))}");
     }
 
     /// <summary>The population ledger: each seeded region's biomes and herds, with what each has left now.</summary>

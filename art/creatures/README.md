@@ -145,6 +145,11 @@ and rates follow ground speed. To give a kind a body in game, add a `mesh` block
 A role left out falls back to `idle`. The tiers, the planting budget and the pitch limit are in
 that file's `animation` section.
 
+A kind's young (#10600) need no second build. A `young` block in `kinds.json` scales the adult's
+mesh, shares every clip, and names a paint made by `young_paint.py` from the adult's 64 texels/m
+texture: the same charts, recoloured. The head joint is scaled up per animal, as young have
+larger heads for their size.
+
 Measured with planting budgeted to the nearest eight: about 2.5 ms an update for 24 sloths
 awake near the player. Planting every animal in a crowd cost about ten times that and tripled
 render time, so keep the budget unless the Engine changes.

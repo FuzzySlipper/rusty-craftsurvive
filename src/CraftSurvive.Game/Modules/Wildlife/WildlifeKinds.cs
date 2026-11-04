@@ -65,6 +65,26 @@ internal enum WildlifeClipRole
 /// <summary>A kind's animated body: its mesh and build manifest, and which clip plays each role. A kind without one is drawn as a placeholder.</summary>
 internal sealed record WildlifeMesh(string File, string Manifest, float Scale, IReadOnlyDictionary<WildlifeClipRole, string> Clips);
 
+/// <summary>
+/// A kind's young (#10600): this share of a herd's animals, the adult's mesh at this scale with its
+/// own paint and a larger head, sharing every clip. They dart about their nearest adult, and shelter
+/// behind one when the herd is pressed.
+/// </summary>
+internal sealed record WildlifeYoung(
+    double Share,
+    float Scale,
+    WildlifeSizeClass SizeClass,
+    string Texture,
+    string HeadJoint,
+    float HeadScale,
+    double DartMetres,
+    double DartSpeed,
+    double PauseSeconds,
+    double ShelterMetres,
+    double HealthShare,
+    double YieldShare,
+    LootTable Loot);
+
 /// <summary>A capsule: the body a size class moves as.</summary>
 internal readonly record struct WildlifeCapsule(float Radius, float Height);
 
@@ -72,7 +92,8 @@ internal readonly record struct WildlifeBody(double LengthMetres, double HeightM
 
 internal readonly record struct WildlifeSpeeds(double Walk, double GrazeDrift, double Flee, double TurnDegrees);
 
-internal readonly record struct WildlifeSenses(double NoticeMetres, double ActMetres, double LookSeconds, double WarnSeconds);
+/// <param name="FleeBelowHealth">Below this share of its health an animal that stands or charges runs instead; zero, it never does.</param>
+internal readonly record struct WildlifeSenses(double NoticeMetres, double ActMetres, double LookSeconds, double WarnSeconds, double FleeBelowHealth);
 
 internal readonly record struct WildlifePopulation(double HerdsPerSquareKilometre, double RangeMetres, double RecoveryDays);
 
@@ -108,6 +129,7 @@ internal sealed record WildlifeKind(
     double SpacingMetres,
     WildlifeBody Body,
     WildlifeMesh? Mesh,
+    WildlifeYoung? Young,
     WildlifeSpeeds Speeds,
     WildlifeSenses Senses,
     PressedResponse Pressed,
@@ -357,7 +379,8 @@ internal static class WildlifeKinds
             wariness.GetProperty("noticeMetres").GetDouble(),
             wariness.GetProperty("actMetres").GetDouble(),
             wariness.GetProperty("lookSeconds").GetDouble(),
-            wariness.GetProperty("warnSeconds").GetDouble());
+            wariness.GetProperty("warnSeconds").GetDouble(),
+            wariness.TryGetProperty("fleeBelowHealth", out JsonElement fleeBelow) ? fleeBelow.GetDouble() : 0);
         if (sense.ActMetres >= sense.NoticeMetres) throw new InvalidDataException($"{id}: an animal must notice before it acts");
 
         LootEntry[] loot = [.. kind.GetProperty("loot").EnumerateArray().Select(entry => new LootEntry(
@@ -365,6 +388,7 @@ internal static class WildlifeKinds
             entry.GetProperty("minimum").GetInt32(),
             entry.GetProperty("maximum").GetInt32(),
             entry.GetProperty("oneIn").GetInt32()))];
+        LootTable table = new($"wildlife-{id}", 1, 1, loot);
         return new WildlifeKind(
             id,
             kind.GetProperty("name").GetString()!,
@@ -380,6 +404,7 @@ internal static class WildlifeKinds
                 sizeClass,
                 uint.Parse(body.GetProperty("colour").GetString()!.TrimStart('#'), NumberStyles.HexNumber, CultureInfo.InvariantCulture)),
             ReadMesh(kind),
+            ReadYoung(kind, table, classes),
             new WildlifeSpeeds(speeds.GetProperty("walk").GetDouble(), speeds.GetProperty("grazeDrift").GetDouble(), speeds.GetProperty("flee").GetDouble(),
                 speeds.GetProperty("turnDegrees").GetDouble()),
             sense,
@@ -392,7 +417,35 @@ internal static class WildlifeKinds
             combat.GetProperty("health").GetInt32(),
             new DefenceProfile(combat.GetProperty("evasion").GetInt32(), new ArmourProfile(combat.GetProperty("armour").GetInt32())),
             combat.GetProperty("experience").GetInt32(),
-            new LootTable($"wildlife-{id}", 1, 1, loot));
+            table);
+    }
+
+    private static WildlifeYoung? ReadYoung(JsonElement kind, LootTable adult, Dictionary<WildlifeSizeClass, WildlifeCapsule> classes)
+    {
+        if (!kind.TryGetProperty("young", out JsonElement young)) return null;
+        double yield = young.GetProperty("yieldShare").GetDouble();
+        WildlifeSizeClass sizeClass = Named(SizeClassNames, young.GetProperty("sizeClass").GetString()!, "size class");
+        if (!classes.ContainsKey(sizeClass)) throw new InvalidDataException($"young of size class {sizeClass} have no capsule");
+        // At least one of anything, or a small animal would yield nothing.
+        LootEntry[] entries = [.. adult.Entries.Select(entry => entry with
+        {
+            Minimum = Math.Max(1, (int)Math.Round(entry.Minimum * yield)),
+            Maximum = Math.Max(1, (int)Math.Round(entry.Maximum * yield)),
+        })];
+        return new WildlifeYoung(
+            young.GetProperty("share").GetDouble(),
+            young.GetProperty("scale").GetSingle(),
+            sizeClass,
+            young.GetProperty("texture").GetString()!,
+            young.GetProperty("headJoint").GetString()!,
+            young.GetProperty("headScale").GetSingle(),
+            young.GetProperty("dartMetres").GetDouble(),
+            young.GetProperty("dartSpeed").GetDouble(),
+            young.GetProperty("pauseSeconds").GetDouble(),
+            young.GetProperty("shelterMetres").GetDouble(),
+            young.GetProperty("healthShare").GetDouble(),
+            yield,
+            adult with { Id = adult.Id + "-young", Entries = entries });
     }
 
     private static T Named<T>(Dictionary<string, T> names, string name, string what) =>

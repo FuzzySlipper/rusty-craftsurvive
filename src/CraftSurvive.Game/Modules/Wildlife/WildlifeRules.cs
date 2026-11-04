@@ -29,6 +29,9 @@ internal readonly record struct HerdFacts(Vector2? Player, WorldTime Time, ulong
 /// - **Wariness:** each animal notices the player at its kind's notice distance and looks; inside
 ///   the act distance, after looking, it warns; still pressed after warning, it responds: flees,
 ///   stands, charges or hunkers. A struck animal responds at once.
+/// - **Young:** a herd's young dart about their nearest adult at more than its pace and stop in
+///   between, resting with it. Pressed, they keep behind an adult, on its far side from the player.
+/// - **Hurt:** an animal that stands or charges runs once badly hurt, on its own, by itself.
 /// - **Alarm:** while any animal looks, the leader waits, so the herd keeps together under watch. A
 ///   warning or response spreads through the herd at a pace from where it was raised.
 ///   A charging kind's partners display rather than charge. The herd calms only when its nearest
@@ -101,12 +104,25 @@ internal static class WildlifeRules
         return new WildlifeHerd(record, kind, Enumerable.Range(0, count).Select(order =>
         {
             Vector2 slot = Slot(order, kind, catalog.Behaviour, seed, record.Key);
-            return new WildlifeMember(nextId(), Clear(at, slot, catalog.Behaviour.PathCheckMetres, excluded), slot, CombatantState.Fresh(kind.MaximumHealth, kind.Defence))
+            bool young = IsYoung(order, kind, seed, record.Key);
+            int health = young ? Math.Max(1, (int)(kind.MaximumHealth * kind.Young!.HealthShare)) : kind.MaximumHealth;
+            return new WildlifeMember(nextId(), Clear(at, slot, catalog.Behaviour.PathCheckMetres, excluded), slot, CombatantState.Fresh(health, kind.Defence))
             {
+                Young = young,
                 Yaw = (float)(2 * Math.PI * Unit(seed, string.Create(CultureInfo.InvariantCulture, $"wildlife:{record.Key}:yaw:{order}"))),
             };
         }));
     }
+
+    /// <summary>Whether the animal at this place in a herd is young. The first, who leads, never is.</summary>
+    private static bool IsYoung(int order, WildlifeKind kind, ulong seed, string key) =>
+        order > 0 && kind.Young is { } young && Unit(seed, string.Create(CultureInfo.InvariantCulture, $"wildlife:{key}:young:{order}")) < young.Share;
+
+    /// <summary>What this animal does when pressed: its kind's answer, unless it is hurt badly enough to run. A shell is no place to run from.</summary>
+    internal static PressedResponse Response(WildlifeMember member, WildlifeKind kind) =>
+        kind.Pressed != PressedResponse.Hunker && member.Combat.Health < member.Combat.MaximumHealth * kind.Senses.FleeBelowHealth
+            ? PressedResponse.Flee
+            : kind.Pressed;
 
     /// <summary>The furthest point along an offset from a clear anchor that is clear itself; the anchor if none is.</summary>
     private static Vector2 Clear(Vector2 at, Vector2 offset, double step, Func<Vector2, bool>? excluded)
@@ -189,10 +205,12 @@ internal static class WildlifeRules
                 else if (distance <= senses.ActMetres && member.StageSeconds >= senses.WarnSeconds) member.Enter(Wariness.Respond);
                 break;
             case Wariness.Respond:
-                switch (kind.Pressed)
+                switch (Response(member, kind))
                 {
                     case PressedResponse.Flee:
-                        if (herdNearest >= senses.NoticeMetres * behaviour.FleeUntilNoticeShare) member.Enter(Wariness.Regroup);
+                        // A band runs until its nearest is clear; one hurt animal runs from a herd still standing, on its own account.
+                        double fled = kind.Pressed == PressedResponse.Flee ? herdNearest : distance;
+                        if (fled >= senses.NoticeMetres * behaviour.FleeUntilNoticeShare) member.Enter(Wariness.Regroup);
                         break;
                     case PressedResponse.Stand:
                         if (herdNearest > senses.ActMetres * release) member.Enter(Wariness.Look);
@@ -225,7 +243,8 @@ internal static class WildlifeRules
         WildlifeMember? raiser = null;
         foreach (WildlifeMember member in herd.Members)
         {
-            if (member.Stage >= Wariness.Warn && (raiser is null || member.Stage > raiser.Stage)) raiser = member;
+            // One hurt animal's flight is its own: it does not hold a standing herd in alarm.
+            if (member.Stage >= Wariness.Warn && Response(member, herd.Kind) == herd.Kind.Pressed && (raiser is null || member.Stage > raiser.Stage)) raiser = member;
         }
 
         if (raiser is null)
@@ -368,8 +387,20 @@ internal static class WildlifeRules
                     shuffles = false;
                     break;
                 case Wariness.Respond:
-                    switch (kind.Pressed)
+                    PressedResponse response = Response(member, kind);
+                    if (member.Young && response != PressedResponse.Flee && facts.Player is Vector2 danger)
                     {
+                        velocity = Shelter(member, herd, danger, seconds);
+                        face = danger;
+                        shuffles = false;
+                        break;
+                    }
+
+                    switch (response)
+                    {
+                        case PressedResponse.Flee when kind.Pressed != PressedResponse.Flee:
+                            velocity = (facts.Player is Vector2 hunter && hunter != member.Position ? Vector2.Normalize(member.Position - hunter) : herd.FleeHeading) * (float)kind.Speeds.Flee;
+                            break;
                         case PressedResponse.Flee:
                             velocity = herd.FleeHeading * (float)kind.Speeds.Flee;
                             Vector2 toCentre = centre - member.Position;
@@ -387,6 +418,13 @@ internal static class WildlifeRules
 
                     break;
                 default:
+                    if (member.Young)
+                    {
+                        velocity = Dart(member, herd, facts, seconds);
+                        shuffles = false;
+                        break;
+                    }
+
                     velocity = member == leader
                         ? LeaderVelocity(herd, behaviour, leaderSpeed, seconds)
                         : FollowerVelocity(member, leader, kind, behaviour, seconds, facts.Excluded);
@@ -411,6 +449,48 @@ internal static class WildlifeRules
         if (Vector2.Distance(herd.Leader.Position, herd.Goal) <= behaviour.GoalArrivalMetres) return Vector2.Zero;
         if (herd.Activity == WildlifeActivity.Graze && !WalkingOn(herd, behaviour)) return Vector2.Zero;
         return Toward(herd.Leader.Position, herd.Goal, speed, seconds);
+    }
+
+    /// <summary>
+    /// A young animal at ease: it darts to a point about its nearest adult, stands a moment and darts
+    /// again, and rests by the adult when the herd does. Where the adult has walked on, it runs after it.
+    /// </summary>
+    private static Vector2 Dart(WildlifeMember member, WildlifeHerd herd, HerdFacts facts, double seconds)
+    {
+        WildlifeYoung young = herd.Kind.Young!;
+        WildlifeMember adult = herd.NearestAdult(member.Position);
+        bool resting = herd.Activity == WildlifeActivity.Rest;
+        double reach = resting ? young.ShelterMetres : young.DartMetres;
+        member.DartSeconds -= seconds;
+        if (member.DartGoal is Vector2 goal)
+        {
+            if (Vector2.Distance(member.Position, goal) > young.ShelterMetres / 2 && member.DartSeconds > 0) return Toward(member.Position, goal, young.DartSpeed, seconds);
+            member.DartGoal = null;
+            member.DartSeconds = young.PauseSeconds * (resting ? 1 : Unit(facts.Seed, DartScope(member, herd, "pause")));
+            return Vector2.Zero;
+        }
+
+        if (member.DartSeconds > 0 && (!resting || Vector2.Distance(member.Position, adult.Position) <= reach * 2)) return Vector2.Zero;
+        double angle = 2 * Math.PI * Unit(facts.Seed, DartScope(member, herd, "angle"));
+        double radius = reach * (0.3 + (0.7 * Unit(facts.Seed, DartScope(member, herd, "radius"))));
+        member.DartGoal = adult.Position + new Vector2((float)(radius * Math.Sin(angle)), (float)(radius * Math.Cos(angle)));
+        // However far it has to go, it gives up and picks again before long.
+        member.DartSeconds = (young.DartMetres * 2) / young.DartSpeed;
+        member.DartSerial++;
+        return Vector2.Zero;
+    }
+
+    private static string DartScope(WildlifeMember member, WildlifeHerd herd, string what) =>
+        string.Create(CultureInfo.InvariantCulture, $"wildlife:{herd.Key}:dart:{member.Id}:{member.DartSerial}:{what}");
+
+    /// <summary>A pressed young animal keeps behind its nearest adult, on the far side from the danger.</summary>
+    private static Vector2 Shelter(WildlifeMember member, WildlifeHerd herd, Vector2 danger, double seconds)
+    {
+        WildlifeYoung young = herd.Kind.Young!;
+        WildlifeMember adult = herd.NearestAdult(member.Position);
+        Vector2 away = adult.Position - danger;
+        Vector2 behind = adult.Position + (away.LengthSquared() > 0 ? Vector2.Normalize(away) * (float)young.ShelterMetres : Vector2.Zero);
+        return Vector2.Distance(member.Position, behind) <= young.ShelterMetres / 2 ? Vector2.Zero : Toward(member.Position, behind, young.DartSpeed, seconds);
     }
 
     /// <summary>Whether a grazing herd is walking on rather than standing to feed: for the share of its cycle that makes its graze-drift speed.</summary>
@@ -440,7 +520,8 @@ internal static class WildlifeRules
         Vector2 push = Vector2.Zero;
         foreach (WildlifeMember other in herd.Members)
         {
-            if (other == member) continue;
+            // The young run about among the grown, and no one makes room for them.
+            if (other == member || other.Young) continue;
             Vector2 apart = member.Position - other.Position;
             float distance = apart.Length();
             if (distance >= keep) continue;

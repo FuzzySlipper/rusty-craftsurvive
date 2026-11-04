@@ -55,25 +55,30 @@ internal static class WildlifeClips
         ArgumentNullException.ThrowIfNull(member);
         ArgumentNullException.ThrowIfNull(herd);
         ArgumentNullException.ThrowIfNull(rig);
-        if (member.Stage == Wariness.Respond && herd.Kind.Pressed == PressedResponse.Stand) return WildlifeClipRole.Stand;
-        if (member.Stage == Wariness.Respond && herd.Kind.Pressed == PressedResponse.Hunker) return WildlifeClipRole.Hunker;
+        PressedResponse response = WildlifeRules.Response(member, herd.Kind);
+        if (member.Stage == Wariness.Respond && !member.Young && response == PressedResponse.Stand) return WildlifeClipRole.Stand;
+        if (member.Stage == Wariness.Respond && response == PressedResponse.Hunker) return WildlifeClipRole.Hunker;
         float speed = member.Velocity.Length();
         if (speed > StandingSpeed)
         {
-            // A gait changes where the two clips' own ground speeds meet.
-            double between = (rig.Clip(WildlifeClipRole.Walk).Speed + rig.Clip(WildlifeClipRole.Run).Speed) / 2;
+            // A gait changes where the two clips' own ground speeds meet, and a smaller body's are slower.
+            double between = (rig.Clip(WildlifeClipRole.Walk).Speed + rig.Clip(WildlifeClipRole.Run).Speed) / 2 * Scale(member, herd.Kind);
             return speed > between ? WildlifeClipRole.Run : WildlifeClipRole.Walk;
         }
 
-        if (member.Stage is Wariness.Look or Wariness.Warn) return WildlifeClipRole.Look;
+        if (member.Stage is Wariness.Look or Wariness.Warn or Wariness.Respond) return WildlifeClipRole.Look;
         return herd.Activity is WildlifeActivity.Graze or WildlifeActivity.Drink ? WildlifeClipRole.Graze : WildlifeClipRole.Idle;
     }
 
+    /// <summary>How large an animal is against its kind's mesh.</summary>
+    internal static float Scale(WildlifeMember member, WildlifeKind kind) => member.Young && kind.Young is { } young ? young.Scale : 1;
+
     /// <summary>A gait's rate for its ground speed, so its planted feet do not slide; anything else plays at its own.</summary>
-    internal static float Rate(WildlifeClipRole role, float speed, WildlifeRig rig, WildlifeAnimation animation)
+    /// <param name="scale">The body's scale: a smaller one covers less ground with each stride.</param>
+    internal static float Rate(WildlifeClipRole role, float speed, WildlifeRig rig, WildlifeAnimation animation, float scale = 1)
     {
         ArgumentNullException.ThrowIfNull(rig);
-        double clipSpeed = rig.Clip(role).Speed;
+        double clipSpeed = rig.Clip(role).Speed * scale;
         if (role is not (WildlifeClipRole.Walk or WildlifeClipRole.Run) || clipSpeed <= 0) return 1;
         return (float)Math.Clamp(speed / clipSpeed, animation.MinimumRate, animation.MaximumRate);
     }
@@ -89,7 +94,8 @@ internal static class WildlifeClips
         member.ClipSeconds += seconds;
         WildlifeClipRole want = Want(member, herd, rig);
         if (want == member.Clip) return false;
-        bool urgent = want is WildlifeClipRole.Run or WildlifeClipRole.Look or WildlifeClipRole.Stand or WildlifeClipRole.Hunker;
+        // The young change gait at will: that is how they move.
+        bool urgent = member.Young || want is WildlifeClipRole.Run or WildlifeClipRole.Look or WildlifeClipRole.Stand or WildlifeClipRole.Hunker;
         if (!urgent && member.ClipSeconds < animation.ClipHoldSeconds) return false;
         member.Clip = want;
         member.ClipSeconds = 0;

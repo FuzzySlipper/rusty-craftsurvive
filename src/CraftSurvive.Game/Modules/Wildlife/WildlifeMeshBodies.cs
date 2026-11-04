@@ -36,7 +36,22 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <summary>A body that has moved less than this keeps the feet it planted.</summary>
     private const float ReplantMetres = 0.03f;
 
-    private sealed record Opened(RenderResource Mesh, WildlifeRig Rig, (uint Root, uint Mid, uint End)[] Legs);
+    /// <summary>The body's one material slot, and how rough its paint is, as the mesh's own material has it.</summary>
+    private const uint BodySlot = 0;
+    private const float PaintRoughness = 0.9f;
+
+    private static readonly Color White = new(1, 1, 1, 1);
+
+    private readonly Dictionary<string, (RenderResource Texture, Material Material)> paints = [];
+
+    private sealed record Opened(RenderResource Mesh, WildlifeRig Rig, (uint Root, uint Mid, uint End)[] Legs, string[] Joints)
+    {
+        internal uint Joint(string name)
+        {
+            int index = Array.IndexOf(Joints, name);
+            return index >= 0 ? (uint)index : throw new InvalidDataException($"the mesh has no joint '{name}'");
+        }
+    }
 
     private sealed class Body(Opened kind, ulong objectId, Appearance appearance, AnimationInstance instance)
     {
@@ -49,6 +64,9 @@ internal sealed class WildlifeMeshBodies : IDisposable
         internal float Rate { get; set; }
         internal bool Paused { get; set; }
         internal bool Published { get; set; }
+
+        /// <summary>What every pose of this body carries: a young animal's larger head.</summary>
+        internal JointOverride[] Overrides { get; init; } = [];
         internal bool Planted { get; set; }
         internal Vector3 PlantedAt { get; set; }
         internal WildlifeClipRole? PlantedClip { get; set; }
@@ -79,7 +97,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         body.Tier = WildlifeClips.Tier(distance, body.Tier, animation);
         Play(body, herd, member, seconds, fallen);
         Sit(body, kind, member, feet, seconds);
-        float scale = kind.Mesh!.Scale;
+        float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
         // The mesh faces +Z; yaw 0 faces north (-Z) and a quarter turn east (+X). A rising front turns the nose up: a negative turn about the mesh's own X.
         Quaternion lift = Quaternion.CreateFromAxisAngle(Vector3.UnitX, -body.Pitch);
         Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI - member.Yaw);
@@ -109,7 +127,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
         if (herd is null) return;
         WildlifeClips.Advance(member, herd, rig, animation, seconds);
-        float rate = WildlifeClips.Rate(member.Clip, member.Velocity.Length(), rig, animation);
+        float rate = WildlifeClips.Rate(member.Clip, member.Velocity.Length(), rig, animation, WildlifeClips.Scale(member, herd.Kind));
         if (body.Playing == member.Clip && Math.Abs(rate - body.Rate) < animation.RateStep) return;
         if (held && body.Playing is not null) return;
         Start(body, member, member.Clip, rate, restart: body.Playing != member.Clip);
@@ -138,7 +156,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         {
             body.SinceSitting = 0;
             Vector2 facing = WildlifeRules.Facing(member.Yaw);
-            float scale = kind.Mesh!.Scale;
+            float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
             double hind = body.Kind.Rig.Rig.HindMetres * scale, fore = body.Kind.Rig.Rig.ForeMetres * scale;
             float hindGround = groundAt(member.Position.X + (facing.X * hind), member.Position.Y + (facing.Y * hind));
             float foreGround = groundAt(member.Position.X + (facing.X * fore), member.Position.Y + (facing.Y * fore));
@@ -162,7 +180,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         {
             if (body.Planted)
             {
-                engine.Animation.SetPose(new(body.Instance, ReadOnlyMemory<TwoBoneIk>.Empty, ReadOnlyMemory<JointOverride>.Empty));
+                engine.Animation.SetPose(new(body.Instance, ReadOnlyMemory<TwoBoneIk>.Empty, body.Overrides));
                 body.Planted = false;
             }
 
@@ -178,7 +196,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         long sampled = Stopwatch.GetTimestamp();
         (TwoBoneIk[] chains, _) = CreatureFeet.Chains(pose, body.Kind.Legs, scale, world, placement.Translation, groundAt, (float)animation.MostFootMetres);
         long cast = Stopwatch.GetTimestamp();
-        engine.Animation.SetPose(new(body.Instance, chains, ReadOnlyMemory<JointOverride>.Empty));
+        engine.Animation.SetPose(new(body.Instance, chains, body.Overrides));
         long posed = Stopwatch.GetTimestamp();
         planting = (planting.Calls + 1, planting.Sample + Stopwatch.GetElapsedTime(began, sampled).TotalMilliseconds,
             planting.Casts + Stopwatch.GetElapsedTime(sampled, cast).TotalMilliseconds, planting.Pose + Stopwatch.GetElapsedTime(cast, posed).TotalMilliseconds);
@@ -192,11 +210,33 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Opened open = Open(kind);
         ulong objectId = ProductIds.WildlifeAppearanceBase + ((ulong)member.Id * WildlifePresentation.PartsPerMember);
         Appearance appearance = engine.Animation.CreateAnimatedMeshAppearance(new(open.Mesh));
-        return new Body(open, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId)));
+        if (!member.Young) return new Body(open, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId)));
+
+        // The young share the adult's mesh and every clip; only the paint and the head's size are theirs.
+        WildlifeYoung young = kind.Young!;
+        engine.Animation.UpdateAnimatedMeshMaterials(new(appearance, new[] { new MeshMaterialBinding(BodySlot, YoungPaint(kind.Id, young)) }));
+        AnimationInstance instance = engine.Animation.CreateInstance(new(appearance, objectId));
+        JointOverride[] overrides = [JointOverride.LocalScale(open.Joint(young.HeadJoint), young.HeadScale, 1)];
+        engine.Animation.SetPose(new(instance, ReadOnlyMemory<TwoBoneIk>.Empty, overrides));
+        return new Body(open, objectId, appearance, instance) { Overrides = overrides };
     }
 
-    /// <summary>Opens a kind's mesh now, with the world, rather than as a hitch when its first herd wakes.</summary>
-    internal void Prepare(WildlifeKind kind) => Open(kind);
+    /// <summary>A kind's paint for its young, opened once and shared by all of them.</summary>
+    private Material YoungPaint(string kindId, WildlifeYoung young)
+    {
+        if (paints.TryGetValue(kindId, out (RenderResource, Material Material) paint)) return paint.Material;
+        RenderResource texture = engine.Graphics.OpenResource(new(young.Texture, TextureFilter.Nearest, TextureWrap.Clamp)).Handle;
+        Material material = engine.Graphics.CreateMaterial(new MaterialRequest(White, texture, PaintRoughness, White, Vector3.Zero, 0, false));
+        paints[kindId] = (texture, material);
+        return material;
+    }
+
+    /// <summary>Opens a kind's mesh and paint now, with the world, rather than as a hitch when its first herd wakes.</summary>
+    internal void Prepare(WildlifeKind kind)
+    {
+        Open(kind);
+        if (kind.Young is { } young) YoungPaint(kind.Id, young);
+    }
 
     private Opened Open(WildlifeKind kind)
     {
@@ -209,7 +249,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         string[] joints = [.. engine.Animation.ReadJoints(resource).ToArray().Select(joint => joint.Id)];
         (uint, uint, uint)[] legs = [.. rig.Rig.Legs.Select(leg =>
             ((uint)Array.IndexOf(joints, leg.Root), (uint)Array.IndexOf(joints, leg.Mid), (uint)Array.IndexOf(joints, leg.End)))];
-        return opened[kind.Id] = new Opened(resource, rig, legs);
+        return opened[kind.Id] = new Opened(resource, rig, legs, joints);
     }
 
     /// <summary>Retires every body not among these animals. Call before the snapshot built without them.</summary>
@@ -249,5 +289,12 @@ internal sealed class WildlifeMeshBodies : IDisposable
         AfterSnapshot(drawn: false);
         foreach (Opened open in opened.Values) open.Mesh.Dispose();
         opened.Clear();
+        foreach ((RenderResource texture, Material material) in paints.Values)
+        {
+            material.Dispose();
+            texture.Dispose();
+        }
+
+        paints.Clear();
     }
 }

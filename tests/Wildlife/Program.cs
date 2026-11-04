@@ -39,12 +39,14 @@ WorldTime Midnight = new(3, 0.5 / 24);
 
 double SpreadRadius(WildlifeHerd herd) => herd.Members.Max(m => Vector2.Distance(m.Position, herd.Leader.Position));
 
+// Between grown animals: the young run about among them.
 double ClosestPair(WildlifeHerd herd)
 {
     double closest = double.PositiveInfinity;
-    for (int i = 0; i < herd.Members.Count; i++)
-        for (int j = i + 1; j < herd.Members.Count; j++)
-            closest = Math.Min(closest, Vector2.Distance(herd.Members[i].Position, herd.Members[j].Position));
+    WildlifeMember[] grown = [.. herd.Members.Where(member => !member.Young)];
+    for (int i = 0; i < grown.Length; i++)
+        for (int j = i + 1; j < grown.Length; j++)
+            closest = Math.Min(closest, Vector2.Distance(grown[i].Position, grown[j].Position));
     return closest;
 }
 
@@ -231,7 +233,9 @@ Check.Section("bodies", () =>
         "a clip the build does not have must be refused");
 
     // What the herd's state calls for.
-    WildlifeHerd herd = Herd("ground-sloth", Vector2.Zero, 3, "clips");
+    // A herd of grown animals, so the checks below are about the clips and not the young.
+    WildlifeKind grown = kind with { Young = null };
+    WildlifeHerd herd = WildlifeRules.Wake(new HerdRecord("clips", kind.Id, Vector2.Zero, 3), grown, catalog, Seed, Vector2.Zero, 3, NextId);
     WildlifeMember one = herd.Members[1];
     herd.Activity = WildlifeActivity.Graze;
     Check.Equal(WildlifeClipRole.Graze, WildlifeClips.Want(one, herd, rig), "a standing grazer feeds");
@@ -307,6 +311,117 @@ Check.Section("bodies", () =>
     double line = animation.FullMetres + 1;
     Check.Equal(WildlifeTier.Full, WildlifeClips.Tier(line, WildlifeTier.Full, animation), "an animal keeps the nearer tier for the margin");
     Check.Equal(WildlifeTier.Play, WildlifeClips.Tier(line, WildlifeTier.Play, animation), "and the further one until it is back inside the line");
+});
+
+Check.Section("hurt", () =>
+{
+    // A sloth stands until it is badly hurt, then runs by itself; the herd goes on standing.
+    WildlifeKind kind = catalog.Kind("ground-sloth");
+    WildlifeHerd herd = Herd("ground-sloth", new Vector2(0, 0), 5, "hurt");
+    WildlifeMember sloth = herd.Members.First(member => !member.Young && member != herd.Leader);
+    Vector2 crowd = herd.Leader.Position + new Vector2(5, 0);
+    Run(herd, 10, Midnight, _ => crowd);
+    Check.Equal(PressedResponse.Stand, WildlifeRules.Response(sloth, kind), "a whole sloth stands");
+    int bad = (int)(sloth.Combat.MaximumHealth * kind.Senses.FleeBelowHealth) - 1;
+    sloth.Combat = sloth.Combat with { Health = bad };
+    Check.Equal(PressedResponse.Flee, WildlifeRules.Response(sloth, kind), "a badly hurt sloth runs");
+    double before = Vector2.Distance(sloth.Position, crowd);
+    Run(herd, 6, Midnight, _ => crowd);
+    Check.That(Vector2.Distance(sloth.Position, crowd) > before + 8, "it runs from the player");
+    Check.Equal(Wariness.Respond, herd.Leader.Stage, "and the herd goes on standing");
+    Check.That(herd.Leader.Velocity == Vector2.Zero, "where it stood");
+
+    // Its flight is its own: once it is clear the herd calms when the player goes, not held in alarm by it.
+    Run(herd, 40, Midnight, _ => crowd + new Vector2(300, 0));
+    Check.That(herd.Members.All(member => member.Stage is Wariness.Calm or Wariness.Regroup), "the herd calms once the player has gone");
+
+    // A hurt glyptodon stays in its shell.
+    WildlifeHerd shell = Herd("glyptodon", Vector2.Zero, 1, "shell");
+    shell.Leader.Combat = shell.Leader.Combat with { Health = 1 };
+    Check.Equal(PressedResponse.Hunker, WildlifeRules.Response(shell.Leader, shell.Kind), "a shell is no place to run from");
+    Check.That(catalog.Kind("mammoth").Senses.FleeBelowHealth > 0 && catalog.Kind("entelodont").Senses.FleeBelowHealth > 0, "the other kinds that hold their ground break too");
+});
+
+Check.Section("young", () =>
+{
+    WildlifeKind kind = catalog.Kind("ground-sloth");
+    WildlifeYoung young = kind.Young!;
+    CreatureRig built = CreatureManifest.Parse(ReadResource("Wildlife.sloth.manifest.json"));
+    WildlifeRig rig = WildlifeRig.For(kind.Mesh!, built);
+
+    // A fair share of animals are young, and no herd is led by one.
+    int total = 0, youngCount = 0;
+    for (int i = 0; i < 200; i++)
+    {
+        WildlifeHerd sample = Herd("ground-sloth", Vector2.Zero, 6, $"count{i}");
+        Check.That(!sample.Leader.Young, "a herd is led by a grown animal");
+        total += sample.Members.Count - 1;
+        youngCount += sample.Members.Count(member => member.Young);
+    }
+
+    Check.That(Math.Abs((youngCount / (double)total) - young.Share) < 0.08, $"young make their share of a herd ({youngCount} of {total})");
+    Check.That(catalog.Kind("hipparion").Young is null, "a kind without young has none");
+
+    WildlifeHerd herd = YoungHerd(7, "playful");
+    WildlifeMember calf = herd.Members.First(member => member.Young);
+    Check.That(calf.Combat.MaximumHealth < kind.MaximumHealth / 2, "the young are weaker");
+    Check.That(young.Loot.Entries.All(entry => entry.Maximum <= kind.Loot.Entries.First(adult => adult.ItemId == entry.ItemId).Maximum / 2 + 1), "and yield less");
+
+    // Among the adults they move faster, and they change direction, and stop.
+    int moving = 0, still = 0, turns = 0;
+    Vector2 last = Vector2.Zero;
+    double farthest = 0, fastest = 0;
+    Run(herd, 100, Morning, _ => null, _ =>
+    {
+        float speed = calf.Velocity.Length();
+        if (speed == 0) still++;
+        else
+        {
+            moving++;
+            fastest = Math.Max(fastest, speed);
+            if (last != Vector2.Zero && Vector2.Dot(Vector2.Normalize(last), Vector2.Normalize(calf.Velocity)) < 0.7f) turns++;
+            last = calf.Velocity;
+        }
+
+        farthest = Math.Max(farthest, Vector2.Distance(calf.Position, herd.NearestAdult(calf.Position).Position));
+    });
+    Check.That(fastest <= young.DartSpeed + 0.01, $"a young animal keeps to its dart speed ({fastest:F2} m/s)");
+    Check.That(young.DartSpeed > kind.Speeds.Walk, "the young run faster than the adults walk");
+    Check.That(moving > 100 && still > 100, $"it darts and stops ({moving} moving, {still} still)");
+    Check.That(turns >= 4, $"it changes direction ({turns} turns)");
+    Check.That(farthest <= young.DartMetres * 2.5, $"it stays among the adults (at most {farthest:F1} m from one)");
+
+    // Its legs turn over faster for its size, and it runs where an adult at that speed would walk.
+    calf.Velocity = new Vector2((float)young.DartSpeed, 0);
+    calf.Enter(Wariness.Calm);
+    Check.Equal(WildlifeClipRole.Run, WildlifeClips.Want(calf, herd, rig), "at its dart speed it runs");
+    Check.That(WildlifeClips.Rate(WildlifeClipRole.Run, (float)young.DartSpeed, rig, catalog.Animation, young.Scale) > 1.2f, "a small body's stride turns over faster");
+
+    // Pressed, it keeps behind an adult from the player, while the adults stand.
+    WildlifeHerd pressed = YoungHerd(7, "pressed");
+    WildlifeMember small = pressed.Members.First(member => member.Young);
+    Vector2 player = pressed.Leader.Position + new Vector2(6, 0);
+    Run(pressed, 16, Midnight, _ => player);
+    WildlifeMember shield = pressed.NearestAdult(small.Position);
+    Check.Equal(Wariness.Respond, small.Stage, "the young are pressed with the herd");
+    Check.That(Vector2.Distance(small.Position, player) > Vector2.Distance(shield.Position, player), "it stands behind an adult, from the player");
+    Check.That(Vector2.Distance(small.Position, shield.Position) <= young.ShelterMetres * 2, "and close to it");
+    Check.That(WildlifeClips.Want(small, pressed, rig) != WildlifeClipRole.Stand, "and it does not swipe");
+
+    // The leader dies: a grown animal takes over.
+    pressed.Remove(pressed.Leader);
+    Check.That(!pressed.Leader.Young, "a grown animal leads when the leader falls");
+    Check.Equal(Vector2.Zero, pressed.Leader.Slot, "from the herd's centre");
+
+    WildlifeHerd YoungHerd(int count, string key)
+    {
+        for (int i = 0; ; i++)
+        {
+            WildlifeHerd candidate = Herd("ground-sloth", new Vector2(100, 100), count, $"{key}{i}");
+            int small = candidate.Members.Count(member => member.Young);
+            if (small >= 1 && small <= 3) return candidate;
+        }
+    }
 });
 
 Check.Section("region seeding", () =>
