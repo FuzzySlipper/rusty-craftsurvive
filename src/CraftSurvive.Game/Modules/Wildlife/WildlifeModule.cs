@@ -160,7 +160,7 @@ internal sealed class WildlifeModule : IProductModule
         Vector2? sensed = player.Vitals.IsDown ? null : here;
         foreach (WildlifeHerd herd in awake)
         {
-            WildlifeRules.Decide(herd, new HerdFacts(sensed, now, Seed, WaterFor(herd), Allowed), Catalog, time.ElapsedSeconds);
+            WildlifeRules.Decide(herd, new HerdFacts(sensed, now, Seed, WaterFor(herd), Allowed, Excluded), Catalog, time.ElapsedSeconds);
             Apply(herd, here, time.ElapsedSeconds);
         }
 
@@ -203,6 +203,9 @@ internal sealed class WildlifeModule : IProductModule
 
     private MapBiome BiomeAt(double x, double z) => WorldMap.Biome(terrain.Recipe.Map.Sample(x, z));
 
+    /// <summary>Ground no animal stands on or crosses: the towns' sanctuary.</summary>
+    private bool Excluded(Vector2 point) => Sanctuary?.Invoke(point.X, point.Y) == true;
+
     /// <summary>
     /// Ground a herd may head for: outside the towns' sanctuary, and dry on the continent's map, so a
     /// goal never stands in the sea or a lake. The map answers for ground far from the player without
@@ -210,7 +213,7 @@ internal sealed class WildlifeModule : IProductModule
     /// </summary>
     private bool Allowed(Vector2 point)
     {
-        if (Sanctuary?.Invoke(point.X, point.Y) == true) return false;
+        if (Excluded(point)) return false;
         MapSample map = terrain.Recipe.Map.Sample(point.X, point.Y);
         return map.Elevation >= Math.Max(GenerationConstants.WaterLevel, map.LakeSurface);
     }
@@ -273,7 +276,7 @@ internal sealed class WildlifeModule : IProductModule
 
     private WildlifeHerd WakeAt(HerdRecord record, WildlifeKind kind, Vector2 point, int alive)
     {
-        WildlifeHerd herd = WildlifeRules.Wake(record, kind, Catalog, Seed, point, alive, TakeId);
+        WildlifeHerd herd = WildlifeRules.Wake(record, kind, Catalog, Seed, point, alive, TakeId, Excluded);
         foreach (WildlifeMember member in herd.Members)
         {
             bodies[member.Id] = new MemberBody { Feet = GroundOf(member.Position.X, member.Position.Y) };
@@ -335,7 +338,7 @@ internal sealed class WildlifeModule : IProductModule
         {
             double angle = 2 * Math.PI * heading / placement.WaterHeadings;
             Vector2 point = herd.Home + new Vector2((float)(radius * Math.Sin(angle)), (float)(radius * -Math.Cos(angle)));
-            if (!Drinkable(point) || Sanctuary?.Invoke(point.X, point.Y) == true) continue;
+            if (!Drinkable(point) || Excluded(point)) continue;
             shore = Shore(point, herd.Home);
             ended = true;
             break;
@@ -397,31 +400,45 @@ internal sealed class WildlifeModule : IProductModule
             float speed = member.Velocity.Length();
             double travel = speed * seconds;
             if (travel < StillMetres) continue;
-            if (Vector2.Distance(member.Position, here) > Catalog.Waking.BodyMetres)
+            Vector2 from = member.Position;
+            float feet = state.Feet;
+            Move(member, state, config, here, speed, travel, seconds);
+            // A body's step can slide along what it meets, off the line the rules cleared.
+            if (Excluded(member.Position) && !Excluded(from))
             {
-                Glide(member, state, seconds);
-                continue;
+                member.Position = from;
+                state.Feet = feet;
+                state.Body = null;
             }
-
-            CreatureBodyState body = state.Body ?? new CreatureBodyState(
-                CreatureBody.CentreOver(frame.ToLocal(member.Position.X, state.Feet, member.Position.Y), config),
-                CreatureBody.AtRest(CreatureBody.CentreOver(frame.ToLocal(member.Position.X, state.Feet, member.Position.Y), config)));
-            Vector2 target = member.Position + (member.Velocity / speed * (float)(travel + AimPastMetres));
-            Vector3 toward = frame.ToLocal(target.X, 0, target.Y);
-            cost.Steps++;
-            if (CreatureBody.Step(engine.Spatial, terrain.Session, body, config, new Vector2(toward.X, toward.Z), travel, seconds, () => ++bodySequence)
-                is not CreatureBodyState moved)
-            {
-                cost.Refused++;
-                Glide(member, state, seconds);
-                continue;
-            }
-
-            state.Body = moved;
-            Vector3 feet = frame.ToWorld(CreatureBody.FeetUnder(moved.Centre, config));
-            state.Feet = feet.Y;
-            member.Position = new Vector2(feet.X, feet.Z);
         }
+    }
+
+    private void Move(WildlifeMember member, MemberBody state, CharacterControllerConfig config, Vector2 here, float speed, double travel, double seconds)
+    {
+        if (Vector2.Distance(member.Position, here) > Catalog.Waking.BodyMetres)
+        {
+            Glide(member, state, seconds);
+            return;
+        }
+
+        CreatureBodyState body = state.Body ?? new CreatureBodyState(
+            CreatureBody.CentreOver(frame.ToLocal(member.Position.X, state.Feet, member.Position.Y), config),
+            CreatureBody.AtRest(CreatureBody.CentreOver(frame.ToLocal(member.Position.X, state.Feet, member.Position.Y), config)));
+        Vector2 target = member.Position + (member.Velocity / speed * (float)(travel + AimPastMetres));
+        Vector3 toward = frame.ToLocal(target.X, 0, target.Y);
+        cost.Steps++;
+        if (CreatureBody.Step(engine.Spatial, terrain.Session, body, config, new Vector2(toward.X, toward.Z), travel, seconds, () => ++bodySequence)
+            is not CreatureBodyState moved)
+        {
+            cost.Refused++;
+            Glide(member, state, seconds);
+            return;
+        }
+
+        state.Body = moved;
+        Vector3 feet = frame.ToWorld(CreatureBody.FeetUnder(moved.Centre, config));
+        state.Feet = feet.Y;
+        member.Position = new Vector2(feet.X, feet.Z);
     }
 
     /// <summary>
@@ -501,6 +518,7 @@ internal sealed class WildlifeModule : IProductModule
         if (!Catalog.TryKind(kindId, out WildlifeKind kind)) return $"no kind '{kindId}'; kinds: {string.Join(",", Catalog.Kinds.Select(k => k.Id))}";
         Vector3 at = player.WorldPosition;
         Vector2 point = new(at.X + (float)(east ?? (kind.Senses.NoticeMetres + SpawnBeyondNoticeMetres)), at.Z + (float)(south ?? 0));
+        if (Excluded(point)) return $"({point.X:F0}, {point.Y:F0}) is in a town's sanctuary: no herd stands there";
         size = size > 0 ? size : (kind.GroupMinimum + kind.GroupMaximum) / 2;
         if (awake.Count >= Catalog.Waking.MostAwakeHerds) Release(awake.OrderByDescending(herd => Vector2.Distance(herd.Leader.Position, new Vector2(at.X, at.Z))).First());
         WildlifeKind shown = pressed is PressedResponse response ? kind with { Pressed = response } : kind;

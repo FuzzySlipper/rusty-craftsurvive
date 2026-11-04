@@ -60,6 +60,7 @@
     "catchUpSpeedShare": 1.5,
     "slotLeaveShare": 0.4,
     "grazeCycleSeconds": 20,
+    "pathCheckMetres": 8,
     "separationShare": 0.6,
     "slotJitterShare": 0.3
   },

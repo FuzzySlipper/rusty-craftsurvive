@@ -364,6 +364,73 @@ Check.Section("region seeding", () =>
         "a herd wakes elsewhere on another day");
 });
 
+Check.Section("sanctuary", () =>
+{
+    const float Radius = 160;
+    Vector2 town = Vector2.Zero;
+    bool Inside(Vector2 point) => Vector2.Distance(point, town) < Radius;
+    double step = catalog.Behaviour.PathCheckMetres;
+
+    // Runs a herd with the town in force, failing if any animal ever stands in it.
+    int Intrusions(WildlifeHerd herd, double seconds, WorldTime start, Func<double, Vector2?> player)
+    {
+        int found = 0;
+        for (double t = 0; t < seconds; t += Tick)
+        {
+            WorldTime time = start with { DayFraction = (start.DayFraction + (t / WorldClock.DaySeconds)) % 1 };
+            WildlifeRules.Decide(herd, new HerdFacts(player(t), time, Seed, null, point => !Inside(point), Inside), catalog, Tick);
+            WildlifeRules.Integrate(herd, Tick);
+            found += herd.Members.Count(member => Inside(member.Position));
+        }
+
+        return found;
+    }
+
+    WildlifeHerd Beside(string kindId, Vector2 at, int count, string key)
+    {
+        WildlifeKind kind = catalog.Kind(kindId);
+        return WildlifeRules.Wake(new HerdRecord(key, kind.Id, at, count), kind, catalog, Seed, at, count, NextId, Inside);
+    }
+
+    // A herd woken right on the edge: the slots that fall inside are drawn out of it.
+    WildlifeHerd edge = Beside("mammoth", new Vector2(161, 0), 10, "edge");
+    Check.That(!edge.Members.Any(member => Inside(member.Position)), "no animal wakes in a sanctuary, however near the edge its herd does");
+    Check.Equal(0, Intrusions(edge, 30, Morning, _ => null), "an edge herd settling into its spacing stays out");
+
+    // Goals across the town: a straight walk there would cross it.
+    Check.That(!WildlifeRules.PathClear(new Vector2(-200, 0), new Vector2(200, 0), step, Inside), "a path across a sanctuary is not clear");
+    Check.That(WildlifeRules.PathClear(new Vector2(-200, 170), new Vector2(200, 170), step, Inside), "a path past it is");
+    WildlifeHerd drifting = Beside("mammoth", new Vector2(-200, 0), 7, "across");
+    Vector2 started = drifting.Leader.Position;
+    Check.Equal(0, Intrusions(drifting, 900, Morning, _ => null), "a herd drifting through a day with a town in its range never enters it");
+    Check.That(Vector2.Distance(drifting.Leader.Position, started) > 20, "and it is not stuck at the edge");
+
+    // Fleeing straight at the town: the band goes round.
+    WildlifeHerd band = Beside("hipparion", new Vector2(190, 0), 8, "flight");
+    Vector2 pressing = band.Centre + new Vector2(20, 0);
+    Check.Equal(0, Intrusions(band, 30, Morning, _ => pressing), "a band bolting toward a town turns along its edge");
+    Check.That(Vector2.Distance(band.Centre, pressing) > 40, "and still gets away");
+
+    // Charging a player who stands inside: it stops at the edge.
+    WildlifeHerd pair = Beside("entelodont", new Vector2(170, 0), 2, "charge");
+    Vector2 safe = new(Radius - 5, 0);
+    Check.Equal(0, Intrusions(pair, 20, Morning, _ => safe), "a charge stops at the sanctuary's edge");
+
+    // A town founded on an animal: it may walk out, and it does not stay caught.
+    WildlifeHerd caught = Herd("hipparion", new Vector2(150, 0), 1, "caught");
+    Vector2 behind = new(130, 0);
+    Intrusions(caught, 30, Morning, _ => behind);
+    Check.That(!Inside(caught.Leader.Position), "a pressed animal already inside can flee out");
+    WildlifeHerd calm = Herd("hipparion", new Vector2(150, 0), 1, "calm-inside");
+    // It keeps its day on the way, resting and all, so it is given one; once out, it stays out.
+    for (int hour = 0; hour < 24 && Inside(calm.Leader.Position); hour++)
+    {
+        Intrusions(calm, 50, Morning with { DayFraction = ((6.5 + hour) % 24) / 24 }, _ => null);
+    }
+    Check.That(!Inside(calm.Leader.Position), "a calm animal already inside walks out too");
+    Check.Equal(0, Intrusions(calm, 120, Morning with { DayFraction = 19.0 / 24 }, _ => null), "and it does not walk back in");
+});
+
 Check.Section("population", () =>
 {
     const double RecoveryDays = 12;

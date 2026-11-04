@@ -147,6 +147,7 @@ internal readonly record struct WildlifeBehaviour(
     double CatchUpSpeedShare,
     double SlotLeaveShare,
     double GrazeCycleSeconds,
+    double PathCheckMetres,
     double SeparationShare,
     double SlotJitterShare);
 
@@ -285,6 +286,7 @@ internal static class WildlifeKinds
                 behaviour.GetProperty("catchUpSpeedShare").GetDouble(),
                 behaviour.GetProperty("slotLeaveShare").GetDouble(),
                 behaviour.GetProperty("grazeCycleSeconds").GetDouble(),
+                behaviour.GetProperty("pathCheckMetres").GetDouble(),
                 behaviour.GetProperty("separationShare").GetDouble(),
                 behaviour.GetProperty("slotJitterShare").GetDouble()),
             ReadAnimation(root.GetProperty("animation")));

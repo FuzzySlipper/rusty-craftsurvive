@@ -8,8 +8,10 @@ namespace CraftSurvive.Game.Modules.Wildlife;
 /// <summary>What a herd reads of the world each update.</summary>
 /// <param name="Player">The player's planar position (world X, Z), or null when there is no player to sense (down, or away in a dungeon).</param>
 /// <param name="Water">Where the herd drinks, if its range has water the product found; without it, drinking is grazing.</param>
-/// <param name="Allowed">Ground a herd may head for (the product's town sanctuary keeps them out); null allows all.</param>
-internal readonly record struct HerdFacts(Vector2? Player, WorldTime Time, ulong Seed, Vector2? Water = null, Func<Vector2, bool>? Allowed = null);
+/// <param name="Allowed">Ground a herd may head for: it need not stop an animal crossing it. Null allows all.</param>
+/// <param name="Excluded">Ground no animal may stand on or cross: the towns' sanctuary. Null excludes nothing.</param>
+internal readonly record struct HerdFacts(Vector2? Player, WorldTime Time, ulong Seed, Vector2? Water = null, Func<Vector2, bool>? Allowed = null,
+    Func<Vector2, bool>? Excluded = null);
 
 /// <summary>
 /// Wildlife behaviour as Engine-free rules (#10567), beside <see cref="CreatureBehaviorRules"/>: the
@@ -21,6 +23,9 @@ internal readonly record struct HerdFacts(Vector2? Player, WorldTime Time, ulong
 ///   woken; the others keep their slots beside the leader and their spacing from each other. A
 ///   grazing herd stands to feed and walks on in turn, at its walking pace, so that it covers the
 ///   ground at its graze-drift speed without sliding through a walk played too slowly.
+/// - **Sanctuary:** no animal wakes on or walks into excluded ground. A goal must be reachable in a
+///   straight line clear of it, and an animal that meets it, fleeing or charging too, turns along
+///   its edge. One already inside (a town founded on it) may walk out.
 /// - **Wariness:** each animal notices the player at its kind's notice distance and looks; inside
 ///   the act distance, after looking, it warns; still pressed after warning, it responds: flees,
 ///   stands, charges or hunkers. A struck animal responds at once.
@@ -42,6 +47,9 @@ internal static class WildlifeRules
 
     /// <summary>The golden angle: successive slots turn by it, so a herd of any size is evenly spread.</summary>
     private static readonly double GoldenAngle = Math.PI * (3 - Math.Sqrt(5));
+
+    /// <summary>An animal meeting excluded ground tries these turns from its heading, smallest first, to go along the edge.</summary>
+    private static readonly float[] EdgeTurns = [MathF.PI / 4, -MathF.PI / 4, MathF.PI / 2, -MathF.PI / 2];
 
     /// <summary>A straggling animal is pulled back toward its herd's centre at this share of its distance a second while it flees.</summary>
     private const float FleeCohesionShare = 0.2f;
@@ -80,9 +88,11 @@ internal static class WildlifeRules
 
     /// <summary>
     /// Wakes a herd of <paramref name="count"/> animals with its leader at a point and the rest in
-    /// their slots, calm and fresh; each takes the next id.
+    /// their slots, calm and fresh; each takes the next id. A slot on excluded ground is drawn in
+    /// toward the leader until it is clear: the herd's spacing sorts them out from there.
     /// </summary>
-    internal static WildlifeHerd Wake(HerdRecord record, WildlifeKind kind, WildlifeCatalog catalog, ulong seed, Vector2 at, int count, Func<int> nextId)
+    internal static WildlifeHerd Wake(HerdRecord record, WildlifeKind kind, WildlifeCatalog catalog, ulong seed, Vector2 at, int count, Func<int> nextId,
+        Func<Vector2, bool>? excluded = null)
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(kind);
@@ -91,11 +101,53 @@ internal static class WildlifeRules
         return new WildlifeHerd(record, kind, Enumerable.Range(0, count).Select(order =>
         {
             Vector2 slot = Slot(order, kind, catalog.Behaviour, seed, record.Key);
-            return new WildlifeMember(nextId(), at + slot, slot, CombatantState.Fresh(kind.MaximumHealth, kind.Defence))
+            return new WildlifeMember(nextId(), Clear(at, slot, catalog.Behaviour.PathCheckMetres, excluded), slot, CombatantState.Fresh(kind.MaximumHealth, kind.Defence))
             {
                 Yaw = (float)(2 * Math.PI * Unit(seed, string.Create(CultureInfo.InvariantCulture, $"wildlife:{record.Key}:yaw:{order}"))),
             };
         }));
+    }
+
+    /// <summary>The furthest point along an offset from a clear anchor that is clear itself; the anchor if none is.</summary>
+    private static Vector2 Clear(Vector2 at, Vector2 offset, double step, Func<Vector2, bool>? excluded)
+    {
+        if (excluded is null || !excluded(at + offset)) return at + offset;
+        float length = offset.Length();
+        for (float along = length - (float)step; along > 0; along -= (float)step)
+        {
+            Vector2 point = at + (offset * (along / length));
+            if (!excluded(point)) return point;
+        }
+
+        return at;
+    }
+
+    /// <summary>Whether the straight line between two points stays off excluded ground, checked every so many metres.</summary>
+    internal static bool PathClear(Vector2 from, Vector2 to, double step, Func<Vector2, bool>? excluded)
+    {
+        if (excluded is null) return true;
+        float length = Vector2.Distance(from, to);
+        for (float along = 0; along < length; along += (float)step)
+        {
+            if (excluded(Vector2.Lerp(from, to, along / length))) return false;
+        }
+
+        return !excluded(to);
+    }
+
+    /// <summary>A velocity that keeps an animal off excluded ground: as it was, else turned along the edge, else still. One already inside may walk out.</summary>
+    private static Vector2 KeepOut(Vector2 position, Vector2 velocity, double seconds, Func<Vector2, bool>? excluded)
+    {
+        if (excluded is null || velocity == Vector2.Zero || excluded(position)) return velocity;
+        float step = (float)seconds;
+        if (!excluded(position + (velocity * step))) return velocity;
+        foreach (float turn in EdgeTurns)
+        {
+            Vector2 turned = Vector2.Transform(velocity, Matrix3x2.CreateRotation(turn));
+            if (!excluded(position + (turned * step))) return turned;
+        }
+
+        return Vector2.Zero;
     }
 
     /// <summary>Moves every member by its decided velocity: the rule lane's stand-in for the product's bodies.</summary>
@@ -227,12 +279,19 @@ internal static class WildlifeRules
         }
     }
 
-    private static Vector2 Goal(WildlifeHerd herd, HerdFacts facts, WildlifeCatalog catalog) => herd.Activity switch
+    private static Vector2 Goal(WildlifeHerd herd, HerdFacts facts, WildlifeCatalog catalog)
     {
-        WildlifeActivity.Rest => herd.Leader.Position,
-        WildlifeActivity.Drink when facts.Water is Vector2 water => water,
-        _ => RangePoint(herd.Key, herd.Home, herd.Kind, herd.Period, herd.GoalSerial, facts.Seed, catalog.Placement.HomeAttempts, facts.Allowed),
-    };
+        Vector2 from = herd.Leader.Position;
+        double step = catalog.Behaviour.PathCheckMetres;
+        if (herd.Activity == WildlifeActivity.Rest) return from;
+        // A leader caught inside excluded ground has no clear line anywhere: any way out will do.
+        bool Reachable(Vector2 point) => facts.Excluded?.Invoke(from) == true ? facts.Excluded(point) == false : PathClear(from, point, step, facts.Excluded);
+        if (herd.Activity == WildlifeActivity.Drink && facts.Water is Vector2 water && Reachable(water)) return water;
+        Vector2 goal = RangePoint(herd.Key, herd.Home, herd.Kind, herd.Period, herd.GoalSerial, facts.Seed, catalog.Placement.HomeAttempts,
+            point => facts.Allowed?.Invoke(point) != false && Reachable(point));
+        // With nowhere clear to go, even home, the herd stays where it is.
+        return Reachable(goal) ? goal : from;
+    }
 
     /// <summary>
     /// Where a dormant herd is when it wakes: the first goal of the schedule step it is in. Its day
@@ -330,12 +389,13 @@ internal static class WildlifeRules
                 default:
                     velocity = member == leader
                         ? LeaderVelocity(herd, behaviour, leaderSpeed, seconds)
-                        : FollowerVelocity(member, leader, kind, behaviour, seconds);
+                        : FollowerVelocity(member, leader, kind, behaviour, seconds, facts.Excluded);
                     break;
             }
 
             // The leader sets the pace; it is the others who keep their distance from it.
             if (shuffles && member != leader) velocity = Cap(velocity + Separation(member, herd, behaviour), Math.Max(kind.Speeds.Walk, velocity.Length()));
+            velocity = KeepOut(member.Position, velocity, seconds, facts.Excluded);
             member.Velocity = velocity;
             float turn = (float)(kind.Speeds.TurnDegrees * Math.PI / 180 * seconds);
             if (face is Vector2 target && target != member.Position) member.Yaw = Turned(member.Yaw, Yaw(target - member.Position), turn);
@@ -360,11 +420,13 @@ internal static class WildlifeRules
         return herd.GrazeSeconds % behaviour.GrazeCycleSeconds < behaviour.GrazeCycleSeconds * share;
     }
 
-    private static Vector2 FollowerVelocity(WildlifeMember member, WildlifeMember leader, WildlifeKind kind, WildlifeBehaviour behaviour, double seconds)
+    private static Vector2 FollowerVelocity(WildlifeMember member, WildlifeMember leader, WildlifeKind kind, WildlifeBehaviour behaviour, double seconds,
+        Func<Vector2, bool>? excluded)
     {
         Vector2 target = leader.Position + member.Slot;
         double distance = Vector2.Distance(member.Position, target);
-        if (distance <= behaviour.SlotArrivalMetres) member.Following = false;
+        // A slot on excluded ground is no place to go: the animal waits for the leader to move it clear.
+        if (distance <= behaviour.SlotArrivalMetres || excluded?.Invoke(target) == true) member.Following = false;
         else if (distance > kind.SpacingMetres * behaviour.SlotLeaveShare || member.Stage == Wariness.Regroup) member.Following = true;
         if (!member.Following) return Vector2.Zero;
         double speed = distance > kind.SpacingMetres * behaviour.CatchUpSpacings ? kind.Speeds.Walk * behaviour.CatchUpSpeedShare : kind.Speeds.Walk;
