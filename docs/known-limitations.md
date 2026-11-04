@@ -583,7 +583,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   fill, and the eyes adjust (auto exposure up to `NightMaxExposure`) while the grade cools and
   desaturates. By day they adjust too, up to `DayMaxExposure`, but aim at `DayTargetLuminance`,
   near the sunlit world's own average: sunlit views stay as they are, and only deep shade, a forest
-  under ray-traced global illumination, opens them. Underground and on the map they do not adjust.
+  under ray-traced global illumination, opens them, within seconds where the night's take minutes.
+  Underground and on the map they do not adjust.
 
   The Engine draws the moon with its phase (rusty-engine #9866): its lit limb turns toward the real
   sun, which stays the atmosphere's sky sun all night, though with no disc. By day it is a pale disc.

@@ -75,13 +75,15 @@ internal sealed class DayNightSky : IDisposable
 
     /// <summary>
     /// Eyes adjust to the dark: by night the exposure may rise to this, closing on its target at this
-    /// rate (1/s), so darkness eases in over the first minutes rather than at once. By day, underground
+    /// rate (1/s), so darkness eases in over the first minutes rather than at once. Underground
     /// and on the map it stays 1. The background is never exposed, so the range stays small enough for
     /// the world to keep in step with its sky.
     /// </summary>
-    private const float NightMaxExposure = 2.5f, EyeAdjustRate = 0.05f;
+    private const float NightMaxExposure = 2.5f, NightEyeAdjustRate = 0.05f;
     /// <summary>What the eyes aim at: by day near the sunlit world's own average, so sunlit views stay as they are and only a forest's shade opens them, by night middle grey.</summary>
     private const float DayMaxExposure = 4f, DayTargetLuminance = 0.03f, NightTargetLuminance = 0.18f;
+    /// <summary>By day the eyes settle in seconds (1/s), so walking into a forest's shade or back out into the sun does not hold the wrong exposure for a minute.</summary>
+    private const float DayEyeAdjustRate = 0.25f;
 
     /// <summary>By night the grade cools and loses colour by this much (at no daylight), so moonlight reads as night rather than a dim day.</summary>
     private const float NightCooling = -0.12f, NightDesaturation = -0.35f;
@@ -1022,12 +1024,13 @@ internal sealed class DayNightSky : IDisposable
         float dark = Math.Clamp(night, 0f, 1f);
         float most = DayMaxExposure + ((NightMaxExposure - DayMaxExposure) * dark);
         float target = DayTargetLuminance * MathF.Pow(NightTargetLuminance / DayTargetLuminance, dark);
-        engine.CameraView.SetAutoExposure(new AutoExposureRequest(true, EyeAdjustRate, 1f, most, target));
+        float rate = DayEyeAdjustRate + ((NightEyeAdjustRate - DayEyeAdjustRate) * dark);
+        engine.CameraView.SetAutoExposure(new AutoExposureRequest(true, rate, 1f, most, target));
     }
 
     /// <summary>Eyes that do not open: underground the dark is the torch's to push back, and the map reads as drawn.</summary>
     private void EyesHeld() =>
-        engine.CameraView.SetAutoExposure(new AutoExposureRequest(true, EyeAdjustRate, 1f, 1f));
+        engine.CameraView.SetAutoExposure(new AutoExposureRequest(true, DayEyeAdjustRate, 1f, 1f));
 
     /// <summary>
     /// The moon's own light, at the share of a full moon's it gives now (phase, height, cloud). It
