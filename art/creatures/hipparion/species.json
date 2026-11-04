@@ -1,7 +1,7 @@
 {
   "id": "three-toed-horse",
   "family": "ungulate",
-  "about": "Hipparion, a stand-in fit until its mesh exists: 1.9 m body and 1.4 m at the withers. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "about": "Hipparion, 2.35 m from nose to tail tip and about 1.35 m at the withers, fitted to the Tripo body (art/creatures/hipparion/mesh). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
   "points": {
     "root": [
       0,
@@ -15,123 +15,123 @@
     ],
     "hips": [
       0,
-      -0.55,
-      1.12
+      -0.58,
+      1.17
     ],
     "spine": [
       0,
-      -0.1,
-      1.12
+      -0.19,
+      1.155
     ],
     "chest": [
       0,
-      0.35,
-      1.14
+      0.28,
+      1.12
     ],
     "neck": [
       0,
-      0.48,
-      1.2
+      0.41,
+      1.21
     ],
     "neck2": [
       0,
-      0.68,
+      0.65,
       1.42
     ],
     "head": [
       0,
-      0.84,
-      1.6
+      0.83,
+      1.59
     ],
     "nose": [
       0,
-      1.2,
-      1.32
+      1.14,
+      1.38
     ],
     "jaw": [
       0,
-      0.92,
-      1.47
+      0.91,
+      1.45
     ],
     "jaw_tip": [
       0,
-      1.17,
-      1.27
+      1.11,
+      1.33
     ],
     "tail0": [
       0,
-      -0.72,
-      1.14
+      -0.89,
+      1.22
     ],
     "tail1": [
       0,
-      -0.85,
+      -1.0,
       0.98
     ],
     "tail2": [
       0,
-      -0.92,
-      0.76
+      -1.07,
+      0.7
     ],
     "tail3": [
       0,
-      -0.95,
-      0.52
+      -1.11,
+      0.44
     ],
     "hip_socket": [
-      0.14,
-      -0.55,
-      1.0
+      0.12,
+      -0.65,
+      1.05
     ],
     "stifle": [
-      0.16,
-      -0.33,
-      0.74
-    ],
-    "hock": [
-      0.14,
-      -0.62,
-      0.52
-    ],
-    "fetlock": [
       0.13,
       -0.54,
-      0.14
+      0.86
+    ],
+    "hock": [
+      0.1,
+      -0.9,
+      0.57
+    ],
+    "fetlock": [
+      0.09,
+      -0.9,
+      0.13
     ],
     "toe": [
-      0.13,
-      -0.47,
-      0.0
+      0.09,
+      -0.8,
+      0.03
     ],
     "shoulder": [
-      0.15,
-      0.34,
-      0.96
+      0.12,
+      0.35,
+      0.98
     ],
     "elbow": [
-      0.15,
-      0.24,
-      0.72
+      0.12,
+      0.3,
+      0.79
     ],
     "carpus": [
-      0.14,
-      0.3,
-      0.42
+      0.09,
+      0.31,
+      0.47
     ],
     "ffetlock": [
-      0.14,
-      0.3,
-      0.14
+      0.09,
+      0.29,
+      0.13
     ],
     "ftoe": [
-      0.14,
-      0.37,
-      0.0
+      0.09,
+      0.36,
+      0.03
     ],
     "eye": [
-      0.1,
-      1.0,
-      1.52
+      0.07,
+      0.92,
+      1.57
     ]
   },
   "clips": {
@@ -175,7 +175,7 @@
     },
     "graze": {
       "seconds": 5.0,
-      "reachDegrees": 34.0
+      "reachDegrees": 56.0
     },
     "alert": {
       "seconds": 3.0

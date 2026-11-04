@@ -49,6 +49,17 @@
    "body": "Tripo P2 multiview-to-model, task 7aef7501-5d0e-4a77-9b6d-f523ed2f3cae, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 5.2 --triangles 7000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/mammoth/"
+  },
+  {
+   "mesh": "content/game/creatures/hipparion/hipparion.glb",
+   "sha256": "55f175f61b2fc3efd452bbbee34f62cad53b00e9d2dc05a8f5e81098d3f30ffc",
+   "manifest": "content/game/creatures/hipparion/hipparion.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/hipparion/species.json with --mesh body.glb --texture body-64.png",
+   "concept": "art/creatures/hipparion/concept/concept-2.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/hipparion/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
+   "body": "Tripo P2 multiview-to-model, task 466ed60b-ab47-4a03-879f-e6165b7fb55b, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 2.35 --triangles 5000 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/hipparion/"
   }
  ],
  "reference": {

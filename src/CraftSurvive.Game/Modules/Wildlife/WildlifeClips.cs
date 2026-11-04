@@ -36,7 +36,12 @@ internal sealed record WildlifeRig(CreatureRig Rig, IReadOnlyDictionary<Wildlife
         return new WildlifeRig(rig, clips);
     }
 
-    internal CreatureClip Clip(WildlifeClipRole role) => Clips.TryGetValue(role, out CreatureClip? clip) ? clip : Clips[WildlifeClipRole.Idle];
+    /// <summary>The clip for a role: a kind with no warning of its own warns by looking, and any other role left out idles.</summary>
+    internal CreatureClip Clip(WildlifeClipRole role)
+    {
+        if (Clips.TryGetValue(role, out CreatureClip? clip)) return clip;
+        return role == WildlifeClipRole.Warn ? Clip(WildlifeClipRole.Look) : Clips[WildlifeClipRole.Idle];
+    }
 }
 
 /// <summary>
@@ -66,7 +71,8 @@ internal static class WildlifeClips
             return speed > between ? WildlifeClipRole.Run : WildlifeClipRole.Walk;
         }
 
-        if (member.Stage is Wariness.Look or Wariness.Warn or Wariness.Respond) return WildlifeClipRole.Look;
+        if (member.Stage == Wariness.Warn) return WildlifeClipRole.Warn;
+        if (member.Stage is Wariness.Look or Wariness.Respond) return WildlifeClipRole.Look;
         return herd.Activity is WildlifeActivity.Graze or WildlifeActivity.Drink ? WildlifeClipRole.Graze : WildlifeClipRole.Idle;
     }
 
@@ -95,7 +101,7 @@ internal static class WildlifeClips
         WildlifeClipRole want = Want(member, herd, rig);
         if (want == member.Clip) return false;
         // The young change gait at will: that is how they move.
-        bool urgent = member.Young || want is WildlifeClipRole.Run or WildlifeClipRole.Look or WildlifeClipRole.Stand or WildlifeClipRole.Hunker;
+        bool urgent = member.Young || want is WildlifeClipRole.Run or WildlifeClipRole.Look or WildlifeClipRole.Warn or WildlifeClipRole.Stand or WildlifeClipRole.Hunker;
         if (!urgent && member.ClipSeconds < animation.ClipHoldSeconds) return false;
         member.Clip = want;
         member.ClipSeconds = 0;

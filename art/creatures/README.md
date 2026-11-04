@@ -28,6 +28,8 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `build_creature.py` (Blender) | Rig, body, skin, clips and export: `<out>.glb` and `<out>.manifest.json` |
 | `families.py` (Blender) | Each family's skeleton, legs and clips |
 | `gait.py` | The gait math, plain Python; `python3 -I gait.py` self-checks it |
+| `cut_views.py` | Cuts a reference sheet into Tripo's four views at one scale |
+| `fit.py` (Blender) | Shows a species' joints through its prepared body, for fitting them |
 | `preview.py` (Blender) | Renders an exported GLB's clips: still frames, or every frame with `--sequence` |
 | `montage.py` | Lays `preview.py` stills out as one sheet |
 | `sequence.py` | Animates `--sequence` frames: smooth beside a stepped rate, as one GIF |
@@ -51,6 +53,9 @@ python3 -I art/creatures/montage.py <frames dir> sheet.png
   prints the residual error, under 1 cm for the sloth).
 - **Engine rules met by the export.** Clip ids are lowercase. A `rest` clip is always present.
   Samplers are nearest for both filters (rusty-engine #10011).
+- **When heat weighting fails outright.** Loose pieces no bone can see, such as a horse's mane
+  flaps, stop the whole solve. The build then solves on a watertight voxel copy, keeping only its
+  largest island, and carries the weights to the body's own vertices.
 - **Manifest.** It lists each clip's seconds, whether it loops, and whether it keeps all feet on
   the ground (`plantsFeet`), plus the legs as IK chains and where the hind and fore feet stand.
   The product reads it (`CreatureStyleTest`).

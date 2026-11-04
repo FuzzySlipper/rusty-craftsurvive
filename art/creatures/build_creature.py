@@ -21,6 +21,7 @@ import struct
 import sys
 from pathlib import Path
 
+import bmesh
 import bpy
 from bpy_extras import anim_utils
 from mathutils import Matrix, Quaternion, Vector
@@ -36,6 +37,8 @@ IK_CHAIN = 2
 WELD_METRES = 1e-5
 # More unweighted than this share means the rig doesn't fit the body: stop rather than patch it.
 UNWEIGHTED_SHARE = 0.05
+# A watertight copy for the heat solver has this many voxels along the body's longest side.
+VOXELS_ALONG_BODY = 220
 
 
 # ---------------------------------------------------------------- the family skeleton
@@ -197,15 +200,97 @@ def import_mesh(path, texture=None):
     return mesh
 
 
-def skin(rig, mesh):
+def unweighted_vertices(mesh):
+    return [v for v in mesh.data.vertices if not any(g.weight > 0 for g in v.groups)]
+
+
+def auto_weights(rig, mesh):
     bpy.ops.object.select_all(action="DESELECT")
     mesh.select_set(True)
     rig.select_set(True)
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.parent_set(type="ARMATURE_AUTO")
+
+
+def keep_largest_island(mesh):
+    """Drops every loose island but the body: one that no bone can see stops the whole solve."""
+    data = bmesh.new()
+    data.from_mesh(mesh.data)
+    data.verts.ensure_lookup_table()
+    seen, islands = set(), []
+    for start in data.verts:
+        if start.index in seen:
+            continue
+        island, stack = [], [start]
+        seen.add(start.index)
+        while stack:
+            vertex = stack.pop()
+            island.append(vertex)
+            for edge in vertex.link_edges:
+                other = edge.other_vert(vertex)
+                if other.index not in seen:
+                    seen.add(other.index)
+                    stack.append(other)
+        islands.append(island)
+    islands.sort(key=len, reverse=True)
+    print(f"watertight copy: {len(islands)} islands, keeping {len(islands[0])} of {len(data.verts)} vertices")
+    bmesh.ops.delete(data, geom=[v for island in islands[1:] for v in island], context="VERTS")
+    data.to_mesh(mesh.data)
+    data.free()
+
+
+def weights_from_watertight_copy(rig, mesh):
+    """
+    The heat solver can fail outright on a body with loose parts (a mane's flaps): solve it on a
+    voxel copy that is one closed surface, then carry the weights to the body's own vertices.
+    """
+    mesh.parent = None
+    for modifier in list(mesh.modifiers):
+        mesh.modifiers.remove(modifier)
+    mesh.vertex_groups.clear()
+    copy = mesh.copy()
+    copy.data = mesh.data.copy()
+    bpy.context.scene.collection.objects.link(copy)
+    bpy.ops.object.select_all(action="DESELECT")
+    copy.select_set(True)
+    bpy.context.view_layer.objects.active = copy
+    remesh = copy.modifiers.new("watertight", "REMESH")
+    remesh.mode = "VOXEL"
+    remesh.voxel_size = max(copy.dimensions) / VOXELS_ALONG_BODY
+    bpy.ops.object.modifier_apply(modifier=remesh.name)
+    keep_largest_island(copy)
+    auto_weights(rig, copy)
+    print(f"watertight copy: {len(copy.data.vertices)} vertices, {len(unweighted_vertices(copy))} unweighted")
+    copy.parent = None
+    for modifier in list(copy.modifiers):
+        copy.modifiers.remove(modifier)
+    bpy.ops.object.select_all(action="DESELECT")
+    mesh.select_set(True)
+    rig.select_set(True)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.parent_set(type="ARMATURE_NAME")
+    bpy.ops.object.select_all(action="DESELECT")
+    mesh.select_set(True)
+    bpy.context.view_layer.objects.active = mesh
+    transfer = mesh.modifiers.new("weights", "DATA_TRANSFER")
+    transfer.object = copy
+    transfer.use_vert_data = True
+    transfer.data_types_verts = {"VGROUP_WEIGHTS"}
+    transfer.vert_mapping = "POLYINTERP_NEAREST"
+    transfer.layers_vgroup_select_src = "ALL"
+    transfer.layers_vgroup_select_dst = "NAME"
+    bpy.ops.object.modifier_apply(modifier=transfer.name)
+    bpy.data.objects.remove(copy)
+
+
+def skin(rig, mesh):
+    auto_weights(rig, mesh)
+    if len(unweighted_vertices(mesh)) > UNWEIGHTED_SHARE * len(mesh.data.vertices):
+        print("automatic weights failed on the body; solving on a watertight copy")
+        weights_from_watertight_copy(rig, mesh)
     # Heat weighting misses loose flaps (generated fur); those take their nearest bone outright.
     bones = [(b.name, b.head_local, b.tail_local) for b in rig.data.bones if b.name != "root"]
-    unweighted = [v for v in mesh.data.vertices if not any(g.weight > 0 for g in v.groups)]
+    unweighted = unweighted_vertices(mesh)
     if len(unweighted) > UNWEIGHTED_SHARE * len(mesh.data.vertices):
         raise SystemExit(f"automatic weights left {len(unweighted)} of {len(mesh.data.vertices)} vertices unweighted")
     for vertex in unweighted:

@@ -129,6 +129,12 @@
       "habitat": { "Grassland": 1.0, "ColdSteppe": 0.6, "Shrubland": 0.3 },
       "social": { "shape": "band", "groupMinimum": 6, "groupMaximum": 15, "spacingMetres": 4 },
       "body": { "lengthMetres": 1.9, "heightMetres": 1.4, "widthMetres": 0.5, "sizeClass": "human", "colour": "#a88b62" },
+      "mesh": {
+        "file": "creatures/hipparion/hipparion.glb",
+        "manifest": "creatures/hipparion/hipparion.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "bolt", "die": "die" }
+      },
       "speeds": { "walk": 1.6, "grazeDrift": 0.5, "flee": 9, "turnDegrees": 140 },
       "wariness": { "noticeMetres": 60, "actMetres": 35, "lookSeconds": 2, "warnSeconds": 1.5 },
       "pressed": "flee",

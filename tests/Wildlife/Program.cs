@@ -250,6 +250,9 @@ Check.Section("bodies", () =>
     one.Velocity = Vector2.Zero;
     one.Enter(Wariness.Look);
     Check.Equal(WildlifeClipRole.Look, WildlifeClips.Want(one, herd, rig), "a looking animal is alert");
+    one.Enter(Wariness.Warn);
+    Check.Equal(WildlifeClipRole.Warn, WildlifeClips.Want(one, herd, rig), "a warning animal warns");
+    Check.Equal("alert", rig.Clip(WildlifeClipRole.Warn).Name, "a kind with no warning clip warns by looking");
     one.Enter(Wariness.Respond);
     Check.Equal(WildlifeClipRole.Stand, WildlifeClips.Want(one, herd, rig), "a pressed sloth swipes");
 

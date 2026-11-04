@@ -1,11 +1,13 @@
 """Cuts a creature's reference sheet into Tripo's four views, at one pixel scale (#10570).
 
-usage: python3 -I art/creatures/cut_views.py <reference.png> <out dir> [--size 1024]
+usage: python3 -I art/creatures/cut_views.py <reference.png> <out dir> [--threshold 24]
 
 The sheet has the left side across its top, and the front and back below (reference-spec.txt). The
 views are found by the gaps of background between them and set on square canvases of the sheet's
-own background, unscaled, so all four agree on how big the animal is, with its feet on one line. A
-long body leaves the front and back small, and that is correct. The right view is the left mirrored.
+own background, so all four agree on how big the animal is, with its feet on one line: the image
+model does not quite hold one scale between views, so a front or back that stands taller or shorter
+than the side is scaled to it. A long body leaves the front and back small, and that is correct.
+The right view is the left mirrored. Raise --threshold where a sheet's background is uneven.
 """
 import sys
 from pathlib import Path
@@ -14,6 +16,9 @@ from PIL import Image, ImageChops, ImageOps
 
 # How far a pixel may stray from the background's colour and still be background.
 THRESHOLD = 24
+# A canvas is at least this wide, with this share of its width spare around the longest view.
+SMALLEST_CANVAS = 1024
+MARGIN_SHARE = 0.08
 # A gap between views is at least this many pixels across.
 GAP = 12
 # The feet stand this share of the way down each canvas.
@@ -40,13 +45,19 @@ def runs(flags):
 def main(argv):
     sheet = Image.open(argv[0]).convert("RGB")
     out = Path(argv[1])
-    size = int(argv[argv.index("--size") + 1]) if "--size" in argv else 1024
+    threshold = int(argv[argv.index("--threshold") + 1]) if "--threshold" in argv else THRESHOLD
     out.mkdir(parents=True, exist_ok=True)
     background = sheet.getpixel((4, 4))
-    mask = ImageChops.difference(sheet, Image.new("RGB", sheet.size, background)).convert("L").point(lambda v: 255 if v > THRESHOLD else 0)
+    mask = ImageChops.difference(sheet, Image.new("RGB", sheet.size, background)).convert("L").point(lambda v: 255 if v > threshold else 0)
     width, height = sheet.size
     pixels = mask.load()
-    rows = runs([any(pixels[x, y] for x in range(width)) for y in range(height)])
+    occupied = [sum(1 for x in range(width) if pixels[x, y]) for y in range(height)]
+    rows = runs([count > 0 for count in occupied])
+    if len(rows) == 1:
+        # A soft shadow or a tall ear can bridge the gap: part the rows at the emptiest line mid-sheet.
+        band = range(height * 2 // 5, height * 3 // 5)
+        split = min(band, key=lambda y: occupied[y])
+        rows = [(rows[0][0], split), (split + 1, rows[0][1])]
     if len(rows) != 2:
         raise SystemExit(f"expected two rows of views, found {rows}")
 
@@ -60,10 +71,13 @@ def main(argv):
         raise SystemExit(f"expected a front and a back view, found {lower}")
     boxes["front"] = (lower[0][0], rows[1][0], lower[0][1], rows[1][1])
     boxes["back"] = (lower[1][0], rows[1][0], lower[1][1], rows[1][1])
-    for name, box in boxes.items():
-        view = sheet.crop(box)
-        if view.width > size or view.height > size:
-            raise SystemExit(f"{name} view {view.size} is larger than the {size} canvas")
+    views = {name: sheet.crop(box) for name, box in boxes.items()}
+    side_height = views["left"].height
+    for name in ("front", "back"):
+        view = views[name]
+        views[name] = view.resize((round(view.width * side_height / view.height), side_height), Image.LANCZOS)
+    size = max(SMALLEST_CANVAS, round(max(max(view.size) for view in views.values()) * (1 + MARGIN_SHARE)))
+    for name, view in views.items():
         canvas = Image.new("RGB", (size, size), background)
         canvas.paste(view, ((size - view.width) // 2, int(size * FEET) - view.height))
         canvas.save(out / f"{name}.png")

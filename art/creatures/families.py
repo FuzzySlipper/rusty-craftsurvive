@@ -301,9 +301,10 @@ def ungulate_graze(c, s, t):
     bite = 0.5 + 0.5 * gait.wave(t, 8)
     reach = s["graze"].get("reachDegrees", 34.0)
     c.bone_rotation("chest", pitch(-5.0))
-    c.bone_rotation("neck", pitch(-reach) @ yaw(4.0 * gait.wave(t)))
-    c.bone_rotation("neck2", pitch(-0.7 * reach))
-    c.bone_rotation("head", pitch(-0.5 * reach + 3.0 * gait.wave(t, 4)))
+    # The neck swings down from its root almost straight, and the head comes back level to the ground.
+    c.bone_rotation("neck", pitch(-1.6 * reach) @ yaw(4.0 * gait.wave(t)))
+    c.bone_rotation("neck2", pitch(-0.4 * reach))
+    c.bone_rotation("head", pitch(0.6 * reach + 3.0 * gait.wave(t, 4)))
     c.bone_rotation("jaw", pitch(-6.0 * bite))
     c.bone_offset("hips", (0, 0, -0.02))
     ungulate_tail(c, t, 5.0)

@@ -57,6 +57,7 @@ internal enum WildlifeClipRole
     Walk,
     Run,
     Look,
+    Warn,
     Stand,
     Hunker,
     Die,
