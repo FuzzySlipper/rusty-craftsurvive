@@ -80,6 +80,8 @@ internal sealed class DayNightSky : IDisposable
     /// the world to keep in step with its sky.
     /// </summary>
     private const float NightMaxExposure = 2.5f, EyeAdjustRate = 0.05f;
+    /// <summary>What the eyes aim at: by day near the sunlit world's own average, so sunlit views stay as they are and only a forest's shade opens them, by night middle grey.</summary>
+    private const float DayMaxExposure = 4f, DayTargetLuminance = 0.03f, NightTargetLuminance = 0.18f;
 
     /// <summary>By night the grade cools and loses colour by this much (at no daylight), so moonlight reads as night rather than a dim day.</summary>
     private const float NightCooling = -0.12f, NightDesaturation = -0.35f;
@@ -607,7 +609,7 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetMoon(default);
         engine.CameraView.SetStars(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
-        Eyes(0f);
+        EyesHeld();
         RelightUnderground();
         if (skylit)
         {
@@ -770,7 +772,7 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetStars(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         engine.CameraView.SetSkyLight(new SkyLightRequest(DaySkyLightIntensity));
-        Eyes(0f);
+        EyesHeld();
         Relight(
             Directional(SunColour, DaySunIntensity, MapSunTravel),
             SkyShadow(1d, Vector3.Zero) with { ShadowIntent = LightShadowIntent.Disabled },
@@ -1014,9 +1016,18 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>A directional light switched off: no light, no cascades.</summary>
     private static readonly LightDescriptor Off = Directional(Vector3.One, 0f, -Vector3.UnitY) with { Enabled = false, ShadowIntent = LightShadowIntent.Disabled };
 
-    /// <summary>How far the eyes may open: up to the night's limit as the daylight goes (0 by day, 1 by night).</summary>
-    private void Eyes(float night) =>
-        engine.CameraView.SetAutoExposure(new AutoExposureRequest(true, EyeAdjustRate, 1f, 1f + ((NightMaxExposure - 1f) * Math.Clamp(night, 0f, 1f))));
+    /// <summary>How far the eyes may open, and what they aim at, moving from the day's to the night's as the daylight goes (0 by day, 1 by night).</summary>
+    private void Eyes(float night)
+    {
+        float dark = Math.Clamp(night, 0f, 1f);
+        float most = DayMaxExposure + ((NightMaxExposure - DayMaxExposure) * dark);
+        float target = DayTargetLuminance * MathF.Pow(NightTargetLuminance / DayTargetLuminance, dark);
+        engine.CameraView.SetAutoExposure(new AutoExposureRequest(true, EyeAdjustRate, 1f, most, target));
+    }
+
+    /// <summary>Eyes that do not open: underground the dark is the torch's to push back, and the map reads as drawn.</summary>
+    private void EyesHeld() =>
+        engine.CameraView.SetAutoExposure(new AutoExposureRequest(true, EyeAdjustRate, 1f, 1f));
 
     /// <summary>
     /// The moon's own light, at the share of a full moon's it gives now (phase, height, cloud). It

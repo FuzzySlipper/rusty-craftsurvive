@@ -581,7 +581,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `Moon` gives its light by phase and height, warm and large low, whitening as it climbs. It is its
   own directional light and casts shadows only while the sun's light is off. Night has a starlight
   fill, and the eyes adjust (auto exposure up to `NightMaxExposure`) while the grade cools and
-  desaturates.
+  desaturates. By day they adjust too, up to `DayMaxExposure`, but aim at `DayTargetLuminance`,
+  near the sunlit world's own average: sunlit views stay as they are, and only deep shade, a forest
+  under ray-traced global illumination, opens them. Underground and on the map they do not adjust.
 
   The Engine draws the moon with its phase (rusty-engine #9866): its lit limb turns toward the real
   sun, which stays the atmosphere's sky sun all night, though with no disc. By day it is a pale disc.
