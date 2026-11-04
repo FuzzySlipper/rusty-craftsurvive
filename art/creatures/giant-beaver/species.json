@@ -170,7 +170,12 @@
     "die": {
       "seconds": 2.4
     },
-    "spineFlex": 3.0
+    "spineFlex": 3.0,
+    "slip": {
+      "seconds": 1.6,
+      "pitchDegrees": 24.0,
+      "metres": 0.8
+    }
   },
   "proxy": {
     "about": "The stand-in body built from metaball capsules along the bones, until the concept mesh replaces it.",

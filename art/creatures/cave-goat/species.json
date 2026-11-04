@@ -185,6 +185,10 @@
     },
     "die": {
       "seconds": 2.0
+    },
+    "ledge-hop": {
+      "seconds": 0.9,
+      "metres": 0.42
     }
   },
   "proxy": {

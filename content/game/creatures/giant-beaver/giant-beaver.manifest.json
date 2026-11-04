@@ -60,6 +60,11 @@
       "loops": true,
       "plantsFeet": true
     },
+    "slip": {
+      "seconds": 1.6,
+      "loops": false,
+      "plantsFeet": false
+    },
     "die": {
       "seconds": 2.4,
       "loops": false,

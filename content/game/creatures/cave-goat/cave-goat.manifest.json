@@ -69,6 +69,11 @@
       "seconds": 1.0,
       "loops": false,
       "plantsFeet": false
+    },
+    "ledge-hop": {
+      "seconds": 0.9,
+      "loops": false,
+      "plantsFeet": false
     }
   }
 }

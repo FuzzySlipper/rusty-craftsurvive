@@ -85,7 +85,7 @@
   },
   {
    "mesh": "content/game/creatures/cave-goat/cave-goat.glb",
-   "sha256": "3de71c9d6052204563b812822ef67aca5c06302c6d7b44f03ecd5eb9a115d60e",
+   "sha256": "db395b252d15d7c000705358f1208c9a6957b68c284db09f542d230942c8aced",
    "manifest": "content/game/creatures/cave-goat/cave-goat.manifest.json",
    "built": "art/creatures/build_creature.py from art/creatures/cave-goat/species.json with --mesh body.glb --texture body-64.png",
    "concept": "art/creatures/cave-goat/concept/concept-2.png (GPT image via ~/.claude/skills/codex-image-gen)",
@@ -108,7 +108,7 @@
   },
   {
    "mesh": "content/game/creatures/giant-beaver/giant-beaver.glb",
-   "sha256": "469aa606852f6019c526846d03b340e48cb9ed835859a578bcad0265005c896d",
+   "sha256": "5304090ca512993e574599cb6b8897b3bde0983191bc6e58e8d569dbfc098b54",
    "manifest": "content/game/creatures/giant-beaver/giant-beaver.manifest.json",
    "built": "art/creatures/build_creature.py from art/creatures/giant-beaver/species.json with --mesh body.glb --texture body-64.png",
    "concept": "art/creatures/giant-beaver/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
