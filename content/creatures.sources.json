@@ -77,7 +77,7 @@
    "sha256": "6dba9b9e96507d89ad15d91ea02085049419846af9f5f24d25b1b38ad3aef444",
    "manifest": "content/game/creatures/entelodont/entelodont.manifest.json",
    "built": "art/creatures/build_creature.py from art/creatures/entelodont/species.json with --mesh body.glb --texture body-64.png",
-   "concept": "art/creatures/entelodont/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "concept": "art/creatures/entelodont/concept/concept-3.png (GPT image via ~/.claude/skills/codex-image-gen)",
    "reference": "art/creatures/entelodont/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
    "body": "Tripo P2 multiview-to-model, task 2551ff81-9977-46c9-a765-8826f14b1362, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 2.9 --triangles 5000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
@@ -88,7 +88,7 @@
    "sha256": "3de71c9d6052204563b812822ef67aca5c06302c6d7b44f03ecd5eb9a115d60e",
    "manifest": "content/game/creatures/cave-goat/cave-goat.manifest.json",
    "built": "art/creatures/build_creature.py from art/creatures/cave-goat/species.json with --mesh body.glb --texture body-64.png",
-   "concept": "art/creatures/cave-goat/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "concept": "art/creatures/cave-goat/concept/concept-2.png (GPT image via ~/.claude/skills/codex-image-gen)",
    "reference": "art/creatures/cave-goat/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
    "body": "Tripo P2 multiview-to-model, task da763fc2-84f9-4c60-a4aa-d57a2eef8664, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 1.25 --triangles 4000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
@@ -99,12 +99,23 @@
    "sha256": "8c514915328c6c5ea04cc9dce9d788f906a466fd9f38a7b37f60cb459318110d",
    "manifest": "content/game/creatures/glyptodon/glyptodon.manifest.json",
    "built": "art/creatures/build_creature.py from art/creatures/glyptodon/species.json with --mesh body-four-legs.glb --texture body-64.png",
-   "concept": "art/creatures/glyptodon/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "concept": "art/creatures/glyptodon/concept/concept-2.png (GPT image via ~/.claude/skills/codex-image-gen)",
    "reference": "art/creatures/glyptodon/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
    "body": "Tripo P2 multiview-to-model, task b7aac452-353f-4caa-9e88-39f9e2a5c84f, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 3.7 --triangles 6000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/glyptodon/",
    "legs": "The reference sheet drew near and far legs apart, so the Tripo body had eight: drop_limbs.py --below 0.34 --between 0.3 0.9 --between -0.4 0.2 cut the middle pairs."
+  },
+  {
+   "mesh": "content/game/creatures/giant-beaver/giant-beaver.glb",
+   "sha256": "469aa606852f6019c526846d03b340e48cb9ed835859a578bcad0265005c896d",
+   "manifest": "content/game/creatures/giant-beaver/giant-beaver.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/giant-beaver/species.json with --mesh body.glb --texture body-64.png",
+   "concept": "art/creatures/giant-beaver/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/giant-beaver/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
+   "body": "Tripo P2 multiview-to-model, task 999e384d-711c-4837-8f70-959253a2f3b4, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 2.9 --triangles 5000 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/giant-beaver/"
   }
  ],
  "reference": {

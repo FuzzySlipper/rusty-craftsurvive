@@ -189,6 +189,12 @@
       "habitat": { "BorealForest": 0.6, "TemperateForest": 0.5, "Grassland": 0.2 },
       "social": { "shape": "family", "groupMinimum": 2, "groupMaximum": 5, "spacingMetres": 3 },
       "body": { "lengthMetres": 2.2, "heightMetres": 0.9, "widthMetres": 0.7, "sizeClass": "small", "colour": "#5b4030" },
+      "mesh": {
+        "file": "creatures/giant-beaver/giant-beaver.glb",
+        "manifest": "creatures/giant-beaver/giant-beaver.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "die": "die" }
+      },
       "speeds": { "walk": 0.8, "grazeDrift": 0.25, "flee": 2.5, "turnDegrees": 100 },
       "wariness": { "noticeMetres": 20, "actMetres": 10, "lookSeconds": 2, "warnSeconds": 1 },
       "pressed": "flee",
@@ -223,6 +229,12 @@
       "habitat": { "Desert": 1.0, "Shrubland": 0.4, "Grassland": 0.2 },
       "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 2, "spacingMetres": 6 },
       "body": { "lengthMetres": 3.3, "heightMetres": 1.5, "widthMetres": 1.7, "sizeClass": "large", "colour": "#6e6250" },
+      "mesh": {
+        "file": "creatures/glyptodon/glyptodon.glb",
+        "manifest": "creatures/glyptodon/glyptodon.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "hunker": "hunker", "die": "die" }
+      },
       "speeds": { "walk": 0.5, "grazeDrift": 0.2, "flee": 0.8, "turnDegrees": 40 },
       "wariness": { "noticeMetres": 15, "actMetres": 8, "lookSeconds": 2, "warnSeconds": 1 },
       "pressed": "hunker",

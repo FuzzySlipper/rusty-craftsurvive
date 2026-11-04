@@ -1,0 +1,69 @@
+{
+  "species": "giant-beaver",
+  "family": "low-slung",
+  "body": {
+    "hindMetres": -0.05,
+    "foreMetres": 0.84
+  },
+  "legs": [
+    [
+      "thigh.L",
+      "shin.L",
+      "foot.L"
+    ],
+    [
+      "upperarm.L",
+      "forearm.L",
+      "hand.L"
+    ],
+    [
+      "thigh.R",
+      "shin.R",
+      "foot.R"
+    ],
+    [
+      "upperarm.R",
+      "forearm.R",
+      "hand.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.2666666666666666,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.8
+    },
+    "run": {
+      "seconds": 0.7,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 2.5
+    },
+    "graze": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 2.4,
+      "loops": false,
+      "plantsFeet": false
+    }
+  }
+}
