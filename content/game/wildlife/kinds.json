@@ -149,6 +149,12 @@
       "habitat": { "TemperateForest": 1.0, "BorealForest": 0.5, "Grassland": 0.3 },
       "social": { "shape": "family", "groupMinimum": 3, "groupMaximum": 6, "spacingMetres": 6 },
       "body": { "lengthMetres": 2.6, "heightMetres": 2.1, "widthMetres": 0.7, "sizeClass": "large", "colour": "#7d5638" },
+      "mesh": {
+        "file": "creatures/giant-deer/giant-deer.glb",
+        "manifest": "creatures/giant-deer/giant-deer.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "bellow", "die": "die" }
+      },
       "speeds": { "walk": 1.4, "grazeDrift": 0.4, "flee": 8, "turnDegrees": 120 },
       "wariness": { "noticeMetres": 50, "actMetres": 25, "lookSeconds": 3, "warnSeconds": 2 },
       "pressed": "flee",

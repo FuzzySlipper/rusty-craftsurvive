@@ -1,0 +1,74 @@
+{
+  "species": "giant-deer",
+  "family": "ungulate",
+  "body": {
+    "hindMetres": -1.61,
+    "foreMetres": 0.37
+  },
+  "legs": [
+    [
+      "shin.L",
+      "cannon.L",
+      "hoof.L"
+    ],
+    [
+      "forearm.L",
+      "fcannon.L",
+      "fhoof.L"
+    ],
+    [
+      "shin.R",
+      "cannon.R",
+      "hoof.R"
+    ],
+    [
+      "forearm.R",
+      "fcannon.R",
+      "fhoof.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.5,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 1.4
+    },
+    "run": {
+      "seconds": 0.6333333333333333,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 8.0
+    },
+    "graze": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 2.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "bellow": {
+      "seconds": 3.0,
+      "loops": false,
+      "plantsFeet": true
+    }
+  }
+}
