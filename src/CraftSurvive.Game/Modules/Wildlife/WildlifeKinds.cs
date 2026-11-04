@@ -28,6 +28,9 @@ internal enum PressedResponse
 
     /// <summary>Hunkers down where it is until the player has gone.</summary>
     Hunker,
+
+    /// <summary>Runs for the water of its range and slips under until the player has gone; with none, flees.</summary>
+    TakeToWater,
 }
 
 internal enum SocialShape
@@ -61,6 +64,8 @@ internal enum WildlifeClipRole
     Stand,
     Hunker,
     Die,
+    Slip,
+    LedgeHop,
 }
 
 /// <summary>A kind's animated body: its mesh and build manifest, and which clip plays each role. A kind without one is drawn as a placeholder.</summary>
@@ -146,7 +151,7 @@ internal sealed record WildlifeKind(
 }
 
 /// <summary>How regions are seeded with herds, and how a herd's range is searched for water: rings out to its edge, at headings each.</summary>
-internal readonly record struct WildlifePlacement(double RegionMetres, int BiomeSamplesPerSide, int HomeAttempts, int WaterRings, int WaterHeadings);
+internal readonly record struct WildlifePlacement(double RegionMetres, int BiomeSamplesPerSide, int HomeAttempts, int WaterRings, int WaterHeadings, int WaterHomeSamplesPerSide);
 
 /// <summary>
 /// When herds wake near the player and sleep again, by distance alone, and how many may be awake at
@@ -172,7 +177,16 @@ internal readonly record struct WildlifeBehaviour(
     double GrazeCycleSeconds,
     double PathCheckMetres,
     double SeparationShare,
-    double SlotJitterShare);
+    double SlotJitterShare,
+    double ShoreArrivalMetres,
+    double MostToWaterSeconds,
+    double SlipSeconds,
+    double SlipMetresPerSecond,
+    double LeastUnderSeconds,
+    double LedgeRiseMetres,
+    double LedgeLookMetres,
+    double HopSeconds,
+    double HopEverySeconds);
 
 /// <summary>How far animals of a kind differ from one another: each share either way, of size, coat brightness and coat warmth (#10601).</summary>
 internal readonly record struct WildlifeVariety(double SizeShare, double ValueShare, double WarmthShare);
@@ -240,6 +254,7 @@ internal static class WildlifeKinds
         ["stand"] = PressedResponse.Stand,
         ["display-charge"] = PressedResponse.DisplayCharge,
         ["hunker"] = PressedResponse.Hunker,
+        ["take-to-water"] = PressedResponse.TakeToWater,
     };
 
     internal static WildlifeCatalog Parse(string json)
@@ -301,7 +316,8 @@ internal static class WildlifeKinds
                 placement.GetProperty("biomeSamplesPerSide").GetInt32(),
                 placement.GetProperty("homeAttempts").GetInt32(),
                 placement.GetProperty("waterRings").GetInt32(),
-                placement.GetProperty("waterHeadings").GetInt32()),
+                placement.GetProperty("waterHeadings").GetInt32(),
+                placement.GetProperty("waterHomeSamplesPerSide").GetInt32()),
             wake,
             new WildlifeBehaviour(
                 behaviour.GetProperty("alarmSpreadMetresPerSecond").GetDouble(),
@@ -318,7 +334,16 @@ internal static class WildlifeKinds
                 behaviour.GetProperty("grazeCycleSeconds").GetDouble(),
                 behaviour.GetProperty("pathCheckMetres").GetDouble(),
                 behaviour.GetProperty("separationShare").GetDouble(),
-                behaviour.GetProperty("slotJitterShare").GetDouble()),
+                behaviour.GetProperty("slotJitterShare").GetDouble(),
+                behaviour.GetProperty("shoreArrivalMetres").GetDouble(),
+                behaviour.GetProperty("mostToWaterSeconds").GetDouble(),
+                behaviour.GetProperty("slipSeconds").GetDouble(),
+                behaviour.GetProperty("slipMetresPerSecond").GetDouble(),
+                behaviour.GetProperty("leastUnderSeconds").GetDouble(),
+                behaviour.GetProperty("ledgeRiseMetres").GetDouble(),
+                behaviour.GetProperty("ledgeLookMetres").GetDouble(),
+                behaviour.GetProperty("hopSeconds").GetDouble(),
+                behaviour.GetProperty("hopEverySeconds").GetDouble()),
             ReadAnimation(root.GetProperty("animation")),
             ReadVariety(root.GetProperty("variety")));
     }

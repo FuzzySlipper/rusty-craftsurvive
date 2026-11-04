@@ -32,6 +32,8 @@ internal readonly record struct HerdFacts(Vector2? Player, WorldTime Time, ulong
 /// - **Young:** a herd's young dart about their nearest adult at more than its pace and stop in
 ///   between, resting with it. Pressed, they keep behind an adult, on its far side from the player.
 /// - **Hurt:** an animal that stands or charges runs once badly hurt, on its own, by itself.
+/// - **Water:** a kind that takes to water runs for the shore of its range when pressed, slips in, and
+///   stays under until the player has gone, then comes up where it went in. With no water it flees.
 /// - **Alarm:** while any animal looks, the leader waits, so the herd keeps together under watch. A
 ///   warning or response spreads through the herd at a pace from where it was raised.
 ///   A charging kind's partners display rather than charge. The herd calms only when its nearest
@@ -73,9 +75,11 @@ internal static class WildlifeRules
             nearest = Math.Min(nearest, member.PlayerDistance);
         }
 
+        // A family goes in one by one and comes up together: one up early would be called back by the others' alarm.
+        bool stayingDown = herd.Members.Any(member => member.ToWater && !(member.DiveSeconds >= behaviour.SlipSeconds + behaviour.LeastUnderSeconds));
         foreach (WildlifeMember member in herd.Members)
         {
-            Sense(member, herd.Kind, behaviour, nearest, seconds);
+            Sense(member, herd.Kind, behaviour, nearest, stayingDown, seconds);
         }
 
         Spread(herd, behaviour, seconds);
@@ -138,7 +142,7 @@ internal static class WildlifeRules
 
     /// <summary>What this animal does when pressed: its kind's answer, unless it is hurt badly enough to run. A shell is no place to run from.</summary>
     internal static PressedResponse Response(WildlifeMember member, WildlifeKind kind) =>
-        kind.Pressed != PressedResponse.Hunker && member.Combat.Health < member.Combat.MaximumHealth * kind.Senses.FleeBelowHealth
+        kind.Pressed is PressedResponse.Stand or PressedResponse.DisplayCharge && member.Combat.Health < member.Combat.MaximumHealth * kind.Senses.FleeBelowHealth
             ? PressedResponse.Flee
             : kind.Pressed;
 
@@ -194,7 +198,7 @@ internal static class WildlifeRules
     }
 
     /// <summary>One animal's own senses: escalate on its own distance, calm on the herd's nearest.</summary>
-    private static void Sense(WildlifeMember member, WildlifeKind kind, WildlifeBehaviour behaviour, double herdNearest, double seconds)
+    private static void Sense(WildlifeMember member, WildlifeKind kind, WildlifeBehaviour behaviour, double herdNearest, bool stayingDown, double seconds)
     {
         member.StageSeconds += seconds;
         WildlifeSenses senses = kind.Senses;
@@ -226,9 +230,15 @@ internal static class WildlifeRules
                 switch (Response(member, kind))
                 {
                     case PressedResponse.Flee:
+                    case PressedResponse.TakeToWater:
+                        if (stayingDown) break;
                         // A band runs until its nearest is clear; one hurt animal runs from a herd still standing, on its own account.
-                        double fled = kind.Pressed == PressedResponse.Flee ? herdNearest : distance;
-                        if (fled >= senses.NoticeMetres * behaviour.FleeUntilNoticeShare) member.Enter(Wariness.Regroup);
+                        double fled = kind.Pressed is PressedResponse.Flee or PressedResponse.TakeToWater ? herdNearest : distance;
+                        if (fled < senses.NoticeMetres * behaviour.FleeUntilNoticeShare) break;
+                        member.Enter(Wariness.Regroup);
+                        member.ToWater = false;
+                        member.DiveSeconds = null;
+                        member.Under = false;
                         break;
                     case PressedResponse.Stand:
                         if (herdNearest > senses.ActMetres * release) member.Enter(Wariness.Look);
@@ -406,7 +416,7 @@ internal static class WildlifeRules
                     break;
                 case Wariness.Respond:
                     PressedResponse response = Response(member, kind);
-                    if (member.Young && response != PressedResponse.Flee && facts.Player is Vector2 danger)
+                    if (member.Young && response is not (PressedResponse.Flee or PressedResponse.TakeToWater) && facts.Player is Vector2 danger)
                     {
                         velocity = Shelter(member, herd, danger, seconds);
                         face = danger;
@@ -419,7 +429,24 @@ internal static class WildlifeRules
                         case PressedResponse.Flee when kind.Pressed != PressedResponse.Flee:
                             velocity = (facts.Player is Vector2 hunter && hunter != member.Position ? Vector2.Normalize(member.Position - hunter) : herd.FleeHeading) * (float)kind.Speeds.Flee;
                             break;
+                        // One that cannot get there in time gives up and flees, so it does not hold its family under.
+                        case PressedResponse.TakeToWater when facts.Water is Vector2 shore && (member.DiveSeconds is not null || member.StageSeconds < behaviour.MostToWaterSeconds):
+                            member.ToWater = true;
+                            if (member.DiveSeconds is null && Vector2.Distance(member.Position, shore) > behaviour.ShoreArrivalMetres)
+                            {
+                                velocity = Toward(member.Position, shore, kind.Speeds.Flee, seconds);
+                                break;
+                            }
+
+                            member.DiveSeconds = (member.DiveSeconds ?? -seconds) + seconds;
+                            member.Under = member.DiveSeconds >= behaviour.SlipSeconds;
+                            // The shore is found walking from the water toward home, so the water lies straight on from home.
+                            if (!member.Under && shore != herd.Home) velocity = Vector2.Normalize(shore - herd.Home) * (float)behaviour.SlipMetresPerSecond;
+                            shuffles = false;
+                            break;
                         case PressedResponse.Flee:
+                        case PressedResponse.TakeToWater:
+                            member.ToWater = false;
                             velocity = herd.FleeHeading * (float)kind.Speeds.Flee;
                             Vector2 toCentre = centre - member.Position;
                             if (toCentre.Length() > kind.SpacingMetres * behaviour.CatchUpSpacings) velocity += toCentre * FleeCohesionShare;

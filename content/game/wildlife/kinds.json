@@ -39,7 +39,8 @@
     "biomeSamplesPerSide": 4,
     "homeAttempts": 8,
     "waterRings": 8,
-    "waterHeadings": 12
+    "waterHeadings": 12,
+    "waterHomeSamplesPerSide": 32
   },
   "waking": {
     "wakeMetres": 300,
@@ -62,7 +63,16 @@
     "grazeCycleSeconds": 20,
     "pathCheckMetres": 8,
     "separationShare": 0.6,
-    "slotJitterShare": 0.3
+    "slotJitterShare": 0.3,
+    "shoreArrivalMetres": 2,
+    "mostToWaterSeconds": 90,
+    "slipSeconds": 1.6,
+    "slipMetresPerSecond": 2.5,
+    "leastUnderSeconds": 12,
+    "ledgeRiseMetres": 0.36,
+    "ledgeLookMetres": 0.9,
+    "hopSeconds": 0.9,
+    "hopEverySeconds": 1.6
   },
   "variety": {
     "sizeShare": 0.07,
@@ -194,13 +204,13 @@
         "file": "creatures/giant-beaver/giant-beaver.glb",
         "manifest": "creatures/giant-beaver/giant-beaver.manifest.json",
         "scale": 1.0,
-        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "die": "die" }
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "slip": "slip", "die": "die" }
       },
       "speeds": { "walk": 0.8, "grazeDrift": 0.25, "flee": 2.5, "turnDegrees": 100 },
       "wariness": { "noticeMetres": 20, "actMetres": 10, "lookSeconds": 2, "warnSeconds": 1 },
-      "pressed": "flee",
+      "pressed": "take-to-water",
       "schedule": "night-worker",
-      "population": { "herdsPerSquareKilometre": 0.3, "rangeMetres": 150, "recoveryDays": 6 },
+      "population": { "herdsPerSquareKilometre": 0.3, "rangeMetres": 400, "recoveryDays": 6 },
       "combat": { "health": 30, "evasion": 40, "armour": 2, "experience": 90 },
       "loot": [ { "item": "meat", "minimum": 2, "maximum": 3, "oneIn": 1 }, { "item": "hide", "minimum": 1, "maximum": 2, "oneIn": 1 } ]
     },
@@ -214,7 +224,7 @@
         "file": "creatures/cave-goat/cave-goat.glb",
         "manifest": "creatures/cave-goat/cave-goat.manifest.json",
         "scale": 0.85,
-        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "bolt", "die": "die" }
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "bolt", "ledgeHop": "ledge-hop", "die": "die" }
       },
       "speeds": { "walk": 1.0, "grazeDrift": 0.3, "flee": 4, "turnDegrees": 160 },
       "wariness": { "noticeMetres": 30, "actMetres": 15, "lookSeconds": 2, "warnSeconds": 1 },

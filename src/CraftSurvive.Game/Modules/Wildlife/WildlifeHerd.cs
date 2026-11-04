@@ -77,6 +77,20 @@ internal sealed class WildlifeMember
 
     internal double ClipSeconds { get; set; }
 
+    /// <summary>Making for the water: having set off, it goes in, however clear of the player it has got.</summary>
+    internal bool ToWater { get; set; }
+
+    /// <summary>How long since it began to slip into the water; null while it is on land.</summary>
+    internal double? DiveSeconds { get; set; }
+
+    /// <summary>Gone under: not drawn, and out of reach, until it comes up where it went in.</summary>
+    internal bool Under { get; set; }
+
+    /// <summary>How much of a hop onto a ledge is left, and how long since the last.</summary>
+    internal double HopSeconds { get; set; }
+
+    internal double SinceHop { get; set; } = double.PositiveInfinity;
+
     /// <summary>Struck since the last decision: it answers as its kind does when pressed.</summary>
     internal bool Struck { get; set; }
 

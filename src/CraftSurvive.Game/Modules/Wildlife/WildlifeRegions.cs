@@ -87,10 +87,14 @@ internal static class WildlifeSeeding
 {
     private const double SquareMetresPerSquareKilometre = 1_000_000;
 
+    /// <summary>How many grid steps from water a home may stand, so a kind that lives by it stays within reach of it.</summary>
+    private const int MostStepsToDryGround = 4;
+
     /// <param name="biomeAt">The biome under a world point (X, Z).</param>
     /// <param name="excluded">Ground no herd may call home: the towns' sanctuary. Null excludes nothing.</param>
+    /// <param name="waterAt">Whether the map has a river or lake at a point: a kind that takes to water lives beside one. Null places it as any other.</param>
     internal static RegionPopulation Seed(WildlifeRegion region, ulong seed, WildlifeCatalog catalog,
-        Func<double, double, MapBiome> biomeAt, Func<double, double, bool>? excluded = null)
+        Func<double, double, MapBiome> biomeAt, Func<double, double, bool>? excluded = null, Func<double, double, bool>? waterAt = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(biomeAt);
@@ -121,7 +125,10 @@ internal static class WildlifeSeeding
             for (int n = 0; n < count; n++)
             {
                 string herd = $"{scope}:{n}";
-                if (Home(herd, cornerX, cornerZ, size, kind, seed, placement.HomeAttempts, biomeAt, excluded) is not Vector2 home) continue;
+                Vector2? found = kind.Pressed == PressedResponse.TakeToWater && waterAt is not null
+                    ? HomeByWater(herd, cornerX, cornerZ, size, kind, seed, placement.WaterHomeSamplesPerSide, biomeAt, excluded, waterAt)
+                    : Home(herd, cornerX, cornerZ, size, kind, seed, placement.HomeAttempts, biomeAt, excluded);
+                if (found is not Vector2 home) continue;
                 int founding = KeyedDraws.Draw(seed, herd + ":size", kind.GroupMinimum, kind.GroupMaximum);
                 herds.Add(new HerdRecord(string.Create(CultureInfo.InvariantCulture, $"{kind.Id}@{region}#{n}"), kind.Id, home, founding));
             }
@@ -145,6 +152,34 @@ internal static class WildlifeSeeding
 
         return null;
     }
+
+    /// <summary>A home on dry ground just off water in the region, from a grid walked from a drawn start; null where the region has no such place.</summary>
+    private static Vector2? HomeByWater(string scope, double cornerX, double cornerZ, double size, WildlifeKind kind, ulong seed, int side,
+        Func<double, double, MapBiome> biomeAt, Func<double, double, bool>? excluded, Func<double, double, bool> waterAt)
+    {
+        int cells = side * side;
+        int start = KeyedDraws.Draw(seed, scope + ":water", 0, cells - 1);
+        double step = size / side;
+        (double East, double South)[] headings = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+        for (int i = 0; i < cells; i++)
+        {
+            int cell = (start + i) % cells;
+            double x = cornerX + (((cell % side) + 0.5) * step), z = cornerZ + (((cell / side) + 0.5) * step);
+            if (!waterAt(x, z)) continue;
+            foreach ((double east, double south) in headings)
+            {
+                for (int outward = 1; outward <= MostStepsToDryGround; outward++)
+                {
+                    double homeX = x + (east * step * outward), homeZ = z + (south * step * outward);
+                    if (waterAt(homeX, homeZ)) continue;
+                    if (kind.HabitatWeight(biomeAt(homeX, homeZ)) > 0 && excluded?.Invoke(homeX, homeZ) != true) return new Vector2((float)homeX, (float)homeZ);
+                    break;
+                }
+            }
+        }
+
+        return null;
+    }
 }
 
 /// <summary>
@@ -163,13 +198,15 @@ internal sealed class WildlifeLedger
     private readonly ulong seed;
     private readonly Func<double, double, MapBiome> biomeAt;
     private readonly Func<double, double, bool>? excluded;
+    private readonly Func<double, double, bool>? waterAt;
 
-    internal WildlifeLedger(WildlifeCatalog catalog, ulong seed, Func<double, double, MapBiome> biomeAt, Func<double, double, bool>? excluded = null)
+    internal WildlifeLedger(WildlifeCatalog catalog, ulong seed, Func<double, double, MapBiome> biomeAt, Func<double, double, bool>? excluded = null, Func<double, double, bool>? waterAt = null)
     {
         this.catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         this.seed = seed;
         this.biomeAt = biomeAt ?? throw new ArgumentNullException(nameof(biomeAt));
         this.excluded = excluded;
+        this.waterAt = waterAt;
     }
 
     internal IEnumerable<RegionPopulation> Regions => regions.Values;
@@ -179,7 +216,7 @@ internal sealed class WildlifeLedger
     internal RegionPopulation Region(WildlifeRegion region)
     {
         if (regions.TryGetValue(region, out RegionPopulation? population)) return population;
-        regions[region] = population = WildlifeSeeding.Seed(region, seed, catalog, biomeAt, excluded);
+        regions[region] = population = WildlifeSeeding.Seed(region, seed, catalog, biomeAt, excluded, waterAt);
         foreach (HerdRecord herd in population.Herds)
         {
             if (waiting.Remove(HerdLoss.IdOf(herd.Key), out HerdLoss loss)) herd.Restore(loss);

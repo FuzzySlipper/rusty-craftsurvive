@@ -63,6 +63,8 @@ internal static class WildlifeClips
         PressedResponse response = WildlifeRules.Response(member, herd.Kind);
         if (member.Stage == Wariness.Respond && !member.Young && response == PressedResponse.Stand) return WildlifeClipRole.Stand;
         if (member.Stage == Wariness.Respond && response == PressedResponse.Hunker) return WildlifeClipRole.Hunker;
+        if (member.DiveSeconds is not null) return WildlifeClipRole.Slip;
+        if (member.HopSeconds > 0) return WildlifeClipRole.LedgeHop;
         float speed = member.Velocity.Length();
         if (speed > StandingSpeed)
         {
@@ -74,6 +76,13 @@ internal static class WildlifeClips
         if (member.Stage == Wariness.Warn) return WildlifeClipRole.Warn;
         if (member.Stage is Wariness.Look or Wariness.Respond) return WildlifeClipRole.Look;
         return herd.Activity is WildlifeActivity.Graze or WildlifeActivity.Drink ? WildlifeClipRole.Graze : WildlifeClipRole.Idle;
+    }
+
+    /// <summary>Whether a moving animal springs now: the ground ahead rises more than a walk takes, and it has landed from the last.</summary>
+    internal static bool Hops(WildlifeMember member, float rise, WildlifeBehaviour behaviour)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        return rise >= behaviour.LedgeRiseMetres && member.HopSeconds <= 0 && member.SinceHop >= behaviour.HopEverySeconds;
     }
 
     /// <summary>How large an animal is against its kind's mesh.</summary>
@@ -101,7 +110,7 @@ internal static class WildlifeClips
         WildlifeClipRole want = Want(member, herd, rig);
         if (want == member.Clip) return false;
         // The young change gait at will: that is how they move.
-        bool urgent = member.Young || want is WildlifeClipRole.Run or WildlifeClipRole.Look or WildlifeClipRole.Warn or WildlifeClipRole.Stand or WildlifeClipRole.Hunker;
+        bool urgent = member.Young || want is WildlifeClipRole.Run or WildlifeClipRole.Look or WildlifeClipRole.Warn or WildlifeClipRole.Stand or WildlifeClipRole.Hunker or WildlifeClipRole.Slip or WildlifeClipRole.LedgeHop;
         if (!urgent && member.ClipSeconds < animation.ClipHoldSeconds) return false;
         member.Clip = want;
         member.ClipSeconds = 0;

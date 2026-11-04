@@ -77,12 +77,13 @@ internal sealed class WildlifePresentation : IDisposable
         List<AppearanceFact> next = [];
         HashSet<WildlifeMember> kept = [];
         double plantWithin = WildlifeClips.PlantWithin(
-            herds.Where(herd => herd.Kind.Mesh is not null).SelectMany(herd => herd.Members).Select(member => (double)Vector2.Distance(member.Position, here)),
+            herds.Where(herd => herd.Kind.Mesh is not null).SelectMany(herd => herd.Members).Where(member => !member.Under).Select(member => (double)Vector2.Distance(member.Position, here)),
             meshes.Animation);
         foreach (WildlifeHerd herd in herds)
         {
             foreach (WildlifeMember member in herd.Members)
             {
+                if (member.Under) continue;
                 if (herd.Kind.Mesh is null)
                 {
                     Pose(herd.Kind, herd.Activity, member, feet(member), false, Appearances(herd.Kind), next);

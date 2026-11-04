@@ -25,6 +25,8 @@
     <Compile Include="$(ProductModules)Rpg/KeyedDraws.cs" LinkBase="Product/Rpg" />
     <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
     <EmbeddedResource Include="../../content/game/wildlife/kinds.json" LogicalName="Wildlife.kinds.json" />
+    <EmbeddedResource Include="../../content/game/creatures/giant-beaver/giant-beaver.manifest.json" LogicalName="Wildlife.giant-beaver.manifest.json" />
+    <EmbeddedResource Include="../../content/game/creatures/cave-goat/cave-goat.manifest.json" LogicalName="Wildlife.cave-goat.manifest.json" />
     <EmbeddedResource Include="../../content/game/creatures/sloth/sloth.manifest.json" LogicalName="Wildlife.sloth.manifest.json" />
   </ItemGroup>
 </Project>

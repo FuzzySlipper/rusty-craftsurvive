@@ -57,6 +57,7 @@ internal sealed class WildlifeModule : IProductModule
     private readonly Dictionary<(string Kind, WildlifeSizeClass SizeClass), CharacterControllerConfig> configs = [];
     private readonly Dictionary<string, Vector2?> waters = [];
     private readonly Dictionary<string, int> waterRings = [];
+    private int hops;
     private readonly Stack<int> freeIds = [];
     private readonly ProductSaveSlot<IReadOnlyList<HerdLoss>> slot;
     private WildlifeCatalog? catalog;
@@ -127,7 +128,7 @@ internal sealed class WildlifeModule : IProductModule
 
         if (ledger is null)
         {
-            ledger = new WildlifeLedger(catalog, Seed, BiomeAt, (x, z) => Sanctuary?.Invoke(x, z) == true);
+            ledger = new WildlifeLedger(catalog, Seed, BiomeAt, (x, z) => Sanctuary?.Invoke(x, z) == true, MapWaterAt);
             if (slot.Restore() is { Outcome: SaveRestoreOutcome.Restored, State: IReadOnlyList<HerdLoss> losses }) ledger.Restore(losses);
         }
 
@@ -202,6 +203,13 @@ internal sealed class WildlifeModule : IProductModule
     }
 
     private MapBiome BiomeAt(double x, double z) => WorldMap.Biome(terrain.Recipe.Map.Sample(x, z));
+
+    /// <summary>Whether the continent's map has a river or lake at a point, as cheaply as the biome.</summary>
+    private bool MapWaterAt(double x, double z)
+    {
+        MapSample map = terrain.Recipe.Map.Sample(x, z);
+        return map.InRiver || map.InLake;
+    }
 
     /// <summary>Ground no animal stands on or crosses: the towns' sanctuary.</summary>
     private bool Excluded(Vector2 point) => Sanctuary?.Invoke(point.X, point.Y) == true;
@@ -403,6 +411,7 @@ internal sealed class WildlifeModule : IProductModule
             MemberBody state = bodies[member.Id];
             float speed = member.Velocity.Length();
             double travel = speed * seconds;
+            if (herd.Kind.Mesh?.Clips.ContainsKey(WildlifeClipRole.LedgeHop) == true) Spring(member, state, here, seconds);
             if (travel < StillMetres) continue;
             Vector2 from = member.Position;
             float feet = state.Feet;
@@ -415,6 +424,23 @@ internal sealed class WildlifeModule : IProductModule
                 state.Body = null;
             }
         }
+    }
+
+    /// <summary>
+    /// A kind that hops takes a ledge in its stride: near the player, where it would show, a moving
+    /// animal looks along its way for ground rising faster than it can walk: a rock, a bank, a wall.
+    /// </summary>
+    private void Spring(WildlifeMember member, MemberBody state, Vector2 here, double seconds)
+    {
+        WildlifeBehaviour behaviour = Catalog.Behaviour;
+        member.HopSeconds = Math.Max(0, member.HopSeconds - seconds);
+        member.SinceHop += seconds;
+        if (member.Velocity == Vector2.Zero || Vector2.Distance(member.Position, here) > Catalog.Animation.FullMetres) return;
+        Vector2 ahead = member.Position + (Vector2.Normalize(member.Velocity) * (float)behaviour.LedgeLookMetres);
+        if (!WildlifeClips.Hops(member, GroundOf(ahead.X, ahead.Y) - state.Feet, behaviour)) return;
+        member.HopSeconds = behaviour.HopSeconds;
+        member.SinceHop = 0;
+        hops++;
     }
 
     private void Move(WildlifeMember member, MemberBody state, CharacterControllerConfig config, Vector2 here, float speed, double travel, double seconds)
@@ -470,7 +496,7 @@ internal sealed class WildlifeModule : IProductModule
         Vector3 at = player.WorldPosition;
         Vector2 here = new(at.X, at.Z);
         (WildlifeHerd Herd, WildlifeMember Member, double Gap)? nearest = awake
-            .SelectMany(herd => herd.Members.Select(member => (Herd: herd, Member: member,
+            .SelectMany(herd => herd.Members.Where(member => !member.Under).Select(member => (Herd: herd, Member: member,
                 Gap: Vector2.Distance(member.Position, here) - (herd.Kind.Body.WidthMetres / 2))))
             .Where(entry => entry.Gap <= CharacterSheet.UnarmedReachMetres)
             .OrderBy(entry => entry.Gap)
@@ -549,7 +575,7 @@ internal sealed class WildlifeModule : IProductModule
         Vector3 at = player.WorldPosition;
         WorldTime now = clock();
         string costs = string.Create(CultureInfo.InvariantCulture,
-            $"updates={cost.Count} meanMs={(cost.Count == 0 ? 0 : cost.Total / cost.Count):F3} worstMs={cost.Worst:F3} bodySteps/update={(cost.Count == 0 ? 0 : cost.Steps / (double)cost.Count):F1} glides/update={(cost.Count == 0 ? 0 : cost.Glides / (double)cost.Count):F1} refused={cost.Refused} wakePassWorstMs={parts.Wake:F2} waterSearchWorstMs={parts.Water:F2}");
+            $"hops={hops} under={awake.Sum(herd => herd.Members.Count(member => member.Under))} updates={cost.Count} meanMs={(cost.Count == 0 ? 0 : cost.Total / cost.Count):F3} worstMs={cost.Worst:F3} bodySteps/update={(cost.Count == 0 ? 0 : cost.Steps / (double)cost.Count):F1} glides/update={(cost.Count == 0 ? 0 : cost.Glides / (double)cost.Count):F1} refused={cost.Refused} wakePassWorstMs={parts.Wake:F2} waterSearchWorstMs={parts.Water:F2}");
         cost = default;
         parts = default;
         return string.Create(CultureInfo.InvariantCulture,

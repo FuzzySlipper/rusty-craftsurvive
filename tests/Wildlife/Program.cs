@@ -23,12 +23,12 @@ WildlifeHerd Herd(string kindId, Vector2 at, int count, string key = "test")
 }
 
 // Runs a herd for some seconds, the player standing where the function says at each moment.
-void Run(WildlifeHerd herd, double seconds, WorldTime start, Func<double, Vector2?> player, Action<double>? each = null)
+void Run(WildlifeHerd herd, double seconds, WorldTime start, Func<double, Vector2?> player, Action<double>? each = null, Vector2? water = null)
 {
     for (double t = 0; t < seconds; t += Tick)
     {
         WorldTime time = start with { DayFraction = start.DayFraction + (t / WorldClock.DaySeconds) };
-        WildlifeRules.Decide(herd, new HerdFacts(player(t), time, Seed), catalog, Tick);
+        WildlifeRules.Decide(herd, new HerdFacts(player(t), time, Seed, water), catalog, Tick);
         WildlifeRules.Integrate(herd, Tick);
         each?.Invoke(t);
     }
@@ -366,6 +366,94 @@ Check.Section("bodies", () =>
     Check.Equal(WildlifeTier.Play, WildlifeClips.Tier(line, WildlifeTier.Play, animation), "and the further one until it is back inside the line");
 });
 
+Check.Section("water and ledges", () =>
+{
+    WildlifeBehaviour behaviour = catalog.Behaviour;
+    Check.Equal(PressedResponse.TakeToWater, catalog.Kind("giant-beaver").Pressed, "a beaver takes to the water");
+    Vector2 shore = new(30, 0);
+
+    // Pressed, a beaver runs for its shore, slips in and goes under.
+    WildlifeHerd family = Herd("giant-beaver", new Vector2(0, 0), 3, "dive");
+    Vector2 hunter = family.Centre - new Vector2(5, 0);
+    bool slipped = false;
+    Run(family, 30, Morning, _ => hunter, _ => slipped |= family.Members.Any(m => m.DiveSeconds is not null && !m.Under), shore);
+    Check.That(slipped, "a beaver is seen slipping in before it goes under");
+    Check.That(family.Members.All(m => m.Under), "a pressed beaver with water goes under");
+    double slid = behaviour.SlipMetresPerSecond * behaviour.SlipSeconds;
+    Check.That(family.Members.All(m => m.Position.X > shore.X - behaviour.ShoreArrivalMetres && Vector2.Distance(m.Position, shore) <= behaviour.ShoreArrivalMetres + slid + 0.5), "it goes in at its shore, sliding on past it into the water");
+    Check.That(family.Members.All(m => m.Velocity == Vector2.Zero), "under the water it does not move");
+
+    // It stays down while the player waits on the bank, and comes up when the player has gone.
+    Run(family, 60, Morning, _ => shore + new Vector2(0, 4), water: shore);
+    Check.That(family.Members.All(m => m.Under && m.Stage == Wariness.Respond), "a player waiting at the shore keeps it under");
+    Vector2 where = family.Leader.Position;
+    Run(family, 2, Morning, _ => shore + new Vector2(0, 400), water: shore);
+    Check.That(family.Members.All(m => !m.Under && m.DiveSeconds is null && m.Stage == Wariness.Regroup), "it comes up once the player has gone");
+    Check.That(Vector2.Distance(family.Leader.Position, where) < 3, "it comes up where it went in");
+
+    // Going in at different moments, a family still comes up together and stays up.
+    WildlifeHerd scattered = Herd("giant-beaver", new Vector2(0, 0), 4, "scattered");
+    Vector2 shock = scattered.Centre - new Vector2(5, 0);
+    Run(scattered, 25, Morning, _ => shock, water: new Vector2(30, 0));
+    scattered.Members[0].DiveSeconds += 5;
+    Vector2 gone = new(900, 0);
+    Run(scattered, 40, Morning, _ => gone, water: new Vector2(30, 0));
+    Check.That(scattered.Members.All(m => !m.Under && m.DiveSeconds is null && m.Stage is Wariness.Regroup or Wariness.Calm), "a family comes up together, and the alarm does not send it back down");
+
+    // A player leaving at once does not bring it straight back up.
+    WildlifeHerd brief = Herd("giant-beaver", new Vector2(0, 0), 1, "brief");
+    WildlifeMember diver = brief.Members[0];
+    Run(brief, 10, Morning, _ => diver.Position - new Vector2(5, 0), water: new Vector2(10, 0));
+    double wentUnder = diver.DiveSeconds ?? double.NaN;
+    Check.That(diver.Under && wentUnder < behaviour.SlipSeconds + behaviour.LeastUnderSeconds, $"a beaver near water has just gone under ({wentUnder:F1} s)");
+    Run(brief, 1, Morning, _ => new Vector2(500, 0), water: new Vector2(10, 0));
+    Check.That(diver.Under, "it stays down its least time even with the player gone");
+
+    // A far shore: it has long outrun the player by then, and goes in all the same.
+    WildlifeHerd far = Herd("giant-beaver", new Vector2(0, 0), 2, "far");
+    Vector2 startled = far.Centre - new Vector2(5, 0);
+    bool wentIn = false;
+    Run(far, 90, Morning, _ => startled, _ => wentIn |= far.Members.All(m => m.Under), new Vector2(150, 0));
+    Check.That(wentIn, "a beaver that has made for the water goes in, however far it had to run");
+
+    // One held back from the water gives up, and does not keep the rest under for ever.
+    WildlifeHerd held = Herd("giant-beaver", new Vector2(0, 0), 3, "held");
+    Vector2 near = held.Centre - new Vector2(5, 0);
+    Vector2 stuckAt = held.Members[2].Position;
+    Run(held, 200, Morning, _ => near, _ => held.Members[2].Position = stuckAt, new Vector2(25, 0));
+    Check.That(!held.Members[2].ToWater && held.Members[2].DiveSeconds is null, "a beaver that cannot reach the water gives up");
+    Run(held, 60, Morning, _ => new Vector2(900, 0), _ => held.Members[2].Position = stuckAt, new Vector2(25, 0));
+    Check.That(held.Members.All(m => !m.Under), "and its family comes up all the same");
+
+    // With no water in its range it flees like any other.
+    WildlifeHerd dry = Herd("giant-beaver", new Vector2(0, 0), 3, "dry");
+    Vector2 from = dry.Centre - new Vector2(5, 0);
+    Run(dry, 12, Morning, _ => from);
+    Check.That(dry.Members.All(m => m.DiveSeconds is null && !m.Under), "with no water it never dives");
+    Check.That(dry.Centre.X > 10, "with no water it runs from the player");
+
+    // A hurt beaver still takes to the water: it does not turn into a lone runner.
+    WildlifeMember hurt = Herd("giant-beaver", new Vector2(0, 0), 1, "hurt").Members[0];
+    hurt.Combat = hurt.Combat with { Health = 1 };
+    Check.Equal(PressedResponse.TakeToWater, WildlifeRules.Response(hurt, catalog.Kind("giant-beaver")), "a hurt beaver makes for the water");
+
+    // A goat springs at a rise too steep to walk, and lands before it springs again.
+    WildlifeMember goat = Herd("cave-goat", new Vector2(0, 0), 1, "hop").Members[0];
+    Check.That(WildlifeClips.Hops(goat, 0.6f, behaviour), "a rise past the walk makes a goat spring");
+    Check.That(!WildlifeClips.Hops(goat, 0.2f, behaviour), "a walkable rise does not");
+    goat.HopSeconds = 0.2;
+    Check.That(!WildlifeClips.Hops(goat, 1f, behaviour), "it does not spring in the air");
+    goat.HopSeconds = 0;
+    goat.SinceHop = behaviour.HopEverySeconds / 2;
+    Check.That(!WildlifeClips.Hops(goat, 1f, behaviour), "it lands before it springs again");
+
+    // The rules time what the clips show.
+    double ClipSeconds(string kind, string clip) => CreatureManifest.Parse(ReadResource($"Wildlife.{kind}.manifest.json")).Clips[clip].Seconds;
+
+    Check.That(Math.Abs(ClipSeconds("giant-beaver", "slip") - behaviour.SlipSeconds) < 0.05, "the slip lasts as long as its clip");
+    Check.That(Math.Abs(ClipSeconds("cave-goat", "ledge-hop") - behaviour.HopSeconds) < 0.05, "the hop lasts as long as its clip");
+});
+
 Check.Section("variety", () =>
 {
     WildlifeVariety variety = catalog.Variety;
@@ -529,6 +617,19 @@ Check.Section("region seeding", () =>
         }
     }
 
+    // A kind that takes to water lives beside it, and not where there is none.
+    bool River(double x, double z) => Math.Abs(x - 500) < 40;
+    MapBiome Forest(double x, double z) => MapBiome.BorealForest;
+    List<HerdRecord> byRiver = [], byNothing = [];
+    for (int i = 0; i < 144; i++)
+    {
+        byRiver.AddRange(WildlifeSeeding.Seed(new WildlifeRegion(0, i), Seed, catalog, Forest, null, River).Herds.Where(h => h.KindId == "giant-beaver"));
+        byNothing.AddRange(WildlifeSeeding.Seed(new WildlifeRegion(5, i), Seed, catalog, Forest, null, River).Herds.Where(h => h.KindId == "giant-beaver"));
+    }
+
+    Check.That(byRiver.Count > 0, "beavers settle along a river");
+    Check.That(byRiver.All(h => !River(h.Home.X, h.Home.Y) && Math.Abs(h.Home.X - 500) <= catalog.Kind("giant-beaver").Population.RangeMetres), "a beaver's home is dry ground within its range of the water");
+    Check.Equal(0, byNothing.Count, "no beavers settle where there is no water");
     Check.That(sea.Count == 0, "nothing is seeded at sea");
     Check.That(west.All(h => catalog.Kind(h.KindId).HabitatWeight(MapBiome.Grassland) > 0), "only grassland kinds are seeded on grassland");
     Check.That(east.All(h => catalog.Kind(h.KindId).HabitatWeight(MapBiome.Desert) > 0), "only desert kinds are seeded in desert");
