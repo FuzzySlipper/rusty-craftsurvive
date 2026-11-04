@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Wildlife;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -76,7 +77,7 @@ Check.Section("kinds", () =>
         "an unknown biome must be refused");
     Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(text.Replace("\"pressed\": \"hunker\"", "\"pressed\": \"burrow\"")),
         "an unknown pressed response must be refused");
-    Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(text.Replace("\"sleepMetres\": 260", "\"sleepMetres\": 100")),
+    Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(text.Replace("\"sleepMetres\": 360", "\"sleepMetres\": 100")),
         "herds must sleep further out than they wake");
     Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(text.Replace("\"huge\": { \"radius\": 1.0, \"height\": 3.2 }", "\"huge\": { \"radius\": 1.0, \"height\": 1.5 }")),
         "a size class must be a capsule taller than its end caps");
@@ -217,6 +218,97 @@ Check.Section("pressed responses", () =>
     Check.Equal(Wariness.Respond, struck.Members[2].Stage, "a struck goat flees at once");
 });
 
+Check.Section("bodies", () =>
+{
+    WildlifeKind kind = catalog.Kind("ground-sloth");
+    WildlifeAnimation animation = catalog.Animation;
+    CreatureRig built = CreatureManifest.Parse(ReadResource("Wildlife.sloth.manifest.json"));
+    WildlifeRig rig = WildlifeRig.For(kind.Mesh!, built);
+    Check.That(catalog.Kinds.Count(k => k.Mesh is not null) == 1, "only the sloth has a mesh so far; the rest stay placeholders");
+    Check.Equal("alert", rig.Clip(WildlifeClipRole.Look).Name, "a looking sloth plays its alert clip");
+    Check.Equal("idle", rig.Clip(WildlifeClipRole.Hunker).Name, "a role with no clip falls back to idling");
+    Check.Throws<InvalidDataException>(() => WildlifeRig.For(kind.Mesh! with { Clips = new Dictionary<WildlifeClipRole, string> { [WildlifeClipRole.Idle] = "yawn" } }, built),
+        "a clip the build does not have must be refused");
+
+    // What the herd's state calls for.
+    WildlifeHerd herd = Herd("ground-sloth", Vector2.Zero, 3, "clips");
+    WildlifeMember one = herd.Members[1];
+    herd.Activity = WildlifeActivity.Graze;
+    Check.Equal(WildlifeClipRole.Graze, WildlifeClips.Want(one, herd, rig), "a standing grazer feeds");
+    herd.Activity = WildlifeActivity.Rest;
+    Check.Equal(WildlifeClipRole.Idle, WildlifeClips.Want(one, herd, rig), "a resting animal idles");
+    one.Velocity = new Vector2(0.75f, 0);
+    Check.Equal(WildlifeClipRole.Walk, WildlifeClips.Want(one, herd, rig), "at walking pace it walks");
+    Check.Equal(1f, WildlifeClips.Rate(WildlifeClipRole.Walk, 0.75f, rig, animation), "at the clip's own ground speed it plays at its own rate");
+    one.Velocity = new Vector2(2.1f, 0);
+    Check.Equal(WildlifeClipRole.Run, WildlifeClips.Want(one, herd, rig), "at fleeing pace it runs");
+    Check.That(WildlifeClips.Rate(WildlifeClipRole.Run, 3, rig, animation) <= animation.MaximumRate, "a clip's rate stays within its limit");
+    one.Velocity = Vector2.Zero;
+    one.Enter(Wariness.Look);
+    Check.Equal(WildlifeClipRole.Look, WildlifeClips.Want(one, herd, rig), "a looking animal is alert");
+    one.Enter(Wariness.Respond);
+    Check.Equal(WildlifeClipRole.Stand, WildlifeClips.Want(one, herd, rig), "a pressed sloth swipes");
+
+    // A new clip waits out the hold unless the animal is alarmed.
+    WildlifeMember settling = herd.Members[2];
+    settling.Clip = WildlifeClipRole.Idle;
+    settling.Velocity = new Vector2(0.75f, 0);
+    Check.That(!WildlifeClips.Advance(settling, herd, rig, animation, 0.1), "a clip just begun holds against a walk");
+    Check.That(WildlifeClips.Advance(settling, herd, rig, animation, animation.ClipHoldSeconds), "after the hold the walk starts");
+    settling.Velocity = Vector2.Zero;
+    settling.Enter(Wariness.Look);
+    Check.That(WildlifeClips.Advance(settling, herd, rig, animation, 0.01), "alarm does not wait for the hold");
+
+    // Heading turns at the kind's rate, the short way round.
+    WildlifeHerd turning = Herd("ground-sloth", Vector2.Zero, 1, "turning");
+    WildlifeMember turner = turning.Members[0];
+    turner.Yaw = 3f;
+    Vector2 east = turner.Position + new Vector2(100, 0);
+    WildlifeRules.Decide(turning, new HerdFacts(null, Morning, Seed), catalog, 0.1);
+    turner.Yaw = MathF.PI - 0.1f;
+    turner.Stage = Wariness.Look;
+    Vector2 behind = turner.Position + (WildlifeRules.Facing(-MathF.PI + 0.1f) * 10);
+    WildlifeRules.Decide(turning, new HerdFacts(behind, Morning, Seed), catalog, 0.1);
+    float turned = MathF.IEEERemainder(turner.Yaw - (MathF.PI - 0.1f), 2 * MathF.PI);
+    Check.That(turned > 0 && turned <= kind.Speeds.TurnDegrees * Math.PI / 180 * 0.1 + 1e-4, $"a body turns the short way, at its rate ({turned:F3} rad)");
+
+    // A grazing herd walks at its walking pace, in turn with feeding, and covers its graze-drift speed.
+    WildlifeHerd grazers = Herd("ground-sloth", new Vector2(0, 0), 4, "stop-and-go");
+    int walking = 0, standing = 0;
+    Vector2 start = grazers.Leader.Position;
+    Run(grazers, 60, Morning, _ => null, _ =>
+    {
+        float speed = grazers.Leader.Velocity.Length();
+        if (speed == 0) standing++;
+        else if (Math.Abs(speed - kind.Speeds.Walk) < 0.01) walking++;
+    });
+    Check.That(walking > 0 && standing > 0 && walking + standing >= 590, $"a grazing leader stands or walks, never creeps ({walking} walking, {standing} standing)");
+    double drift = Vector2.Distance(grazers.Leader.Position, start) / 60;
+    Check.That(drift > kind.Speeds.GrazeDrift * 0.6 && drift < kind.Speeds.GrazeDrift * 1.4, $"over a cycle it keeps its graze-drift speed ({drift:F2} m/s)");
+
+    // How a body sits on the ground.
+    (float height, float pitch) = WildlifeClips.Stance(10, 10, 10.5f, -0.12, 1.6, animation);
+    Check.That(pitch > 0.25 && pitch < 0.35 && height > 10 && height < 10.1, $"rising ground pitches the nose up, the origin on the slope ({pitch:F2} rad at {height:F2})");
+    (float high, float steep) = WildlifeClips.Stance(10, 10, 14, -0.12, 1.6, animation);
+    double limit = animation.MostPitchDegrees * Math.PI / 180;
+    Check.That(Math.Abs(steep - limit) < 1e-4 && high == 10, $"a cast landing on a stone cannot stand a body on end ({steep * 180 / Math.PI:F0} degrees)");
+    Check.Equal((10f, 0f), WildlifeClips.Stance(10, 10, 10, -0.12, 1.6, animation), "level ground is level");
+
+    // Planting feet is what a crowd costs, so only the nearest few are planted.
+    double[] many = [.. Enumerable.Range(1, animation.MostPlanted + 5).Select(i => i * 3.0)];
+    Check.Equal(animation.MostPlanted * 3.0, WildlifeClips.PlantWithin(many, animation), "only the nearest few animals are planted");
+    Check.Equal(double.PositiveInfinity, WildlifeClips.PlantWithin([4, 9], animation), "a few animals are all planted");
+
+    // How much of its animation an animal runs at each distance.
+    Check.Equal(WildlifeTier.Full, WildlifeClips.Tier(10, WildlifeTier.Full, animation), "near, everything runs");
+    Check.Equal(WildlifeTier.Play, WildlifeClips.Tier(100, WildlifeTier.Full, animation), "further, the clip plays");
+    Check.Equal(WildlifeTier.Held, WildlifeClips.Tier(300, WildlifeTier.Play, animation), "further still, the pose holds");
+    Check.Equal(WildlifeTier.Hidden, WildlifeClips.Tier(animation.DrawMetres + 50, WildlifeTier.Held, animation), "past the draw distance it is not drawn");
+    double line = animation.FullMetres + 1;
+    Check.Equal(WildlifeTier.Full, WildlifeClips.Tier(line, WildlifeTier.Full, animation), "an animal keeps the nearer tier for the margin");
+    Check.Equal(WildlifeTier.Play, WildlifeClips.Tier(line, WildlifeTier.Play, animation), "and the further one until it is back inside the line");
+});
+
 Check.Section("region seeding", () =>
 {
     // A made-up world: grassland west of x = 0, desert east of it, sea south of z = -20 km.
@@ -324,10 +416,12 @@ Check.Section("population", () =>
 
 return Check.Finish("wildlife");
 
-static string ReadKinds()
+static string ReadKinds() => ReadResource("Wildlife.kinds.json");
+
+static string ReadResource(string name)
 {
-    using Stream stream = typeof(Check).Assembly.GetManifestResourceStream("Wildlife.kinds.json")
-        ?? throw new InvalidOperationException("the kinds are not embedded");
+    using Stream stream = typeof(Check).Assembly.GetManifestResourceStream(name)
+        ?? throw new InvalidOperationException($"{name} is not embedded");
     using StreamReader reader = new(stream);
     return reader.ReadToEnd();
 }

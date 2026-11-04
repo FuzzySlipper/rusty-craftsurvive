@@ -52,6 +52,14 @@ internal sealed class WildlifeMember
 
     internal CombatantState Combat { get; set; }
 
+    /// <summary>Whether it is walking back to its slot: it leaves only when well out of place and stops only when there.</summary>
+    internal bool Following { get; set; }
+
+    /// <summary>The clip its body shows, and how long it has shown it.</summary>
+    internal WildlifeClipRole Clip { get; set; } = WildlifeClipRole.Idle;
+
+    internal double ClipSeconds { get; set; }
+
     /// <summary>Struck since the last decision: it answers as its kind does when pressed.</summary>
     internal bool Struck { get; set; }
 
@@ -60,6 +68,16 @@ internal sealed class WildlifeMember
         Stage = stage;
         StageSeconds = 0;
     }
+}
+
+/// <summary>An animal that has been killed, left where it fell for a while: it holds its id until it goes.</summary>
+internal sealed class WildlifeFallen(WildlifeKind kind, WildlifeMember member)
+{
+    internal WildlifeKind Kind { get; } = kind;
+
+    internal WildlifeMember Member { get; } = member;
+
+    internal double Seconds { get; set; }
 }
 
 /// <summary>
@@ -98,6 +116,9 @@ internal sealed class WildlifeHerd
 
     /// <summary>How many goals the activity has reached; each new one is drawn afresh.</summary>
     internal int GoalSerial { get; set; }
+
+    /// <summary>How long the herd has been grazing, which walks it on and stands it to feed in turn.</summary>
+    internal double GrazeSeconds { get; set; }
 
     /// <summary>The highest stage the alarm has reached, where it was raised, and how long it has been spreading.</summary>
     internal Wariness Alarm { get; set; }

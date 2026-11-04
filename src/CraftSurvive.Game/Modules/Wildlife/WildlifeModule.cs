@@ -18,10 +18,10 @@ namespace CraftSurvive.Game.Modules.Wildlife;
 
 /// <summary>
 /// Wildlife in the running product (#10567), apart from the hostile walkers. Each update it reads
-/// the player and the world's clock, sleeps herds that left the player's reach or resident ground,
-/// wakes seeded herds whose range puts them near, lets <see cref="WildlifeRules"/> decide every
-/// awake animal, applies the decided velocities as body steps against the world's collision, and
-/// publishes placeholder bodies.
+/// the player and the world's clock, sleeps herds that left the player's reach, wakes seeded herds
+/// whose range puts them near, lets <see cref="WildlifeRules"/> decide every awake animal, applies
+/// the decided velocities as body steps against the world's collision, and publishes their bodies.
+/// A herd may stand past the near ground's edge, on the recipe's surface, seen across open country.
 ///
 /// It owns the population ledger (what each seeded herd has lost) and the awake herds; bodies and
 /// appearances are derived from them. Every number it behaves by comes from the kinds' content.
@@ -50,11 +50,13 @@ internal sealed class WildlifeModule : IProductModule
     private readonly WorldFrame frame;
     private readonly Func<WorldTime> clock;
     private readonly Cues cues;
-    private readonly WildlifePresentation presentation;
+    private WildlifePresentation? presentation;
     private readonly List<WildlifeHerd> awake = [];
+    private readonly List<WildlifeFallen> fallen = [];
     private readonly Dictionary<int, MemberBody> bodies = [];
     private readonly Dictionary<string, CharacterControllerConfig> configs = [];
     private readonly Dictionary<string, Vector2?> waters = [];
+    private readonly Dictionary<string, int> waterRings = [];
     private readonly Stack<int> freeIds = [];
     private readonly ProductSaveSlot<IReadOnlyList<HerdLoss>> slot;
     private WildlifeCatalog? catalog;
@@ -91,7 +93,6 @@ internal sealed class WildlifeModule : IProductModule
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         this.cues = cues ?? throw new ArgumentNullException(nameof(cues));
         slot = new ProductSaveSlot<IReadOnlyList<HerdLoss>>(engine, store, SaveManifest.WildlifeLedger, new WildlifeLedgerCodec(identity));
-        presentation = new WildlifePresentation(engine, frame);
         // A body's step carries session-local positions; when the world's origin moves, each is set down afresh.
         frame.Rebased += _ =>
         {
@@ -102,7 +103,10 @@ internal sealed class WildlifeModule : IProductModule
     /// <summary>Ground no herd calls home or heads for (#9895): the towns' sanctuary. The product decides where towns stand.</summary>
     internal Func<double, double, bool>? Sanctuary { get; set; }
 
-    internal IReadOnlyList<AppearanceFact> AppearanceFacts => presentation.Facts;
+    internal IReadOnlyList<AppearanceFact> AppearanceFacts => presentation?.Facts ?? [];
+
+    /// <summary>Called by the product root once it has published a snapshot of <see cref="AppearanceFacts"/>.</summary>
+    internal void AfterAppearanceSnapshot(bool drawn) => presentation?.Meshes.AfterSnapshot(drawn);
 
     private WildlifeCatalog Catalog => catalog ?? throw new InvalidOperationException("wildlife has not started");
 
@@ -114,6 +118,13 @@ internal sealed class WildlifeModule : IProductModule
     {
         if (started) return;
         catalog ??= WildlifeKinds.Parse(content.ReadText(WildlifeKinds.ContentPath));
+        if (presentation is null)
+        {
+            WildlifeMeshBodies meshes = new(engine, content, frame, catalog.Animation, GroundOf, Seed);
+            foreach (WildlifeKind kind in catalog.Kinds.Where(kind => kind.Mesh is not null)) meshes.Prepare(kind);
+            presentation = new WildlifePresentation(engine, frame, meshes);
+        }
+
         if (ledger is null)
         {
             ledger = new WildlifeLedger(catalog, Seed, BiomeAt, (x, z) => Sanctuary?.Invoke(x, z) == true);
@@ -125,7 +136,14 @@ internal sealed class WildlifeModule : IProductModule
 
     public void Update(ProductStep time)
     {
-        if (!started || player.InSeparateSpace) return;
+        if (!started) return;
+        if (player.InSeparateSpace)
+        {
+            // The open world's herds sleep while the player is in a dungeon: nothing draws them there.
+            if (awake.Count > 0 || fallen.Count > 0) SleepAll();
+            return;
+        }
+
         long began = Stopwatch.GetTimestamp();
         step = time.Step;
         WorldTime now = clock();
@@ -146,7 +164,8 @@ internal sealed class WildlifeModule : IProductModule
             Apply(herd, here, time.ElapsedSeconds);
         }
 
-        presentation.Sync(awake, FeetOf);
+        Decay(here, time.ElapsedSeconds);
+        Presentation.Sync(awake, fallen, FeetOf, here, time.ElapsedSeconds);
         double milliseconds = Stopwatch.GetElapsedTime(began).TotalMilliseconds;
         cost = (cost.Total + milliseconds, cost.Count + 1, Math.Max(cost.Worst, milliseconds), cost.Steps, cost.Refused, cost.Glides);
     }
@@ -154,16 +173,16 @@ internal sealed class WildlifeModule : IProductModule
     /// <summary>A fresh session over the same world: the herds sleep, and what the ledger holds stays, as the world's other saves do.</summary>
     public void Restart()
     {
-        foreach (WildlifeHerd herd in awake.ToArray()) Release(herd);
-        presentation.Sync(awake, FeetOf);
+        SleepAll();
         lastEvent = "restarted";
     }
 
     public void Dispose()
     {
         awake.Clear();
+        fallen.Clear();
         bodies.Clear();
-        presentation.Dispose();
+        presentation?.Dispose();
         started = false;
     }
 
@@ -171,26 +190,54 @@ internal sealed class WildlifeModule : IProductModule
     /// The biome under a point, from the continent's own map: a region is a kilometre across, so its
     /// biomes need no finer detail, and the walked geography would build region tiles to answer.
     /// </summary>
+    private WildlifePresentation Presentation => presentation ?? throw new InvalidOperationException("wildlife has not started");
+
+    private Vector2 Here
+    {
+        get
+        {
+            Vector3 at = player.WorldPosition;
+            return new Vector2(at.X, at.Z);
+        }
+    }
+
     private MapBiome BiomeAt(double x, double z) => WorldMap.Biome(terrain.Recipe.Map.Sample(x, z));
 
-    private bool Allowed(Vector2 point) => Sanctuary?.Invoke(point.X, point.Y) != true;
+    /// <summary>
+    /// Ground a herd may head for: outside the towns' sanctuary, and dry on the continent's map, so a
+    /// goal never stands in the sea or a lake. The map answers for ground far from the player without
+    /// building its region tiles.
+    /// </summary>
+    private bool Allowed(Vector2 point)
+    {
+        if (Sanctuary?.Invoke(point.X, point.Y) == true) return false;
+        MapSample map = terrain.Recipe.Map.Sample(point.X, point.Y);
+        return map.Elevation >= Math.Max(GenerationConstants.WaterLevel, map.LakeSurface);
+    }
 
-    private float FeetOf(WildlifeMember member) => bodies.TryGetValue(member.Id, out MemberBody? body) ? body.Feet : terrain.GroundAt(member.Position.X, member.Position.Y);
+    private float FeetOf(WildlifeMember member) => bodies.TryGetValue(member.Id, out MemberBody? body) ? body.Feet : GroundOf(member.Position.X, member.Position.Y);
+
+    /// <summary>
+    /// The ground at a point: the Engine's standing surface on resident ground, else the recipe's. Past
+    /// the near ground's edge the far field draws that same surface, and it costs no block search.
+    /// </summary>
+    private float GroundOf(double x, double z)
+    {
+        long cellX = (long)Math.Floor(x), cellZ = (long)Math.Floor(z);
+        long surface = terrain.Recipe.SurfaceAt(cellX, cellZ);
+        return terrain.IsResident(new VoxelAddress(cellX, surface, cellZ)) ? terrain.GroundAt(x, z) : surface + 1;
+    }
 
     private static double Day(WorldTime time) => time.Day + time.DayFraction;
 
-    /// <summary>Whether the block under a point is resident: a herd over ground the world has not loaded sleeps.</summary>
-    private bool Resident(Vector2 position, float feet) =>
-        terrain.IsResident(new VoxelAddress((long)Math.Floor(position.X), (long)Math.Floor(feet) - 1, (long)Math.Floor(position.Y)));
-
-    /// <summary>Herds whose leader has gone beyond the sleep distance, or over ground no longer resident, sleep.</summary>
+    /// <summary>Herds whose leader has gone beyond the sleep distance sleep.</summary>
     private void Sleep(Vector3 at)
     {
         Vector2 here = new(at.X, at.Z);
         foreach (WildlifeHerd herd in awake.ToArray())
         {
             WildlifeMember leader = herd.Leader;
-            if (Vector2.Distance(leader.Position, here) > Catalog.Waking.SleepMetres || !Resident(leader.Position, FeetOf(leader)))
+            if (Vector2.Distance(leader.Position, here) > Catalog.Waking.SleepMetres)
             {
                 Release(herd);
                 lastEvent = $"{herd.Key} slept";
@@ -199,8 +246,8 @@ internal sealed class WildlifeModule : IProductModule
     }
 
     /// <summary>
-    /// Wakes the herds whose range puts them within the wake distance now, on resident ground, nearest
-    /// first, up to the most that may be awake. A herd wakes with the animals its ledger has left.
+    /// Wakes the herds whose range puts them within the wake distance now, nearest first, up to the
+    /// most that may be awake. A herd wakes with the animals its ledger has left.
     /// </summary>
     private void Wake(Vector3 at, WorldTime now)
     {
@@ -220,7 +267,6 @@ internal sealed class WildlifeModule : IProductModule
         foreach (var entry in candidates)
         {
             if (awake.Count >= waking.MostAwakeHerds) break;
-            if (!Resident(entry.Point, terrain.GroundAt(entry.Point.X, entry.Point.Y))) continue;
             WakeAt(entry.Record, entry.Kind, entry.Point, entry.Alive);
         }
     }
@@ -230,7 +276,7 @@ internal sealed class WildlifeModule : IProductModule
         WildlifeHerd herd = WildlifeRules.Wake(record, kind, Catalog, Seed, point, alive, TakeId);
         foreach (WildlifeMember member in herd.Members)
         {
-            bodies[member.Id] = new MemberBody { Feet = terrain.GroundAt(member.Position.X, member.Position.Y) };
+            bodies[member.Id] = new MemberBody { Feet = GroundOf(member.Position.X, member.Position.Y) };
         }
 
         awake.Add(herd);
@@ -242,6 +288,18 @@ internal sealed class WildlifeModule : IProductModule
     {
         foreach (WildlifeMember member in herd.Members) Forget(member);
         awake.Remove(herd);
+    }
+
+    /// <summary>The fallen lie where they fell for a while, or until the player has gone.</summary>
+    private void Decay(Vector2 here, double seconds)
+    {
+        foreach (WildlifeFallen body in fallen.ToArray())
+        {
+            body.Seconds += seconds;
+            if (body.Seconds < Catalog.Animation.CorpseSeconds && Vector2.Distance(body.Member.Position, here) <= Catalog.Waking.SleepMetres) continue;
+            fallen.Remove(body);
+            Forget(body.Member);
+        }
     }
 
     private void Forget(WildlifeMember member)
@@ -259,50 +317,52 @@ internal sealed class WildlifeModule : IProductModule
     }
 
     /// <summary>
-    /// Where a herd drinks: the nearest open river or lake to its home inside its range, stepped back
-    /// to the shore toward home, found once per herd. Null when its range has none (it then roams).
+    /// Where a herd drinks: the nearest open river or lake to its home inside its range, stepped back to
+    /// the shore toward home. The search takes one ring an update, as water far from the player costs
+    /// region tiles to read; until it ends, and if the range has none, the herd roams instead.
     /// </summary>
     private Vector2? WaterFor(WildlifeHerd herd)
     {
         if (waters.TryGetValue(herd.Key, out Vector2? found)) return found;
         long began = Stopwatch.GetTimestamp();
         WildlifePlacement placement = Catalog.Placement;
-        double range = herd.Kind.Population.RangeMetres;
-        Vector2? nearest = null;
-        for (int ring = 1; ring <= placement.WaterRings && nearest is null; ring++)
-        {
-            double radius = range * ring / placement.WaterRings;
-            for (int heading = 0; heading < placement.WaterHeadings; heading++)
-            {
-                double angle = 2 * Math.PI * heading / placement.WaterHeadings;
-                Vector2 point = herd.Home + new Vector2((float)(radius * Math.Sin(angle)), (float)(radius * -Math.Cos(angle)));
-                if (Drinkable(point) && Allowed(point))
-                {
-                    nearest = point;
-                    break;
-                }
-            }
-        }
-
+        int ring = waterRings.GetValueOrDefault(herd.Key) + 1;
+        waterRings[herd.Key] = ring;
+        double radius = herd.Kind.Population.RangeMetres * ring / placement.WaterRings;
         Vector2? shore = null;
-        if (nearest is Vector2 water)
+        bool ended = ring >= placement.WaterRings;
+        for (int heading = 0; heading < placement.WaterHeadings; heading++)
         {
-            Vector2 back = Vector2.Normalize(herd.Home - water);
-            double distance = Vector2.Distance(herd.Home, water);
-            for (double walked = ShoreStepMetres; walked < distance; walked += ShoreStepMetres)
-            {
-                Vector2 point = water + (back * (float)walked);
-                if (!terrain.Water.Sample(point.X, point.Y).Wet)
-                {
-                    shore = point;
-                    break;
-                }
-            }
+            double angle = 2 * Math.PI * heading / placement.WaterHeadings;
+            Vector2 point = herd.Home + new Vector2((float)(radius * Math.Sin(angle)), (float)(radius * -Math.Cos(angle)));
+            if (!Drinkable(point) || Sanctuary?.Invoke(point.X, point.Y) == true) continue;
+            shore = Shore(point, herd.Home);
+            ended = true;
+            break;
         }
 
-        waters[herd.Key] = shore;
+        if (ended)
+        {
+            waters[herd.Key] = shore;
+            waterRings.Remove(herd.Key);
+        }
+
         parts.Water = Math.Max(parts.Water, Stopwatch.GetElapsedTime(began).TotalMilliseconds);
         return shore;
+    }
+
+    /// <summary>The first dry ground from water toward a herd's home; null if there is none short of it.</summary>
+    private Vector2? Shore(Vector2 water, Vector2 home)
+    {
+        Vector2 back = Vector2.Normalize(home - water);
+        double distance = Vector2.Distance(home, water);
+        for (double walked = ShoreStepMetres; walked < distance; walked += ShoreStepMetres)
+        {
+            Vector2 point = water + (back * (float)walked);
+            if (!terrain.Water.Sample(point.X, point.Y).Wet) return point;
+        }
+
+        return null;
     }
 
     private bool Drinkable(Vector2 point)
@@ -366,14 +426,14 @@ internal sealed class WildlifeModule : IProductModule
 
     /// <summary>
     /// Moves an animal along the ground by its velocity without a body: its feet take the first surface
-    /// below its step reach, or the column's ground where that is not resident. Its body is set down
+    /// below its step reach, or the ground of the column where that finds none. Its body is set down
     /// afresh when it next steps.
     /// </summary>
     private void Glide(WildlifeMember member, MemberBody state, double seconds)
     {
         cost.Glides++;
         Vector2 next = member.Position + (member.Velocity * (float)seconds);
-        state.Feet = terrain.GroundBelow(next.X, next.Y, state.Feet, CreatureNavigation.ClimbMetres) ?? terrain.GroundAt(next.X, next.Y);
+        state.Feet = terrain.GroundBelow(next.X, next.Y, state.Feet, CreatureNavigation.ClimbMetres) ?? GroundOf(next.X, next.Y);
         state.Body = null;
         member.Position = next;
     }
@@ -418,11 +478,13 @@ internal sealed class WildlifeModule : IProductModule
 
         double day = Day(clock());
         herd.Remove(member);
-        Forget(member);
+        member.Velocity = Vector2.Zero;
+        fallen.Add(new WildlifeFallen(herd.Kind, member));
         herd.Record.Kill(day, herd.Kind.Population.RecoveryDays);
         slot.Save(Ledger.Losses(day));
         if (herd.Members.Count == 0) awake.Remove(herd);
-        presentation.Sync(awake, FeetOf);
+        // Its death alarms the herd: the nearest takes it as a blow, and the alarm spreads from there.
+        if (herd.Members.Count > 0) herd.Members.MinBy(mate => Vector2.Distance(mate.Position, member.Position))!.Struck = true;
         EncounterReward reward = EncounterResolutionRules.Reward(herd.Kind.ExperienceAward, herd.Kind.Loot,
             string.Create(CultureInfo.InvariantCulture, $"wildlife:{herd.Key}:{swings}"), KeyedDraws.For(Seed));
         ProgressionOutcome progression = player.Progress.Award(reward);
@@ -432,16 +494,17 @@ internal sealed class WildlifeModule : IProductModule
     }
 
     /// <summary>Places a herd of a kind (middle of its group size) a distance east and south of the player, awake at once; it joins no region's population.</summary>
-    internal string Spawn(string kindId, double? east = null, double? south = null)
+    /// <param name="pressed">A test aid: the herd answers this way when pressed, whatever its kind does.</param>
+    internal string Spawn(string kindId, double? east = null, double? south = null, int size = 0, PressedResponse? pressed = null)
     {
         if (!started) return "wildlife: not started";
         if (!Catalog.TryKind(kindId, out WildlifeKind kind)) return $"no kind '{kindId}'; kinds: {string.Join(",", Catalog.Kinds.Select(k => k.Id))}";
         Vector3 at = player.WorldPosition;
         Vector2 point = new(at.X + (float)(east ?? (kind.Senses.NoticeMetres + SpawnBeyondNoticeMetres)), at.Z + (float)(south ?? 0));
-        int size = (kind.GroupMinimum + kind.GroupMaximum) / 2;
+        size = size > 0 ? size : (kind.GroupMinimum + kind.GroupMaximum) / 2;
         if (awake.Count >= Catalog.Waking.MostAwakeHerds) Release(awake.OrderByDescending(herd => Vector2.Distance(herd.Leader.Position, new Vector2(at.X, at.Z))).First());
-        WildlifeHerd herd = WakeAt(Ledger.Place(kind, point, size), kind, point, size);
-        presentation.Sync(awake, FeetOf);
+        WildlifeKind shown = pressed is PressedResponse response ? kind with { Pressed = response } : kind;
+        WildlifeHerd herd = WakeAt(Ledger.Place(kind, point, size), shown, point, size);
         return Readout(herd);
     }
 
@@ -449,7 +512,9 @@ internal sealed class WildlifeModule : IProductModule
     internal string SleepAll()
     {
         foreach (WildlifeHerd herd in awake.ToArray()) Release(herd);
-        presentation.Sync(awake, FeetOf);
+        foreach (WildlifeFallen body in fallen) Forget(body.Member);
+        fallen.Clear();
+        Presentation.Sync(awake, fallen, FeetOf, Here, 0);
         return "all herds asleep";
     }
 
@@ -464,7 +529,7 @@ internal sealed class WildlifeModule : IProductModule
         cost = default;
         parts = default;
         return string.Create(CultureInfo.InvariantCulture,
-            $"step={step} day={now.Day} hour={now.DayFraction * WildlifeSchedule.HoursPerDay:F2} herds={awake.Count} animals={awake.Sum(herd => herd.Members.Count)} regions={Ledger.Regions.Count()} player={at.X:F0},{at.Z:F0} {costs} last={lastEvent} asleep={Asleep(at, now)} | ")
+            $"step={step} day={now.Day} hour={now.DayFraction * WildlifeSchedule.HoursPerDay:F2} herds={awake.Count} animals={awake.Sum(herd => herd.Members.Count)} regions={Ledger.Regions.Count()} player={at.X:F0},{at.Z:F0} {costs} {Presentation.Meshes.Readout()} fallen={fallen.Count} last={lastEvent} asleep={Asleep(at, now)} | ")
             + string.Join(" | ", awake.Select(Readout));
     }
 
@@ -479,7 +544,7 @@ internal sealed class WildlifeModule : IProductModule
             .OrderBy(entry => Vector2.Distance(entry.Point, here))
             .Take(MostFound)
             .Select(entry => string.Create(CultureInfo.InvariantCulture,
-                $"{entry.Record.Key}@{entry.Point.X:F0},{entry.Point.Y:F0}={Vector2.Distance(entry.Point, here):F0}m{(Resident(entry.Point, terrain.GroundAt(entry.Point.X, entry.Point.Y)) ? "" : "(unloaded)")}")));
+                $"{entry.Record.Key}@{entry.Point.X:F0},{entry.Point.Y:F0}={Vector2.Distance(entry.Point, here):F0}m")));
     }
 
     private string Readout(WildlifeHerd herd)
@@ -489,7 +554,7 @@ internal sealed class WildlifeModule : IProductModule
         string stages = string.Join(",", Enum.GetValues<Wariness>().Select(stage => $"{stage}={herd.Members.Count(m => m.Stage == stage)}"));
         Vector2? water = waters.GetValueOrDefault(herd.Key);
         return string.Create(CultureInfo.InvariantCulture,
-            $"{herd.Key} kind={herd.Kind.Id} n={herd.Members.Count} activity={herd.Activity} alarm={herd.Alarm} [{stages}] leader={herd.Leader.Position.X:F1},{FeetOf(herd.Leader):F1},{herd.Leader.Position.Y:F1} d={Vector2.Distance(herd.Leader.Position, here):F1} goal={herd.Goal.X:F0},{herd.Goal.Y:F0} water={(water is Vector2 w ? $"{w.X:F0},{w.Y:F0}" : "none")} spread={herd.Members.Max(m => Vector2.Distance(m.Position, herd.Leader.Position)):F1} ids={string.Join(",", herd.Members.Select(m => $"{m.Id}:{m.Stage}"))}");
+            $"{herd.Key} kind={herd.Kind.Id} n={herd.Members.Count} activity={herd.Activity} alarm={herd.Alarm} [{stages}] leader={herd.Leader.Position.X:F1},{FeetOf(herd.Leader):F1},{herd.Leader.Position.Y:F1} d={Vector2.Distance(herd.Leader.Position, here):F1} goal={herd.Goal.X:F0},{herd.Goal.Y:F0} water={(water is Vector2 w ? $"{w.X:F0},{w.Y:F0}" : "none")} spread={herd.Members.Max(m => Vector2.Distance(m.Position, herd.Leader.Position)):F1} ids={string.Join(",", herd.Members.Select(m => $"{m.Id}:{m.Stage}:{m.Clip}"))}");
     }
 
     /// <summary>The population ledger: each seeded region's biomes and herds, with what each has left now.</summary>

@@ -632,6 +632,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         engine.Graphics.PublishSnapshot(facts);
         mapView?.Profile.Mark("snapshot.publish");
         creatures.AfterAppearanceSnapshot();
+        wildlife.AfterAppearanceSnapshot(drawn: !player.InSeparateSpace && (town.Open || !mapOpen || mapView is null));
         dungeons.AfterAppearanceSnapshot();
         terrain.AfterAppearanceSnapshot();
         chemistry.AfterAppearanceSnapshot();

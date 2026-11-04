@@ -24,6 +24,12 @@ public sealed class WildlifeDebugModule : IDebugCommandModule
     [DebugCommand("craft.wildlife.spawnat", Description = "Wildlife (#10567): wake a herd of a kind metres east and south of the player.")]
     public string SpawnAt(string kind, double east, double south) => wildlife.Spawn(kind, east, south);
 
+    [DebugCommand("craft.wildlife.herd", Description = "Wildlife (#10569): wake a herd of a kind and a size metres east and south of the player, for cost runs.")]
+    public string Herd(string kind, long size, double east, double south) => wildlife.Spawn(kind, east, south, (int)size);
+
+    [DebugCommand("craft.wildlife.fleeing", Description = "Test aid (#10569): wake a herd that flees when pressed, whatever its kind does, to see a kind's run.")]
+    public string Fleeing(string kind, long size, double east, double south) => wildlife.Spawn(kind, east, south, (int)size, PressedResponse.Flee);
+
     [DebugCommand("craft.wildlife.region", Description = "Wildlife (#10567): the population ledger - each seeded region's biomes and herds, with how many each has left now.")]
     public string Region() => wildlife.RegionReadout();
 

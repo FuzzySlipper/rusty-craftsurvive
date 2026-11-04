@@ -18,7 +18,9 @@ internal readonly record struct HerdFacts(Vector2? Player, WorldTime Time, ulong
 ///
 /// - **Day:** a herd keeps its kind's schedule (rest, graze, drift, drink). The leader heads for a
 ///   goal drawn in the home range from the world seed, so a herd's day is the same each time it is
-///   woken; the others keep their slots beside the leader and their spacing from each other.
+///   woken; the others keep their slots beside the leader and their spacing from each other. A
+///   grazing herd stands to feed and walks on in turn, at its walking pace, so that it covers the
+///   ground at its graze-drift speed without sliding through a walk played too slowly.
 /// - **Wariness:** each animal notices the player at its kind's notice distance and looks; inside
 ///   the act distance, after looking, it warns; still pressed after warning, it responds: flees,
 ///   stands, charges or hunkers. A struck animal responds at once.
@@ -282,9 +284,8 @@ internal static class WildlifeRules
     /// <summary>How fast the leader moves at an activity.</summary>
     private static double ActivitySpeed(WildlifeKind kind, WildlifeActivity activity) => activity switch
     {
-        WildlifeActivity.Graze => kind.Speeds.GrazeDrift,
-        WildlifeActivity.Drift or WildlifeActivity.Drink => kind.Speeds.Walk,
-        _ => 0,
+        WildlifeActivity.Rest => 0,
+        _ => kind.Speeds.Walk,
     };
 
     /// <summary>Decides every member's velocity and facing from its stage and the herd's day.</summary>
@@ -293,6 +294,7 @@ internal static class WildlifeRules
         WildlifeKind kind = herd.Kind;
         WildlifeMember leader = herd.Leader;
         double leaderSpeed = ActivitySpeed(kind, herd.Activity);
+        if (herd.Activity == WildlifeActivity.Graze) herd.GrazeSeconds += seconds;
         Vector2 centre = herd.Centre;
         foreach (WildlifeMember member in herd.Members)
         {
@@ -328,14 +330,16 @@ internal static class WildlifeRules
                 default:
                     velocity = member == leader
                         ? LeaderVelocity(herd, behaviour, leaderSpeed, seconds)
-                        : FollowerVelocity(member, leader, kind, behaviour, leaderSpeed, seconds);
+                        : FollowerVelocity(member, leader, kind, behaviour, seconds);
                     break;
             }
 
-            if (shuffles) velocity = Cap(velocity + Separation(member, herd, behaviour), Math.Max(kind.Speeds.Walk, velocity.Length()));
+            // The leader sets the pace; it is the others who keep their distance from it.
+            if (shuffles && member != leader) velocity = Cap(velocity + Separation(member, herd, behaviour), Math.Max(kind.Speeds.Walk, velocity.Length()));
             member.Velocity = velocity;
-            if (face is Vector2 target && target != member.Position) member.Yaw = Yaw(target - member.Position);
-            else if (velocity.Length() > StillSpeed) member.Yaw = Yaw(velocity);
+            float turn = (float)(kind.Speeds.TurnDegrees * Math.PI / 180 * seconds);
+            if (face is Vector2 target && target != member.Position) member.Yaw = Turned(member.Yaw, Yaw(target - member.Position), turn);
+            else if (velocity.Length() > StillSpeed) member.Yaw = Turned(member.Yaw, Yaw(velocity), turn);
         }
     }
 
@@ -345,18 +349,25 @@ internal static class WildlifeRules
         // its watchers, so the herd does not walk away from the ones looking at the player.
         if (herd.Leader.Stage == Wariness.Regroup || herd.Alarm >= Wariness.Look || herd.Activity == WildlifeActivity.Rest) return Vector2.Zero;
         if (Vector2.Distance(herd.Leader.Position, herd.Goal) <= behaviour.GoalArrivalMetres) return Vector2.Zero;
+        if (herd.Activity == WildlifeActivity.Graze && !WalkingOn(herd, behaviour)) return Vector2.Zero;
         return Toward(herd.Leader.Position, herd.Goal, speed, seconds);
     }
 
-    private static Vector2 FollowerVelocity(WildlifeMember member, WildlifeMember leader, WildlifeKind kind, WildlifeBehaviour behaviour,
-        double leaderSpeed, double seconds)
+    /// <summary>Whether a grazing herd is walking on rather than standing to feed: for the share of its cycle that makes its graze-drift speed.</summary>
+    private static bool WalkingOn(WildlifeHerd herd, WildlifeBehaviour behaviour)
+    {
+        double share = herd.Kind.Speeds.GrazeDrift / herd.Kind.Speeds.Walk;
+        return herd.GrazeSeconds % behaviour.GrazeCycleSeconds < behaviour.GrazeCycleSeconds * share;
+    }
+
+    private static Vector2 FollowerVelocity(WildlifeMember member, WildlifeMember leader, WildlifeKind kind, WildlifeBehaviour behaviour, double seconds)
     {
         Vector2 target = leader.Position + member.Slot;
         double distance = Vector2.Distance(member.Position, target);
-        if (distance <= behaviour.SlotArrivalMetres) return Vector2.Zero;
-        double speed = distance > kind.SpacingMetres * behaviour.CatchUpSpacings || member.Stage == Wariness.Regroup
-            ? kind.Speeds.Walk
-            : Math.Max(leaderSpeed, kind.Speeds.GrazeDrift);
+        if (distance <= behaviour.SlotArrivalMetres) member.Following = false;
+        else if (distance > kind.SpacingMetres * behaviour.SlotLeaveShare || member.Stage == Wariness.Regroup) member.Following = true;
+        if (!member.Following) return Vector2.Zero;
+        double speed = distance > kind.SpacingMetres * behaviour.CatchUpSpacings ? kind.Speeds.Walk * behaviour.CatchUpSpeedShare : kind.Speeds.Walk;
         return Toward(member.Position, target, speed, seconds);
     }
 
@@ -392,6 +403,13 @@ internal static class WildlifeRules
     {
         float length = velocity.Length();
         return length > speed && length > 0 ? velocity * (float)(speed / length) : velocity;
+    }
+
+    /// <summary>A facing turned toward another by at most some radians, the short way round.</summary>
+    private static float Turned(float from, float to, float most)
+    {
+        float difference = MathF.IEEERemainder(to - from, 2 * MathF.PI);
+        return from + Math.Clamp(difference, -most, most);
     }
 
     /// <summary>The facing along a planar direction: 0 faces north (-Z), a quarter turn east (+X), as the player's look counts it.</summary>

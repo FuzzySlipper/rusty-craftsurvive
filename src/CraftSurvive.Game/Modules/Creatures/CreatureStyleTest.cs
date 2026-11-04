@@ -8,13 +8,6 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Creatures;
 
 /// <summary>
-/// One clip of a creature kind, as the build manifest (art/creatures/build_creature.py) describes it:
-/// its length, whether it loops, whether all four feet stay on the ground (so IK may move them onto
-/// uneven ground), and, for a gait, the ground speed at which its planted feet do not slide.
-/// </summary>
-internal sealed record CreatureClip(string Name, double Seconds, bool Loops, bool PlantsFeet, double Speed);
-
-/// <summary>
 /// A placeable creature kind: its mesh, its clips, its legs as two-bone IK chains, and where its
 /// hind and fore feet stand along its body.
 /// </summary>
@@ -49,8 +42,6 @@ internal sealed class CreatureStyleTest : IDisposable
 
     /// <summary>Gaits walk round a circle this wide, so a capture keeps the creature in view.</summary>
     private const double CircleMetres = 9;
-    /// <summary>A pole sits this far out from the middle joint, along the leg's current bend.</summary>
-    private const float PoleMetres = 1;
 
     private readonly IEngineContext engine;
     private readonly ProductContent content;
@@ -95,20 +86,9 @@ internal sealed class CreatureStyleTest : IDisposable
         foreach (JsonElement k in index.RootElement.GetProperty("kinds").EnumerateArray())
         {
             string name = k.GetProperty("name").GetString()!;
-            using JsonDocument manifest = JsonDocument.Parse(content.ReadText(k.GetProperty("manifest").GetString()!));
-            JsonElement root = manifest.RootElement;
-            Dictionary<string, CreatureClip> clips = [];
-            foreach (JsonProperty c in root.GetProperty("clips").EnumerateObject())
-            {
-                clips[c.Name] = new CreatureClip(c.Name, c.Value.GetProperty("seconds").GetDouble(), c.Value.GetProperty("loops").GetBoolean(),
-                    c.Value.GetProperty("plantsFeet").GetBoolean(), c.Value.TryGetProperty("speed", out JsonElement speed) ? speed.GetDouble() : 0);
-            }
-
-            List<(string, string, string)> legs = [.. root.GetProperty("legs").EnumerateArray().Select(l =>
-                (l[0].GetString()!, l[1].GetString()!, l[2].GetString()!))];
-            JsonElement body = root.GetProperty("body");
-            all[name] = new CreatureStyleKind(name, k.GetProperty("mesh").GetString()!, k.GetProperty("scale").GetSingle(), clips, legs,
-                body.GetProperty("hindMetres").GetDouble(), body.GetProperty("foreMetres").GetDouble());
+            CreatureRig rig = CreatureManifest.Parse(content.ReadText(k.GetProperty("manifest").GetString()!));
+            all[name] = new CreatureStyleKind(name, k.GetProperty("mesh").GetString()!, k.GetProperty("scale").GetSingle(), rig.Clips, rig.Legs,
+                rig.HindMetres, rig.ForeMetres);
         }
 
         return all;
@@ -253,25 +233,10 @@ internal sealed class CreatureStyleTest : IDisposable
         ReadOnlySpan<JointPose> pose = engine.Animation.SampleJointPose(
             AnimationPoseSampleRequest.OfCurrentPlayback(creature.Instance, creature.Placement, applyPoseControls: false)).Span;
         if (pose.Length < creature.Joints.Length) return;
-        Vector3 local = creature.Placement.Translation;
-        List<TwoBoneIk> chains = [];
-        double worst = 0;
-        foreach ((uint root, uint mid, uint end) in creature.Legs)
-        {
-            Vector3 a = pose[(int)root].World.Translation, b = pose[(int)mid].World.Translation, c = pose[(int)end].World.Translation;
-            // The clip's own height of the foot above the creature's ground, kept over the real ground below it.
-            float lift = pose[(int)end].Model.Translation.Y * creature.Scale;
-            Vector3 world = creature.World + (c - local);
-            float ground = (float)groundAt(world.X, world.Z);
-            Vector3 target = c with { Y = local.Y + (ground - creature.World.Y) + lift };
-            worst = Math.Max(worst, Math.Abs(target.Y - c.Y));
-            Vector3 bend = b - ((a + c) / 2);
-            Vector3 pole = b + (bend.LengthSquared() > 1e-6f ? Vector3.Normalize(bend) * PoleMetres : Vector3.UnitY * PoleMetres);
-            chains.Add(new TwoBoneIk(root, mid, end, PoseSpace.World, target, pole, 1));
-        }
-
+        (TwoBoneIk[] chains, double worst) = CreatureFeet.Chains(pose, creature.Legs, creature.Scale, creature.World, creature.Placement.Translation,
+            (x, z) => (float)groundAt(x, z));
         creature.FootCorrection = worst;
-        engine.Animation.SetPose(new(creature.Instance, chains.ToArray(), ReadOnlyMemory<JointOverride>.Empty));
+        engine.Animation.SetPose(new(creature.Instance, chains, ReadOnlyMemory<JointOverride>.Empty));
         creature.Planted = true;
     }
 

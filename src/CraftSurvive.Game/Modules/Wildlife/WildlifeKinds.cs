@@ -49,12 +49,28 @@ internal enum WildlifeActivity
     Drink,
 }
 
+/// <summary>What a kind's clips are for: the behaviour each one shows (#10569).</summary>
+internal enum WildlifeClipRole
+{
+    Idle,
+    Graze,
+    Walk,
+    Run,
+    Look,
+    Stand,
+    Hunker,
+    Die,
+}
+
+/// <summary>A kind's animated body: its mesh and build manifest, and which clip plays each role. A kind without one is drawn as a placeholder.</summary>
+internal sealed record WildlifeMesh(string File, string Manifest, float Scale, IReadOnlyDictionary<WildlifeClipRole, string> Clips);
+
 /// <summary>A capsule: the body a size class moves as.</summary>
 internal readonly record struct WildlifeCapsule(float Radius, float Height);
 
 internal readonly record struct WildlifeBody(double LengthMetres, double HeightMetres, double WidthMetres, WildlifeSizeClass SizeClass, uint SrgbColour);
 
-internal readonly record struct WildlifeSpeeds(double Walk, double GrazeDrift, double Flee);
+internal readonly record struct WildlifeSpeeds(double Walk, double GrazeDrift, double Flee, double TurnDegrees);
 
 internal readonly record struct WildlifeSenses(double NoticeMetres, double ActMetres, double LookSeconds, double WarnSeconds);
 
@@ -91,6 +107,7 @@ internal sealed record WildlifeKind(
     int GroupMaximum,
     double SpacingMetres,
     WildlifeBody Body,
+    WildlifeMesh? Mesh,
     WildlifeSpeeds Speeds,
     WildlifeSenses Senses,
     PressedResponse Pressed,
@@ -109,7 +126,8 @@ internal sealed record WildlifeKind(
 internal readonly record struct WildlifePlacement(double RegionMetres, int BiomeSamplesPerSide, int HomeAttempts, int WaterRings, int WaterHeadings);
 
 /// <summary>
-/// When herds wake near the player and sleep again, and how many may be awake at once. Within
+/// When herds wake near the player and sleep again, by distance alone, and how many may be awake at
+/// once. A herd can stand past the near ground's edge, seen across open country. Within
 /// <see cref="BodyMetres"/> of the player an animal moves as a body against the world's collision;
 /// further out it follows the ground, where no one is near enough to see it pass through a trunk.
 /// </summary>
@@ -126,8 +144,29 @@ internal readonly record struct WildlifeBehaviour(
     double GoalArrivalMetres,
     double SlotArrivalMetres,
     double CatchUpSpacings,
+    double CatchUpSpeedShare,
+    double SlotLeaveShare,
+    double GrazeCycleSeconds,
     double SeparationShare,
     double SlotJitterShare);
+
+/// <summary>How animated bodies are shown (#10569): the distance tiers, clip changes, and the limits on how a body sits on the ground.</summary>
+internal readonly record struct WildlifeAnimation(
+    double FullMetres,
+    double PlayMetres,
+    double DrawMetres,
+    double TierMarginMetres,
+    double ClipHoldSeconds,
+    double FadeSeconds,
+    double MinimumRate,
+    double MaximumRate,
+    double RateStep,
+    double MostPitchDegrees,
+    double MostFootMetres,
+    double PitchDegreesPerSecond,
+    int PitchEveryUpdates,
+    int MostPlanted,
+    double CorpseSeconds);
 
 /// <summary>Every wildlife kind and the rules they share, as read from content (#10567).</summary>
 internal sealed record WildlifeCatalog(
@@ -135,7 +174,8 @@ internal sealed record WildlifeCatalog(
     IReadOnlyList<WildlifeKind> Kinds,
     WildlifePlacement Placement,
     WildlifeWaking Waking,
-    WildlifeBehaviour Behaviour)
+    WildlifeBehaviour Behaviour,
+    WildlifeAnimation Animation)
 {
     internal WildlifeKind Kind(string id) => Kinds.FirstOrDefault(kind => kind.Id == id)
         ?? throw new KeyNotFoundException($"no wildlife kind '{id}'");
@@ -242,8 +282,48 @@ internal static class WildlifeKinds
                 behaviour.GetProperty("goalArrivalMetres").GetDouble(),
                 behaviour.GetProperty("slotArrivalMetres").GetDouble(),
                 behaviour.GetProperty("catchUpSpacings").GetDouble(),
+                behaviour.GetProperty("catchUpSpeedShare").GetDouble(),
+                behaviour.GetProperty("slotLeaveShare").GetDouble(),
+                behaviour.GetProperty("grazeCycleSeconds").GetDouble(),
                 behaviour.GetProperty("separationShare").GetDouble(),
-                behaviour.GetProperty("slotJitterShare").GetDouble()));
+                behaviour.GetProperty("slotJitterShare").GetDouble()),
+            ReadAnimation(root.GetProperty("animation")));
+    }
+
+    private static WildlifeAnimation ReadAnimation(JsonElement animation)
+    {
+        WildlifeAnimation read = new(
+            animation.GetProperty("fullMetres").GetDouble(),
+            animation.GetProperty("playMetres").GetDouble(),
+            animation.GetProperty("drawMetres").GetDouble(),
+            animation.GetProperty("tierMarginMetres").GetDouble(),
+            animation.GetProperty("clipHoldSeconds").GetDouble(),
+            animation.GetProperty("fadeSeconds").GetDouble(),
+            animation.GetProperty("minimumRate").GetDouble(),
+            animation.GetProperty("maximumRate").GetDouble(),
+            animation.GetProperty("rateStep").GetDouble(),
+            animation.GetProperty("mostPitchDegrees").GetDouble(),
+            animation.GetProperty("mostFootMetres").GetDouble(),
+            animation.GetProperty("pitchDegreesPerSecond").GetDouble(),
+            animation.GetProperty("pitchEveryUpdates").GetInt32(),
+            animation.GetProperty("mostPlanted").GetInt32(),
+            animation.GetProperty("corpseSeconds").GetDouble());
+        if (read.FullMetres >= read.PlayMetres || read.PlayMetres >= read.DrawMetres)
+            throw new InvalidDataException("animation tiers must widen outward: full, then play, then draw");
+        if (read.PitchEveryUpdates < 1) throw new InvalidDataException("a body must pitch at least every so many updates");
+        return read;
+    }
+
+    private static WildlifeMesh? ReadMesh(JsonElement kind)
+    {
+        if (!kind.TryGetProperty("mesh", out JsonElement mesh)) return null;
+        Dictionary<WildlifeClipRole, string> clips = [];
+        foreach (JsonProperty clip in mesh.GetProperty("clips").EnumerateObject())
+        {
+            clips[Enum<WildlifeClipRole>(clip.Name)] = clip.Value.GetString()!;
+        }
+
+        return new WildlifeMesh(mesh.GetProperty("file").GetString()!, mesh.GetProperty("manifest").GetString()!, mesh.GetProperty("scale").GetSingle(), clips);
     }
 
     private static WildlifeKind ReadKind(JsonElement kind, Dictionary<WildlifeSizeClass, WildlifeCapsule> classes,
@@ -297,7 +377,9 @@ internal static class WildlifeKinds
                 body.GetProperty("widthMetres").GetDouble(),
                 sizeClass,
                 uint.Parse(body.GetProperty("colour").GetString()!.TrimStart('#'), NumberStyles.HexNumber, CultureInfo.InvariantCulture)),
-            new WildlifeSpeeds(speeds.GetProperty("walk").GetDouble(), speeds.GetProperty("grazeDrift").GetDouble(), speeds.GetProperty("flee").GetDouble()),
+            ReadMesh(kind),
+            new WildlifeSpeeds(speeds.GetProperty("walk").GetDouble(), speeds.GetProperty("grazeDrift").GetDouble(), speeds.GetProperty("flee").GetDouble(),
+                speeds.GetProperty("turnDegrees").GetDouble()),
             sense,
             Named(ResponseNames, kind.GetProperty("pressed").GetString()!, "pressed response"),
             schedule,

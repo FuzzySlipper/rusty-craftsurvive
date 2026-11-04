@@ -5,20 +5,21 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Wildlife;
 
 /// <summary>
-/// Placeholder bodies for wildlife (#10567) until S3 brings the meshes: each animal is a torso, a
-/// head and a block of legs, proportioned by its kind's body and coloured by it, so behaviour can be
-/// reviewed now. Posture shows what an animal is doing: lying at rest, head down grazing, head up
-/// looking, swinging its head to display, reared to stand, and down on its belly hunkered.
+/// What the Engine shows of wildlife. A kind with a mesh is drawn by <see cref="WildlifeMeshBodies"/>
+/// (#10569). Until a kind has one it stays a placeholder (#10567): a torso, a head and a block of
+/// legs, proportioned by its kind's body and coloured by it, whose posture shows what the animal is
+/// doing: lying at rest, head down grazing, head up looking, swinging its head to display, reared
+/// to stand, and down on its belly hunkered.
 ///
-/// It holds three primitive appearances per kind, shared by every animal of the kind, and derives
-/// every fact from the awake herds on each sync.
+/// It holds three primitive appearances per placeholder kind, shared by every animal of the kind,
+/// and derives every fact from the awake herds and the fallen on each sync.
 /// </summary>
 internal sealed class WildlifePresentation : IDisposable
 {
     /// <summary>How many animals may be awake at once: the product id range is four facts for each.</summary>
     internal const int MostMembers = (int)(ProductIds.WildlifeAppearanceLimit / PartsPerMember);
 
-    private const ulong PartsPerMember = 4;
+    internal const ulong PartsPerMember = 4;
 
     private enum Part
     {
@@ -50,46 +51,65 @@ internal sealed class WildlifePresentation : IDisposable
 
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
+    private readonly WildlifeMeshBodies meshes;
     private readonly Dictionary<string, Appearance[]> appearances = [];
     private AppearanceFact[] facts = [];
 
-    internal WildlifePresentation(IEngineContext engine, WorldFrame frame)
+    internal WildlifePresentation(IEngineContext engine, WorldFrame frame, WildlifeMeshBodies meshes)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
+        this.meshes = meshes ?? throw new ArgumentNullException(nameof(meshes));
     }
+
+    internal WildlifeMeshBodies Meshes => meshes;
 
     internal IReadOnlyList<AppearanceFact> Facts => facts;
 
     /// <summary>Every awake animal's parts for this update's snapshot.</summary>
-    internal void Sync(IReadOnlyList<WildlifeHerd> herds, Func<WildlifeMember, float> feet)
+    /// <param name="here">Where the player stands (world X, Z), which sets how much of each animal's animation runs.</param>
+    /// <param name="seconds">How long since the last sync; zero when it only reflects a change made outside an update.</param>
+    internal void Sync(IReadOnlyList<WildlifeHerd> herds, IReadOnlyList<WildlifeFallen> fallen, Func<WildlifeMember, float> feet, Vector2 here, double seconds)
     {
         List<AppearanceFact> next = [];
+        HashSet<int> kept = [];
+        double plantWithin = WildlifeClips.PlantWithin(
+            herds.Where(herd => herd.Kind.Mesh is not null).SelectMany(herd => herd.Members).Select(member => (double)Vector2.Distance(member.Position, here)),
+            meshes.Animation);
         foreach (WildlifeHerd herd in herds)
         {
-            Appearance[] parts = Appearances(herd.Kind);
             foreach (WildlifeMember member in herd.Members)
             {
-                Pose(herd, member, feet(member), parts, next);
+                kept.Add(member.Id);
+                if (herd.Kind.Mesh is null) Pose(herd.Kind, herd.Activity, member, feet(member), false, Appearances(herd.Kind), next);
+                else next.Add(meshes.Pose(herd, herd.Kind, member, feet(member), Vector2.Distance(member.Position, here), seconds, plantWithin, fallen: false));
             }
         }
 
+        foreach (WildlifeFallen body in fallen)
+        {
+            kept.Add(body.Member.Id);
+            if (body.Kind.Mesh is null) Pose(body.Kind, WildlifeActivity.Rest, body.Member, feet(body.Member), true, Appearances(body.Kind), next);
+            else next.Add(meshes.Pose(null, body.Kind, body.Member, feet(body.Member), Vector2.Distance(body.Member.Position, here), seconds, plantWithin, fallen: true));
+        }
+
+        meshes.Keep(kept);
         facts = [.. next];
     }
 
     /// <summary>The parts of one animal, posed by what it is doing.</summary>
-    private void Pose(WildlifeHerd herd, WildlifeMember member, float feet, Appearance[] parts, List<AppearanceFact> into)
+    private void Pose(WildlifeKind kind, WildlifeActivity activity, WildlifeMember member, float feet, bool fallen, Appearance[] parts, List<AppearanceFact> into)
     {
-        WildlifeBody body = herd.Kind.Body;
+        WildlifeBody body = kind.Body;
         float h = (float)body.HeightMetres, l = (float)body.LengthMetres, w = (float)body.WidthMetres;
-        bool responding = member.Stage == Wariness.Respond;
-        bool hunkered = responding && herd.Kind.Pressed == PressedResponse.Hunker;
-        bool rearing = responding && herd.Kind.Pressed == PressedResponse.Stand;
-        bool displaying = member.Stage == Wariness.Warn && herd.Kind.Pressed == PressedResponse.DisplayCharge;
-        bool calm = member.Stage is Wariness.Calm or Wariness.Regroup;
+        bool responding = !fallen && member.Stage == Wariness.Respond;
+        bool hunkered = responding && kind.Pressed == PressedResponse.Hunker;
+        bool rearing = responding && kind.Pressed == PressedResponse.Stand;
+        bool displaying = !fallen && member.Stage == Wariness.Warn && kind.Pressed == PressedResponse.DisplayCharge;
+        bool calm = fallen || member.Stage is Wariness.Calm or Wariness.Regroup;
         bool still = member.Velocity.Length() < GrazingSpeed;
-        bool lying = hunkered || (calm && herd.Activity == WildlifeActivity.Rest && member.Velocity == Vector2.Zero);
-        bool grazing = calm && still && herd.Activity is WildlifeActivity.Graze or WildlifeActivity.Drink;
+        bool lying = fallen || hunkered || (calm && activity == WildlifeActivity.Rest && member.Velocity == Vector2.Zero);
+        bool grazing = calm && still && activity is WildlifeActivity.Graze or WildlifeActivity.Drink;
 
         float torsoBottom = lying ? LyingBottom * h : TorsoBottom * h;
         float torsoHeight = hunkered ? HunkerHeight * h : TorsoHeight * h;
@@ -149,6 +169,7 @@ internal sealed class WildlifePresentation : IDisposable
     public void Dispose()
     {
         facts = [];
+        meshes.Dispose();
         foreach (Appearance part in appearances.Values.SelectMany(parts => parts)) part.Dispose();
         appearances.Clear();
     }

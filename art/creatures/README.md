@@ -139,6 +139,13 @@ Measured on the sloth in the live lane (RX 9070 XT, headless, pair ddbedd6365d6)
   and the two ground casts per placement.
 - **Drawing cost:** within the stream's ±3 ms noise for one sloth, and roughly 2–3 ms for nine.
 
-S3 owns herd budgets, a hold for one-shot clips under a graph (graph states loop them), and a
-pitch limit where the ground cast lands on props (59° beside standing stones).
+Herds (#10569) play clips through direct playback rather than a graph, so one-shot clips hold
+and rates follow ground speed. To give a kind a body in game, add a `mesh` block to its entry in
+`content/game/wildlife/kinds.json`, naming the build, its manifest and the clip for each role.
+A role left out falls back to `idle`. The tiers, the planting budget and the pitch limit are in
+that file's `animation` section.
+
+Measured with planting budgeted to the nearest eight: about 2.5 ms an update for 24 sloths
+awake near the player. Planting every animal in a crowd cost about ten times that and tripled
+render time, so keep the budget unless the Engine changes.
 
