@@ -65,20 +65,4 @@ internal static class CreatureKinds
         new AttackProfile(ClawAccuracy, ClawPower, DamageType.Cutting),
         Experience,
         PlaceholderLoot);
-
-    /// <summary>Watches and warns but never closes: sees half as far as a hostile walker.</summary>
-    internal static CreatureKind Neutral { get; } = Hostile with
-    {
-        Name = "neutral-walker",
-        Tuning = BehaviorTuning.Neutral,
-    };
-
-    /// <summary>
-    /// How often a neutral creature appears among a spawn: one in this many, so a starting set
-    /// holds both dispositions.
-    /// </summary>
-    internal const int NeutralOneIn = 3;
-
-    /// <summary>The kind the n-th spawned creature (counting from 1) takes.</summary>
-    internal static CreatureKind ForSpawn(int ordinal) => ordinal % NeutralOneIn == 0 ? Neutral : Hostile;
 }

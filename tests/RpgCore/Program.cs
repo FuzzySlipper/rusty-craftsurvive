@@ -426,7 +426,7 @@ for (int id = 1; id <= 3; id++)
 {
     Check.That(membership.TryActivate(new EncounterCandidate(id, meadow12, CreatureTraits.Walker, 1), tick: 0, out _),
         $"encounter {id} must activate");
-    roster.Add(new Creature(id, CreatureKinds.ForSpawn(id), new Vector2(id * 20, 0)));
+    roster.Add(new Creature(id, CreatureKinds.Hostile, new Vector2(id * 20, 0)));
 }
 
 Func<int, double> distanceToPlayer = id => roster.TryGet(id, out Creature c) ? Math.Abs(c.Position.X) : double.MaxValue;
@@ -436,8 +436,6 @@ Check.That(roster.Release(departed) == departed.Count && departed.Count == 3,
     $"all three creatures stood beyond the despawn distance, released {departed.Count}");
 Check.That(roster.Count == 0 && membership.ActiveCount == 0 && departed.All(id => !roster.TryGet(id, out _)),
     "after the director releases an id, the roster must not hold it");
-Check.That(CreatureKinds.ForSpawn(3) == CreatureKinds.Neutral && CreatureKinds.ForSpawn(1) == CreatureKinds.Hostile,
-    "every third spawn is neutral and the rest hostile");
 
 // Engine step time: two steps admitted in one update move a creature twice as far as one, and a
 // cooldown counts steps, not updates.

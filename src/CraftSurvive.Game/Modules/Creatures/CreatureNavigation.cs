@@ -228,6 +228,33 @@ internal sealed class CreatureNavigation
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
         $"navigation publishes={publishes} walkable={lastPublished.WalkableCellCount} derived={lastPublished.DerivedColumnCount} reused={lastPublished.ReusedColumnCount} lastMs={lastPublishMilliseconds:F2} worstMs={worstPublishMilliseconds:F2} meanMs={(publishes == 0 ? 0 : totalPublishMilliseconds / publishes):F2} {water.Readout()}");
 
+    /// <summary>
+    /// What publishing this box costs for another body (#10567: wildlife's size classes). A session
+    /// holds one collision-navigation projection, so this replaces the creatures' for the measure and
+    /// leaves the box stale: the next pursuit publishes theirs again.
+    /// </summary>
+    internal string MeasureBody(Vector3 playerFeetWorld, CharacterControllerConfig character)
+    {
+        Vector3 local = frame.ToLocal(playerFeetWorld);
+        const float cell = (float)TerrainConstants.VoxelSize;
+        float cellX = MathF.Floor(local.X / cell) * cell;
+        float cellZ = MathF.Floor(local.Z / cell) * cell;
+        float bottom = MathF.Floor(local.Y) - DepthBelow - (VerticalSlackMetres / 2f);
+        // The Engine wants a cell at least the agent's diameter: a body wider than a voxel is measured on whole-metre cells that fit it.
+        double cellSize = Math.Max(TerrainConstants.VoxelSize, Math.Ceiling(2 * character.Shape.Radius));
+        long started = Stopwatch.GetTimestamp();
+        CollisionNavigationReplaceReceipt receipt = engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(
+            terrain.Session,
+            new Vector3(cellX - HalfExtent, bottom, cellZ - HalfExtent),
+            new Vector3(cellX + HalfExtent, bottom + DepthBelow + HeightAbove + VerticalSlackMetres, cellZ + HalfExtent),
+            config with { Character = character, CellSize = cellSize }));
+        double milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        publishedAround = null;
+        publishedBottom = null;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"cell={cellSize:F0}m ms={milliseconds:F2} walkable={receipt.WalkableCellCount} derived={receipt.DerivedColumnCount} reused={receipt.ReusedColumnCount}");
+    }
+
     /// <summary>Publishes around the player now, whatever is stale, and reports what that cost.</summary>
     internal string Publish(Vector3 playerFeetWorld)
     {

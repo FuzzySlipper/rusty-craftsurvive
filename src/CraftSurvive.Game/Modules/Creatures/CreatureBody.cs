@@ -42,6 +42,20 @@ internal static class CreatureBody
         },
     };
 
+    /// <summary>
+    /// A capsule of another size that steps as a creature's does: wildlife's size classes (#10567). An
+    /// animal never crouches, but the Engine wants a crouched height below the standing one and above
+    /// the capsule's two end caps, so it is set midway.
+    /// </summary>
+    internal static CharacterControllerConfig Capsule(CharacterControllerConfig baseline, float radius, float height)
+    {
+        CharacterControllerConfig creature = Capsule(baseline);
+        return creature with
+        {
+            Shape = creature.Shape with { Radius = radius, StandingHeight = height, CrouchedHeight = ((2 * radius) + height) / 2 },
+        };
+    }
+
     /// <summary>The capsule, moving at a creature kind's pursuit speed.</summary>
     internal static CharacterControllerConfig Configure(CharacterControllerConfig navigationBody, float speed) => navigationBody with
     {

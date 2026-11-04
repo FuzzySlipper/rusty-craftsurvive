@@ -1,0 +1,177 @@
+{
+  "$comment": "Wildlife kinds (#10567): the first wave of the atlas's old beasts (wandering-year/pages/wildlife.md). Distances are metres, speeds metres a second, times seconds unless named days or hours. Habitat weights scale a kind's density by the share of a region's ground in each MapBiome.",
+  "sizeClasses": {
+    "small": { "radius": 0.3, "height": 0.8 },
+    "human": { "radius": 0.35, "height": 1.8 },
+    "large": { "radius": 0.6, "height": 2.4 },
+    "huge": { "radius": 1.0, "height": 3.2 }
+  },
+  "schedules": {
+    "day-grazer": [
+      { "fromHour": 0, "activity": "rest" },
+      { "fromHour": 5, "activity": "graze" },
+      { "fromHour": 9, "activity": "drift" },
+      { "fromHour": 11, "activity": "drink" },
+      { "fromHour": 12.5, "activity": "rest" },
+      { "fromHour": 15, "activity": "graze" },
+      { "fromHour": 19, "activity": "drift" },
+      { "fromHour": 21, "activity": "rest" }
+    ],
+    "dusk-and-dawn": [
+      { "fromHour": 0, "activity": "rest" },
+      { "fromHour": 4, "activity": "graze" },
+      { "fromHour": 8, "activity": "drink" },
+      { "fromHour": 9.5, "activity": "rest" },
+      { "fromHour": 16, "activity": "drift" },
+      { "fromHour": 18, "activity": "graze" },
+      { "fromHour": 22, "activity": "rest" }
+    ],
+    "night-worker": [
+      { "fromHour": 0, "activity": "graze" },
+      { "fromHour": 4, "activity": "drink" },
+      { "fromHour": 6, "activity": "rest" },
+      { "fromHour": 18, "activity": "drink" },
+      { "fromHour": 20, "activity": "graze" }
+    ]
+  },
+  "placement": {
+    "regionMetres": 1024,
+    "biomeSamplesPerSide": 4,
+    "homeAttempts": 8,
+    "waterRings": 8,
+    "waterHeadings": 12
+  },
+  "waking": {
+    "wakeMetres": 200,
+    "sleepMetres": 260,
+    "mostAwakeHerds": 4,
+    "bodyMetres": 60
+  },
+  "behaviour": {
+    "alarmSpreadMetresPerSecond": 12,
+    "releaseShare": 1.25,
+    "fleeUntilNoticeShare": 2.0,
+    "regroupSeconds": 6,
+    "chargeSeconds": 2.5,
+    "contactMetres": 1.5,
+    "goalArrivalMetres": 2,
+    "slotArrivalMetres": 0.5,
+    "catchUpSpacings": 2,
+    "separationShare": 0.6,
+    "slotJitterShare": 0.3
+  },
+  "kinds": [
+    {
+      "id": "ground-sloth",
+      "name": "Giant ground sloth",
+      "habitat": { "Grassland": 1.0, "Shrubland": 0.4, "TemperateForest": 0.3 },
+      "social": { "shape": "herd", "groupMinimum": 3, "groupMaximum": 8, "spacingMetres": 7 },
+      "body": { "lengthMetres": 5.4, "heightMetres": 2.2, "widthMetres": 1.8, "sizeClass": "huge", "colour": "#8a6a48" },
+      "speeds": { "walk": 0.75, "grazeDrift": 0.3, "flee": 2.1 },
+      "wariness": { "noticeMetres": 25, "actMetres": 9, "lookSeconds": 3, "warnSeconds": 3 },
+      "pressed": "stand",
+      "schedule": "day-grazer",
+      "population": { "herdsPerSquareKilometre": 0.4, "rangeMetres": 300, "recoveryDays": 12 },
+      "combat": { "health": 140, "evasion": 30, "armour": 10, "experience": 260 },
+      "loot": [ { "item": "meat", "minimum": 4, "maximum": 8, "oneIn": 1 }, { "item": "hide", "minimum": 2, "maximum": 4, "oneIn": 1 } ]
+    },
+    {
+      "id": "hipparion",
+      "name": "Three-toed horse",
+      "habitat": { "Grassland": 1.0, "ColdSteppe": 0.6, "Shrubland": 0.3 },
+      "social": { "shape": "band", "groupMinimum": 6, "groupMaximum": 15, "spacingMetres": 4 },
+      "body": { "lengthMetres": 1.9, "heightMetres": 1.4, "widthMetres": 0.5, "sizeClass": "human", "colour": "#a88b62" },
+      "speeds": { "walk": 1.6, "grazeDrift": 0.5, "flee": 9 },
+      "wariness": { "noticeMetres": 60, "actMetres": 35, "lookSeconds": 2, "warnSeconds": 1.5 },
+      "pressed": "flee",
+      "schedule": "day-grazer",
+      "population": { "herdsPerSquareKilometre": 0.4, "rangeMetres": 450, "recoveryDays": 5 },
+      "combat": { "health": 40, "evasion": 70, "armour": 0, "experience": 120 },
+      "loot": [ { "item": "meat", "minimum": 2, "maximum": 3, "oneIn": 1 }, { "item": "hide", "minimum": 1, "maximum": 2, "oneIn": 1 } ]
+    },
+    {
+      "id": "giant-deer",
+      "name": "Giant deer",
+      "habitat": { "TemperateForest": 1.0, "BorealForest": 0.5, "Grassland": 0.3 },
+      "social": { "shape": "family", "groupMinimum": 3, "groupMaximum": 6, "spacingMetres": 6 },
+      "body": { "lengthMetres": 2.6, "heightMetres": 2.1, "widthMetres": 0.7, "sizeClass": "large", "colour": "#7d5638" },
+      "speeds": { "walk": 1.4, "grazeDrift": 0.4, "flee": 8 },
+      "wariness": { "noticeMetres": 50, "actMetres": 25, "lookSeconds": 3, "warnSeconds": 2 },
+      "pressed": "flee",
+      "schedule": "dusk-and-dawn",
+      "population": { "herdsPerSquareKilometre": 0.3, "rangeMetres": 400, "recoveryDays": 8 },
+      "combat": { "health": 60, "evasion": 60, "armour": 2, "experience": 160 },
+      "loot": [ { "item": "meat", "minimum": 3, "maximum": 5, "oneIn": 1 }, { "item": "hide", "minimum": 1, "maximum": 3, "oneIn": 1 } ]
+    },
+    {
+      "id": "entelodont",
+      "name": "Entelodont",
+      "habitat": { "TemperateForest": 1.0, "Shrubland": 0.4 },
+      "social": { "shape": "pair", "groupMinimum": 2, "groupMaximum": 2, "spacingMetres": 4 },
+      "body": { "lengthMetres": 2.4, "heightMetres": 1.5, "widthMetres": 0.8, "sizeClass": "human", "colour": "#4a3c34" },
+      "speeds": { "walk": 1.2, "grazeDrift": 0.4, "flee": 6 },
+      "wariness": { "noticeMetres": 30, "actMetres": 14, "lookSeconds": 2, "warnSeconds": 3 },
+      "pressed": "display-charge",
+      "schedule": "dusk-and-dawn",
+      "population": { "herdsPerSquareKilometre": 0.25, "rangeMetres": 300, "recoveryDays": 10 },
+      "combat": { "health": 70, "evasion": 45, "armour": 6, "experience": 200 },
+      "loot": [ { "item": "meat", "minimum": 3, "maximum": 5, "oneIn": 1 }, { "item": "hide", "minimum": 1, "maximum": 2, "oneIn": 1 } ]
+    },
+    {
+      "id": "giant-beaver",
+      "name": "Giant beaver",
+      "habitat": { "BorealForest": 0.6, "TemperateForest": 0.5, "Grassland": 0.2 },
+      "social": { "shape": "family", "groupMinimum": 2, "groupMaximum": 5, "spacingMetres": 3 },
+      "body": { "lengthMetres": 2.2, "heightMetres": 0.9, "widthMetres": 0.7, "sizeClass": "small", "colour": "#5b4030" },
+      "speeds": { "walk": 0.8, "grazeDrift": 0.25, "flee": 2.5 },
+      "wariness": { "noticeMetres": 20, "actMetres": 10, "lookSeconds": 2, "warnSeconds": 1 },
+      "pressed": "flee",
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0.3, "rangeMetres": 150, "recoveryDays": 6 },
+      "combat": { "health": 30, "evasion": 40, "armour": 2, "experience": 90 },
+      "loot": [ { "item": "meat", "minimum": 2, "maximum": 3, "oneIn": 1 }, { "item": "hide", "minimum": 1, "maximum": 2, "oneIn": 1 } ]
+    },
+    {
+      "id": "cave-goat",
+      "name": "Balearic cave goat",
+      "habitat": { "Shrubland": 1.0, "Alpine": 0.6, "Grassland": 0.2 },
+      "social": { "shape": "flock", "groupMinimum": 5, "groupMaximum": 20, "spacingMetres": 2.5 },
+      "body": { "lengthMetres": 1.0, "heightMetres": 0.5, "widthMetres": 0.35, "sizeClass": "small", "colour": "#9b8a74" },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.3, "flee": 4 },
+      "wariness": { "noticeMetres": 30, "actMetres": 15, "lookSeconds": 2, "warnSeconds": 1 },
+      "pressed": "flee",
+      "schedule": "day-grazer",
+      "population": { "herdsPerSquareKilometre": 0.4, "rangeMetres": 250, "recoveryDays": 4 },
+      "combat": { "health": 18, "evasion": 55, "armour": 0, "experience": 50 },
+      "loot": [ { "item": "meat", "minimum": 1, "maximum": 2, "oneIn": 1 }, { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 2 } ]
+    },
+    {
+      "id": "glyptodon",
+      "name": "Glyptodon",
+      "habitat": { "Desert": 1.0, "Shrubland": 0.4, "Grassland": 0.2 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 2, "spacingMetres": 6 },
+      "body": { "lengthMetres": 3.3, "heightMetres": 1.5, "widthMetres": 1.7, "sizeClass": "large", "colour": "#6e6250" },
+      "speeds": { "walk": 0.5, "grazeDrift": 0.2, "flee": 0.8 },
+      "wariness": { "noticeMetres": 15, "actMetres": 8, "lookSeconds": 2, "warnSeconds": 1 },
+      "pressed": "hunker",
+      "schedule": "dusk-and-dawn",
+      "population": { "herdsPerSquareKilometre": 0.2, "rangeMetres": 200, "recoveryDays": 20 },
+      "combat": { "health": 120, "evasion": 20, "armour": 30, "experience": 180 },
+      "loot": [ { "item": "meat", "minimum": 3, "maximum": 6, "oneIn": 1 } ]
+    },
+    {
+      "id": "mammoth",
+      "name": "Woolly mammoth",
+      "habitat": { "ColdSteppe": 1.0, "Tundra": 0.8, "BorealForest": 0.2 },
+      "social": { "shape": "family", "groupMinimum": 4, "groupMaximum": 10, "spacingMetres": 8 },
+      "body": { "lengthMetres": 4.5, "heightMetres": 3.4, "widthMetres": 2.0, "sizeClass": "huge", "colour": "#5a4232" },
+      "speeds": { "walk": 1.2, "grazeDrift": 0.4, "flee": 6 },
+      "wariness": { "noticeMetres": 60, "actMetres": 30, "lookSeconds": 3, "warnSeconds": 3 },
+      "pressed": "stand",
+      "schedule": "day-grazer",
+      "population": { "herdsPerSquareKilometre": 0.15, "rangeMetres": 700, "recoveryDays": 30 },
+      "combat": { "health": 220, "evasion": 25, "armour": 12, "experience": 400 },
+      "loot": [ { "item": "meat", "minimum": 6, "maximum": 12, "oneIn": 1 }, { "item": "hide", "minimum": 3, "maximum": 5, "oneIn": 1 } ]
+    }
+  ]
+}

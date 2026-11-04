@@ -177,6 +177,11 @@ internal static class ProductIds
     /// <summary>The creature style test's creatures (#10568), a test aid placed by live debug.</summary>
     internal const ulong CreatureStyleBase = 0xA_2000UL;
 
+    /// <summary>Wildlife's placeholder bodies (#10567): four parts an animal, at most <see cref="WildlifeAppearanceLimit"/> ids.</summary>
+    internal const ulong WildlifeAppearanceBase = 0xA_4000UL;
+
+    internal const ulong WildlifeAppearanceLimit = 0x1000UL;
+
     /// <summary>The overworld places' kit pieces standing in the near ground (#9992), at most <see cref="PlaceMeshLimit"/>.</summary>
     internal const ulong PlaceMeshBase = 0x9_A000UL;
 

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Wildlife's rules (#10567) are Engine-free: kinds read from the product's own content, herd
+         behaviour, region seeding and the population ledger, checked without a host. -->
+    <Compile Include="$(ProductModules)Wildlife/WildlifeKinds.cs" LinkBase="Product/Wildlife" />
+    <Compile Include="$(ProductModules)Wildlife/WildlifeHerd.cs" LinkBase="Product/Wildlife" />
+    <Compile Include="$(ProductModules)Wildlife/WildlifeRules.cs" LinkBase="Product/Wildlife" />
+    <Compile Include="$(ProductModules)Wildlife/WildlifeRegions.cs" LinkBase="Product/Wildlife" />
+    <Compile Include="$(ProductModules)WorldGen/MapBiome.cs" LinkBase="Product/WorldGen" />
+    <Compile Include="$(ProductModules)Rpg/CharacterRules.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/CombatRules.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/EncounterRules.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/EncounterResolution.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/KeyedDraws.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
+    <EmbeddedResource Include="../../content/game/wildlife/kinds.json" LogicalName="Wildlife.kinds.json" />
+  </ItemGroup>
+</Project>

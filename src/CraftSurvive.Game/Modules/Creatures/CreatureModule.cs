@@ -35,8 +35,11 @@ internal sealed class CreatureModule : IProductModule
     private readonly List<(long X, long Z)> ambushColumns = [];
     private int ambushWaiting, ambushPlaced;
 
-    /// <summary>How many creatures a fresh session starts with.</summary>
-    internal const int InitialCreatureCount = 3;
+    /// <summary>
+    /// How many hostile creatures a fresh session starts with. Animals are wildlife's, seeded by region
+    /// (#10567); the neutral walker that stood in for them is no longer placed.
+    /// </summary>
+    internal const int InitialCreatureCount = 2;
 
     /// <summary>Eye height above the ground, where a creature perceives from.</summary>
     private const float EyeHeightMetres = 1.5f;
@@ -326,14 +329,12 @@ internal sealed class CreatureModule : IProductModule
             }
         }
 
-        if (target is null)
+        if (target is null || best > CharacterSheet.UnarmedReachMetres)
         {
-            return "no creatures";
-        }
-
-        if (best > CharacterSheet.UnarmedReachMetres)
-        {
-            return string.Create(CultureInfo.InvariantCulture, $"out of reach: nearest {target.Id} at {best:F1}m");
+            // With no creature in reach, the swing may find an animal instead (#10567).
+            if (SwingElsewhere?.Invoke() is string elsewhere) return elsewhere;
+            return target is null ? "no creatures"
+                : string.Create(CultureInfo.InvariantCulture, $"out of reach: nearest {target.Id} at {best:F1}m");
         }
 
         // Each swing has its own scope, so two swings in one step do not share an outcome.
@@ -539,7 +540,7 @@ internal sealed class CreatureModule : IProductModule
 
     private void Spawn()
     {
-        int placed = Place(InitialCreatureCount, StartingRegionId, CreatureKinds.ForSpawn,
+        int placed = Place(InitialCreatureCount, StartingRegionId, _ => CreatureKinds.Hostile,
             CreatureSpawnPlan.MinimumDistanceMetres, CreatureSpawnPlan.MaximumDistanceMetres);
         presentation.Sync(roster);
         lastEvent = $"started with {placed} creature(s), {spawnRefusals} site(s) refused by the rules";
@@ -593,6 +594,22 @@ internal sealed class CreatureModule : IProductModule
         lastEvent = $"ambush: {ambushPlaced} hostile creature(s) close in{(ambushWaiting > 0 ? $", {ambushWaiting} found no way to the player" : "")}";
         ambushWaiting = 0;
         ambushPlaced = 0;
+    }
+
+    /// <summary>What the player's swing strikes when no creature is in reach (#10567: wildlife); null when nothing is.</summary>
+    internal Func<string?>? SwingElsewhere { get; set; }
+
+    /// <summary>What a navigation projection for another body costs over the creatures' box (#10567); theirs is published again on the next pursuit.</summary>
+    internal string MeasureNavigation(CharacterControllerConfig character)
+    {
+        try
+        {
+            return navigation.MeasureBody(player.WorldFeetPosition, character);
+        }
+        catch (EngineCallException exception)
+        {
+            return $"navigation refused: {exception.Message}";
+        }
     }
 
     /// <summary>

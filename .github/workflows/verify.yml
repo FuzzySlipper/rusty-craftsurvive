@@ -46,6 +46,8 @@ jobs:
         run: dotnet build tools/MapLab -c Release
       - name: Check the RPG rules
         run: dotnet run --project tests/RpgCore -c Release
+      - name: Check wildlife's kinds, herd behaviour, region seeding and population ledger (#10567)
+        run: dotnet run --project tests/Wildlife -c Release
       - name: Check the player's body recovers from deep overlaps instead of stopping the game
         run: dotnet run --project tests/PlayerBody -c Release
       - name: Streamed terrain surfaces against the Engine

@@ -69,6 +69,8 @@ public sealed partial class CraftSurviveProduct
         town.Blocked = TownBlocked;
         creatures.Sanctuary = (x, z) => townSites.Any(site =>
             ((site.Frame.X - x) * (site.Frame.X - x)) + ((site.Frame.Z - z) * (site.Frame.Z - z)) < SanctuaryMetres * SanctuaryMetres);
+        // Herds neither make their home nor graze there (#10567).
+        wildlife.Sanctuary = creatures.Sanctuary;
     }
 
     /// <summary>Withdraws this world's towns; the caller publishes the empty snapshot and then disposes.</summary>
