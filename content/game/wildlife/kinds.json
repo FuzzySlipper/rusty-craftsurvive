@@ -169,6 +169,12 @@
       "habitat": { "TemperateForest": 1.0, "Shrubland": 0.4 },
       "social": { "shape": "pair", "groupMinimum": 2, "groupMaximum": 2, "spacingMetres": 4 },
       "body": { "lengthMetres": 2.4, "heightMetres": 1.5, "widthMetres": 0.8, "sizeClass": "human", "colour": "#4a3c34" },
+      "mesh": {
+        "file": "creatures/entelodont/entelodont.glb",
+        "manifest": "creatures/entelodont/entelodont.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "gape", "die": "die" }
+      },
       "speeds": { "walk": 1.2, "grazeDrift": 0.4, "flee": 6, "turnDegrees": 110 },
       "wariness": { "noticeMetres": 30, "actMetres": 14, "lookSeconds": 2, "warnSeconds": 3, "fleeBelowHealth": 0.3 },
       "pressed": "display-charge",

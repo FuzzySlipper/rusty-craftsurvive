@@ -71,6 +71,17 @@
    "body": "Tripo P2 multiview-to-model, task c0fe2330-a52f-4a6e-9f26-362e3a165204, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 3.5 --triangles 6000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/giant-deer/"
+  },
+  {
+   "mesh": "content/game/creatures/entelodont/entelodont.glb",
+   "sha256": "6dba9b9e96507d89ad15d91ea02085049419846af9f5f24d25b1b38ad3aef444",
+   "manifest": "content/game/creatures/entelodont/entelodont.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/entelodont/species.json with --mesh body.glb --texture body-64.png",
+   "concept": "art/creatures/entelodont/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/entelodont/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
+   "body": "Tripo P2 multiview-to-model, task 2551ff81-9977-46c9-a765-8826f14b1362, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 2.9 --triangles 5000 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/entelodont/"
   }
  ],
  "reference": {

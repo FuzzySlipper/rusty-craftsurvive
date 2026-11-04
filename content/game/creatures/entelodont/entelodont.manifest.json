@@ -1,0 +1,74 @@
+{
+  "species": "entelodont",
+  "family": "ungulate",
+  "body": {
+    "hindMetres": -1.17,
+    "foreMetres": 0.08
+  },
+  "legs": [
+    [
+      "shin.L",
+      "cannon.L",
+      "hoof.L"
+    ],
+    [
+      "forearm.L",
+      "fcannon.L",
+      "fhoof.L"
+    ],
+    [
+      "shin.R",
+      "cannon.R",
+      "hoof.R"
+    ],
+    [
+      "forearm.R",
+      "fcannon.R",
+      "fhoof.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.2,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 1.2
+    },
+    "run": {
+      "seconds": 0.6,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 6.0
+    },
+    "graze": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 2.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "gape": {
+      "seconds": 2.0,
+      "loops": true,
+      "plantsFeet": true
+    }
+  }
+}
