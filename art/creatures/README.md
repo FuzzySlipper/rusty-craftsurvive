@@ -7,8 +7,9 @@ Provenance is in [`content/creatures.sources.json`](../../content/creatures.sour
 ## Why the clips are generated
 
 Humans borrow UAL's humanoid clips (`art/characters/`). Nothing comparable exists for four legs,
-and every animal's proportions differ. So each **family** (plantigrade: sloths and bears; later
-ungulate, graviportal, low-slung) has a skeleton and a clip generator in code:
+and every animal's proportions differ. So each **family** in `families.py` (plantigrade: sloths and
+bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers)
+has a skeleton and a clip generator in code. A species bakes the family clips it has settings for:
 
 - A species file (`<kind>/species.json`) places the family's joints as metres
   (`[side, forward, up]`, left side mirrored) and gives its gait figures: stride, duty factor,
@@ -25,6 +26,7 @@ ungulate, graviportal, low-slung) has a skeleton and a clip generator in code:
 | Script | Does |
 | --- | --- |
 | `build_creature.py` (Blender) | Rig, body, skin, clips and export: `<out>.glb` and `<out>.manifest.json` |
+| `families.py` (Blender) | Each family's skeleton, legs and clips |
 | `gait.py` | The gait math, plain Python; `python3 -I gait.py` self-checks it |
 | `preview.py` (Blender) | Renders an exported GLB's clips: still frames, or every frame with `--sequence` |
 | `montage.py` | Lays `preview.py` stills out as one sheet |
@@ -119,9 +121,8 @@ What the sloth proved and what each new family needs (#10570).
   - **Its `LEGS` table.**
   - **Clips for its own behaviour hooks.**
 - **Ungulate** (horse, deer, cave goat, entelodont): legs have a third long segment (the cannon)
-  and stand on hooves. The Engine has two-bone IK only, so either the thigh and shin take the IK
-  with the cannon keyed, or the shin and cannon do with the thigh keyed. Choose by how the trot
-  looks.
+  and stand on hooves. The Engine has two-bone IK only, so the shin and cannon take the IK and the
+  thigh is keyed from the stride; the product's foot IK moves the same two segments.
 - **Graviportal** (mammoth): columnar two-bone legs, as here. It adds a trunk chain of five or
   six bones, keyed directly like the tail, plus ears.
 - **Low-slung** (glyptodon, giant beaver): short, slightly sprawled legs. The glyptodon's shell is

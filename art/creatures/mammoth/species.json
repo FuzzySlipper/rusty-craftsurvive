@@ -1,0 +1,251 @@
+{
+  "id": "woolly-mammoth",
+  "family": "graviportal",
+  "about": "Mammuthus primigenius, a stand-in fit until its mesh exists: 4.5 m long and 3.4 m at the shoulder.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.8,
+      0
+    ],
+    "hips": [
+      0,
+      -1.3,
+      2.45
+    ],
+    "spine": [
+      0,
+      -0.3,
+      2.75
+    ],
+    "chest": [
+      0,
+      0.75,
+      2.95
+    ],
+    "neck": [
+      0,
+      1.2,
+      3.0
+    ],
+    "head": [
+      0,
+      1.65,
+      3.1
+    ],
+    "nose": [
+      0,
+      2.2,
+      2.6
+    ],
+    "jaw": [
+      0,
+      1.85,
+      2.45
+    ],
+    "jaw_tip": [
+      0,
+      2.15,
+      2.3
+    ],
+    "tail0": [
+      0,
+      -1.75,
+      2.3
+    ],
+    "tail1": [
+      0,
+      -1.95,
+      1.95
+    ],
+    "tail2": [
+      0,
+      -2.0,
+      1.6
+    ],
+    "tail3": [
+      0,
+      -2.0,
+      1.25
+    ],
+    "trunk0": [
+      0,
+      2.15,
+      2.55
+    ],
+    "trunk1": [
+      0,
+      2.3,
+      2.2
+    ],
+    "trunk2": [
+      0,
+      2.38,
+      1.85
+    ],
+    "trunk3": [
+      0,
+      2.42,
+      1.5
+    ],
+    "trunk4": [
+      0,
+      2.44,
+      1.15
+    ],
+    "trunk5": [
+      0,
+      2.45,
+      0.8
+    ],
+    "trunk6": [
+      0,
+      2.45,
+      0.5
+    ],
+    "ear": [
+      0.45,
+      1.5,
+      3.1
+    ],
+    "ear_tip": [
+      0.7,
+      1.35,
+      2.75
+    ],
+    "hip_socket": [
+      0.55,
+      -1.3,
+      2.1
+    ],
+    "knee": [
+      0.58,
+      -1.2,
+      1.25
+    ],
+    "ankle": [
+      0.55,
+      -1.28,
+      0.28
+    ],
+    "toe": [
+      0.55,
+      -1.05,
+      0.0
+    ],
+    "shoulder": [
+      0.6,
+      0.8,
+      2.35
+    ],
+    "elbow": [
+      0.62,
+      0.68,
+      1.45
+    ],
+    "wrist": [
+      0.6,
+      0.8,
+      0.3
+    ],
+    "knuckle": [
+      0.6,
+      1.0,
+      0.0
+    ],
+    "eye": [
+      0.42,
+      1.95,
+      2.85
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 2.2,
+      "stride": 2.64,
+      "duty": 0.68,
+      "liftHind": 0.16,
+      "liftFore": 0.2,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.05,
+      "swayDegrees": 2.0
+    },
+    "run": {
+      "seconds": 1.0,
+      "stride": 6.0,
+      "duty": 0.52,
+      "liftHind": 0.3,
+      "liftFore": 0.36,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.1,
+      "swayDegrees": 2.5
+    },
+    "idle": {
+      "seconds": 5.0
+    },
+    "graze": {
+      "seconds": 6.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "threat": {
+      "seconds": 2.4
+    },
+    "die": {
+      "seconds": 3.0
+    }
+  },
+  "proxy": {
+    "about": "The stand-in body built from metaball capsules along the bones, until the concept mesh replaces it.",
+    "radii": {
+      "hips": 1.0,
+      "spine": 1.1,
+      "chest": 1.05,
+      "neck": 0.7,
+      "head": 0.62,
+      "jaw": 0.2,
+      "tail1": 0.1,
+      "tail2": 0.07,
+      "tail3": 0.05,
+      "trunk1": 0.24,
+      "trunk2": 0.2,
+      "trunk3": 0.17,
+      "trunk4": 0.14,
+      "trunk5": 0.11,
+      "trunk6": 0.09,
+      "ear": 0.1,
+      "thigh": 0.48,
+      "shin": 0.38,
+      "foot": 0.34,
+      "upperarm": 0.46,
+      "forearm": 0.36,
+      "hand": 0.32
+    },
+    "resolution": 0.09,
+    "triangles": 6000,
+    "palette": {
+      "coat": "#5a4232",
+      "belly": "#7a5f49",
+      "legs": "#4a3628",
+      "claw": "#3a2e26",
+      "eye": "#17110d"
+    }
+  }
+}

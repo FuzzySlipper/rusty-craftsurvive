@@ -3,8 +3,7 @@
 usage: blender -b --factory-startup --python-exit-code 1 --python art/creatures/build_creature.py -- \
            <species.json> <out.glb> [--mesh <body.glb> [--texture <base colour.png>]] [--blend <review.blend>]
 
-- The rig is the species' family skeleton (only `plantigrade` so far), placed from the species'
-  key points. Every bone's X axis is the animal's left, so a pitch is the same rotation whatever
+- The rig is the species' family skeleton (families.py), placed from the species' key points. Every bone's X axis is the animal's left, so a pitch is the same rotation whatever
   the bone points at.
 - The body is the mesh given with --mesh (prepare_mesh.py's body.glb), already in the species' rest
   pose, with --texture replacing its base colour (the pixel-reduced game texture); or else a
@@ -27,10 +26,10 @@ from bpy_extras import anim_utils
 from mathutils import Matrix, Quaternion, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from families import FAMILIES, SIDES  # noqa: E402
 import gait  # noqa: E402
 
 NEAREST = 9728
-SIDES = {"L": 1.0, "R": -1.0}
 # A pole sits this far in front of a knee or behind an elbow.
 POLE_METRES = 1.2
 IK_CHAIN = 2
@@ -47,50 +46,14 @@ def to_blender(point, side=1.0):
     return Vector((s * side, -f, u))
 
 
-def plantigrade_bones():
-    """(name, parent, head point, tail point, side) for the plantigrade family: sloths, bears."""
-    bones = [
-        ("root", None, "root", "root_tip", 1.0),
-        ("hips", "root", "hips", "spine", 1.0),
-        ("spine", "hips", "spine", "chest", 1.0),
-        ("chest", "spine", "chest", "neck", 1.0),
-        ("neck", "chest", "neck", "head", 1.0),
-        ("head", "neck", "head", "nose", 1.0),
-        ("jaw", "head", "jaw", "jaw_tip", 1.0),
-        ("tail1", "hips", "tail0", "tail1", 1.0),
-        ("tail2", "tail1", "tail1", "tail2", 1.0),
-        ("tail3", "tail2", "tail2", "tail3", 1.0),
-        ("tail4", "tail3", "tail3", "tail4", 1.0),
-    ]
-    for side, sign in SIDES.items():
-        bones += [
-            (f"thigh.{side}", "hips", "hip_socket", "knee", sign),
-            (f"shin.{side}", f"thigh.{side}", "knee", "ankle", sign),
-            (f"foot.{side}", f"shin.{side}", "ankle", "toe", sign),
-            (f"upperarm.{side}", "chest", "shoulder", "elbow", sign),
-            (f"forearm.{side}", f"upperarm.{side}", "elbow", "wrist", sign),
-            (f"hand.{side}", f"forearm.{side}", "wrist", "knuckle", sign),
-            (f"claw.{side}", f"hand.{side}", "knuckle", "claw_tip", sign),
-        ]
-    return bones
-
-
-# Each leg: the IK bone (chain of two ending at it), the end bone the target turns, and whether
-# the joint between bends forward (a knee) or back (an elbow).
-LEGS = {
-    "hind": ("shin", "foot", "knee", 1.0),
-    "fore": ("forearm", "hand", "elbow", -1.0),
-}
-
-
-def build_armature(species):
+def build_armature(species, family):
     points = species["points"]
     data = bpy.data.armatures.new(species["id"])
     rig = bpy.data.objects.new(species["id"], data)
     bpy.context.scene.collection.objects.link(rig)
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode="EDIT")
-    for name, parent, head, tail, sign in plantigrade_bones():
+    for name, parent, head, tail, sign in family.bones():
         bone = data.edit_bones.new(name)
         bone.head = to_blender(points[head], sign)
         bone.tail = to_blender(points[tail], sign)
@@ -114,16 +77,16 @@ def segment_distance(p, a, b):
     return (p - (a + ab * t)).length
 
 
-def region_of(bone_name):
+def region_of(bone_name, family):
     base = bone_name.split(".")[0]
-    if base in ("thigh", "shin", "foot", "upperarm", "forearm", "hand"):
+    if base in family.leg_bones:
         return "legs"
-    if base == "claw":
+    if base in family.tip_bones:
         return "claw"
     return "coat"
 
 
-def build_proxy(species, rig):
+def build_proxy(species, rig, family):
     proxy = species["proxy"]
     radii = proxy["radii"]
     ball = bpy.data.metaballs.new(species["id"] + "-proxy")
@@ -155,11 +118,11 @@ def build_proxy(species, rig):
     bpy.ops.object.modifier_apply(modifier=decimate.name)
     bpy.ops.object.shade_smooth()
     print(f"proxy: {faces} faces from metaballs, {len(mesh.data.polygons)} after decimation")
-    paint_proxy(species, rig, mesh)
+    paint_proxy(species, rig, mesh, family)
     return mesh
 
 
-def paint_proxy(species, rig, mesh):
+def paint_proxy(species, rig, mesh, family):
     """A tiny palette texture, and each face's UVs at the centre of its region's cell."""
     palette = species["proxy"]["palette"]
     names = list(palette)
@@ -184,7 +147,7 @@ def paint_proxy(species, rig, mesh):
     for poly in mesh.data.polygons:
         centre = poly.center
         nearest = min(segments, key=lambda s: segment_distance(centre, s[1], s[2]))[0]
-        region = region_of(nearest)
+        region = region_of(nearest, family)
         base = nearest.split(".")[0]
         if region == "coat" and poly.normal.z < belly_below and base in ("hips", "spine", "chest", "neck"):
             region = "belly"
@@ -257,11 +220,12 @@ def skin(rig, mesh):
 class Controls:
     """IK targets and poles for each leg, and helpers that pose bones by world-axis rotations."""
 
-    def __init__(self, rig):
+    def __init__(self, rig, family):
         self.rig = rig
+        self.legs = family.legs
         self.targets = {}
         self.rest = {}
-        for kind, (ik_bone, end_bone, _joint, bend) in LEGS.items():
+        for kind, (ik_bone, end_bone, _joint, bend) in self.legs.items():
             for side in SIDES:
                 leg = f"{kind}.{side}"
                 end = rig.data.bones[f"{end_bone}.{side}"]
@@ -294,7 +258,7 @@ class Controls:
 
     def calibrate_poles(self):
         """Pick each IK chain's pole angle that keeps the rest pose where it is."""
-        for kind, (ik_bone, _end, _joint, _bend) in LEGS.items():
+        for kind, (ik_bone, _end, _joint, _bend) in self.legs.items():
             for side in SIDES:
                 pb = self.rig.pose.bones[f"{ik_bone}.{side}"]
                 rest = pb.bone.head_local.copy()
@@ -319,9 +283,15 @@ class Controls:
 
     def leg_influence(self, leg, value):
         kind, side = leg.split(".")
-        ik_bone, end_bone, _joint, _bend = LEGS[kind]
+        ik_bone, end_bone, _joint, _bend = self.legs[kind]
         self.rig.pose.bones[f"{ik_bone}.{side}"].constraints["IK"].influence = value
         self.rig.pose.bones[f"{end_bone}.{side}"].constraints["TURN"].influence = value
+
+    def leg_length(self, leg):
+        """How far a leg reaches: from its target's rest down the chain to the body, in metres."""
+        kind, side = leg.split(".")
+        top = self.rig.data.bones[f"{self.legs[kind][0]}.{side}"].parent.parent
+        return (self.rest[leg].to_translation() - top.head_local).length
 
     def place(self, leg, forward=0.0, up=0.0, side=0.0, toe_pitch=0.0):
         """Move a leg's target from its rest by metres forward/up/outward; pitch its end bone."""
@@ -351,171 +321,21 @@ class Controls:
             target.keyframe_insert("rotation_quaternion", frame=frame)
 
 
-def pitch(degrees):
-    """Raises the front: a forward-pointing bone tips up, a hanging limb swings forward."""
-    return Matrix.Rotation(math.radians(-degrees), 3, "X")
-
-
-def yaw(degrees):
-    """Turns to the animal's left."""
-    return Matrix.Rotation(math.radians(degrees), 3, "Z")
-
-
-def roll(degrees):
-    """Rolls about the forward axis, left side up."""
-    return Matrix.Rotation(math.radians(-degrees), 3, "Y")
-
-
-# ---------------------------------------------------------------- the clips
-
-def gait_pose(c, settings, t, spine_flex):
-    duty, stride = settings["duty"], settings["stride"]
-    for leg, offset in settings["phases"].items():
-        phase = t + offset
-        forward, up = gait.foot(phase, duty, stride, settings["liftHind" if leg.startswith("hind") else "liftFore"])
-        swing = 0.0 if gait.planted(phase, duty) else math.sin(math.pi * ((phase % 1.0) - duty) / (1.0 - duty))
-        c.place(leg, forward=forward, up=up, toe_pitch=-25.0 * swing)
-        if leg.startswith("fore"):
-            c.bone_rotation(f"claw.{leg.split('.')[1]}", pitch(-30.0 * swing))
-    sway = settings["swayDegrees"]
-    bob = settings["bob"]
-    c.bone_offset("hips", (0, 0, -bob * math.cos(2 * gait.TAU * t)))
-    c.bone_rotation("hips", roll(sway * gait.wave(t)) @ yaw(0.6 * sway * gait.wave(t, lag=0.1)))
-    c.bone_rotation("spine", yaw(-0.5 * sway * gait.wave(t, lag=0.15)) @ pitch(spine_flex * gait.wave(t, 2)))
-    c.bone_rotation("chest", roll(-0.6 * sway * gait.wave(t, lag=0.2)))
-    c.bone_rotation("neck", pitch(-2.0 * gait.wave(t, 2, lag=0.1)))
-    c.bone_rotation("head", pitch(-3.0 * gait.wave(t, 2, lag=0.2)) @ yaw(-sway * gait.wave(t, lag=0.3)))
-    for i in range(1, 5):
-        c.bone_rotation(f"tail{i}", yaw(2.0 * i * gait.wave(t, lag=0.2 + 0.08 * i)))
-
-
-def clip_walk(c, s, t):
-    gait_pose(c, s["walk"], t, spine_flex=1.0)
-
-
-def clip_run(c, s, t):
-    gait_pose(c, s["run"], t, spine_flex=4.0)
-
-
-def clip_idle(c, s, t):
-    c.bone_rotation("spine", pitch(0.8 * gait.wave(t, 2)))
-    c.bone_rotation("chest", pitch(-0.6 * gait.wave(t, 2, lag=0.1)))
-    c.bone_rotation("neck", pitch(-4.0 + 2.0 * gait.wave(t)) @ yaw(8.0 * gait.wave(t, lag=0.25)))
-    c.bone_rotation("head", pitch(3.0 * gait.wave(t, 2)) @ yaw(6.0 * gait.wave(t, lag=0.3)))
-    c.bone_rotation("jaw", pitch(-2.0 * max(0.0, gait.wave(t, 4))))
-    for i in range(1, 5):
-        c.bone_rotation(f"tail{i}", yaw(1.5 * i * gait.wave(t, lag=0.1 * i)))
-
-
-def clip_graze(c, s, t):
-    tug = math.exp(-((t - 0.55) / 0.05) ** 2)
-    c.bone_rotation("chest", pitch(-6.0))
-    c.bone_rotation("neck", pitch(-38.0 + 8.0 * tug) @ yaw(5.0 * gait.wave(t)))
-    c.bone_rotation("head", pitch(-28.0 + 10.0 * tug))
-    c.bone_rotation("jaw", pitch(-9.0 * (0.5 + 0.5 * gait.wave(t, 6))))
-    c.bone_offset("hips", (0, 0, -0.04))
-    for i in range(1, 5):
-        c.bone_rotation(f"tail{i}", yaw(1.2 * i * gait.wave(t, lag=0.1 * i)))
-
-
-def clip_alert(c, s, t):
-    c.bone_rotation("spine", pitch(3.0))
-    c.bone_rotation("chest", pitch(4.0))
-    c.bone_rotation("neck", pitch(16.0) @ yaw(20.0 * gait.wave(t)))
-    c.bone_rotation("head", pitch(10.0) @ yaw(10.0 * gait.wave(t, lag=0.1)))
-    for i in range(1, 5):
-        c.bone_rotation(f"tail{i}", pitch(-2.0) @ yaw(0.6 * i * gait.wave(t, 2)))
-
-
-def rear(c, amount, pitch_degrees):
-    """The tripod stance: body pitched up about the pelvis, sitting back onto the tail."""
-    c.bone_rotation("hips", pitch(pitch_degrees * amount))
-    c.bone_offset("hips", (0, 0.12 * amount, -0.18 * amount))
-    c.bone_rotation("spine", pitch(5.0 * amount))
-    c.bone_rotation("chest", pitch(2.0 * amount))
-    for i, degrees in enumerate((-30.0, -12.0, 4.0, 10.0), start=1):
-        c.bone_rotation(f"tail{i}", pitch(degrees * amount))
-
-
-def clip_rear_browse(c, s, t):
-    amount = gait.rise_hold_fall(t, 0.25, 0.75)
-    rear(c, amount, s["rear-browse"]["pitchDegrees"])
-    browse = gait.ease_in_out(t, 0.2, 0.32) * (1.0 - gait.ease_in_out(t, 0.68, 0.8))
-    for side, lag in (("L", 0.0), ("R", 0.5)):
-        c.leg_influence(f"fore.{side}", 1.0 - gait.ease_in_out(t, 0.02, 0.18) * (1.0 - gait.ease_in_out(t, 0.82, 0.98)))
-        pull = gait.wave((t - 0.25) / 0.5, 3, lag=lag) * browse
-        c.bone_rotation(f"upperarm.{side}", pitch(70.0 * amount + 25.0 * pull))
-        c.bone_rotation(f"forearm.{side}", pitch(20.0 * amount - 25.0 * pull))
-        c.bone_rotation(f"hand.{side}", pitch(15.0 * amount))
-        c.bone_rotation(f"claw.{side}", pitch(-45.0 * browse * (0.5 + 0.5 * pull)))
-    c.bone_rotation("neck", pitch(-4.0 * amount))
-    c.bone_rotation("head", pitch(-6.0 * amount + 4.0 * gait.wave(t, 3) * browse))
-    c.bone_rotation("jaw", pitch(-8.0 * browse * (0.5 + 0.5 * gait.wave(t, 9))))
-
-
-def clip_defend_swipe(c, s, t):
-    amount = gait.rise_hold_fall(t, 0.3, 0.7)
-    rear(c, amount, s["defend-swipe"]["pitchDegrees"])
-    c.leg_influence("fore.R", 1.0 - gait.ease_in_out(t, 0.05, 0.2) * (1.0 - gait.ease_in_out(t, 0.8, 0.95)))
-    wind = gait.ease_in_out(t, 0.1, 0.38) * (1.0 - gait.ease_in_out(t, 0.42, 0.52))
-    strike = gait.ease_in_out(t, 0.42, 0.52) * (1.0 - gait.ease_in_out(t, 0.7, 0.9))
-    c.bone_rotation("upperarm.R", pitch(110.0 * wind + 35.0 * strike) @ yaw(-30.0 * strike))
-    c.bone_rotation("forearm.R", pitch(30.0 * wind - 10.0 * strike))
-    c.bone_rotation("claw.R", pitch(-20.0 * wind + 30.0 * strike))
-    c.bone_rotation("neck", pitch(-10.0 * strike + 8.0 * wind))
-    c.bone_rotation("head", pitch(-8.0 * strike) @ yaw(-12.0 * strike))
-    c.bone_rotation("jaw", pitch(-14.0 * (wind + strike)))
-
-
-def clip_die(c, s, t):
-    buckle = gait.ease_in_out(t, 0.0, 0.4)
-    fall = gait.ease_in_out(t, 0.3, 0.75)
-    limp = gait.ease_in_out(t, 0.25, 0.6)
-    for leg in c.targets:
-        c.leg_influence(leg, 1.0 - limp)
-    for side in SIDES:
-        c.bone_rotation(f"thigh.{side}", pitch(-25.0 * limp))
-        c.bone_rotation(f"shin.{side}", pitch(35.0 * limp))
-        c.bone_rotation(f"upperarm.{side}", pitch(20.0 * limp))
-        c.bone_rotation(f"forearm.{side}", pitch(-30.0 * limp))
-        c.bone_rotation(f"claw.{side}", pitch(-20.0 * limp))
-    angle = 82.0 * fall
-    c.bone_rotation("root", roll(angle))
-    c.bone_offset("root", (0, 0, max(0.0, 0.95 - 1.7 * math.cos(math.radians(angle))) * fall))
-    c.bone_offset("hips", (0, 0, -0.45 * buckle))
-    c.bone_rotation("neck", pitch(-25.0 * fall) @ yaw(-15.0 * fall))
-    c.bone_rotation("head", pitch(-15.0 * fall))
-    c.bone_rotation("jaw", pitch(-10.0 * fall))
-    for i in range(1, 5):
-        c.bone_rotation(f"tail{i}", pitch(4.0 * fall))
-
-
-def clip_rest(c, s, t):
-    pass
-
-
-# clip id: (pose function, loops, feet planted). Planted clips keep every foot on the ground, so
-# the product may move their feet onto uneven ground with IK; the others lift or fold their legs.
-CLIPS = {
-    "rest": (clip_rest, False, True),
-    "idle": (clip_idle, True, True),
-    "walk": (clip_walk, True, True),
-    "run": (clip_run, True, True),
-    "graze": (clip_graze, True, True),
-    "alert": (clip_alert, True, True),
-    "rear-browse": (clip_rear_browse, False, False),
-    "defend-swipe": (clip_defend_swipe, False, False),
-    "die": (clip_die, False, False),
-}
 REST_SECONDS = 1.0
 
 
-def bake_clips(rig, controls, species):
+def species_clips(species, family):
+    """The family's clips this species has settings for, and `rest` always."""
+    settings = species["clips"]
+    return {clip: entry for clip, entry in family.clips.items() if clip == "rest" or clip in settings}
+
+
+def bake_clips(rig, controls, species, clips):
     settings = species["clips"]
     fps = settings["fps"]
     bpy.context.scene.render.fps = fps
     manifest = {}
-    for clip, (pose, loops, plants) in CLIPS.items():
+    for clip, (pose, loops, plants) in clips.items():
         seconds = settings.get(clip, {}).get("seconds", REST_SECONDS)
         frames = round(seconds * fps)
         # A looping clip's last frame repeats its first, so the cycle closes.
@@ -559,12 +379,12 @@ def strip_controls(rig, controls):
 
 # ---------------------------------------------------------------- export
 
-def export(rig, mesh, out_path):
+def export(rig, mesh, out_path, clips):
     bpy.ops.object.select_all(action="DESELECT")
     rig.select_set(True)
     mesh.select_set(True)
     bpy.context.view_layer.objects.active = rig
-    actions = [a for a in bpy.data.actions if a.name in CLIPS]
+    actions = [a for a in bpy.data.actions if a.name in clips]
     # Every clip gets its own NLA track, so the ACTIONS export finds all of them.
     rig.animation_data_create()
     for action in actions:
@@ -580,10 +400,10 @@ def export(rig, mesh, out_path):
         export_yup=True, export_apply=False, export_skins=True, export_influence_nb=4,
         export_morph=False, export_cameras=False, export_lights=False, export_reset_pose_bones=True,
         export_rest_position_armature=True, export_image_format="AUTO", export_materials="EXPORT")
-    patch_glb(out_path)
+    patch_glb(out_path, clips)
 
 
-def patch_glb(path):
+def patch_glb(path, clips):
     """Nearest samplers for both filters, and a check that every clip id is lowercase."""
     data = Path(path).read_bytes()
     magic, version, _length = struct.unpack_from("<III", data, 0)
@@ -597,7 +417,7 @@ def patch_glb(path):
     bad = [n for n in names if n != n.lower()]
     if bad:
         raise SystemExit(f"clip ids must be lowercase: {bad}")
-    missing = sorted(set(CLIPS) - set(names))
+    missing = sorted(set(clips) - set(names))
     if missing:
         raise SystemExit(f"clips missing from the export: {missing} (exported {names})")
     payload = json.dumps(doc, separators=(",", ":")).encode()
@@ -614,32 +434,34 @@ def main(argv):
     mesh_path = argv[argv.index("--mesh") + 1] if "--mesh" in argv else None
     blend_path = argv[argv.index("--blend") + 1] if "--blend" in argv else None
     species = json.loads(species_path.read_text())
-    if species["family"] != "plantigrade":
+    if species["family"] not in FAMILIES:
         raise SystemExit(f"family {species['family']} has no skeleton yet")
+    family = FAMILIES[species["family"]]
+    clips = species_clips(species, family)
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj)
-    rig = build_armature(species)
+    rig = build_armature(species, family)
     texture = argv[argv.index("--texture") + 1] if "--texture" in argv else None
-    mesh = import_mesh(mesh_path, texture) if mesh_path else build_proxy(species, rig)
+    mesh = import_mesh(mesh_path, texture) if mesh_path else build_proxy(species, rig, family)
     skin(rig, mesh)
-    controls = Controls(rig)
+    controls = Controls(rig, family)
     points = species["points"]
     manifest = {
         "species": species["id"],
         "family": species["family"],
         # Where the hind and fore feet stand along the body, metres forward of the origin: the
         # product pitches the body to the ground under these two points.
-        "body": {"hindMetres": points["ankle"][1], "foreMetres": points["wrist"][1]},
+        "body": {"hindMetres": points[family.hind_point][1], "foreMetres": points[family.fore_point][1]},
         # Each leg as (root, mid, end) joints for two-bone IK; end is the joint that stands.
         "legs": [[f"{a}.{side}", f"{b}.{side}", f"{c}.{side}"]
-                 for side in SIDES for a, b, c in (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand"))],
-        "clips": bake_clips(rig, controls, species),
+                 for side in SIDES for a, b, c in family.chains],
+        "clips": bake_clips(rig, controls, species, clips),
     }
     strip_controls(rig, controls)
     if blend_path:
         bpy.ops.wm.save_as_mainfile(filepath=str(Path(blend_path).resolve()))
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    export(rig, mesh, out_path)
+    export(rig, mesh, out_path, clips)
     manifest_path = out_path.with_suffix(".manifest.json")
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"wrote {manifest_path}")

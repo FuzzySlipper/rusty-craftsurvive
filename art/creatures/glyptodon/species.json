@@ -1,0 +1,208 @@
+{
+  "id": "glyptodon",
+  "family": "low-slung",
+  "about": "Glyptodon clavipes, a stand-in fit until its mesh exists: 3.3 m long and 1.5 m high.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -0.75,
+      0.85
+    ],
+    "spine": [
+      0,
+      -0.1,
+      0.95
+    ],
+    "chest": [
+      0,
+      0.55,
+      0.85
+    ],
+    "neck": [
+      0,
+      0.95,
+      0.68
+    ],
+    "head": [
+      0,
+      1.15,
+      0.62
+    ],
+    "nose": [
+      0,
+      1.55,
+      0.45
+    ],
+    "jaw": [
+      0,
+      1.2,
+      0.5
+    ],
+    "jaw_tip": [
+      0,
+      1.5,
+      0.38
+    ],
+    "tail0": [
+      0,
+      -1.05,
+      0.62
+    ],
+    "tail1": [
+      0,
+      -1.35,
+      0.5
+    ],
+    "tail2": [
+      0,
+      -1.6,
+      0.4
+    ],
+    "tail3": [
+      0,
+      -1.82,
+      0.32
+    ],
+    "tail4": [
+      0,
+      -2.0,
+      0.26
+    ],
+    "hip_socket": [
+      0.5,
+      -0.7,
+      0.58
+    ],
+    "knee": [
+      0.62,
+      -0.55,
+      0.34
+    ],
+    "ankle": [
+      0.62,
+      -0.7,
+      0.12
+    ],
+    "toe": [
+      0.64,
+      -0.5,
+      0.0
+    ],
+    "shoulder": [
+      0.5,
+      0.6,
+      0.56
+    ],
+    "elbow": [
+      0.62,
+      0.45,
+      0.34
+    ],
+    "wrist": [
+      0.62,
+      0.6,
+      0.12
+    ],
+    "knuckle": [
+      0.64,
+      0.8,
+      0.0
+    ],
+    "eye": [
+      0.16,
+      1.34,
+      0.62
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "rigid": true,
+    "walk": {
+      "seconds": 2.0,
+      "stride": 1.0,
+      "duty": 0.72,
+      "liftHind": 0.07,
+      "liftFore": 0.08,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.015,
+      "swayDegrees": 1.5
+    },
+    "run": {
+      "seconds": 1.4,
+      "stride": 1.12,
+      "duty": 0.6,
+      "liftHind": 0.09,
+      "liftFore": 0.1,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.02,
+      "swayDegrees": 2.0
+    },
+    "idle": {
+      "seconds": 5.0
+    },
+    "graze": {
+      "seconds": 5.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "hunker": {
+      "seconds": 1.6,
+      "metres": 0.5
+    },
+    "die": {
+      "seconds": 2.4,
+      "metres": 0.5
+    }
+  },
+  "proxy": {
+    "about": "The stand-in body built from metaball capsules along the bones, until the concept mesh replaces it.",
+    "radii": {
+      "hips": 0.72,
+      "spine": 0.86,
+      "chest": 0.72,
+      "neck": 0.2,
+      "head": 0.2,
+      "jaw": 0.1,
+      "tail1": 0.2,
+      "tail2": 0.16,
+      "tail3": 0.13,
+      "tail4": 0.1,
+      "thigh": 0.2,
+      "shin": 0.16,
+      "foot": 0.14,
+      "upperarm": 0.2,
+      "forearm": 0.15,
+      "hand": 0.13
+    },
+    "resolution": 0.05,
+    "triangles": 5000,
+    "palette": {
+      "coat": "#6e6250",
+      "belly": "#8a7e68",
+      "legs": "#4e4438",
+      "claw": "#3a3228",
+      "eye": "#17110d"
+    }
+  }
+}

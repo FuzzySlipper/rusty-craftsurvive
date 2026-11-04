@@ -1,0 +1,10 @@
+STYLE - THE MOST IMPORTANT PART. Match the attached reference image, a sheet of a giant ground sloth from the same game: a LOW-POLYGON 3D game creature with simple smooth-shaded forms from a few large masses, and a hand-painted texture at LOW RESOLUTION with crisp visible square texels (nearest-neighbour filtering, about 32 texels per metre), so coat, markings and eyes read as a few authored pixel-art marks with dark line work - a carefully authored retro texture on a modern-lit model, NOT a PS1 emulation, no jitter or blur. Calm surfaces with a few strong authored details, never a tiled or busy pattern.
+PROPORTIONS: FAITHFUL to the real animal, a naturalist reconstruction simplified into large masses. NOT exaggerated, NOT storybook, NOT cartoon, NOT cute. Do not copy the sloth's shape or colours: only its treatment.
+
+WHAT IT IS: a model turnaround sheet from a game studio character viewer, for ONE creature: a woolly mammoth (Mammuthus primigenius), 4.5 m long without the tusks and 3.4 m at the shoulder. Three views of the SAME animal side by side, all full body, at eye level, on a plain flat warm-grey floor and backdrop: (1) strict side profile walking, (2) three-quarter front view standing still, (3) feeding: its trunk curled up to its mouth with a tuft of grass, standing still. Beside view 1 stands a plain dark-grey upright post 1.8 m tall for scale. Landscape aspect about 1536x1024. Equal spacing.
+
+ANATOMY TO KEEP: a high domed head, a high shoulder sloping to low hips, thick column legs, a long trunk, long curving ivory tusks, small ears, a short tail. Long shaggy coat drawn as broad hanging clumps, dark rust-brown over a paler underwool. Massive, slow and ancient.
+
+SETTING: a creature for a warm, painterly early-modern frontier fantasy game whose world looks like Valheim: simple smooth-shaded forms, small textures, atmosphere carrying the mood.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame. NO people. NOT photoreal, NOT a museum reconstruction render, NOT realistic fur strands, NOT anime, NOT chibi, NOT a cute cartoon, NOT toon outlines or cel shading, NOT triangle-faceted polygon art.
