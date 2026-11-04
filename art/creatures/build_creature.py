@@ -300,6 +300,24 @@ def skin(rig, mesh):
     print(f"skin: {len(unweighted)} of {len(mesh.data.vertices)} vertices took their nearest bone")
 
 
+def pin_shell(species, mesh):
+    """A shell does not flex: all but the legs below its rim follows one bone, whatever they do beneath."""
+    shell = species.get("shell")
+    if not shell:
+        return
+    start, end = shell["forward"]
+
+    def leg(vertex):
+        return vertex.co.z < shell["aboveMetres"] and any(a <= -vertex.co.y <= b for a, b in shell["legs"])
+
+    pinned = [v.index for v in mesh.data.vertices if start <= -v.co.y <= end and not leg(v)]
+    for group in mesh.vertex_groups:
+        group.remove(pinned)
+    group = mesh.vertex_groups.get(shell["bone"]) or mesh.vertex_groups.new(name=shell["bone"])
+    group.add(pinned, 1.0, "REPLACE")
+    print(f"shell: {len(pinned)} of {len(mesh.data.vertices)} vertices follow {shell['bone']}")
+
+
 # ---------------------------------------------------------------- IK controls
 
 class Controls:
@@ -529,6 +547,7 @@ def main(argv):
     texture = argv[argv.index("--texture") + 1] if "--texture" in argv else None
     mesh = import_mesh(mesh_path, texture) if mesh_path else build_proxy(species, rig, family)
     skin(rig, mesh)
+    pin_shell(species, mesh)
     controls = Controls(rig, family)
     points = species["points"]
     manifest = {

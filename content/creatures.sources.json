@@ -93,6 +93,18 @@
    "body": "Tripo P2 multiview-to-model, task da763fc2-84f9-4c60-a4aa-d57a2eef8664, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 1.25 --triangles 4000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/cave-goat/"
+  },
+  {
+   "mesh": "content/game/creatures/glyptodon/glyptodon.glb",
+   "sha256": "8c514915328c6c5ea04cc9dce9d788f906a466fd9f38a7b37f60cb459318110d",
+   "manifest": "content/game/creatures/glyptodon/glyptodon.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/glyptodon/species.json with --mesh body-four-legs.glb --texture body-64.png",
+   "concept": "art/creatures/glyptodon/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/glyptodon/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
+   "body": "Tripo P2 multiview-to-model, task b7aac452-353f-4caa-9e88-39f9e2a5c84f, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 3.7 --triangles 6000 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/glyptodon/",
+   "legs": "The reference sheet drew near and far legs apart, so the Tripo body had eight: drop_limbs.py --below 0.34 --between 0.3 0.9 --between -0.4 0.2 cut the middle pairs."
   }
  ],
  "reference": {

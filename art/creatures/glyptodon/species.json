@@ -1,7 +1,7 @@
 {
   "id": "glyptodon",
   "family": "low-slung",
-  "about": "Glyptodon clavipes, a stand-in fit until its mesh exists: 3.3 m long and 1.5 m high.",
+  "about": "Glyptodon clavipes, 3.7 m long with its tail and 1.5 m high, fitted to the Tripo body (art/creatures/glyptodon/mesh) with its doubled legs cut away (drop_limbs.py). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
   "points": {
     "root": [
       0,
@@ -15,113 +15,113 @@
     ],
     "hips": [
       0,
-      -0.75,
+      -0.6,
       0.85
     ],
     "spine": [
       0,
-      -0.1,
+      0.0,
       0.95
     ],
     "chest": [
       0,
-      0.55,
+      0.7,
       0.85
     ],
     "neck": [
       0,
-      0.95,
-      0.68
+      1.22,
+      0.72
     ],
     "head": [
       0,
-      1.15,
-      0.62
+      1.38,
+      0.72
     ],
     "nose": [
       0,
-      1.55,
-      0.45
+      1.84,
+      0.66
     ],
     "jaw": [
       0,
-      1.2,
-      0.5
+      1.4,
+      0.56
     ],
     "jaw_tip": [
       0,
-      1.5,
-      0.38
+      1.72,
+      0.5
     ],
     "tail0": [
       0,
-      -1.05,
+      -1.0,
       0.62
     ],
     "tail1": [
       0,
-      -1.35,
-      0.5
+      -1.22,
+      0.58
     ],
     "tail2": [
       0,
-      -1.6,
-      0.4
+      -1.44,
+      0.53
     ],
     "tail3": [
       0,
-      -1.82,
-      0.32
+      -1.64,
+      0.47
     ],
     "tail4": [
       0,
-      -2.0,
-      0.26
+      -1.84,
+      0.41
     ],
     "hip_socket": [
-      0.5,
-      -0.7,
-      0.58
+      0.38,
+      -0.67,
+      0.45
     ],
     "knee": [
-      0.62,
-      -0.55,
-      0.34
+      0.4,
+      -0.6,
+      0.3
     ],
     "ankle": [
-      0.62,
+      0.4,
       -0.7,
       0.12
     ],
     "toe": [
-      0.64,
-      -0.5,
+      0.4,
+      -0.52,
       0.0
     ],
     "shoulder": [
-      0.5,
-      0.6,
-      0.56
+      0.35,
+      1.15,
+      0.45
     ],
     "elbow": [
-      0.62,
-      0.45,
-      0.34
+      0.37,
+      1.1,
+      0.3
     ],
     "wrist": [
-      0.62,
-      0.6,
+      0.37,
+      1.15,
       0.12
     ],
     "knuckle": [
-      0.64,
-      0.8,
+      0.37,
+      1.3,
       0.0
     ],
     "eye": [
-      0.16,
-      1.34,
-      0.62
+      0.18,
+      1.59,
+      0.74
     ]
   },
   "clips": {
@@ -161,18 +161,20 @@
       "seconds": 5.0
     },
     "graze": {
-      "seconds": 5.0
+      "seconds": 5.0,
+      "neckDegrees": -34.0,
+      "headDegrees": -8.0
     },
     "alert": {
       "seconds": 3.0
     },
     "hunker": {
       "seconds": 1.6,
-      "metres": 0.5
+      "metres": 0.29
     },
     "die": {
       "seconds": 2.4,
-      "metres": 0.5
+      "metres": 0.29
     }
   },
   "proxy": {
@@ -204,5 +206,23 @@
       "claw": "#3a3228",
       "eye": "#17110d"
     }
+  },
+  "shell": {
+    "bone": "spine",
+    "aboveMetres": 0.29,
+    "forward": [
+      -1.04,
+      1.3
+    ],
+    "legs": [
+      [
+        -0.95,
+        -0.4
+      ],
+      [
+        0.88,
+        1.42
+      ]
+    ]
   }
 }

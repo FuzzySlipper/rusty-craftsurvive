@@ -605,8 +605,8 @@ def low_slung_idle(c, s, t):
 
 
 def low_slung_graze(c, s, t):
-    c.bone_rotation("neck", pitch(-20.0))
-    c.bone_rotation("head", pitch(-22.0 + 4.0 * gait.wave(t, 5)))
+    c.bone_rotation("neck", pitch(s["graze"].get("neckDegrees", -20.0)))
+    c.bone_rotation("head", pitch(s["graze"].get("headDegrees", -22.0) + 4.0 * gait.wave(t, 5)))
     c.bone_rotation("jaw", pitch(-10.0 * (0.5 + 0.5 * gait.wave(t, 7))))
     swing_tail(c, t, 1.0)
 
