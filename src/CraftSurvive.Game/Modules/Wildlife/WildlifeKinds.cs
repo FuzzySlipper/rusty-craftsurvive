@@ -173,6 +173,9 @@ internal readonly record struct WildlifeBehaviour(
     double SeparationShare,
     double SlotJitterShare);
 
+/// <summary>How far animals of a kind differ from one another: each share either way, of size, coat brightness and coat warmth (#10601).</summary>
+internal readonly record struct WildlifeVariety(double SizeShare, double ValueShare, double WarmthShare);
+
 /// <summary>How animated bodies are shown (#10569): the distance tiers, clip changes, and the limits on how a body sits on the ground.</summary>
 internal readonly record struct WildlifeAnimation(
     double FullMetres,
@@ -200,7 +203,8 @@ internal sealed record WildlifeCatalog(
     WildlifePlacement Placement,
     WildlifeWaking Waking,
     WildlifeBehaviour Behaviour,
-    WildlifeAnimation Animation)
+    WildlifeAnimation Animation,
+    WildlifeVariety Variety)
 {
     internal WildlifeKind Kind(string id) => Kinds.FirstOrDefault(kind => kind.Id == id)
         ?? throw new KeyNotFoundException($"no wildlife kind '{id}'");
@@ -313,7 +317,19 @@ internal static class WildlifeKinds
                 behaviour.GetProperty("pathCheckMetres").GetDouble(),
                 behaviour.GetProperty("separationShare").GetDouble(),
                 behaviour.GetProperty("slotJitterShare").GetDouble()),
-            ReadAnimation(root.GetProperty("animation")));
+            ReadAnimation(root.GetProperty("animation")),
+            ReadVariety(root.GetProperty("variety")));
+    }
+
+    private static WildlifeVariety ReadVariety(JsonElement variety)
+    {
+        WildlifeVariety read = new(
+            variety.GetProperty("sizeShare").GetDouble(),
+            variety.GetProperty("valueShare").GetDouble(),
+            variety.GetProperty("warmthShare").GetDouble());
+        if (read.SizeShare is < 0 or >= 1 || read.ValueShare is < 0 or >= 1 || read.WarmthShare is < 0 or >= 1)
+            throw new InvalidDataException("variety shares must be at least 0 and below 1");
+        return read;
     }
 
     private static WildlifeAnimation ReadAnimation(JsonElement animation)

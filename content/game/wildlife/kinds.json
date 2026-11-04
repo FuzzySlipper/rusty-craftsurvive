@@ -64,6 +64,11 @@
     "separationShare": 0.6,
     "slotJitterShare": 0.3
   },
+  "variety": {
+    "sizeShare": 0.07,
+    "valueShare": 0.2,
+    "warmthShare": 0.1
+  },
   "animation": {
     "fullMetres": 50,
     "playMetres": 160,

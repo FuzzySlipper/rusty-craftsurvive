@@ -150,6 +150,12 @@ mesh, shares every clip, and names a paint made by `young_paint.py` from the adu
 texture: the same charts, recoloured. The head joint is scaled up per animal, as young have
 larger heads for their size.
 
+Animals differ a little by themselves (#10601): `variety` in `kinds.json` sets how far size, coat
+brightness and warmth stray either way. The coat is a tint over the shared paint, through the
+appearance's material factors, so it costs no texture and each animal keeps its look when its herd
+wakes again. If a kind needs real pattern differences, the next step is a coat shader reading that
+same tint as data, as `kit-stone.wgsl` does; product shaders on skinned meshes are untested.
+
 Measured with planting budgeted to the nearest eight: about 2.5 ms an update for 24 sloths
 awake near the player. Planting every animal in a crowd cost about ten times that and tripled
 render time, so keep the budget unless the Engine changes.

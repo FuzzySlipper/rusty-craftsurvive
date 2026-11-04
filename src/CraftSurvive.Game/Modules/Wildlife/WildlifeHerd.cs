@@ -55,6 +55,12 @@ internal sealed class WildlifeMember
     /// <summary>A young animal (#10600): smaller and weaker, darting about an adult rather than keeping a slot.</summary>
     internal bool Young { get; init; }
 
+    /// <summary>Its own size against its kind's, a little either side of 1 (#10601).</summary>
+    internal float Size { get; init; } = 1;
+
+    /// <summary>Its own coat as red, green and blue factors over the paint, a little either side of 1.</summary>
+    internal Vector3 Coat { get; init; } = Vector3.One;
+
     /// <summary>Where a young animal is darting to, and how long it stands or runs for before it picks again.</summary>
     internal Vector2? DartGoal { get; set; }
 

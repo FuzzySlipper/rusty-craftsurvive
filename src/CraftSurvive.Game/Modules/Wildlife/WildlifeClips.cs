@@ -71,7 +71,7 @@ internal static class WildlifeClips
     }
 
     /// <summary>How large an animal is against its kind's mesh.</summary>
-    internal static float Scale(WildlifeMember member, WildlifeKind kind) => member.Young && kind.Young is { } young ? young.Scale : 1;
+    internal static float Scale(WildlifeMember member, WildlifeKind kind) => member.Size * (member.Young && kind.Young is { } young ? young.Scale : 1);
 
     /// <summary>A gait's rate for its ground speed, so its planted feet do not slide; anything else plays at its own.</summary>
     /// <param name="scale">The body's scale: a smaller one covers less ground with each stride.</param>

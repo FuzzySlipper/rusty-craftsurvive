@@ -109,9 +109,27 @@ internal static class WildlifeRules
             return new WildlifeMember(nextId(), Clear(at, slot, catalog.Behaviour.PathCheckMetres, excluded), slot, CombatantState.Fresh(health, kind.Defence))
             {
                 Young = young,
+                Size = Size(order, catalog.Variety, seed, record.Key),
+                Coat = Coat(order, catalog.Variety, seed, record.Key),
                 Yaw = (float)(2 * Math.PI * Unit(seed, string.Create(CultureInfo.InvariantCulture, $"wildlife:{record.Key}:yaw:{order}"))),
             };
         }));
+    }
+
+    /// <summary>A draw from -1 to 1 for an animal, by its herd and place in it, so it looks the same each time the herd wakes.</summary>
+    private static double Spread(string what, int order, ulong seed, string key) =>
+        (2 * Unit(seed, string.Create(CultureInfo.InvariantCulture, $"wildlife:{key}:{what}:{order}"))) - 1;
+
+    /// <summary>An animal's own size against its kind's.</summary>
+    private static float Size(int order, WildlifeVariety variety, ulong seed, string key) =>
+        (float)(1 + (variety.SizeShare * Spread("size", order, seed, key)));
+
+    /// <summary>An animal's own coat: lighter or darker, and warmer or cooler by trading red against blue.</summary>
+    private static Vector3 Coat(int order, WildlifeVariety variety, ulong seed, string key)
+    {
+        float value = (float)(1 + (variety.ValueShare * Spread("value", order, seed, key)));
+        float warmth = (float)(variety.WarmthShare * Spread("warmth", order, seed, key));
+        return new Vector3(value * (1 + warmth), value, value * (1 - warmth));
     }
 
     /// <summary>Whether the animal at this place in a herd is young. The first, who leads, never is.</summary>

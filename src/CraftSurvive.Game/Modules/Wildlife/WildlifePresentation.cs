@@ -114,7 +114,7 @@ internal sealed class WildlifePresentation : IDisposable
     private void Pose(WildlifeKind kind, WildlifeActivity activity, WildlifeMember member, float feet, bool fallen, Appearance[] parts, List<AppearanceFact> into)
     {
         WildlifeBody body = kind.Body;
-        float h = (float)body.HeightMetres, l = (float)body.LengthMetres, w = (float)body.WidthMetres;
+        float h = (float)body.HeightMetres * member.Size, l = (float)body.LengthMetres * member.Size, w = (float)body.WidthMetres * member.Size;
         bool responding = !fallen && member.Stage == Wariness.Respond;
         bool hunkered = responding && kind.Pressed == PressedResponse.Hunker;
         bool rearing = responding && kind.Pressed == PressedResponse.Stand;

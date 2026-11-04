@@ -217,15 +217,30 @@ internal sealed class WildlifeMeshBodies : IDisposable
         int slot = slots.Take();
         ulong objectId = ProductIds.WildlifeAppearanceBase + ((ulong)slot * WildlifePresentation.PartsPerMember) + WildlifePresentation.MeshPart;
         Appearance appearance = engine.Animation.CreateAnimatedMeshAppearance(new(open.Mesh));
-        if (!member.Young) return new Body(open, slot, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId)));
+        if (!member.Young)
+        {
+            Tint(appearance, member);
+            return new Body(open, slot, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId)));
+        }
 
         // The young share the adult's mesh and every clip; only the paint and the head's size are theirs.
         WildlifeYoung young = kind.Young!;
         engine.Animation.UpdateAnimatedMeshMaterials(new(appearance, new[] { new MeshMaterialBinding(BodySlot, YoungPaint(kind.Id, young)) }));
+        Tint(appearance, member);
         AnimationInstance instance = engine.Animation.CreateInstance(new(appearance, objectId));
         JointOverride[] overrides = [JointOverride.LocalScale(open.Joint(young.HeadJoint), young.HeadScale, 1)];
         engine.Animation.SetPose(new(instance, ReadOnlyMemory<TwoBoneIk>.Empty, overrides));
         return new Body(open, slot, objectId, appearance, instance) { Overrides = overrides };
+    }
+
+    /// <summary>Gives an appearance its animal's own coat, over the paint it shares with the rest of its kind.</summary>
+    private void Tint(Appearance appearance, WildlifeMember member)
+    {
+        Color coat = new(member.Coat.X, member.Coat.Y, member.Coat.Z, 1);
+        engine.Animation.UpdateAnimatedMeshMaterialFactors(new(appearance, new[]
+        {
+            new MeshMaterialFactors(BodySlot, false, default, false, Vector3.Zero, 0, true, coat),
+        }));
     }
 
     /// <summary>A kind's paint for its young, opened once and shared by all of them.</summary>

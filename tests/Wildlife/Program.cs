@@ -351,6 +351,35 @@ Check.Section("bodies", () =>
     Check.Equal(WildlifeTier.Play, WildlifeClips.Tier(line, WildlifeTier.Play, animation), "and the further one until it is back inside the line");
 });
 
+Check.Section("variety", () =>
+{
+    WildlifeVariety variety = catalog.Variety;
+    List<WildlifeMember> all = [];
+    for (int i = 0; i < 40; i++) all.AddRange(Herd("ground-sloth", Vector2.Zero, 8, $"look{i}").Members);
+    Check.That(all.All(m => Math.Abs(m.Size - 1) <= variety.SizeShare + 1e-4), "sizes stay within their share");
+    double most = (1 + variety.ValueShare) * (1 + variety.WarmthShare), least = (1 - variety.ValueShare) * (1 - variety.WarmthShare);
+    Check.That(all.All(m => m.Coat.X <= most + 1e-4 && m.Coat.Z >= least - 1e-4 && m.Coat.Y > 0), "coats stay within theirs");
+    Check.That(all.Select(m => m.Size).Distinct().Count() > all.Count / 2, "animals differ in size");
+    Check.That(all.Select(m => m.Coat).Distinct().Count() > all.Count / 2, "and in coat");
+    Check.That(Math.Abs(all.Average(m => m.Size) - 1) < 0.01 && Math.Abs(all.Average(m => m.Coat.Y) - 1) < 0.02, "a herd centres on its kind's own size and paint");
+    Check.That(all.Any(m => m.Coat.X > m.Coat.Z) && all.Any(m => m.Coat.X < m.Coat.Z), "some coats run warmer, some cooler");
+    Check.That(all.Any(m => m.Young) && all.Where(m => m.Young).Select(m => m.Coat).Distinct().Count() > 3, "the young vary too");
+
+    // An animal looks the same each time its herd wakes.
+    WildlifeHerd once = Herd("ground-sloth", Vector2.Zero, 6, "same");
+    WildlifeHerd again = Herd("ground-sloth", new Vector2(50, 50), 6, "same");
+    Check.That(once.Members.Zip(again.Members).All(pair => pair.First.Size == pair.Second.Size && pair.First.Coat == pair.Second.Coat && pair.First.Young == pair.Second.Young),
+        "a herd wakes with the same animals in it");
+
+    // A body's size carries through to its gait and its clips.
+    WildlifeKind kind = catalog.Kind("ground-sloth");
+    WildlifeMember grown = once.Members.First(m => !m.Young);
+    Check.Equal(grown.Size, WildlifeClips.Scale(grown, kind), "a grown animal is drawn at its own size");
+    WildlifeMember small = all.First(m => m.Young);
+    Check.That(Math.Abs(WildlifeClips.Scale(small, kind) - (small.Size * kind.Young!.Scale)) < 1e-5, "a young one at its size on top of its age");
+    Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(ReadKinds().Replace("\"sizeShare\": 0.07", "\"sizeShare\": 1.5")), "a variety share past the whole is refused");
+});
+
 Check.Section("hurt", () =>
 {
     // A sloth stands until it is badly hurt, then runs by itself; the herd goes on standing.
