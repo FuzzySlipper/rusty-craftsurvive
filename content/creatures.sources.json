@@ -149,6 +149,17 @@
    "body": "Tripo P2 multiview-to-model, task 4f17a954-8ef4-434c-809d-bd566d948046, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 3.9 --triangles 6000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/diprotodon/"
+  },
+  {
+   "mesh": "content/game/creatures/megacerops/megacerops.glb",
+   "sha256": "dfc71704c6e6d20b43edb9168f8acb6c5a61cc2de6e4bb0d1bbc0caf866281c1",
+   "manifest": "content/game/creatures/megacerops/megacerops.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/megacerops/species.json with --mesh body.glb --texture body-64.png",
+   "concept": "art/creatures/sketches/megacerops/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/megacerops/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
+   "body": "Tripo P2 multiview-to-model, task 7e7905bd-2e1d-4f49-a76e-ad3b0c2db37e, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 5.8 --triangles 6000 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/megacerops/"
   }
  ],
  "reference": {
