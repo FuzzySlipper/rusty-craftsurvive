@@ -502,7 +502,7 @@ def graviportal_bones():
 
 
 def set_trunk(c, curl, sway=0.0, t=0.0):
-    """Curl in degrees shared along the trunk, more toward its tip; positive lifts the tip toward the mouth."""
+    """Curl in degrees at the tip's bone, less toward the root. Each bone adds to the last, so the whole trunk turns about 3.5 times this. Positive lifts the tip forward and up; negative tucks it back under, to the mouth."""
     for i in range(1, TRUNK_BONES + 1):
         share = i / TRUNK_BONES
         c.bone_rotation(f"trunk{i}", pitch(curl * share) @ yaw(sway * share * gait.wave(t, lag=0.07 * i)))
@@ -521,7 +521,7 @@ def graviportal_walk(c, s, t):
 
 def graviportal_run(c, s, t):
     plain_gait(c, s["run"], t, spine_flex=1.5)
-    set_trunk(c, 14.0, sway=9.0, t=t)
+    set_trunk(c, 8.0, sway=9.0, t=t)
     set_ears(c, 16.0)
 
 
@@ -537,7 +537,7 @@ def graviportal_graze(c, s, t):
     lift = gait.rise_hold_fall(t, 0.45, 0.8)
     c.bone_rotation("neck", pitch(-7.0 + 4.0 * lift))
     c.bone_rotation("head", pitch(-8.0 + 6.0 * lift))
-    set_trunk(c, -10.0 + 150.0 * lift, sway=3.0, t=t)
+    set_trunk(c, 3.0 - 45.0 * lift, sway=3.0, t=t)
     c.bone_rotation("jaw", pitch(-9.0 * lift))
     set_ears(c, 4.0 * gait.wave(t, 4))
     swing_tail(c, t, 3.0)
@@ -546,7 +546,7 @@ def graviportal_graze(c, s, t):
 def graviportal_alert(c, s, t):
     c.bone_rotation("neck", pitch(6.0) @ yaw(8.0 * gait.wave(t)))
     c.bone_rotation("head", pitch(6.0) @ yaw(7.0 * gait.wave(t, lag=0.1)))
-    set_trunk(c, 45.0, sway=10.0, t=t)
+    set_trunk(c, 22.0, sway=10.0, t=t)
     set_ears(c, 24.0)
     swing_tail(c, t, 1.5, droop=-5.0)
 
@@ -557,14 +557,14 @@ def graviportal_threat(c, s, t):
     c.bone_rotation("chest", pitch(3.0 * toss))
     c.bone_rotation("neck", pitch(10.0 * toss) @ yaw(10.0 * gait.wave(t, 2)))
     c.bone_rotation("head", pitch(16.0 * toss))
-    set_trunk(c, 95.0 * toss, sway=8.0, t=t)
+    set_trunk(c, 38.0 * toss, sway=8.0, t=t)
     set_ears(c, 34.0 * toss)
     c.bone_rotation("jaw", pitch(-14.0 * toss))
 
 
 def graviportal_die(c, s, t):
     fall_over(c, t, c.leg_length("hind.L"))
-    set_trunk(c, -20.0 * gait.ease_in_out(t, 0.3, 0.8))
+    set_trunk(c, -8.0 * gait.ease_in_out(t, 0.3, 0.8))
 
 
 GRAVIPORTAL_CLIPS = {

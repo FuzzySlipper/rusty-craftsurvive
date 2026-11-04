@@ -1,0 +1,11 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE woolly mammoth (Mammuthus primigenius), about 4.5 m long without the tusks and 3.4 m high at the shoulder, standing in a NEUTRAL STANCE on all four feet: legs straight down and slightly apart so every leg is clearly visible and separate, mouth closed, head level and looking straight ahead, trunk hanging straight down with its tip just above the ground and clear of the forelegs, tusks in their natural curve, ears relaxed, short tail straight down. Exactly the same animal in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE profile, head pointing to the left, the whole body from tusk tips to tail filling the width.
+- BOTTOM LEFT: the FRONT view, looking straight at its face, both tusks, the trunk, both forelegs and the shoulders visible.
+- BOTTOM RIGHT: the BACK view, from straight behind, the tail toward the viewer and both hind legs visible.
+Landscape aspect about 1536x1024. Keep the views separate with clear grey space between them; do not overlap them.
+
+SHAPE - follow the first reference image, the concept sheet of this mammoth: FAITHFUL real proportions, simplified into a few large smooth-shaded masses - a high domed head, a high shoulder sloping to low hips, thick column legs, a long trunk, long curving ivory tusks, small ears, a short tail, and long shaggy coat hanging in broad clumps. NOT exaggerated, NOT storybook, NOT cartoon, NOT cute.
+
+PAINT - follow the second reference image, the sheet of the giant ground sloth from the same game: a hand-painted texture at LOW RESOLUTION with crisp visible square texels (about 32 texels per metre, nearest-neighbour), so the shaggy coat reads as broad clumps drawn with a few authored pixel-art marks and dark line work; dark rust-brown over a paler underwool, ivory tusks. Calm surfaces with a few strong authored details, never a busy tiled pattern. Flat even lighting: paint the colours of the coat, not a light direction.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO other objects. NOT photoreal, NOT realistic fur strands, NOT a perspective render, NOT anime, NOT cel shading or outlines.

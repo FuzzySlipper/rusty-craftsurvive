@@ -1,0 +1,74 @@
+{
+  "species": "woolly-mammoth",
+  "family": "graviportal",
+  "body": {
+    "hindMetres": -1.872,
+    "foreMetres": 0.329
+  },
+  "legs": [
+    [
+      "thigh.L",
+      "shin.L",
+      "foot.L"
+    ],
+    [
+      "upperarm.L",
+      "forearm.L",
+      "hand.L"
+    ],
+    [
+      "thigh.R",
+      "shin.R",
+      "foot.R"
+    ],
+    [
+      "upperarm.R",
+      "forearm.R",
+      "hand.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 2.2,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 1.2
+    },
+    "run": {
+      "seconds": 1.0,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 6.0
+    },
+    "graze": {
+      "seconds": 6.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "threat": {
+      "seconds": 2.4,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 3.0,
+      "loops": false,
+      "plantsFeet": false
+    }
+  }
+}

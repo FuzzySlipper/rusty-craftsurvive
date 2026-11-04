@@ -213,6 +213,12 @@
       "habitat": { "ColdSteppe": 1.0, "Tundra": 0.8, "BorealForest": 0.2 },
       "social": { "shape": "family", "groupMinimum": 4, "groupMaximum": 10, "spacingMetres": 8 },
       "body": { "lengthMetres": 4.5, "heightMetres": 3.4, "widthMetres": 2.0, "sizeClass": "huge", "colour": "#5a4232" },
+      "mesh": {
+        "file": "creatures/mammoth/mammoth.glb",
+        "manifest": "creatures/mammoth/mammoth.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "stand": "threat", "die": "die" }
+      },
       "speeds": { "walk": 1.2, "grazeDrift": 0.4, "flee": 6, "turnDegrees": 50 },
       "wariness": { "noticeMetres": 60, "actMetres": 30, "lookSeconds": 3, "warnSeconds": 3, "fleeBelowHealth": 0.35 },
       "pressed": "stand",
