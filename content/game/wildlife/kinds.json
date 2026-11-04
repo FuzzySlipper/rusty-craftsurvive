@@ -1,5 +1,5 @@
 {
-  "$comment": "Wildlife kinds (#10567): the first wave of the atlas's old beasts (wandering-year/pages/wildlife.md). Distances are metres, speeds metres a second, times seconds unless named days or hours. Habitat weights scale a kind's density by the share of a region's ground in each MapBiome.",
+  "$comment": "Wildlife kinds (#10567, #10570): the first and second waves of the atlas's old beasts (wandering-year/pages/wildlife.md). Distances are metres, speeds metres a second, times seconds unless named days or hours. Habitat weights scale a kind's density by the share of a region's ground in each MapBiome.",
   "sizeClasses": {
     "small": { "radius": 0.3, "height": 0.8 },
     "human": { "radius": 0.35, "height": 1.8 },
@@ -262,6 +262,106 @@
       "population": { "herdsPerSquareKilometre": 0.15, "rangeMetres": 700, "recoveryDays": 30 },
       "combat": { "health": 220, "evasion": 25, "armour": 12, "experience": 400 },
       "loot": [ { "item": "meat", "minimum": 6, "maximum": 12, "oneIn": 1 }, { "item": "hide", "minimum": 3, "maximum": 5, "oneIn": 1 } ]
+    },
+    {
+      "id": "ancylotherium",
+      "name": "Ancylotherium",
+      "habitat": { "TemperateForest": 0.7, "Grassland": 0.6, "Shrubland": 0.3 },
+      "social": { "shape": "family", "groupMinimum": 3, "groupMaximum": 6, "spacingMetres": 6 },
+      "body": { "lengthMetres": 3.5, "heightMetres": 2.4, "widthMetres": 1.1, "sizeClass": "large", "colour": "#7a5636" },
+      "mesh": {
+        "file": "creatures/ancylotherium/ancylotherium.glb",
+        "manifest": "creatures/ancylotherium/ancylotherium.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "stand": "rear", "die": "die" }
+      },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.3, "flee": 5, "turnDegrees": 70 },
+      "wariness": { "noticeMetres": 40, "actMetres": 20, "lookSeconds": 3, "warnSeconds": 2, "fleeBelowHealth": 0.35 },
+      "pressed": "stand",
+      "schedule": "day-grazer",
+      "population": { "herdsPerSquareKilometre": 0.15, "rangeMetres": 500, "recoveryDays": 20 },
+      "combat": { "health": 140, "evasion": 25, "armour": 6, "experience": 260 },
+      "loot": [ { "item": "meat", "minimum": 3, "maximum": 6, "oneIn": 1 }, { "item": "hide", "minimum": 1, "maximum": 3, "oneIn": 1 } ]
+    },
+    {
+      "id": "paraceratherium",
+      "name": "Paraceratherium",
+      "habitat": { "Shrubland": 0.7, "TemperateForest": 0.3, "Grassland": 0.3 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 2, "spacingMetres": 14 },
+      "body": { "lengthMetres": 9.5, "heightMetres": 4.6, "widthMetres": 2.3, "sizeClass": "huge", "colour": "#5c5650" },
+      "mesh": {
+        "file": "creatures/paraceratherium/paraceratherium.glb",
+        "manifest": "creatures/paraceratherium/paraceratherium.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "stand": "bellow", "die": "die" }
+      },
+      "speeds": { "walk": 1.3, "grazeDrift": 0.5, "flee": 4, "turnDegrees": 30 },
+      "wariness": { "noticeMetres": 50, "actMetres": 25, "lookSeconds": 3, "warnSeconds": 3, "fleeBelowHealth": 0.3 },
+      "pressed": "stand",
+      "schedule": "day-grazer",
+      "population": { "herdsPerSquareKilometre": 0.05, "rangeMetres": 900, "recoveryDays": 40 },
+      "combat": { "health": 320, "evasion": 15, "armour": 14, "experience": 600 },
+      "loot": [ { "item": "meat", "minimum": 8, "maximum": 14, "oneIn": 1 }, { "item": "hide", "minimum": 3, "maximum": 5, "oneIn": 1 } ]
+    },
+    {
+      "id": "diprotodon",
+      "name": "Diprotodon",
+      "habitat": { "Shrubland": 1.0, "Grassland": 0.6 },
+      "social": { "shape": "herd", "groupMinimum": 4, "groupMaximum": 12, "spacingMetres": 6 },
+      "body": { "lengthMetres": 3.9, "heightMetres": 1.7, "widthMetres": 1.4, "sizeClass": "large", "colour": "#4b3d34" },
+      "mesh": {
+        "file": "creatures/diprotodon/diprotodon.glb",
+        "manifest": "creatures/diprotodon/diprotodon.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "die": "die" }
+      },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.3, "flee": 4, "turnDegrees": 50 },
+      "wariness": { "noticeMetres": 30, "actMetres": 15, "lookSeconds": 3, "warnSeconds": 2 },
+      "pressed": "flee",
+      "schedule": "day-grazer",
+      "population": { "herdsPerSquareKilometre": 0.2, "rangeMetres": 800, "recoveryDays": 14 },
+      "combat": { "health": 110, "evasion": 20, "armour": 5, "experience": 160 },
+      "loot": [ { "item": "meat", "minimum": 4, "maximum": 7, "oneIn": 1 }, { "item": "hide", "minimum": 2, "maximum": 3, "oneIn": 1 } ]
+    },
+    {
+      "id": "megacerops",
+      "name": "Megacerops",
+      "habitat": { "Rainforest": 1.0, "TemperateForest": 0.6 },
+      "social": { "shape": "family", "groupMinimum": 3, "groupMaximum": 6, "spacingMetres": 7 },
+      "body": { "lengthMetres": 5.8, "heightMetres": 2.4, "widthMetres": 1.8, "sizeClass": "huge", "colour": "#7d5228" },
+      "mesh": {
+        "file": "creatures/megacerops/megacerops.glb",
+        "manifest": "creatures/megacerops/megacerops.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "stand": "shove", "die": "die" }
+      },
+      "speeds": { "walk": 1.1, "grazeDrift": 0.35, "flee": 5, "turnDegrees": 45 },
+      "wariness": { "noticeMetres": 35, "actMetres": 18, "lookSeconds": 3, "warnSeconds": 2, "fleeBelowHealth": 0.3 },
+      "pressed": "stand",
+      "schedule": "day-grazer",
+      "population": { "herdsPerSquareKilometre": 0.15, "rangeMetres": 450, "recoveryDays": 24 },
+      "combat": { "health": 200, "evasion": 20, "armour": 10, "experience": 320 },
+      "loot": [ { "item": "meat", "minimum": 6, "maximum": 10, "oneIn": 1 }, { "item": "hide", "minimum": 2, "maximum": 4, "oneIn": 1 } ]
+    },
+    {
+      "id": "sivatherium",
+      "name": "Sivatherium",
+      "habitat": { "Shrubland": 0.6, "Desert": 0.5, "Grassland": 0.4 },
+      "social": { "shape": "band", "groupMinimum": 3, "groupMaximum": 7, "spacingMetres": 6 },
+      "body": { "lengthMetres": 4.6, "heightMetres": 3.0, "widthMetres": 1.2, "sizeClass": "large", "colour": "#8a6a44" },
+      "mesh": {
+        "file": "creatures/sivatherium/sivatherium.glb",
+        "manifest": "creatures/sivatherium/sivatherium.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "spar", "die": "die" }
+      },
+      "speeds": { "walk": 1.2, "grazeDrift": 0.4, "flee": 7, "turnDegrees": 80 },
+      "wariness": { "noticeMetres": 45, "actMetres": 25, "lookSeconds": 2, "warnSeconds": 2 },
+      "pressed": "flee",
+      "schedule": "day-grazer",
+      "population": { "herdsPerSquareKilometre": 0.15, "rangeMetres": 600, "recoveryDays": 14 },
+      "combat": { "health": 120, "evasion": 35, "armour": 4, "experience": 220 },
+      "loot": [ { "item": "meat", "minimum": 4, "maximum": 7, "oneIn": 1 }, { "item": "hide", "minimum": 1, "maximum": 3, "oneIn": 1 } ]
     }
   ]
 }

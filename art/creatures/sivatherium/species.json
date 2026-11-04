@@ -1,0 +1,190 @@
+{
+  "id": "sivatherium",
+  "family": "ungulate",
+  "about": "Sivatherium, a heavy giraffid 4.6 m long and 3 m at the head, its flared ossicones behind the eyes, fitted to the Tripo body (art/creatures/sivatherium/mesh). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -1.35,
+      2.1
+    ],
+    "spine": [
+      0,
+      -0.4,
+      2.0
+    ],
+    "chest": [
+      0,
+      0.45,
+      2.0
+    ],
+    "neck": [
+      0,
+      0.85,
+      2.1
+    ],
+    "neck2": [
+      0,
+      1.2,
+      2.3
+    ],
+    "head": [
+      0,
+      1.6,
+      2.45
+    ],
+    "nose": [
+      0,
+      2.28,
+      1.98
+    ],
+    "jaw": [
+      0,
+      1.7,
+      2.1
+    ],
+    "jaw_tip": [
+      0,
+      2.15,
+      1.86
+    ],
+    "tail0": [
+      0,
+      -1.96,
+      2.1
+    ],
+    "tail1": [
+      0,
+      -2.12,
+      1.75
+    ],
+    "tail2": [
+      0,
+      -2.2,
+      1.25
+    ],
+    "tail3": [
+      0,
+      -2.23,
+      0.68
+    ],
+    "hip_socket": [
+      0.38,
+      -1.45,
+      1.95
+    ],
+    "stifle": [
+      0.42,
+      -1.21,
+      1.38
+    ],
+    "hock": [
+      0.38,
+      -1.8,
+      0.9
+    ],
+    "fetlock": [
+      0.38,
+      -1.75,
+      0.22
+    ],
+    "toe": [
+      0.38,
+      -1.55,
+      0.05
+    ],
+    "shoulder": [
+      0.35,
+      0.62,
+      1.9
+    ],
+    "elbow": [
+      0.37,
+      0.52,
+      1.38
+    ],
+    "carpus": [
+      0.34,
+      0.5,
+      0.85
+    ],
+    "ffetlock": [
+      0.32,
+      0.46,
+      0.22
+    ],
+    "ftoe": [
+      0.32,
+      0.62,
+      0.05
+    ],
+    "eye": [
+      0.22,
+      1.84,
+      2.42
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.7,
+      "stride": 2.04,
+      "duty": 0.62,
+      "liftHind": 0.16,
+      "liftFore": 0.2,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.03,
+      "swayDegrees": 1.8,
+      "nodDegrees": 3.0
+    },
+    "run": {
+      "seconds": 0.7,
+      "stride": 4.9,
+      "duty": 0.28,
+      "liftHind": 0.28,
+      "liftFore": 0.32,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.1,
+        "fore.L": 0.5,
+        "fore.R": 0.6
+      },
+      "bob": 0.09,
+      "swayDegrees": 1.5,
+      "nodDegrees": 5.0,
+      "spineFlex": 6.0,
+      "tailLift": -10.0
+    },
+    "idle": {
+      "seconds": 4.0
+    },
+    "graze": {
+      "seconds": 5.0,
+      "reachDegrees": 46.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "die": {
+      "seconds": 2.0
+    },
+    "spar": {
+      "seconds": 3.0
+    }
+  }
+}

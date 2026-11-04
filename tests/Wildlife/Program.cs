@@ -57,8 +57,9 @@ double CohesionBound(WildlifeKind kind, int count) =>
 Check.Section("kinds", () =>
 {
     string[] firstWave = ["ground-sloth", "hipparion", "giant-deer", "entelodont", "giant-beaver", "cave-goat", "glyptodon", "mammoth"];
-    Check.That(firstWave.All(id => catalog.TryKind(id, out _)), "the eight first-wave kinds must load");
-    Check.Equal(firstWave.Length, catalog.Kinds.Count, "the content holds the first wave and nothing else");
+    string[] secondWave = ["ancylotherium", "paraceratherium", "diprotodon", "megacerops", "sivatherium"];
+    Check.That(firstWave.Concat(secondWave).All(id => catalog.TryKind(id, out _)), "the first- and second-wave kinds must load");
+    Check.Equal(firstWave.Length + secondWave.Length, catalog.Kinds.Count, "the content holds the two waves and nothing else");
     Check.That(Enum.GetValues<PressedResponse>().All(r => catalog.Kinds.Any(k => k.Pressed == r)), "every pressed response must have a kind that shows it");
     Check.That(Enum.GetValues<WildlifeSizeClass>().All(c => catalog.SizeClasses.ContainsKey(c)), "every size class must have a capsule");
     WildlifeKind sloth = catalog.Kind("ground-sloth");
@@ -226,7 +227,7 @@ Check.Section("bodies", () =>
     WildlifeAnimation animation = catalog.Animation;
     CreatureRig built = CreatureManifest.Parse(ReadResource("Wildlife.sloth.manifest.json"));
     WildlifeRig rig = WildlifeRig.For(kind.Mesh!, built);
-    Check.That(catalog.Kinds.Any(k => k.Mesh is null) || catalog.Kinds.All(k => k.Mesh is not null), "a kind with no mesh stays a placeholder");
+    Check.That(catalog.Kinds.All(k => k.Mesh is not null), "every kind has its real body");
     Check.Equal("alert", rig.Clip(WildlifeClipRole.Look).Name, "a looking sloth plays its alert clip");
     Check.Equal("idle", rig.Clip(WildlifeClipRole.Hunker).Name, "a role with no clip falls back to idling");
     Check.Throws<InvalidDataException>(() => WildlifeRig.For(kind.Mesh! with { Clips = new Dictionary<WildlifeClipRole, string> { [WildlifeClipRole.Idle] = "yawn" } }, built),
