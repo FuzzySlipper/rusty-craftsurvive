@@ -379,6 +379,45 @@ def ungulate_gape(c, s, t):
     c.bone_offset("hips", (0, 0, -0.03))
 
 
+def ungulate_rear(c, s, t):
+    """Up on the hind legs, the forelegs hooked out in front: a chalicothere reaching for a branch, or warning."""
+    up = gait.rise_hold_fall(t, 0.3, 0.75)
+    hook = gait.wave(t, 3) * up
+    degrees = s["rear"]["degrees"]
+    for leg in ("fore.L", "fore.R"):
+        c.leg_influence(leg, 1.0 - up)
+    c.bone_rotation("hips", pitch(degrees * up))
+    c.bone_offset("hips", (0, 0, -s["rear"]["sinkMetres"] * up))
+    c.bone_rotation("neck", pitch(-0.45 * degrees * up))
+    c.bone_rotation("neck2", pitch(-0.2 * degrees * up))
+    c.bone_rotation("head", pitch(-0.25 * degrees * up))
+    for side in SIDES:
+        c.bone_rotation(f"upperarm.{side}", pitch(28.0 * up + 7.0 * hook))
+        c.bone_rotation(f"forearm.{side}", pitch(-46.0 * up - 9.0 * hook))
+    ungulate_tail(c, t, 1.5)
+
+
+def ungulate_shove(c, s, t):
+    """Standing its ground: the head goes down, horn first, and thrusts up twice."""
+    low = gait.rise_hold_fall(t, 0.2, 0.85)
+    thrust = max(0.0, gait.wave(t, 2)) * low
+    c.bone_rotation("chest", pitch(-3.0 * low))
+    c.bone_rotation("neck", pitch(-16.0 * low))
+    c.bone_rotation("neck2", pitch(-8.0 * low + 6.0 * thrust))
+    c.bone_rotation("head", pitch(-14.0 * low + 16.0 * thrust))
+    c.bone_offset("hips", (0, 0.06 * thrust, -0.03 * low))
+    ungulate_tail(c, t, 2.0)
+
+
+def ungulate_spar(c, s, t):
+    """A male's blow thrown at the air: the neck swings wide and the heavy head follows it round."""
+    swing = gait.wave(t, 2) * gait.rise_hold_fall(t, 0.15, 0.85)
+    c.bone_rotation("neck", pitch(-8.0) @ yaw(22.0 * swing))
+    c.bone_rotation("neck2", yaw(18.0 * swing))
+    c.bone_rotation("head", pitch(-10.0) @ yaw(14.0 * gait.wave(t, 2, lag=0.1)))
+    ungulate_tail(c, t, 2.0)
+
+
 def ungulate_ledge_hop(c, s, t):
     """A small goat's spring onto a ledge: it gathers, leaves the ground, and lands with its feet under it."""
     gather = gait.ease_in_out(t, 0.0, 0.25) * (1.0 - gait.ease_in_out(t, 0.25, 0.4))
@@ -405,6 +444,9 @@ UNGULATE_CLIPS = {
     "bolt": (ungulate_bolt, False, False),
     "bellow": (ungulate_bellow, False, True),
     "gape": (ungulate_gape, True, True),
+    "rear": (ungulate_rear, False, False),
+    "shove": (ungulate_shove, False, True),
+    "spar": (ungulate_spar, False, True),
     "ledge-hop": (ungulate_ledge_hop, False, False),
 }
 

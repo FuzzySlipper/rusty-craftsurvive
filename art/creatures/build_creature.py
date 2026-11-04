@@ -49,6 +49,11 @@ def to_blender(point, side=1.0):
     return Vector((s * side, -f, u))
 
 
+def limb_point(points, name, sign):
+    """A limb point mirrors to the right side, unless a staggered body names its own: "elbow.R", still in left-side metres."""
+    return to_blender(points.get(f"{name}.R", points[name]) if sign < 0 else points[name], sign)
+
+
 def build_armature(species, family):
     points = species["points"]
     data = bpy.data.armatures.new(species["id"])
@@ -58,8 +63,8 @@ def build_armature(species, family):
     bpy.ops.object.mode_set(mode="EDIT")
     for name, parent, head, tail, sign in family.bones():
         bone = data.edit_bones.new(name)
-        bone.head = to_blender(points[head], sign)
-        bone.tail = to_blender(points[tail], sign)
+        bone.head = limb_point(points, head, sign)
+        bone.tail = limb_point(points, tail, sign)
         direction = (bone.tail - bone.head).normalized()
         # Roll so the bone's X axis is the animal's left (+X): Z = X x Y.
         bone.align_roll(Vector((1, 0, 0)).cross(direction))
