@@ -138,6 +138,17 @@
    "body": "Tripo P2 multiview-to-model, task 3ade66df-79f7-4432-8ecf-e8f505b62d17, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 9.5 --triangles 7000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/paraceratherium/"
+  },
+  {
+   "mesh": "content/game/creatures/diprotodon/diprotodon.glb",
+   "sha256": "b5a4aaeafb7de5f615d558822e57ebaa33ce01a15a2ea51de6a3d58a56077e81",
+   "manifest": "content/game/creatures/diprotodon/diprotodon.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/diprotodon/species.json with --mesh body.glb --texture body-64.png",
+   "concept": "art/creatures/sketches/diprotodon/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/diprotodon/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
+   "body": "Tripo P2 multiview-to-model, task 4f17a954-8ef4-434c-809d-bd566d948046, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 3.9 --triangles 6000 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/diprotodon/"
   }
  ],
  "reference": {

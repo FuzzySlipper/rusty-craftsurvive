@@ -1,0 +1,205 @@
+{
+  "id": "diprotodon",
+  "family": "low-slung",
+  "about": "Diprotodon, the largest marsupial there was: 3.9 m long and 1.7 m at the shoulder, fitted to the Tripo body (art/creatures/diprotodon/mesh). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -1.2,
+      1.2
+    ],
+    "spine": [
+      0,
+      -0.4,
+      1.18
+    ],
+    "chest": [
+      0,
+      0.45,
+      1.2
+    ],
+    "neck": [
+      0,
+      0.85,
+      1.25
+    ],
+    "head": [
+      0,
+      1.12,
+      1.32
+    ],
+    "nose": [
+      0,
+      1.92,
+      1.2
+    ],
+    "jaw": [
+      0,
+      1.15,
+      1.1
+    ],
+    "jaw_tip": [
+      0,
+      1.75,
+      0.98
+    ],
+    "tail0": [
+      0,
+      -1.76,
+      1.25
+    ],
+    "tail1": [
+      0,
+      -1.82,
+      1.16
+    ],
+    "tail2": [
+      0,
+      -1.87,
+      1.06
+    ],
+    "tail3": [
+      0,
+      -1.91,
+      0.98
+    ],
+    "tail4": [
+      0,
+      -1.94,
+      0.92
+    ],
+    "hip_socket": [
+      0.42,
+      -1.25,
+      1.05
+    ],
+    "knee": [
+      0.46,
+      -0.98,
+      0.7
+    ],
+    "ankle": [
+      0.44,
+      -1.3,
+      0.2
+    ],
+    "toe": [
+      0.44,
+      -0.9,
+      0.0
+    ],
+    "shoulder": [
+      0.4,
+      0.62,
+      0.98
+    ],
+    "elbow": [
+      0.42,
+      0.5,
+      0.62
+    ],
+    "wrist": [
+      0.4,
+      0.62,
+      0.2
+    ],
+    "knuckle": [
+      0.4,
+      1.0,
+      0.0
+    ],
+    "eye": [
+      0.3,
+      1.43,
+      1.46
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.6,
+      "stride": 1.6,
+      "duty": 0.68,
+      "liftHind": 0.1,
+      "liftFore": 0.12,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.03,
+      "swayDegrees": 2.5
+    },
+    "run": {
+      "seconds": 0.7,
+      "stride": 2.8,
+      "duty": 0.46,
+      "liftHind": 0.16,
+      "liftFore": 0.18,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.06,
+      "swayDegrees": 2.0
+    },
+    "idle": {
+      "seconds": 5.0
+    },
+    "graze": {
+      "seconds": 5.0,
+      "neckDegrees": -30.0,
+      "headDegrees": -30.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "die": {
+      "seconds": 2.4
+    },
+    "spineFlex": 1.5
+  },
+  "proxy": {
+    "about": "The stand-in body built from metaball capsules along the bones, until the concept mesh replaces it.",
+    "radii": {
+      "hips": 0.72,
+      "spine": 0.86,
+      "chest": 0.72,
+      "neck": 0.2,
+      "head": 0.2,
+      "jaw": 0.1,
+      "tail1": 0.2,
+      "tail2": 0.16,
+      "tail3": 0.13,
+      "tail4": 0.1,
+      "thigh": 0.2,
+      "shin": 0.16,
+      "foot": 0.14,
+      "upperarm": 0.2,
+      "forearm": 0.15,
+      "hand": 0.13
+    },
+    "resolution": 0.05,
+    "triangles": 5000,
+    "palette": {
+      "coat": "#6e6250",
+      "belly": "#8a7e68",
+      "legs": "#4e4438",
+      "claw": "#3a3228",
+      "eye": "#17110d"
+    }
+  }
+}
