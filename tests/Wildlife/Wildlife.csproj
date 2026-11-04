@@ -13,6 +13,7 @@
     <Compile Include="$(ProductModules)Wildlife/WildlifeHerd.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/WildlifeRules.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/WildlifeRegions.cs" LinkBase="Product/Wildlife" />
+    <Compile Include="$(ProductModules)Wildlife/HerdLoss.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)WorldGen/MapBiome.cs" LinkBase="Product/WorldGen" />
     <Compile Include="$(ProductModules)Rpg/CharacterRules.cs" LinkBase="Product/Rpg" />
     <Compile Include="$(ProductModules)Rpg/CombatRules.cs" LinkBase="Product/Rpg" />

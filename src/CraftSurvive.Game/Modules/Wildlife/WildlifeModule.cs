@@ -11,6 +11,7 @@ using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
+using Rusty.Engine.Persistence;
 using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
 namespace CraftSurvive.Game.Modules.Wildlife;
@@ -55,6 +56,7 @@ internal sealed class WildlifeModule : IProductModule
     private readonly Dictionary<string, CharacterControllerConfig> configs = [];
     private readonly Dictionary<string, Vector2?> waters = [];
     private readonly Stack<int> freeIds = [];
+    private readonly ProductSaveSlot<IReadOnlyList<HerdLoss>> slot;
     private WildlifeCatalog? catalog;
     private WildlifeLedger? ledger;
     private int nextId;
@@ -78,8 +80,8 @@ internal sealed class WildlifeModule : IProductModule
         internal float Feet { get; set; }
     }
 
-    internal WildlifeModule(IEngineContext engine, ProductContent content, TerrainWorld terrain, PlayerController player, WorldFrame frame,
-        Func<WorldTime> clock, Cues cues)
+    internal WildlifeModule(IEngineContext engine, ProductContent content, ProductStore store, SaveIdentity identity, TerrainWorld terrain,
+        PlayerController player, WorldFrame frame, Func<WorldTime> clock, Cues cues)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
@@ -88,6 +90,7 @@ internal sealed class WildlifeModule : IProductModule
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         this.cues = cues ?? throw new ArgumentNullException(nameof(cues));
+        slot = new ProductSaveSlot<IReadOnlyList<HerdLoss>>(engine, store, SaveManifest.WildlifeLedger, new WildlifeLedgerCodec(identity));
         presentation = new WildlifePresentation(engine, frame);
         // A body's step carries session-local positions; when the world's origin moves, each is set down afresh.
         frame.Rebased += _ =>
@@ -111,7 +114,12 @@ internal sealed class WildlifeModule : IProductModule
     {
         if (started) return;
         catalog ??= WildlifeKinds.Parse(content.ReadText(WildlifeKinds.ContentPath));
-        ledger ??= new WildlifeLedger(catalog, Seed, BiomeAt, (x, z) => Sanctuary?.Invoke(x, z) == true);
+        if (ledger is null)
+        {
+            ledger = new WildlifeLedger(catalog, Seed, BiomeAt, (x, z) => Sanctuary?.Invoke(x, z) == true);
+            if (slot.Restore() is { Outcome: SaveRestoreOutcome.Restored, State: IReadOnlyList<HerdLoss> losses }) ledger.Restore(losses);
+        }
+
         started = true;
     }
 
@@ -143,11 +151,10 @@ internal sealed class WildlifeModule : IProductModule
         cost = (cost.Total + milliseconds, cost.Count + 1, Math.Max(cost.Worst, milliseconds), cost.Steps, cost.Refused, cost.Glides);
     }
 
+    /// <summary>A fresh session over the same world: the herds sleep, and what the ledger holds stays, as the world's other saves do.</summary>
     public void Restart()
     {
         foreach (WildlifeHerd herd in awake.ToArray()) Release(herd);
-        ledger?.Clear();
-        waters.Clear();
         presentation.Sync(awake, FeetOf);
         lastEvent = "restarted";
     }
@@ -413,6 +420,7 @@ internal sealed class WildlifeModule : IProductModule
         herd.Remove(member);
         Forget(member);
         herd.Record.Kill(day, herd.Kind.Population.RecoveryDays);
+        slot.Save(Ledger.Losses(day));
         if (herd.Members.Count == 0) awake.Remove(herd);
         presentation.Sync(awake, FeetOf);
         EncounterReward reward = EncounterResolutionRules.Reward(herd.Kind.ExperienceAward, herd.Kind.Loot,
@@ -495,7 +503,9 @@ internal sealed class WildlifeModule : IProductModule
             $"region {region.Region}{(region.Region == here ? " (here)" : "")} biomes={string.Join(",", region.Biomes.OrderByDescending(b => b.Value).Select(b => $"{b.Key}:{b.Value}"))} herds="
             + (region.Herds.Count == 0 ? "none" : string.Join(";", region.Herds.Select(herd => HerdLine(herd, day)))));
         IEnumerable<string> placed = Ledger.Placed.Select(herd => "placed " + HerdLine(herd, day));
-        return string.Join(" | ", regions.Concat(placed));
+        string saved = string.Create(CultureInfo.InvariantCulture,
+            $"short={Ledger.Losses(day).Count} restore={slot.RestoreOutcome} saves={slot.Saves} failure={slot.LastFailure ?? "none"}");
+        return string.Join(" | ", regions.Concat(placed).Prepend(saved));
     }
 
     /// <summary>The nearest seeded herds of a kind within some kilometres of the player, nearest region first, seeding the regions it searches.</summary>

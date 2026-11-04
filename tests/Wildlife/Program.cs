@@ -293,6 +293,33 @@ Check.Section("population", () =>
     wiped.Kill(1, RecoveryDays);
     Check.Equal(0, wiped.Alive(1, RecoveryDays), "a herd killed out has none, and a further kill takes nothing");
     Check.Equal(1, wiped.Alive(13, RecoveryDays), "even a herd killed out comes back, slowly");
+
+    // A session's losses carry to the next: a new ledger over the same world holds the same herds, as hunted.
+    MapBiome Grass(double x, double z) => MapBiome.Grassland;
+    double size = catalog.Placement.RegionMetres;
+    WildlifeLedger first = new(catalog, Seed, Grass);
+    List<HerdRecord> near = [.. first.HomesWithin(0, 0, size * 4)];
+    HerdRecord hunted = near[0], untouched = near[1];
+    double recovery = catalog.Kind(hunted.KindId).Population.RecoveryDays;
+    hunted.Kill(100, recovery);
+    hunted.Kill(100.5, recovery);
+    IReadOnlyList<HerdLoss> saved = first.Losses(101);
+    Check.Equal(1, saved.Count, "only a herd short of animals is saved");
+    Check.Equal(HerdLoss.IdOf(hunted.Key), saved[0].Herd, "the saved loss names the hunted herd");
+
+    WildlifeLedger second = new(catalog, Seed, Grass);
+    second.Restore(saved);
+    Check.Equal(saved.Count, second.Losses(101).Count, "a loss in a region not yet seeded is kept for the next save");
+    HerdRecord again = second.HomesWithin(0, 0, size * 4).First(herd => herd.Key == hunted.Key);
+    Check.Equal(hunted.Founding - 2, again.Alive(101, recovery), "a hunted herd is still hunted next session");
+    Check.Equal(hunted.Founding - 1, again.Alive(100 + recovery, recovery), "and its recovery runs on from the same day");
+    Check.Equal(hunted.Founding, again.Alive(100 + (2 * recovery), recovery), "until it is whole");
+    Check.Equal(untouched.Founding, second.HomesWithin(0, 0, size * 4).First(herd => herd.Key == untouched.Key).Alive(101, recovery), "other herds are untouched");
+    Check.Equal(0, second.Losses(100 + (2 * recovery)).Count, "a herd that has recovered drops out of the save");
+
+    WildlifeLedger other = new(catalog, Seed, Grass);
+    other.Place(catalog.Kind("ground-sloth"), Vector2.Zero, 4).Kill(1, recovery);
+    Check.Equal(0, other.Losses(1).Count, "a herd placed by live debug is in no population and is not saved");
 });
 
 return Check.Finish("wildlife");

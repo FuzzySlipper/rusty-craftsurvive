@@ -55,11 +55,24 @@ internal sealed class HerdRecord
     /// <summary>One animal killed on a world day: what has recovered by then is banked first, then the loss counts from now.</summary>
     internal void Kill(double day, double recoveryDays)
     {
+        Settle(day, recoveryDays);
+        if (Lost >= Founding) return;
+        Lost++;
+    }
+
+    /// <summary>Banks what has recovered by a world day, so the loss reads as it stands that day.</summary>
+    internal void Settle(double day, double recoveryDays)
+    {
         int recovered = Recovered(day, recoveryDays);
         Lost -= recovered;
         RecoveringSince = Lost == 0 ? day : RecoveringSince + (recovered * recoveryDays);
-        if (Lost >= Founding) return;
-        Lost++;
+    }
+
+    /// <summary>Takes up a saved loss; a herd seeded smaller since keeps none past its founding size.</summary>
+    internal void Restore(HerdLoss loss)
+    {
+        Lost = Math.Min(loss.Lost, Founding);
+        RecoveringSince = loss.RecoveringSince;
     }
 }
 
@@ -143,6 +156,9 @@ internal sealed class WildlifeLedger
 {
     private readonly Dictionary<WildlifeRegion, RegionPopulation> regions = [];
     private readonly List<HerdRecord> placed = [];
+
+    /// <summary>Saved losses of herds whose regions have not been seeded this session; each is taken up when its region is.</summary>
+    private readonly Dictionary<ulong, HerdLoss> waiting = [];
     private readonly WildlifeCatalog catalog;
     private readonly ulong seed;
     private readonly Func<double, double, MapBiome> biomeAt;
@@ -162,9 +178,37 @@ internal sealed class WildlifeLedger
 
     internal RegionPopulation Region(WildlifeRegion region)
     {
-        if (!regions.TryGetValue(region, out RegionPopulation? population))
-            regions[region] = population = WildlifeSeeding.Seed(region, seed, catalog, biomeAt, excluded);
+        if (regions.TryGetValue(region, out RegionPopulation? population)) return population;
+        regions[region] = population = WildlifeSeeding.Seed(region, seed, catalog, biomeAt, excluded);
+        foreach (HerdRecord herd in population.Herds)
+        {
+            if (waiting.Remove(HerdLoss.IdOf(herd.Key), out HerdLoss loss)) herd.Restore(loss);
+        }
+
         return population;
+    }
+
+    /// <summary>Takes up saved losses. Call before any region is seeded.</summary>
+    internal void Restore(IEnumerable<HerdLoss> losses)
+    {
+        ArgumentNullException.ThrowIfNull(losses);
+        foreach (HerdLoss loss in losses) waiting[loss.Herd] = loss;
+    }
+
+    /// <summary>
+    /// Every seeded herd still short of animals on a world day, with the saved losses of regions not
+    /// seeded this session, in the order a save keeps them. Placed herds belong to no population.
+    /// </summary>
+    internal IReadOnlyList<HerdLoss> Losses(double day)
+    {
+        List<HerdLoss> losses = [.. waiting.Values];
+        foreach (HerdRecord herd in regions.Values.SelectMany(region => region.Herds))
+        {
+            herd.Settle(day, catalog.Kind(herd.KindId).Population.RecoveryDays);
+            if (herd.Lost > 0) losses.Add(new HerdLoss(HerdLoss.IdOf(herd.Key), herd.Lost, herd.RecoveringSince));
+        }
+
+        return [.. losses.OrderBy(loss => loss.Herd).Take(HerdLoss.MostHerds)];
     }
 
     /// <summary>Every herd whose home lies within a distance of a point, seeding the regions that reach it; placed herds too.</summary>
@@ -197,11 +241,5 @@ internal sealed class WildlifeLedger
         HerdRecord herd = new(string.Create(CultureInfo.InvariantCulture, $"{kind.Id}@placed#{placed.Count}"), kind.Id, home, size);
         placed.Add(herd);
         return herd;
-    }
-
-    internal void Clear()
-    {
-        regions.Clear();
-        placed.Clear();
     }
 }

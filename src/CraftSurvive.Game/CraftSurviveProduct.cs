@@ -183,7 +183,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             new Modules.Water.RiverStageStore(context.Engine, store, terrain.SaveIdentity));
         terrain.Water.Stages = riverStage;
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
-        wildlife = new Modules.Wildlife.WildlifeModule(context.Engine, context.Content, terrain, player, frame, () => conditions.Time, cues);
+        wildlife = new Modules.Wildlife.WildlifeModule(context.Engine, context.Content, store, terrain.SaveIdentity, terrain, player, frame, () => conditions.Time, cues);
         creatures.SwingElsewhere = wildlife.PlayerSwing;
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition), () => weather.Exposure, () => weather.Here.Dominant?.Front.Kind.Name ?? "");

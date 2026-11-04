@@ -82,7 +82,11 @@ internal static class SaveManifest
     internal static SaveKey ChemistryScars { get; } =
         new("chemistry/scars", "chemistry/scars.backup", "BurnScars", 0x5352_4353, 1);
 
+    /// <summary>What the player's hunting has cost each seeded herd (#10567), so a hunted herd stays hunted between sessions.</summary>
+    internal static SaveKey WildlifeLedger { get; } =
+        new("wildlife/ledger", "wildlife/ledger.backup", "WildlifeModule", 0x4C44_4C57, 1);
+
     internal static IReadOnlyList<SaveKey> All { get; } =
         [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, BuildPieces, BuildRemnants, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome, TravelSled, TravelBoat, WaterStage, WeatherSnow,
-            ChemistryScars];
+            ChemistryScars, WildlifeLedger];
 }

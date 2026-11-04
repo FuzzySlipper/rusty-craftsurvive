@@ -13,6 +13,7 @@ using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.Wildlife;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Tests;
@@ -103,6 +104,9 @@ SavedForm[] forms =
     SavedForm.For(SaveManifest.ChemistryScars, new BurnScarsCodec(identity),
         (IReadOnlyList<ScarColumn>)[new ScarColumn(-6779, 2028, 9250.5), new ScarColumn(1187, 2028, 9251), new ScarColumn(-2, 8187, 12)], BurnScarsCodec.RecordBytes,
         (left, right) => left.SequenceEqual(right), seed => new BurnScarsCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.WildlifeLedger, new WildlifeLedgerCodec(identity),
+        (IReadOnlyList<HerdLoss>)[new HerdLoss(12, 1, 402.5), new HerdLoss(0x8000_0000_0000_0040UL, 3, 0), new HerdLoss(ulong.MaxValue, 7, 1210.25)], WildlifeLedgerCodec.RecordBytes,
+        (left, right) => left.SequenceEqual(right), seed => new WildlifeLedgerCodec(identity with { Seed = seed })),
 ];
 
 // --- known places (#9471): home first, then the journal, newest first, entrances marked as such --------
@@ -168,6 +172,11 @@ bool overfull;
 try { new SledCodec(identity).Encode(sledSave with { Cargo = [new ItemCount(ItemCatalog.Ration, CraftSurvive.Game.Modules.Travel.Sled.Capacity + 1)] }); overfull = false; }
 catch (InvalidOperationException) { overfull = true; }
 Check.That(overfull, "a sled is never saved holding more than it carries");
+
+// A wildlife ledger no session could have written is refused (#10567).
+Check.Throws<InvalidOperationException>(() => new WildlifeLedgerCodec(identity).Encode([new HerdLoss(1, 0, 3)]), "a herd that lost nothing is not saved");
+Check.Throws<InvalidOperationException>(() => new WildlifeLedgerCodec(identity).Encode([new HerdLoss(2, 1, 3), new HerdLoss(2, 1, 3)]), "a herd is saved once");
+Check.Throws<InvalidOperationException>(() => new WildlifeLedgerCodec(identity).Encode([new HerdLoss(2, 1, double.NaN)]), "a loss counts from a day on the clock");
 
 // --- the manifest names every saved key, once ------------------------------------------------------
 Check.That(SaveManifest.All.Count == forms.Length, $"the manifest lists {SaveManifest.All.Count} keys but {forms.Length} codecs write one");
