@@ -79,6 +79,8 @@
     "pitchDegreesPerSecond": 40,
     "pitchEveryUpdates": 15,
     "mostPlanted": 8,
+    "replantMetres": 0.03,
+    "replantDegrees": 1,
     "corpseSeconds": 60
   },
   "kinds": [

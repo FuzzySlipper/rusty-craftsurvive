@@ -142,6 +142,20 @@ internal static class WildlifeClips
         return nearest.Length < animation.MostPlanted ? double.PositiveInfinity : nearest[^1];
     }
 
+    /// <summary>
+    /// Whether planted feet still hold: IK targets are set in the session's frame, so they stand only
+    /// while the body's placement in that frame does. A body that turned on the spot needs them again,
+    /// and so does one the world's origin moved out from under: its session position changed though it
+    /// stands where it stood. Both points are as drawn, in the session.
+    /// </summary>
+    internal static bool FeetHold(Vector3 plantedAt, Quaternion plantedTurn, Vector3 at, Quaternion turn, WildlifeAnimation animation)
+    {
+        if (Vector3.Distance(plantedAt, at) >= animation.ReplantMetres) return false;
+        // The angle between two turns, from their dot product; the sign says nothing, as a turn and its negative are one.
+        double between = 2 * Math.Acos(Math.Min(1, Math.Abs(Quaternion.Dot(plantedTurn, turn))));
+        return between * 180 / Math.PI < animation.ReplantDegrees;
+    }
+
     /// <summary>The offset a member's clips start at, so a herd does not move in step.</summary>
     internal static float Phase(WildlifeMember member, ulong seed) =>
         (float)WildlifeRules.Unit(seed, $"wildlife:clip-phase:{member.Id}");

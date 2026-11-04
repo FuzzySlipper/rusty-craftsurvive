@@ -21,6 +21,9 @@ internal sealed class WildlifePresentation : IDisposable
 
     internal const ulong PartsPerMember = 4;
 
+    /// <summary>The number of the four a mesh body's object takes; a placeholder's parts have the first three.</summary>
+    internal const ulong MeshPart = 3;
+
     private enum Part
     {
         Legs,
@@ -72,7 +75,7 @@ internal sealed class WildlifePresentation : IDisposable
     internal void Sync(IReadOnlyList<WildlifeHerd> herds, IReadOnlyList<WildlifeFallen> fallen, Func<WildlifeMember, float> feet, Vector2 here, double seconds)
     {
         List<AppearanceFact> next = [];
-        HashSet<int> kept = [];
+        HashSet<WildlifeMember> kept = [];
         double plantWithin = WildlifeClips.PlantWithin(
             herds.Where(herd => herd.Kind.Mesh is not null).SelectMany(herd => herd.Members).Select(member => (double)Vector2.Distance(member.Position, here)),
             meshes.Animation);
@@ -80,17 +83,27 @@ internal sealed class WildlifePresentation : IDisposable
         {
             foreach (WildlifeMember member in herd.Members)
             {
-                kept.Add(member.Id);
-                if (herd.Kind.Mesh is null) Pose(herd.Kind, herd.Activity, member, feet(member), false, Appearances(herd.Kind), next);
-                else next.Add(meshes.Pose(herd, herd.Kind, member, feet(member), Vector2.Distance(member.Position, here), seconds, plantWithin, fallen: false));
+                if (herd.Kind.Mesh is null)
+                {
+                    Pose(herd.Kind, herd.Activity, member, feet(member), false, Appearances(herd.Kind), next);
+                    continue;
+                }
+
+                kept.Add(member);
+                next.Add(meshes.Pose(herd, herd.Kind, member, feet(member), Vector2.Distance(member.Position, here), seconds, plantWithin, fallen: false));
             }
         }
 
         foreach (WildlifeFallen body in fallen)
         {
-            kept.Add(body.Member.Id);
-            if (body.Kind.Mesh is null) Pose(body.Kind, WildlifeActivity.Rest, body.Member, feet(body.Member), true, Appearances(body.Kind), next);
-            else next.Add(meshes.Pose(null, body.Kind, body.Member, feet(body.Member), Vector2.Distance(body.Member.Position, here), seconds, plantWithin, fallen: true));
+            if (body.Kind.Mesh is null)
+            {
+                Pose(body.Kind, WildlifeActivity.Rest, body.Member, feet(body.Member), true, Appearances(body.Kind), next);
+                continue;
+            }
+
+            kept.Add(body.Member);
+            next.Add(meshes.Pose(null, body.Kind, body.Member, feet(body.Member), Vector2.Distance(body.Member.Position, here), seconds, plantWithin, fallen: true));
         }
 
         meshes.Keep(kept);

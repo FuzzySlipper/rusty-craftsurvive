@@ -303,6 +303,44 @@ Check.Section("bodies", () =>
     Check.Equal(animation.MostPlanted * 3.0, WildlifeClips.PlantWithin(many, animation), "only the nearest few animals are planted");
     Check.Equal(double.PositiveInfinity, WildlifeClips.PlantWithin([4, 9], animation), "a few animals are all planted");
 
+    // Planted feet hold only while the body's placement in the session does.
+    Vector3 at = new(5, 10, 5);
+    Quaternion facing = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1f);
+    Check.That(WildlifeClips.FeetHold(at, facing, at, facing, animation), "a body standing as it stood keeps its feet");
+    Check.That(WildlifeClips.FeetHold(at, facing, at, -facing, animation), "a turn and its negative are the same turn");
+    Check.That(WildlifeClips.FeetHold(at, facing, at + new Vector3(0.01f, 0, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1.005f), animation),
+        "a hair's movement keeps them, so a standing body costs nothing");
+    Check.That(!WildlifeClips.FeetHold(at, facing, at, Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1.2f), animation), "a body turning on the spot plants again");
+    Check.That(!WildlifeClips.FeetHold(at, facing, at, Quaternion.Concatenate(Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.1f), facing), animation), "and one pitching to the ground");
+    Check.That(!WildlifeClips.FeetHold(at, facing, at - new Vector3(1024, 0, 0), facing, animation), "and one the world's origin moved out from under");
+
+    // Ids are recycled: a body belongs to the animal it was made for, not to the number.
+    List<string> retired = [];
+    OwnedBodies<string> owned = new();
+    WildlifeMember Animal(int id) => new(id, Vector2.Zero, Vector2.Zero, default);
+    void Retire(string body) => retired.Add(body);
+    WildlifeMember sloth = Animal(7), goat = Animal(7), later = Animal(7);
+    Check.Equal("sloth", owned.Take(sloth, () => "sloth", Retire), "an animal gets a body");
+    Check.Equal("sloth", owned.Take(sloth, () => "another", Retire), "and keeps it");
+    // The sloth sleeps and a placeholder takes its id: it draws no body, and is not among the owners.
+    owned.Keep(new HashSet<WildlifeMember>(), Retire);
+    Check.That(retired.SequenceEqual(["sloth"]) && owned.Count == 0, "a sloth whose id went to a placeholder has its body retired");
+    Check.Equal("calf", owned.Take(later, () => "calf", Retire), "and the id serves the next animal afresh");
+    Check.Equal("adult", owned.Take(goat, () => "adult", Retire), "another animal under the id gets a body of its own");
+    Check.That(retired.SequenceEqual(["sloth", "calf"]), "the old owner's is retired first, not handed on");
+    owned.Keep(new HashSet<WildlifeMember> { goat }, Retire);
+    Check.That(owned.Count == 1 && retired.Count == 2, "a body with its owner awake stays");
+
+    // An object number goes round before it comes back: the last snapshot still holds a retired body's.
+    CyclingSlots slots = new(3);
+    int first = slots.Take(), second = slots.Take();
+    slots.Release(first);
+    Check.That(slots.Take() != first, "a number just released is not handed straight back");
+    Check.Equal(first, slots.Take(), "it comes round in turn");
+    Check.Throws<InvalidOperationException>(() => slots.Take(), "bodies past the range are refused rather than sharing a number");
+    slots.Release(second);
+    Check.Equal(second, slots.Take(), "and one in use is skipped");
+
     // How much of its animation an animal runs at each distance.
     Check.Equal(WildlifeTier.Full, WildlifeClips.Tier(10, WildlifeTier.Full, animation), "near, everything runs");
     Check.Equal(WildlifeTier.Play, WildlifeClips.Tier(100, WildlifeTier.Full, animation), "further, the clip plays");

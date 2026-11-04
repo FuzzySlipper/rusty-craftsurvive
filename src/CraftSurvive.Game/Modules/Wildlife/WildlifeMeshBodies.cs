@@ -27,14 +27,15 @@ internal sealed class WildlifeMeshBodies : IDisposable
     private readonly Func<double, double, float> groundAt;
     private readonly ulong seed;
     private readonly Dictionary<string, Opened> opened = [];
-    private readonly Dictionary<int, Body> bodies = [];
+    private readonly OwnedBodies<Body> bodies = new();
+    private readonly CyclingSlots slots = new(WildlifePresentation.MostMembers);
     private readonly List<Appearance> retiring = [];
 
     /// <summary>What planting feet has cost since the last readout: calls, and the time in sampling the pose, casting for the ground and setting the pose.</summary>
     private (long Calls, double Sample, double Casts, double Pose) planting;
 
-    /// <summary>A body that has moved less than this keeps the feet it planted.</summary>
-    private const float ReplantMetres = 0.03f;
+    /// <summary>How many bodies have been retired, for readouts.</summary>
+    private long retired;
 
     /// <summary>The body's one material slot, and how rough its paint is, as the mesh's own material has it.</summary>
     private const uint BodySlot = 0;
@@ -53,9 +54,10 @@ internal sealed class WildlifeMeshBodies : IDisposable
         }
     }
 
-    private sealed class Body(Opened kind, ulong objectId, Appearance appearance, AnimationInstance instance)
+    private sealed class Body(Opened kind, int slot, ulong objectId, Appearance appearance, AnimationInstance instance)
     {
         internal Opened Kind { get; } = kind;
+        internal int Slot { get; } = slot;
         internal ulong ObjectId { get; } = objectId;
         internal Appearance Appearance { get; } = appearance;
         internal AnimationInstance Instance { get; } = instance;
@@ -69,6 +71,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         internal JointOverride[] Overrides { get; init; } = [];
         internal bool Planted { get; set; }
         internal Vector3 PlantedAt { get; set; }
+        internal Quaternion PlantedTurn { get; set; }
         internal WildlifeClipRole? PlantedClip { get; set; }
         internal float Height { get; set; }
         internal float Pitch { get; set; }
@@ -93,7 +96,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <param name="plantWithin">How near it must be for its feet to be planted.</param>
     internal AppearanceFact Pose(WildlifeHerd? herd, WildlifeKind kind, WildlifeMember member, float feet, double distance, double seconds, double plantWithin, bool fallen)
     {
-        if (!bodies.TryGetValue(member.Id, out Body? body)) body = bodies[member.Id] = Create(kind, member);
+        Body body = bodies.Take(member, () => Create(kind, member), Retire);
         body.Tier = WildlifeClips.Tier(distance, body.Tier, animation);
         Play(body, herd, member, seconds, fallen);
         Sit(body, kind, member, feet, seconds);
@@ -188,8 +191,9 @@ internal sealed class WildlifeMeshBodies : IDisposable
         }
 
         if (!body.Published) return;
-        // Feet planted on the ground stay planted while the body stands where it stood in the same clip.
-        if (body.Planted && body.PlantedClip == body.Playing && Vector3.DistanceSquared(body.PlantedAt, world) < ReplantMetres * ReplantMetres) return;
+        // Feet planted on the ground stay planted while the body stands as it stood in the same clip.
+        if (body.Planted && body.PlantedClip == body.Playing
+            && WildlifeClips.FeetHold(body.PlantedAt, body.PlantedTurn, placement.Translation, placement.Rotation, animation)) return;
         long began = Stopwatch.GetTimestamp();
         ReadOnlySpan<JointPose> pose = engine.Animation.SampleJointPose(
             AnimationPoseSampleRequest.OfCurrentPlayback(body.Instance, placement, applyPoseControls: false)).Span;
@@ -201,16 +205,19 @@ internal sealed class WildlifeMeshBodies : IDisposable
         planting = (planting.Calls + 1, planting.Sample + Stopwatch.GetElapsedTime(began, sampled).TotalMilliseconds,
             planting.Casts + Stopwatch.GetElapsedTime(sampled, cast).TotalMilliseconds, planting.Pose + Stopwatch.GetElapsedTime(cast, posed).TotalMilliseconds);
         body.Planted = true;
-        body.PlantedAt = world;
+        body.PlantedAt = placement.Translation;
+        body.PlantedTurn = placement.Rotation;
         body.PlantedClip = body.Playing;
     }
 
     private Body Create(WildlifeKind kind, WildlifeMember member)
     {
         Opened open = Open(kind);
-        ulong objectId = ProductIds.WildlifeAppearanceBase + ((ulong)member.Id * WildlifePresentation.PartsPerMember);
+        // A placeholder's parts have the first numbers of each four: a mesh is a different kind of Engine node, so it never shares one.
+        int slot = slots.Take();
+        ulong objectId = ProductIds.WildlifeAppearanceBase + ((ulong)slot * WildlifePresentation.PartsPerMember) + WildlifePresentation.MeshPart;
         Appearance appearance = engine.Animation.CreateAnimatedMeshAppearance(new(open.Mesh));
-        if (!member.Young) return new Body(open, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId)));
+        if (!member.Young) return new Body(open, slot, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId)));
 
         // The young share the adult's mesh and every clip; only the paint and the head's size are theirs.
         WildlifeYoung young = kind.Young!;
@@ -218,7 +225,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         AnimationInstance instance = engine.Animation.CreateInstance(new(appearance, objectId));
         JointOverride[] overrides = [JointOverride.LocalScale(open.Joint(young.HeadJoint), young.HeadScale, 1)];
         engine.Animation.SetPose(new(instance, ReadOnlyMemory<TwoBoneIk>.Empty, overrides));
-        return new Body(open, objectId, appearance, instance) { Overrides = overrides };
+        return new Body(open, slot, objectId, appearance, instance) { Overrides = overrides };
     }
 
     /// <summary>A kind's paint for its young, opened once and shared by all of them.</summary>
@@ -252,15 +259,16 @@ internal sealed class WildlifeMeshBodies : IDisposable
         return opened[kind.Id] = new Opened(resource, rig, legs, joints);
     }
 
-    /// <summary>Retires every body not among these animals. Call before the snapshot built without them.</summary>
-    internal void Keep(HashSet<int> ids)
+    /// <summary>Retires every body not owned by these animals. Call before the snapshot built without them.</summary>
+    internal void Keep(HashSet<WildlifeMember> owners) => bodies.Keep(owners, Retire);
+
+    /// <summary>The instance goes now, before the snapshot that drops its fact; its appearance after that snapshot.</summary>
+    private void Retire(Body body)
     {
-        foreach (int id in bodies.Keys.Where(id => !ids.Contains(id)).ToArray())
-        {
-            bodies[id].Instance.Dispose();
-            retiring.Add(bodies[id].Appearance);
-            bodies.Remove(id);
-        }
+        body.Instance.Dispose();
+        retiring.Add(body.Appearance);
+        slots.Release(body.Slot);
+        retired++;
     }
 
     /// <summary>
@@ -269,7 +277,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// </summary>
     internal void AfterSnapshot(bool drawn)
     {
-        foreach (Body body in bodies.Values) body.Published = drawn;
+        foreach (Body body in bodies.All) body.Published = drawn;
         foreach (Appearance appearance in retiring) appearance.Dispose();
         retiring.Clear();
     }
@@ -278,7 +286,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     internal string Readout()
     {
         string text = string.Create(CultureInfo.InvariantCulture,
-            $"meshes={bodies.Count} full={bodies.Values.Count(b => b.Tier == WildlifeTier.Full)} play={bodies.Values.Count(b => b.Tier == WildlifeTier.Play)} held={bodies.Values.Count(b => b.Tier == WildlifeTier.Held)} hidden={bodies.Values.Count(b => b.Tier == WildlifeTier.Hidden)} planted={bodies.Values.Count(b => b.Planted)} steepest={bodies.Values.Select(b => Math.Abs(b.Pitch)).DefaultIfEmpty(0).Max() * 180 / MathF.PI:F1} plants={planting.Calls} sampleMs={planting.Sample:F1} castMs={planting.Casts:F1} poseMs={planting.Pose:F1}");
+            $"meshes={bodies.Count} full={bodies.All.Count(b => b.Tier == WildlifeTier.Full)} play={bodies.All.Count(b => b.Tier == WildlifeTier.Play)} held={bodies.All.Count(b => b.Tier == WildlifeTier.Held)} hidden={bodies.All.Count(b => b.Tier == WildlifeTier.Hidden)} planted={bodies.All.Count(b => b.Planted)} steepest={bodies.All.Select(b => Math.Abs(b.Pitch)).DefaultIfEmpty(0).Max() * 180 / MathF.PI:F1} retired={retired} plants={planting.Calls} sampleMs={planting.Sample:F1} castMs={planting.Casts:F1} poseMs={planting.Pose:F1}");
         planting = default;
         return text;
     }

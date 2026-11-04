@@ -15,6 +15,7 @@
     <Compile Include="$(ProductModules)Wildlife/WildlifeRegions.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/HerdLoss.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/WildlifeClips.cs" LinkBase="Product/Wildlife" />
+    <Compile Include="$(ProductModules)Wildlife/OwnedBodies.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Creatures/CreatureManifest.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)WorldGen/MapBiome.cs" LinkBase="Product/WorldGen" />
     <Compile Include="$(ProductModules)Rpg/CharacterRules.cs" LinkBase="Product/Rpg" />

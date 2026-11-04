@@ -189,6 +189,8 @@ internal readonly record struct WildlifeAnimation(
     double PitchDegreesPerSecond,
     int PitchEveryUpdates,
     int MostPlanted,
+    double ReplantMetres,
+    double ReplantDegrees,
     double CorpseSeconds);
 
 /// <summary>Every wildlife kind and the rules they share, as read from content (#10567).</summary>
@@ -331,6 +333,8 @@ internal static class WildlifeKinds
             animation.GetProperty("pitchDegreesPerSecond").GetDouble(),
             animation.GetProperty("pitchEveryUpdates").GetInt32(),
             animation.GetProperty("mostPlanted").GetInt32(),
+            animation.GetProperty("replantMetres").GetDouble(),
+            animation.GetProperty("replantDegrees").GetDouble(),
             animation.GetProperty("corpseSeconds").GetDouble());
         if (read.FullMetres >= read.PlayMetres || read.PlayMetres >= read.DrawMetres)
             throw new InvalidDataException("animation tiers must widen outward: full, then play, then draw");
