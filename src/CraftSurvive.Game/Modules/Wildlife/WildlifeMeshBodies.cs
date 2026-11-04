@@ -301,7 +301,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     internal string Readout()
     {
         string text = string.Create(CultureInfo.InvariantCulture,
-            $"meshes={bodies.Count} full={bodies.All.Count(b => b.Tier == WildlifeTier.Full)} play={bodies.All.Count(b => b.Tier == WildlifeTier.Play)} held={bodies.All.Count(b => b.Tier == WildlifeTier.Held)} hidden={bodies.All.Count(b => b.Tier == WildlifeTier.Hidden)} planted={bodies.All.Count(b => b.Planted)} steepest={bodies.All.Select(b => Math.Abs(b.Pitch)).DefaultIfEmpty(0).Max() * 180 / MathF.PI:F1} retired={retired} plants={planting.Calls} sampleMs={planting.Sample:F1} castMs={planting.Casts:F1} poseMs={planting.Pose:F1}");
+            $"mostPitch={bodies.All.Select(b => Math.Abs(b.Pitch) * 180 / MathF.PI).DefaultIfEmpty().Max():F1} meshes={bodies.Count} full={bodies.All.Count(b => b.Tier == WildlifeTier.Full)} play={bodies.All.Count(b => b.Tier == WildlifeTier.Play)} held={bodies.All.Count(b => b.Tier == WildlifeTier.Held)} hidden={bodies.All.Count(b => b.Tier == WildlifeTier.Hidden)} planted={bodies.All.Count(b => b.Planted)} steepest={bodies.All.Select(b => Math.Abs(b.Pitch)).DefaultIfEmpty(0).Max() * 180 / MathF.PI:F1} retired={retired} plants={planting.Calls} sampleMs={planting.Sample:F1} castMs={planting.Casts:F1} poseMs={planting.Pose:F1}");
         planting = default;
         return text;
     }

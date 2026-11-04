@@ -166,7 +166,7 @@
    "sha256": "5247d4f2a1a837cf0b08f843840d98e4778e342987d1c6c159a30239cc4b5770",
    "manifest": "content/game/creatures/sivatherium/sivatherium.manifest.json",
    "built": "art/creatures/build_creature.py from art/creatures/sivatherium/species.json with --mesh body.glb --texture body-64.png",
-   "concept": "art/creatures/sketches/sivatherium/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "concept": "art/creatures/sketches/sivatherium/concept-2.png (GPT image via ~/.claude/skills/codex-image-gen)",
    "reference": "art/creatures/sivatherium/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
    "body": "Tripo P2 multiview-to-model, task dfc1e635-4c73-4fca-96b2-457a3349dfd0, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 4.6 --triangles 6000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",

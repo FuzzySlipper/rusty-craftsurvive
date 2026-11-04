@@ -36,6 +36,9 @@ public sealed class WildlifeDebugModule : IDebugCommandModule
     [DebugCommand("craft.wildlife.find", Description = "Wildlife (#10567): the nearest seeded herds of a kind within some kilometres, with their homes and biome; it seeds the regions it searches.")]
     public string Find(string kind, double kilometres) => wildlife.Find(kind, kilometres);
 
+    [DebugCommand("craft.wildlife.country", Description = "Wildlife (#10570): the nearest ground of a biome within some kilometres, to see a kind in its own country.")]
+    public string Country(string biome, double kilometres) => wildlife.Country(biome, kilometres);
+
     [DebugCommand("craft.wildlife.sleep", Description = "Wildlife (#10567): put every awake herd to sleep; the ledger keeps them, and they wake again where their range puts them.")]
     public string Sleep() => wildlife.SleepAll();
 

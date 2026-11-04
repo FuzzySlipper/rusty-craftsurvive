@@ -295,11 +295,22 @@ Check.Section("bodies", () =>
     Check.That(drift > kind.Speeds.GrazeDrift * 0.6 && drift < kind.Speeds.GrazeDrift * 1.4, $"over a cycle it keeps its graze-drift speed ({drift:F2} m/s)");
 
     // How a body sits on the ground.
+    // A column's height stands at its centre, so a plane comes back exactly between columns.
+    double Plane(long x, long z) => (0.25 * (x + 0.5)) - (0.1 * (z + 0.5));
+    Check.That(Math.Abs(WildlifeClips.DrawnGround(12.3, -7.8, Plane) - ((0.25 * 12.3) + (0.1 * 7.8))) < 1e-9, "the drawn ground blends the columns around a point");
+    // Blocks rise in whole metres: a gentle 5% slope drawn smooth must not tip a long body as its steps would.
+    double Slope(long x, long z) => 0.05 * (x + 0.5);
+    double Blocks(long x, long z) => Math.Round(Slope(x, z));
+    (_, float onSteps) = WildlifeClips.Stance(0.5f, (float)Blocks(9, 0), (float)Blocks(11, 0), -1.2, 1.1, animation);
+    (_, float onDrawn) = WildlifeClips.Stance(0.5f, (float)WildlifeClips.DrawnGround(8.8, 0, Slope), (float)WildlifeClips.DrawnGround(11.1, 0, Slope), -1.2, 1.1, animation);
+    Check.That(Math.Abs(onDrawn - (animation.PitchShare * Math.Atan(0.05))) < 1e-3 && Math.Abs(onSteps) > 2 * Math.Abs(onDrawn), $"a body on the drawn ground takes its share of the slope ({onDrawn:F3} rad), far less than the blocks there would give ({onSteps:F3})");
     (float height, float pitch) = WildlifeClips.Stance(10, 10, 10.5f, -0.12, 1.6, animation);
-    Check.That(pitch > 0.25 && pitch < 0.35 && height > 10 && height < 10.1, $"rising ground pitches the nose up, the origin on the slope ({pitch:F2} rad at {height:F2})");
+    Check.That(pitch > 0.15 && pitch < 0.2 && height > 10 && height < 10.1, $"rising ground pitches the nose up by a share of the slope, the origin on it ({pitch:F2} rad at {height:F2})");
     (float high, float steep) = WildlifeClips.Stance(10, 10, 14, -0.12, 1.6, animation);
     double limit = animation.MostPitchDegrees * Math.PI / 180;
-    Check.That(Math.Abs(steep - limit) < 1e-4 && high == 10, $"a cast landing on a stone cannot stand a body on end ({steep * 180 / Math.PI:F0} degrees)");
+    Check.That(Math.Abs(steep) < limit && high > 10, $"a cast landing on a stone cannot stand a body on end ({steep * 180 / Math.PI:F0} degrees)");
+    (float held, float most) = WildlifeClips.Stance(10, 9, 11, -0.2, 0.3, animation);
+    Check.That(Math.Abs(most - limit) < 1e-4 && held == 10, $"a short body between two casts pitches no further than the limit ({most * 180 / Math.PI:F0} degrees)");
     Check.Equal((10f, 0f), WildlifeClips.Stance(10, 10, 10, -0.12, 1.6, animation), "level ground is level");
 
     // Planting feet is what a crowd costs, so only the nearest few are planted.

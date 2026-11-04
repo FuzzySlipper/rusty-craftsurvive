@@ -112,6 +112,8 @@ internal static class WildlifeClips
     /// How a body sits between the ground under its hind and fore feet: its height and pitch. A cast
     /// that landed on a prop must not stand it on end (59° beside standing stones, #10568), so each
     /// ground is taken within the foot limit of where the animal stands, and the pitch within its limit.
+    /// An animal keeps its back flatter than the slope and lets its legs take the rest, so it pitches by a
+    /// share of it: a long body facing up a hill otherwise looks to be rearing.
     /// </summary>
     /// <returns>The height of the body's origin, and its pitch in radians, nose up positive.</returns>
     internal static (float Height, float Pitch) Stance(float feet, float hindGround, float foreGround, double hindMetres, double foreMetres, WildlifeAnimation animation)
@@ -121,10 +123,28 @@ internal static class WildlifeClips
         double span = foreMetres - hindMetres;
         if (span <= 0) return (feet, 0);
         double limit = animation.MostPitchDegrees * Math.PI / 180;
-        double pitch = Math.Atan2(fore - hind, span);
+        double pitch = Math.Atan2(fore - hind, span) * animation.PitchShare;
         if (Math.Abs(pitch) > limit) return (feet, (float)Math.CopySign(limit, pitch));
         return (hind + ((fore - hind) * (float)(-hindMetres / span)), (float)pitch);
     }
+
+    /// <summary>
+    /// The ground as it is drawn at a point: columns' heights, each taken at its centre, blended between
+    /// the four around the point. The blocks underneath go up in whole metres, and a body sat on those
+    /// tips to its pitch limit wherever its feet straddle one step, on ground that is hardly sloping.
+    /// </summary>
+    internal static double DrawnGround(double x, double z, Func<long, long, double> columnHeight)
+    {
+        ArgumentNullException.ThrowIfNull(columnHeight);
+        double fromX = x - ColumnCentre, fromZ = z - ColumnCentre;
+        long west = (long)Math.Floor(fromX), north = (long)Math.Floor(fromZ);
+        double east = fromX - west, south = fromZ - north;
+        double near = double.Lerp(columnHeight(west, north), columnHeight(west + 1, north), east);
+        double far = double.Lerp(columnHeight(west, north + 1), columnHeight(west + 1, north + 1), east);
+        return double.Lerp(near, far, south);
+    }
+
+    private const double ColumnCentre = 0.5;
 
     /// <summary>
     /// The tier at a distance. An animal keeps the nearer tier for the margin past each limit, so one

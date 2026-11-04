@@ -221,14 +221,15 @@ internal sealed class WildlifeModule : IProductModule
     private float FeetOf(WildlifeMember member) => bodies.TryGetValue(member.Id, out MemberBody? body) ? body.Feet : GroundOf(member.Position.X, member.Position.Y);
 
     /// <summary>
-    /// The ground at a point: the Engine's standing surface on resident ground, else the recipe's. Past
-    /// the near ground's edge the far field draws that same surface, and it costs no block search.
+    /// The ground at a point: the Engine's standing surface on resident ground, else the height the far
+    /// field draws, which costs no block search.
     /// </summary>
     private float GroundOf(double x, double z)
     {
         long cellX = (long)Math.Floor(x), cellZ = (long)Math.Floor(z);
         long surface = terrain.Recipe.SurfaceAt(cellX, cellZ);
-        return terrain.IsResident(new VoxelAddress(cellX, surface, cellZ)) ? terrain.GroundAt(x, z) : surface + 1;
+        return terrain.IsResident(new VoxelAddress(cellX, surface, cellZ)) ? terrain.GroundAt(x, z)
+            : (float)(WildlifeClips.DrawnGround(x, z, terrain.Recipe.ContinuousHeightAt) + FarGround.GroundTopFace);
     }
 
     private static double Day(WorldTime time) => time.Day + time.DayFraction;
@@ -613,7 +614,28 @@ internal sealed class WildlifeModule : IProductModule
                 $"{HerdLine(herd, day)} d={Vector2.Distance(herd.Home, here):F0} biome={BiomeAt(herd.Home.X, herd.Home.Y)}")));
     }
 
+    /// <summary>The nearest ground of a biome within some kilometres, walking outward in rings: where to go to see a kind at home.</summary>
+    internal string Country(string biomeName, double kilometres)
+    {
+        if (!started) return "wildlife: not started";
+        if (!Enum.TryParse(biomeName, out MapBiome biome)) return $"no biome '{biomeName}'";
+        Vector3 at = player.WorldPosition;
+        for (double ring = CountryStepMetres; ring <= kilometres * MetresPerKilometre; ring += CountryStepMetres)
+        {
+            int points = (int)Math.Ceiling(2 * Math.PI * ring / CountryStepMetres);
+            for (int i = 0; i < points; i++)
+            {
+                double angle = 2 * Math.PI * i / points;
+                double x = at.X + (ring * Math.Cos(angle)), z = at.Z + (ring * Math.Sin(angle));
+                if (BiomeAt(x, z) == biome) return string.Create(CultureInfo.InvariantCulture, $"{biome} at {x:F0},{z:F0} d={ring:F0}");
+            }
+        }
+
+        return $"no {biome} within {kilometres} km";
+    }
+
     private const double MetresPerKilometre = 1000;
+    private const double CountryStepMetres = 2000;
     private const int MostFound = 5;
 
     private string HerdLine(HerdRecord herd, double day)

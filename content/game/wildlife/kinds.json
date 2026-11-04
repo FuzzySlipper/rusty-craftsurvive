@@ -80,6 +80,7 @@
     "maximumRate": 1.6,
     "rateStep": 0.1,
     "mostPitchDegrees": 22,
+    "pitchShare": 0.6,
     "mostFootMetres": 1.0,
     "pitchDegreesPerSecond": 40,
     "pitchEveryUpdates": 15,

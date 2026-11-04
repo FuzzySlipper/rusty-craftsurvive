@@ -30,6 +30,7 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `gait.py` | The gait math, plain Python; `python3 -I gait.py` self-checks it |
 | `cut_views.py` | Cuts a reference sheet into Tripo's four views at one scale |
 | `fit.py` (Blender) | Shows a species' joints through its prepared body, for fitting them |
+| `drop_limbs.py` (Blender) | Cuts limbs a generated body should not have out of it and closes the holes |
 | `preview.py` (Blender) | Renders an exported GLB's clips: still frames, or every frame with `--sequence` |
 | `montage.py` | Lays `preview.py` stills out as one sheet |
 | `sequence.py` | Animates `--sequence` frames: smooth beside a stepped rate, as one GIF |
@@ -90,6 +91,19 @@ and a painted coat drawn as 3D pixel art. The route the sloth took:
 
 The Tripo output, the prepared body and the master are kept at
 `/data/evidence/rusty-craftsurvive/sloth-10568/`.
+
+## What a body can get wrong
+
+Count the feet before fitting: a reference sheet that draws near and far legs apart in its side view
+gives Tripo a body with twice the legs (the glyptodon had eight). `drop_limbs.py` cuts the extras out.
+
+A species file can also carry what a body needs:
+
+- `"shell": { "bone", "aboveMetres", "forward", "legs" }` holds all but the legs below the rim to one
+  bone, so a carapace does not flex;
+- limb points named `"elbow.R"` and so on give a body standing with staggered legs its own right limb,
+  in left-side metres;
+- `preview.py --view <metres>` frames a small or a very large animal.
 
 ## In game
 
