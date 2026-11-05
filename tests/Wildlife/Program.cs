@@ -89,6 +89,14 @@ Check.Section("ragdolls", () =>
 
 Check.Section("hostile animals", () =>
 {
+    // Patch, 2026-11-05: the desert's second hunter is a large rangy bird, bigger than the gaunt.
+    WildlifeKind beak = catalog.Kind("axe-beak");
+    Check.That(beak.Pressed == PressedResponse.Hunt, "the axe-beak hunts");
+    Check.That(beak.Body.HeightMetres > catalog.Kind("gaunt").Body.HeightMetres, "the axe-beak stands over the gaunt");
+    Check.That(catalog.SizeClasses[beak.Body.SizeClass].Height > catalog.SizeClasses[WildlifeSizeClass.Huge].Height, "its body is as tall as it is");
+    (float standing, float tilt) = WildlifeClips.Stance(10, 12, 8, -1.08, -1.08, catalog.Animation);
+    Check.That(standing == 10 && tilt == 0, "a body whose feet stand in one place is not pitched by the ground");
+
     WildlifeKind gaunt = catalog.Kind("gaunt");
     WildlifeHunt hunt = gaunt.Hunt ?? throw new InvalidDataException("the gaunt must hunt");
     Check.That(catalog.Kinds.All(k => (k.Pressed == PressedResponse.Hunt) == (k.Hunt is not null)), "a kind hunts exactly when it has a hunt block");
@@ -183,7 +191,7 @@ Check.Section("kinds", () =>
     string[] firstWave = ["ground-sloth", "hipparion", "giant-deer", "entelodont", "giant-beaver", "cave-goat", "glyptodon", "mammoth"];
     string[] secondWave = ["ancylotherium", "paraceratherium", "diprotodon", "megacerops", "sivatherium"];
     Check.That(firstWave.Concat(secondWave).All(id => catalog.TryKind(id, out _)), "the first- and second-wave kinds must load");
-    string[] hunters = ["gaunt"];
+    string[] hunters = ["gaunt", "axe-beak"];
     Check.Equal(firstWave.Length + secondWave.Length + hunters.Length, catalog.Kinds.Count, "the content holds the two waves, the hunters and nothing else");
     Check.That(Enum.GetValues<PressedResponse>().All(r => catalog.Kinds.Any(k => k.Pressed == r)), "every pressed response must have a kind that shows it");
     Check.That(Enum.GetValues<WildlifeSizeClass>().All(c => catalog.SizeClasses.ContainsKey(c)), "every size class must have a capsule");

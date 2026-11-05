@@ -720,14 +720,16 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   generator's column height, so navigation snaps feet to the reconstructed ground within 0.6 m. An
   ambush tests at most three candidate columns per update with a small search. A pursuer with no
   route waits; a hostile animal outside the box comes on (below).
-- **Hostile animals are one kind, placed roughly (#10615).** The gaunt lives on `Alpine` and `Desert`
-  by `kinds.json`, a stand-in until the wildlife chart (#10616). Rocky canyons have no biome of their
+- **Hostile animals are placed roughly (#10615, #10622).** The gaunt lives on `Alpine` and `Desert`
+  and the axe-beak on `Desert` by `kinds.json`, stand-ins until the wildlife chart (#10616). Rocky canyons have no biome of their
   own, and a home can fall in a desert lake, where it stays empty because no site there will take it.
   It moves and is routed as its size class's capsule, 1 m in radius and 3.2 m tall, centred between
   its feet, and a session holds one navigation projection, so while it is the largest body creatures
   are routed on 2 m cells. That holds its legs, but its long neck and head reach out past the capsule's
   front and can pass through what stands at that height. Past the 32 m around the player that
-  navigation covers, it comes straight on until it can be routed, so a wall out there stops it.
+  navigation covers, it comes straight on until it can be routed, so a wall out there stops it. The
+  axe-beak's capsule stands between its feet, 4.6 m tall, and its neck and beak reach about 3.7 m past
+  the capsule's centre, so its head passes through what stands in front of it.
 - **The dead fall on terrain alone (#10621).** A killed animal with a mesh falls as a ragdoll in a
   physics world bound to the terrain's collision. It touches nothing else: other bodies, the player,
   scatter, and whatever a town or building keeps in a collision session of its own, so bodies can lie

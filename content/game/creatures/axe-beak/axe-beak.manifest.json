@@ -1,0 +1,69 @@
+{
+  "species": "axe-beak",
+  "family": "bird",
+  "body": {
+    "hindMetres": -1.08,
+    "foreMetres": -1.08
+  },
+  "legs": [
+    [
+      "shin.L",
+      "cannon.L",
+      "hoof.L"
+    ],
+    [
+      "shin.R",
+      "cannon.R",
+      "hoof.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.8,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 1.4444
+    },
+    "run": {
+      "seconds": 0.8,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 7.625
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 2.2,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 2.4,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "bite": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "hurt": {
+      "seconds": 0.6,
+      "loops": false,
+      "plantsFeet": true
+    }
+  }
+}

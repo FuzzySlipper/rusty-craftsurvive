@@ -4,7 +4,8 @@
     "small": { "radius": 0.3, "height": 0.8 },
     "human": { "radius": 0.35, "height": 1.8 },
     "large": { "radius": 0.6, "height": 2.4 },
-    "huge": { "radius": 1.0, "height": 3.2 }
+    "huge": { "radius": 1.0, "height": 3.2 },
+    "towering": { "radius": 1.0, "height": 4.6 }
   },
   "schedules": {
     "day-grazer": [
@@ -109,6 +110,28 @@
     }
   },
   "kinds": [
+    {
+      "id": "axe-beak",
+      "name": "Axe-beak",
+      "habitat": { "Desert": 1.0 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 6 },
+      "body": { "lengthMetres": 5.2, "heightMetres": 4.8, "widthMetres": 1.2, "sizeClass": "towering", "colour": "#8a7d6a" },
+      "mesh": {
+        "file": "creatures/axe-beak/axe-beak.glb",
+        "manifest": "creatures/axe-beak/axe-beak.manifest.json",
+        "ragdoll": "creatures/axe-beak/axe-beak.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.44, "grazeDrift": 0.4, "flee": 7.6, "turnDegrees": 110 },
+      "wariness": { "noticeMetres": 64, "actMetres": 40, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 64, "reachMetres": 4.5, "haltMetres": 4.0, "accuracy": 22, "power": 5, "cooldownTicks": 180, "biteWindupSeconds": 0.46, "dodgeMetres": 0.6 },
+      "schedule": "dusk-and-dawn",
+      "population": { "herdsPerSquareKilometre": 0.005, "rangeMetres": 300, "recoveryDays": 40 },
+      "combat": { "health": 110, "evasion": 45, "armour": 6, "experience": 600 },
+      "loot": [ { "item": "hide", "minimum": 2, "maximum": 3, "oneIn": 1 } ]
+    },
     {
       "id": "gaunt",
       "name": "Gaunt",

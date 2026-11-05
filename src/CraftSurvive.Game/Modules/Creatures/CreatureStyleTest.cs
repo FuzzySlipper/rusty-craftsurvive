@@ -201,8 +201,10 @@ internal sealed class CreatureStyleTest : IDisposable
         double hind = creature.Kind.HindMetres * creature.Scale, fore = creature.Kind.ForeMetres * creature.Scale;
         double hindGround = groundAt(x + (fx * hind), z + (fz * hind));
         double foreGround = groundAt(x + (fx * fore), z + (fz * fore));
-        double y = hindGround + ((foreGround - hindGround) * (0 - hind) / (fore - hind));
-        double pitch = Math.Atan2(foreGround - hindGround, fore - hind);
+        // A two-legged body has one place its feet stand, so nothing to pitch it by.
+        double span = fore - hind;
+        double y = span > 0 ? hindGround + ((foreGround - hindGround) * (0 - hind) / span) : hindGround;
+        double pitch = span > 0 ? Math.Atan2(foreGround - hindGround, span) : 0;
         // The mesh faces +Z; yaw 0 faces north (-Z) and 90 east (+X), as the camera's yaw does. A
         // rising front turns the nose up: a negative turn about the mesh's own X.
         Quaternion lift = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)-pitch);

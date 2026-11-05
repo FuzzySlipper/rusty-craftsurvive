@@ -8,7 +8,8 @@ Provenance is in [`content/creatures.sources.json`](../../content/creatures.sour
 
 Humans borrow UAL's humanoid clips (`art/characters/`). Nothing comparable exists for four legs,
 and every animal's proportions differ. So each **family** in `families.py` (plantigrade: sloths and
-bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers)
+bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers;
+bird: two legs)
 has a skeleton and a clip generator in code. A species bakes the family clips it has settings for:
 
 - A species file (`<kind>/species.json`) places the family's joints as metres
@@ -204,7 +205,13 @@ bind it, and it goes through the same workflow with these differences:
 - **`restShare` under `clips.die`** sets how high the fallen body rests, as a share of the leg. Long
   legs leave a body in the air at the usual 0.5.
 
-In game it is a kind in `content/game/wildlife/kinds.json` with `"pressed": "hunt"` and a `hunt` block.
+The axe-beak (#10622) is the second, and the first on two legs: the `bird` family in `families.py`.
+Its legs are the ungulate's hind legs, under a three-bone neck, with `wing` stumps left to the clips,
+and its gait swings the body over the foot that stands. A two-legged body has one place its feet stand,
+so `hindMetres` equals `foreMetres` and the product does not pitch it. Its rest pose has the beak half
+open, so its clips open and shut from there by less than the gaunt's.
+
+In game each is a kind in `content/game/wildlife/kinds.json` with `"pressed": "hunt"` and a `hunt` block.
 Its capsule is its size class's, centred between its feet with the mesh drawn ahead of it, and
 creatures are routed for the largest body hunting, on cells that fit it.
 Wildlife seeds it, draws it and counts its losses; `CreatureModule` hunts with it (`HunterRules`).

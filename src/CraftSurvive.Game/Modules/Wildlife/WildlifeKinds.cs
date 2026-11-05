@@ -12,6 +12,7 @@ internal enum WildlifeSizeClass
     Human,
     Large,
     Huge,
+    Towering,
 }
 
 /// <summary>What an animal does when the player presses it past its warning.</summary>
@@ -277,6 +278,7 @@ internal static class WildlifeKinds
         ["human"] = WildlifeSizeClass.Human,
         ["large"] = WildlifeSizeClass.Large,
         ["huge"] = WildlifeSizeClass.Huge,
+        ["towering"] = WildlifeSizeClass.Towering,
     };
 
     private static readonly Dictionary<string, PressedResponse> ResponseNames = new(StringComparer.Ordinal)

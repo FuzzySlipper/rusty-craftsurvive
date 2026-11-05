@@ -753,6 +753,131 @@ LOW_SLUNG_CLIPS = {
 }
 
 
+# ---------------------------------------------------------------- bird: two legs and a long neck
+
+def bird_bones():
+    """The ungulate's hind legs under a long neck: the top segment is the thigh, then shin, tarsus (cannon) and toes."""
+    bones = [
+        ("root", None, "root", "root_tip", 1.0),
+        ("hips", "root", "hips", "spine", 1.0),
+        ("spine", "hips", "spine", "chest", 1.0),
+        ("chest", "spine", "chest", "neck", 1.0),
+        ("neck", "chest", "neck", "neck2", 1.0),
+        ("neck2", "neck", "neck2", "neck3", 1.0),
+        ("neck3", "neck2", "neck3", "head", 1.0),
+        ("head", "neck3", "head", "nose", 1.0),
+        ("jaw", "head", "jaw", "jaw_tip", 1.0),
+        ("tail1", "hips", "tail0", "tail1", 1.0),
+        ("tail2", "tail1", "tail1", "tail2", 1.0),
+        ("tail3", "tail2", "tail2", "tail3", 1.0),
+    ]
+    for side, sign in SIDES.items():
+        bones += [
+            (f"wing.{side}", "chest", "shoulder", "wing_tip", sign),
+            (f"thigh.{side}", "hips", "hip_socket", "stifle", sign),
+            (f"shin.{side}", f"thigh.{side}", "stifle", "hock", sign),
+            (f"cannon.{side}", f"shin.{side}", "hock", "fetlock", sign),
+            (f"hoof.{side}", f"cannon.{side}", "fetlock", "toe", sign),
+        ]
+    return bones
+
+
+BIRD_LEGS = {"hind": ("cannon", "hoof", "hock", -1.0)}
+
+
+def bird_gait(c, settings, t, spine_flex):
+    """Two legs in turn: the body swings over the foot that stands, and the neck pumps once a stride to balance it."""
+    ungulate_gait(c, settings, t, spine_flex)
+    nod = settings.get("nodDegrees", 3.0)
+    c.bone_offset("hips", (settings.get("swingMetres", 0.1) * gait.wave(t), 0, -settings["bob"] * math.cos(2 * gait.TAU * t)))
+    c.bone_rotation("neck3", pitch(-0.8 * nod * gait.wave(t, 2, lag=0.25)) @ yaw(0.5 * settings["swayDegrees"] * gait.wave(t, lag=0.3)))
+
+
+def bird_walk(c, s, t):
+    bird_gait(c, s["walk"], t, spine_flex=0.8)
+
+
+def bird_run(c, s, t):
+    bird_gait(c, s["run"], t, spine_flex=s["run"].get("spineFlex", 3.0))
+
+
+def bird_idle(c, s, t):
+    ungulate_idle(c, s, t)
+    c.bone_rotation("neck3", pitch(1.5 * gait.wave(t, lag=0.4)) @ yaw(4.0 * gait.wave(t, lag=0.35)))
+
+
+def bird_alert(c, s, t):
+    ungulate_alert(c, s, t)
+    c.bone_rotation("neck3", pitch(-8.0) @ yaw(8.0 * gait.wave(t, lag=0.12)))
+
+
+def bird_threat(c, s, t):
+    """The neck rears with the head kept level, the beak gapes and the useless wings lift off the body."""
+    ungulate_threat(c, s, t)
+    up = gait.rise_hold_fall(t, 0.18, 0.85)
+    shake = 0.5 + 0.5 * gait.wave(t, 8)
+    c.bone_rotation("neck3", pitch(-6.0 * up))
+    c.bone_rotation("head", pitch(-14.0 * up) @ yaw(3.0 * up * gait.wave(t, 8)))
+    # The beak's rest is already half open.
+    c.bone_rotation("jaw", pitch((-20.0 - 4.0 * shake) * up))
+    for side, sign in SIDES.items():
+        c.bone_rotation(f"wing.{side}", yaw(-sign * 28.0 * up))
+
+
+def bird_bite(c, s, t):
+    """A hatchet blow: the neck draws back with the beak wide, the head comes down through the target and the beak shuts."""
+    ungulate_bite(c, s, t)
+    back = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.34, 0.46))
+    strike = gait.ease_in_out(t, 0.36, 0.48) * (1.0 - gait.ease_in_out(t, 0.72, 1.0))
+    wide = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.46, 0.54))
+    shut = gait.ease_in_out(t, 0.46, 0.54) * (1.0 - gait.ease_in_out(t, 0.8, 1.0))
+    c.bone_rotation("neck3", pitch(-4.0 * back - 18.0 * strike))
+    c.bone_rotation("head", pitch(-16.0 * back - 10.0 * strike))
+    c.bone_rotation("jaw", pitch(-18.0 * wide + s["bite"].get("shutDegrees", 26.0) * shut))
+
+
+def bird_hurt(c, s, t):
+    ungulate_hurt(c, s, t)
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    c.bone_rotation("neck3", yaw(-10.0 * hit))
+
+
+def bird_die(c, s, t):
+    """The legs go and it drops onto its side, the neck following it down."""
+    limp = gait.ease_in_out(t, 0.1, 0.5)
+    fall = gait.ease_in_out(t, 0.25, 0.8)
+    height = c.leg_length("hind.L")
+    for leg in c.targets:
+        c.leg_influence(leg, 1.0 - limp)
+    for side in SIDES:
+        c.bone_rotation(f"thigh.{side}", pitch(-25.0 * limp))
+        c.bone_rotation(f"shin.{side}", pitch(45.0 * limp))
+        c.bone_rotation(f"cannon.{side}", pitch(-35.0 * limp))
+    angle = 80.0 * fall
+    c.bone_rotation("root", roll(angle))
+    lies = s["die"].get("restShare", 0.5)
+    c.bone_offset("root", (0, 0, max(0.0, lies * height - height * math.cos(math.radians(angle))) * fall))
+    c.bone_offset("hips", (0, 0, -0.3 * height * limp))
+    c.bone_rotation("neck", pitch(-12.0 * fall) @ yaw(-16.0 * fall))
+    c.bone_rotation("neck2", pitch(-8.0 * fall) @ yaw(-12.0 * fall))
+    c.bone_rotation("neck3", pitch(-8.0 * fall))
+    c.bone_rotation("head", pitch(-10.0 * fall))
+    c.bone_rotation("jaw", pitch(-8.0 * fall))
+
+
+BIRD_CLIPS = {
+    "rest": (clip_rest, False, True),
+    "idle": (bird_idle, True, True),
+    "walk": (bird_walk, True, True),
+    "run": (bird_run, True, True),
+    "alert": (bird_alert, True, True),
+    "die": (bird_die, False, False),
+    "threat": (bird_threat, False, True),
+    "bite": (bird_bite, False, True),
+    "hurt": (bird_hurt, False, True),
+}
+
+
 # ---------------------------------------------------------------- the table
 
 @dataclass(frozen=True)
@@ -779,6 +904,8 @@ FAMILIES = {
     "graviportal": Family(graviportal_bones, PLANTIGRADE_LEGS, GRAVIPORTAL_CLIPS,
                           (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                           ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand")),
+    "bird": Family(bird_bones, BIRD_LEGS, BIRD_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
+                   ("thigh", "shin", "cannon"), ("hoof",)),
     "low-slung": Family(low_slung_bones, PLANTIGRADE_LEGS, LOW_SLUNG_CLIPS,
                         (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                         ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand")),
