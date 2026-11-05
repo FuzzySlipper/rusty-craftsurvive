@@ -156,6 +156,8 @@ public sealed partial class CraftSurviveProduct
     /// <summary>Present an event: the journey pauses and the map screen offers its choices.</summary>
     private void Raise(TravelEventKind kind, EventPlace place)
     {
+        // Hostile animals keep to the empty country (#10615): where neutral herds roam, nothing closes on the party.
+        if (kind == TravelEventKind.Encounter && !wildlife.HunterKinds.Any(hunter => hunter.HabitatWeight(place.Biome) > 0)) return;
         // Afloat (#9904) the trouble is the water's, and creatures keep to the bank.
         bool afloat = place.Water != TravelWater.Ashore;
         WaterHazard water = TravelEvents.WaterHazardAt(place.Water, place.River, place.Mode);

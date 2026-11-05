@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.Wildlife;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
 using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
@@ -22,8 +23,6 @@ namespace CraftSurvive.Game.Modules.Creatures;
 /// </summary>
 internal sealed class CreatureModule : IProductModule
 {
-    /// <summary>Region the starting encounters are placed in.</summary>
-    private const long StartingRegionId = 1;
     /// <summary>Each travel ambush is its own wilderness region, numbered from here.</summary>
     private const long AmbushRegionBase = 1000;
     /// <summary>An ambush gives up on creatures it cannot place within about ten seconds.</summary>
@@ -34,12 +33,6 @@ internal sealed class CreatureModule : IProductModule
     /// <summary>The columns a pending ambush has filled so far, across updates.</summary>
     private readonly List<(long X, long Z)> ambushColumns = [];
     private int ambushWaiting, ambushPlaced;
-
-    /// <summary>
-    /// How many hostile creatures a fresh session starts with. Animals are wildlife's, seeded by region
-    /// (#10567); the neutral walker that stood in for them is no longer placed.
-    /// </summary>
-    internal const int InitialCreatureCount = 2;
 
     /// <summary>Eye height above the ground, where a creature perceives from.</summary>
     private const float EyeHeightMetres = 1.5f;
@@ -109,7 +102,7 @@ internal sealed class CreatureModule : IProductModule
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
-        presentation = new CreaturePresentation(engine, frame, StandingAt);
+        presentation = new CreaturePresentation(engine, frame, StandingAt, creature => hunters.ContainsKey(creature.Id));
         navigation = new CreatureNavigation(engine, terrain, frame);
         capsule = CreatureBody.Capsule(engine.Spatial.DefaultCharacterControllerConfig());
         // A body's step carries session-local positions; when the world's origin moves, each is set down afresh from where it stands.
@@ -133,6 +126,8 @@ internal sealed class CreatureModule : IProductModule
     /// </summary>
     private Vector2 MoveBody(Creature creature, Vector2 waypoint, double travel, double seconds)
     {
+        // A hostile animal stands to show its threat or bite, though its body still falls.
+        if (hunters.TryGetValue(creature.Id, out Hunter? hunter) && hunter.Holding) travel = 0;
         if (travel <= 0 && creature.Body is null) return creature.Position;
         if (!bodies.TryGetValue(creature.Kind, out CharacterControllerConfig config))
             bodies[creature.Kind] = config = CreatureBody.Configure(capsule, (float)creature.Kind.PursueSpeedMetresPerSecond);
@@ -193,7 +188,7 @@ internal sealed class CreatureModule : IProductModule
         }
 
         started = true;
-        Spawn();
+        lastEvent = "started";
     }
 
     public void Update(ProductStep time)
@@ -244,11 +239,17 @@ internal sealed class CreatureModule : IProductModule
             if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time, SightScale(creature),
                 CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody) is CreatureStrike strike)
             {
-                ResolveStrike(strike);
+                if (hunters.TryGetValue(creature.Id, out Hunter? biting)) HunterRules.Bite(biting, strike.Attack, ClipSeconds(biting, WildlifeClipRole.Bite));
+                else ResolveStrike(strike);
                 playerCanBeHit = !player.Vitals.IsDown;
             }
 
             Follow(creature);
+            if (hunters.TryGetValue(creature.Id, out Hunter? hunter))
+            {
+                Show(creature, hunter, playerWorld, playerCanBeHit, time.ElapsedSeconds);
+                playerCanBeHit = playerCanBeHit && !player.Vitals.IsDown;
+            }
         }
 
         routing.RecordBodies(System.Diagnostics.Stopwatch.GetElapsedTime(bodiesStarted).TotalMilliseconds, bodiesStepped, bodiesRefused);
@@ -259,13 +260,115 @@ internal sealed class CreatureModule : IProductModule
                 ? CreatureSimulation.PlanarDistance(creature.Position, playerWorld)
                 : double.MaxValue,
             _ => true);
+        foreach (int id in leaving) ForgetHunter(id);
         released += roster.Release(leaving);
         presentation.Sync(roster);
+    }
+
+    /// <summary>A hostile animal's threat, bite and flinch move on, and what it shows follows what it is doing.</summary>
+    private void Show(Creature creature, Hunter hunter, Vector3 playerWorld, bool playerCanBeHit, double seconds)
+    {
+        double distance = CreatureSimulation.PlanarDistance(creature.Position, playerWorld);
+        CreatureState state = creature.Behavior.State;
+        if (HunterRules.Advance(hunter, state, distance, ClipSeconds(hunter, WildlifeClipRole.Threat), seconds) is AttackProfile blow)
+        {
+            if (playerCanBeHit && HunterRules.Lands(hunter.Kind.Hunt!, distance)) ResolveStrike(new CreatureStrike(creature.Id, blow));
+            else cues.Raise(Cue.Swing);
+        }
+
+        WildlifeMember member = hunter.Member;
+        if (seconds > 0)
+        {
+            member.Velocity = (creature.Position - hunter.LastPosition) / (float)seconds;
+            hunter.LastPosition = creature.Position;
+        }
+
+        member.Position = creature.Position;
+        WildlifeRig rig = Wildlife!.RigOf(hunter.Kind);
+        Vector2 toPlayer = new Vector2(playerWorld.X, playerWorld.Z) - creature.Position;
+        Vector2 heading = member.Velocity.Length() > HunterTurnsAboveMetres ? member.Velocity : state == CreatureState.Idle ? Vector2.Zero : toPlayer;
+        member.Yaw = HunterRules.Turned(member.Yaw, heading, hunter.Kind.Speeds.TurnDegrees, seconds);
+        double runsAbove = (rig.Clip(WildlifeClipRole.Walk).Speed + rig.Clip(WildlifeClipRole.Run).Speed) / 2 * member.Size;
+        member.Clip = HunterRules.Want(hunter, state, member.Velocity.Length(), runsAbove);
+    }
+
+    private double ClipSeconds(Hunter hunter, WildlifeClipRole role) => Wildlife!.RigOf(hunter.Kind).Clip(role).Seconds;
+
+    /// <summary>
+    /// Navigation is published only around the player, and a hostile animal sees further than that. Out
+    /// past it, in the empty country it keeps to, it comes straight on, its body stopping at what it meets,
+    /// until it is near enough to be routed. Any other creature waits.
+    /// </summary>
+    private Vector2? BeyondNavigation(Creature creature, Vector2 playerGround) =>
+        hunters.ContainsKey(creature.Id) && Vector2.Distance(creature.Position, playerGround) > CreatureNavigation.ReachMetres ? playerGround : null;
+
+    /// <summary>A hostile animal going this slowly turns to face the player, not the way it is drifting.</summary>
+    private const float HunterTurnsAboveMetres = 0.3f;
+
+    /// <summary>Hostile animals near their homes need this much around them to stand on: the plan's candidates about the home.</summary>
+    private const int HunterHomeMetres = 24;
+
+    /// <summary>Each hostile animal placed from a region, or by an ambush, is its own wilderness region, numbered from here.</summary>
+    private const long HunterRegionBase = 1_000_000;
+
+    /// <summary>Wildlife, which places and draws hostile animals (#10615). The product root joins the two.</summary>
+    internal WildlifeModule? Wildlife { get; set; }
+
+    /// <summary>Hostile animals by creature id, and the herd records of those awake, so one home holds one animal.</summary>
+    private readonly Dictionary<int, Hunter> hunters = [];
+    private readonly HashSet<string> hunted = [];
+    private readonly Dictionary<string, CreatureKind> hunterKinds = [];
+    private long hunterRegions;
+
+    private CreatureKind KindOf(WildlifeKind kind) =>
+        hunterKinds.TryGetValue(kind.Id, out CreatureKind? found) ? found : hunterKinds[kind.Id] = HunterRules.KindOf(kind);
+
+    /// <summary>The hostile animals to draw this update: only those on resident ground.</summary>
+    internal IReadOnlyList<WildlifeHunter> HunterFacts() =>
+        [.. roster.All.Where(creature => creature.Awake && hunters.ContainsKey(creature.Id))
+            .Select(creature => new WildlifeHunter(hunters[creature.Id].Kind, hunters[creature.Id].Member, StandingAt(creature)))];
+
+    /// <summary>
+    /// A hostile animal's home has come near (#10615). It takes up its place once the ground there is
+    /// resident, and one home holds one animal for as long as it is awake.
+    /// </summary>
+    internal void AdmitHunter(HerdRecord record, WildlifeKind kind, Vector2 point)
+    {
+        if (!started || hunted.Contains(record.Key) || !terrain.IsResident(GroundCell(point))) return;
+        PlaceHunter(record, kind, point, 0, HunterHomeMetres);
+    }
+
+    private void PlaceHunter(HerdRecord record, WildlifeKind kind, Vector2 around, int minimumMetres, int maximumMetres,
+        Func<Vector2, bool>? usable = null, List<(long X, long Z)>? placed = null) =>
+        Place(1, HunterRegionBase + ++hunterRegions, _ => KindOf(kind), minimumMetres, maximumMetres, usable, placed, around, creature =>
+        {
+            hunters[creature.Id] = new Hunter(kind, record, Wildlife!.WakeHunter(record, kind, creature.Position));
+            hunted.Add(record.Key);
+        });
+
+    private void ForgetHunter(int id)
+    {
+        if (!hunters.Remove(id, out Hunter? hunter)) return;
+        hunted.Remove(hunter.Record.Key);
+        Wildlife?.ForgetHunter(hunter.Member);
+    }
+
+    /// <summary>A hostile animal placed by hand, a distance east and south of the player, in no region's population.</summary>
+    internal string PlaceHunterNear(string kindId, double east, double south)
+    {
+        if (Wildlife is null) return "no wildlife";
+        WildlifeKind? kind = Wildlife.HunterKinds.FirstOrDefault(candidate => candidate.Id == kindId);
+        if (kind is null) return $"no hunter '{kindId}'; hunters: {string.Join(",", Wildlife.HunterKinds.Select(k => k.Id))}";
+        Vector3 at = player.WorldPosition;
+        Vector2 point = new(at.X + (float)east, at.Z + (float)south);
+        PlaceHunter(new HerdRecord($"{kind.Id}@near#{++hunterRegions}", kind.Id, point, 1), kind, point, 0, HunterHomeMetres);
+        return Readout();
     }
 
     public void Restart()
     {
         ambushWaiting = 0;
+        foreach (int id in hunters.Keys.ToArray()) ForgetHunter(id);
         roster.Clear();
         director.Clear();
         presentation.Clear();
@@ -351,12 +454,19 @@ internal sealed class CreatureModule : IProductModule
         }
 
         target.Combat = struck;
+        if (hunters.TryGetValue(target.Id, out Hunter? struckHunter)) struckHunter.HurtSeconds = ClipSeconds(struckHunter, WildlifeClipRole.Hurt);
         cues.RaiseAt(struck.IsDown ? Cue.Defeat : Cue.Strike,
             frame.ToLocal(target.Position.X, StandingAt(target) + StruckHeightMetres, target.Position.Y));
         if (!struck.IsDown)
         {
             return string.Create(CultureInfo.InvariantCulture,
                 $"hit {target.Id}: {struck.Health}/{struck.MaximumHealth} for {outcome.Damage}{(outcome.Critical ? " (critical)" : string.Empty)}");
+        }
+
+        if (hunters.Remove(target.Id, out Hunter? fallen))
+        {
+            hunted.Remove(fallen.Record.Key);
+            Wildlife!.HunterFell(fallen, StandingAt(target));
         }
 
         roster.Remove(target.Id);
@@ -451,9 +561,11 @@ internal sealed class CreatureModule : IProductModule
             Vector2 playerGround = new(playerFeet.X, playerFeet.Z);
             foreach (Creature creature in pursuers)
             {
+                // A hostile animal standing to show its threat or bite is not walking, so it is not stuck either.
+                if (hunters.TryGetValue(creature.Id, out Hunter? hunter) && hunter.Holding) continue;
                 if (step < creature.BackoffUntil)
                 {
-                    creature.Waypoint = null;
+                    creature.Waypoint = BeyondNavigation(creature, playerGround);
                     continue;
                 }
 
@@ -468,6 +580,7 @@ internal sealed class CreatureModule : IProductModule
                 if (creature.StuckSteps >= StuckSteps) creature.Body = null;
                 if (stale && !Replan(creature, playerFeet, playerGround))
                 {
+                    creature.Waypoint = BeyondNavigation(creature, playerGround);
                     continue;
                 }
 
@@ -544,14 +657,6 @@ internal sealed class CreatureModule : IProductModule
 
     private VoxelAddress GroundCell(Vector2 position) => GroundCell(position, GroundAt(position));
 
-    private void Spawn()
-    {
-        int placed = Place(InitialCreatureCount, StartingRegionId, _ => CreatureKinds.Hostile,
-            CreatureSpawnPlan.MinimumDistanceMetres, CreatureSpawnPlan.MaximumDistanceMetres);
-        presentation.Sync(roster);
-        lastEvent = $"started with {placed} creature(s), {spawnRefusals} site(s) refused by the rules";
-    }
-
     /// <summary>
     /// A travel encounter (#9470): hostile creatures close in around the player, under the same
     /// encounter rules as the starting ones, in a wilderness region of their own. The player has
@@ -579,7 +684,8 @@ internal sealed class CreatureModule : IProductModule
             navigation.EnsurePublished(feet);
             // A few columns per update, each with a small search; a column refused once is not tried again.
             int checks = 0;
-            int placed = Place(ambushWaiting, AmbushRegionBase + ambushes, _ => CreatureKinds.Hostile,
+            WildlifeKind? hunter = Wildlife?.HunterKinds.FirstOrDefault();
+            int placed = Place(ambushWaiting, AmbushRegionBase + ambushes, _ => hunter is null ? CreatureKinds.Hostile : KindOf(hunter),
                 CreatureSpawnPlan.AmbushMinimumDistanceMetres, CreatureSpawnPlan.AmbushMaximumDistanceMetres,
                 column =>
                 {
@@ -588,7 +694,12 @@ internal sealed class CreatureModule : IProductModule
                     bool routed = navigation.Step(Feet(column), feet, AmbushVisitedCells).Outcome == NavigationPathOutcome.Reached;
                     if (!routed) ambushRefused.Add(column);
                     return routed;
-                }, ambushColumns);
+                }, ambushColumns, null, hunter is null ? null : creature =>
+                {
+                    HerdRecord record = new($"{hunter.Id}@ambush#{++hunterRegions}", hunter.Id, creature.Position, 1);
+                    hunters[creature.Id] = new Hunter(hunter, record, Wildlife!.WakeHunter(record, hunter, creature.Position));
+                    hunted.Add(record.Key);
+                });
             ambushWaiting -= placed;
             ambushPlaced += placed;
         }
@@ -627,12 +738,13 @@ internal sealed class CreatureModule : IProductModule
     /// <param name="placed">Columns this placement has already filled, kept across updates by a pending
     /// ambush (#9531): none is filled again, and new creatures keep their separation from all of them.</param>
     private int Place(int count, long regionId, Func<int, CreatureKind> kindFor, int minimumMetres, int maximumMetres,
-        Func<Vector2, bool>? usable = null, List<(long X, long Z)>? placed = null)
+        Func<Vector2, bool>? usable = null, List<(long X, long Z)>? placed = null, Vector2? around = null, Action<Creature>? joined = null)
     {
         TerrainEncounterFacts facts = new(terrain.Recipe);
-        Vector3 origin = player.WorldPosition;
+        Vector3 at = player.WorldPosition;
+        Vector2 origin = around ?? new Vector2(at.X, at.Z);
         List<(long X, long Z)> chosen = CreatureSpawnPlan.Choose(
-            CreatureSpawnPlan.Candidates((long)Math.Floor(origin.X), (long)Math.Floor(origin.Z), minimumMetres, maximumMetres),
+            CreatureSpawnPlan.Candidates((long)Math.Floor(origin.X), (long)Math.Floor(origin.Y), minimumMetres, maximumMetres),
             placed ?? [], count, column =>
             {
                 if (usable?.Invoke(new Vector2(column.X + CellCentre, column.Z + CellCentre)) == false
@@ -651,7 +763,9 @@ internal sealed class CreatureModule : IProductModule
                 }
 
                 nextId++;
-                roster.Add(new Creature(id, kindFor(id), new Vector2(column.X + CellCentre, column.Z + CellCentre)));
+                Creature creature = new(id, kindFor(id), new Vector2(column.X + CellCentre, column.Z + CellCentre));
+                roster.Add(creature);
+                joined?.Invoke(creature);
                 return true;
             });
         return chosen.Count;

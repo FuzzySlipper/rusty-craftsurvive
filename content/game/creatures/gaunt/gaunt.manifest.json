@@ -1,0 +1,79 @@
+{
+  "species": "gaunt",
+  "family": "ungulate",
+  "body": {
+    "hindMetres": -1.48,
+    "foreMetres": -0.12
+  },
+  "legs": [
+    [
+      "shin.L",
+      "cannon.L",
+      "hoof.L"
+    ],
+    [
+      "forearm.L",
+      "fcannon.L",
+      "fhoof.L"
+    ],
+    [
+      "shin.R",
+      "cannon.R",
+      "hoof.R"
+    ],
+    [
+      "forearm.R",
+      "fcannon.R",
+      "fhoof.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 2.0,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 1.4
+    },
+    "run": {
+      "seconds": 0.9333333333333333,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 6.0
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 2.2,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 2.4,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "bite": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "hurt": {
+      "seconds": 0.6,
+      "loops": false,
+      "plantsFeet": true
+    }
+  }
+}

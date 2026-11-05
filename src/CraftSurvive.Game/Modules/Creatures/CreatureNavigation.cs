@@ -50,6 +50,9 @@ internal sealed class CreatureNavigation
     /// </summary>
     private const float HalfExtent = 32f;
 
+    /// <summary>How far from the player a creature can be routed.</summary>
+    internal const float ReachMetres = HalfExtent;
+
     /// <summary>How far the box reaches below and above the player's feet: the ground's relief across the box.</summary>
     private const float DepthBelow = 16f;
     private const float HeightAbove = 16f;

@@ -6,6 +6,12 @@
       "mesh": "creatures/sloth/sloth.glb",
       "manifest": "creatures/sloth/sloth.manifest.json",
       "scale": 1.0
+    },
+    {
+      "name": "gaunt",
+      "mesh": "creatures/gaunt/gaunt.glb",
+      "manifest": "creatures/gaunt/gaunt.manifest.json",
+      "scale": 1.0
     }
   ]
 }

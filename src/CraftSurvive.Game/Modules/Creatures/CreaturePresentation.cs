@@ -38,6 +38,7 @@ internal sealed class CreaturePresentation : IDisposable
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
     private readonly Func<Creature, float> groundAt;
+    private readonly Func<Creature, bool> drawnElsewhere;
     private readonly Dictionary<int, (Appearance Appearance, EntityId Entity)> shown = [];
 
     /// <summary>
@@ -49,8 +50,10 @@ internal sealed class CreaturePresentation : IDisposable
 
     private AppearanceFact[] facts = [];
 
-    internal CreaturePresentation(IEngineContext engine, WorldFrame frame, Func<Creature, float> groundAt)
+    /// <param name="drawnElsewhere">Whether a creature has a body of its own (#10615): it keeps its entity row, and shows no box.</param>
+    internal CreaturePresentation(IEngineContext engine, WorldFrame frame, Func<Creature, float> groundAt, Func<Creature, bool> drawnElsewhere)
     {
+        this.drawnElsewhere = drawnElsewhere ?? throw new ArgumentNullException(nameof(drawnElsewhere));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.groundAt = groundAt ?? throw new ArgumentNullException(nameof(groundAt));
@@ -117,7 +120,7 @@ internal sealed class CreaturePresentation : IDisposable
                     Quaternion.Identity,
                     BodyScale),
                 entry.Appearance,
-                Visible: true,
+                Visible: !drawnElsewhere(creature),
                 RenderLayer.Scene));
         }
 

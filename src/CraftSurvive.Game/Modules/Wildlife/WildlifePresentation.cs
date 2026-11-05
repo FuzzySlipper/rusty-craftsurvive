@@ -72,7 +72,8 @@ internal sealed class WildlifePresentation : IDisposable
     /// <summary>Every awake animal's parts for this update's snapshot.</summary>
     /// <param name="here">Where the player stands (world X, Z), which sets how much of each animal's animation runs.</param>
     /// <param name="seconds">How long since the last sync; zero when it only reflects a change made outside an update.</param>
-    internal void Sync(IReadOnlyList<WildlifeHerd> herds, IReadOnlyList<WildlifeFallen> fallen, Func<WildlifeMember, float> feet, Vector2 here, double seconds)
+    /// <param name="hunters">The hostile animals awake (#10615): the creature rules move them, and they are drawn here with the rest.</param>
+    internal void Sync(IReadOnlyList<WildlifeHerd> herds, IReadOnlyList<WildlifeFallen> fallen, IReadOnlyList<Creatures.WildlifeHunter> hunters, Func<WildlifeMember, float> feet, Vector2 here, double seconds)
     {
         List<AppearanceFact> next = [];
         HashSet<WildlifeMember> kept = [];
@@ -93,6 +94,12 @@ internal sealed class WildlifePresentation : IDisposable
                 kept.Add(member);
                 next.Add(meshes.Pose(herd, herd.Kind, member, feet(member), Vector2.Distance(member.Position, here), seconds, plantWithin, fallen: false));
             }
+        }
+
+        foreach (Creatures.WildlifeHunter hunter in hunters)
+        {
+            kept.Add(hunter.Member);
+            next.Add(meshes.Pose(null, hunter.Kind, hunter.Member, hunter.Feet, Vector2.Distance(hunter.Member.Position, here), seconds, double.PositiveInfinity, fallen: false));
         }
 
         foreach (WildlifeFallen body in fallen)

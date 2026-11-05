@@ -98,7 +98,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     {
         Body body = bodies.Take(member, () => Create(kind, member), Retire);
         body.Tier = WildlifeClips.Tier(distance, body.Tier, animation);
-        Play(body, herd, member, seconds, fallen);
+        Play(body, herd, kind, member, seconds, fallen);
         Sit(body, kind, member, feet, seconds);
         float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
         // The mesh faces +Z; yaw 0 faces north (-Z) and a quarter turn east (+X). A rising front turns the nose up: a negative turn about the mesh's own X.
@@ -111,7 +111,8 @@ internal sealed class WildlifeMeshBodies : IDisposable
     }
 
     /// <summary>Starts, changes, holds or resumes the clip the animal's state calls for.</summary>
-    private void Play(Body body, WildlifeHerd? herd, WildlifeMember member, double seconds, bool fallen)
+    /// <param name="herd">Its herd, whose state picks the clip; null for a hostile animal, whose clip the creature rules have set.</param>
+    private void Play(Body body, WildlifeHerd? herd, WildlifeKind kind, WildlifeMember member, double seconds, bool fallen)
     {
         WildlifeRig rig = body.Kind.Rig;
         bool held = body.Tier >= WildlifeTier.Held;
@@ -128,9 +129,8 @@ internal sealed class WildlifeMeshBodies : IDisposable
             return;
         }
 
-        if (herd is null) return;
-        WildlifeClips.Advance(member, herd, rig, animation, seconds);
-        float rate = WildlifeClips.Rate(member.Clip, member.Velocity.Length(), rig, animation, WildlifeClips.Scale(member, herd.Kind));
+        if (herd is not null) WildlifeClips.Advance(member, herd, rig, animation, seconds);
+        float rate = WildlifeClips.Rate(member.Clip, member.Velocity.Length(), rig, animation, WildlifeClips.Scale(member, kind));
         if (body.Playing == member.Clip && Math.Abs(rate - body.Rate) < animation.RateStep) return;
         if (held && body.Playing is not null) return;
         Start(body, member, member.Clip, rate, restart: body.Playing != member.Clip);
@@ -259,6 +259,9 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Open(kind);
         if (kind.Young is { } young) YoungPaint(kind.Id, young);
     }
+
+    /// <summary>A kind's clips, opening it if it is not open yet.</summary>
+    internal WildlifeRig RigOf(WildlifeKind kind) => Open(kind).Rig;
 
     private Opened Open(WildlifeKind kind)
     {

@@ -15,6 +15,7 @@ usage: blender -b --factory-startup --python-exit-code 1 --python art/creatures/
 - Writes <out.glb> and <out>.manifest.json. Clip ids are lowercase, as the Engine requires, and
   the samplers are nearest for both filters (rusty-engine #10011).
 """
+import heapq
 import json
 import math
 import struct
@@ -323,6 +324,54 @@ def pin_shell(species, mesh):
     print(f"shell: {len(pinned)} of {len(mesh.data.vertices)} vertices follow {shell['bone']}")
 
 
+def pin_mouth(species, mesh):
+    """
+    Teeth interlock, so heat weighting cannot part the jaws, and no line between them can. Upper and
+    lower meet only at the mouth's corners, so each vertex forward of the hinge goes to whichever
+    end of the mouth is nearer along the surface; a loose tooth goes by its height against the bite.
+    """
+    mouth = species.get("mouth")
+    if not mouth:
+        return
+    data = bmesh.new()
+    data.from_mesh(mesh.data)
+    data.verts.ensure_lookup_table()
+    forward = mouth["hingeForward"]
+    inside = [v for v in data.verts if -v.co.y >= forward]
+
+    def nearest(point):
+        return min(inside, key=lambda v: (-v.co.y - point[0]) ** 2 + (v.co.z - point[1]) ** 2)
+
+    reached = {}
+    queue = [(0.0, nearest(mouth[name]).index, name) for name in ("upper", "lower")]
+    heapq.heapify(queue)
+    while queue:
+        distance, index, name = heapq.heappop(queue)
+        if index in reached:
+            continue
+        reached[index] = name
+        vertex = data.verts[index]
+        for edge in vertex.link_edges:
+            other = edge.other_vert(vertex)
+            if -other.co.y >= forward and other.index not in reached:
+                heapq.heappush(queue, (distance + edge.calc_length(), other.index, name))
+
+    def bite_height(vertex):
+        share = (-vertex.co.y - forward) / (mouth["upper"][0] - forward)
+        return (1 - share) * species["points"]["jaw"][2] + share * (mouth["upper"][1] + mouth["lower"][1]) / 2
+
+    side = {v.index: reached.get(v.index) or ("upper" if v.co.z > bite_height(v) else "lower") for v in inside}
+    data.free()
+    groups = {"upper": "head", "lower": "jaw"}
+    for group in mesh.vertex_groups:
+        group.remove(list(side))
+    for name, bone in groups.items():
+        group = mesh.vertex_groups.get(bone) or mesh.vertex_groups.new(name=bone)
+        group.add([index for index, end in side.items() if end == name], 1.0, "REPLACE")
+    print(f"mouth: {sum(end == 'upper' for end in side.values())} vertices follow the head, "
+          f"{sum(end == 'lower' for end in side.values())} the jaw")
+
+
 # ---------------------------------------------------------------- IK controls
 
 class Controls:
@@ -553,6 +602,7 @@ def main(argv):
     mesh = import_mesh(mesh_path, texture) if mesh_path else build_proxy(species, rig, family)
     skin(rig, mesh)
     pin_shell(species, mesh)
+    pin_mouth(species, mesh)
     controls = Controls(rig, family)
     points = species["points"]
     manifest = {

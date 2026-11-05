@@ -16,7 +16,7 @@ public sealed class CreatureDebugModule : IDebugCommandModule
     [DebugCommand("craft.creatures.readout", Description = "Reads every creature, the player's vitals and progress, and the last creature event.")]
     public string Readout() => creatures.Readout();
 
-    [DebugCommand("craft.creatures.restart", Description = "Clears the creatures and places a fresh starting set around the player where they stand.")]
+    [DebugCommand("craft.creatures.restart", Description = "Clears the creatures; hostile animals return with their homes, where they stand.")]
     public string Restart()
     {
         creatures.Restart();
@@ -32,6 +32,9 @@ public sealed class CreatureDebugModule : IDebugCommandModule
         creatures.Ambush((int)Math.Clamp(count, 1, 24));
         return creatures.Readout();
     }
+
+    [DebugCommand("craft.creatures.hunter", Description = "Assisted: places a hostile animal of a kind (kind east south) from the player, in no region's population.")]
+    public string Hunter(string kind, double east, double south) => creatures.PlaceHunterNear(kind, east, south);
 
     [DebugCommand("craft.creatures.route", Description = "Reads the navigation route from a world column (x z) to the player as cells, for diagnosis.")]
     public string Route(double x, double z) => creatures.RouteReadout(x, z);

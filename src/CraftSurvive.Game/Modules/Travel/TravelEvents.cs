@@ -178,7 +178,8 @@ internal static class TravelEvents
     internal const double LongestShelterHours = 48;
     /// <summary>Pushing through a hazard costs a ration, or this much health with none to spare.</summary>
     internal const int HazardDamage = 4;
-    internal const int AmbushSize = 3;
+    /// <summary>Hostile animals hunt alone.</summary>
+    internal const int AmbushSize = 1;
 
     /// <summary>Hours lining or carrying the boat round trouble on the water (#9904).</summary>
     internal const double SnagHours = 2, ShallowsHours = 2, RapidsHours = 3, SweepersHours = 5, ShoalsHours = 2;

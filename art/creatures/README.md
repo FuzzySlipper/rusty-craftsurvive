@@ -180,3 +180,19 @@ Measured with planting budgeted to the nearest eight: about 2.5 ms an update for
 awake near the player. Planting every animal in a crowd cost about ten times that and tripled
 render time, so keep the budget unless the Engine changes.
 
+## Hostile animals
+
+The gaunt (#10615) is the first. It is an invented animal, so the faithful-proportions rule does not
+bind it, and it goes through the same workflow with these differences:
+
+- **A real mouth has to be on the sheet.** Tripo copies what it is shown, so `gaunt/mesh/reference.png`
+  draws the jaws half open at rest, and the mesh arrives with separate jaws, modelled teeth and a red
+  mouth. Its rest pose is that half-open mouth; clips open and shut from there.
+- **`"mouth"` in a species file** parts the jaws by surface distance from a point on each, forward of
+  `hingeForward` (`pin_mouth` in `build_creature.py`). Interlocking teeth defeat both heat weighting
+  and a dividing line.
+- **Hunter clips** in the ungulate family: `threat`, `bite` and `hurt`.
+
+In game it is a kind in `content/game/wildlife/kinds.json` with `"pressed": "hunt"` and a `hunt` block.
+Wildlife seeds it, draws it and counts its losses; `CreatureModule` hunts with it (`HunterRules`).
+`craft.creatures.hunter <kind> <east> <south>` places one.

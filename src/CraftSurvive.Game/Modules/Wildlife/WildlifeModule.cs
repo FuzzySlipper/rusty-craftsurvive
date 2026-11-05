@@ -66,6 +66,7 @@ internal sealed class WildlifeModule : IProductModule
     private int nextId;
     private ulong bodySequence;
     private long step;
+    private long lastWakeStep;
     private long swings;
     private bool started;
     private string lastEvent = "none";
@@ -142,7 +143,7 @@ internal sealed class WildlifeModule : IProductModule
         if (player.InSeparateSpace)
         {
             // The open world's herds sleep while the player is in a dungeon: nothing draws them there.
-            if (awake.Count > 0 || fallen.Count > 0) SleepAll();
+            if (awake.Count > 0 || fallen.Count > 0 || AppearanceFacts.Count > 0) SleepAll();
             return;
         }
 
@@ -150,8 +151,10 @@ internal sealed class WildlifeModule : IProductModule
         step = time.Step;
         WorldTime now = clock();
         Vector3 at = player.WorldPosition;
-        if (step % WakeEverySteps == 0 || awake.Count == 0)
+        // An update can admit several steps, so the pass is due on passing a multiple, not only on landing on one.
+        if (step / WakeEverySteps != lastWakeStep / WakeEverySteps || awake.Count == 0)
         {
+            lastWakeStep = step;
             long waking = Stopwatch.GetTimestamp();
             Sleep(at);
             Wake(at, now);
@@ -167,7 +170,7 @@ internal sealed class WildlifeModule : IProductModule
         }
 
         Decay(here, time.ElapsedSeconds);
-        Presentation.Sync(awake, fallen, FeetOf, here, time.ElapsedSeconds);
+        Presentation.Sync(awake, fallen, Hunters?.Invoke() ?? [], FeetOf, here, time.ElapsedSeconds);
         double milliseconds = Stopwatch.GetElapsedTime(began).TotalMilliseconds;
         cost = (cost.Total + milliseconds, cost.Count + 1, Math.Max(cost.Worst, milliseconds), cost.Steps, cost.Refused, cost.Glides);
     }
@@ -285,7 +288,6 @@ internal sealed class WildlifeModule : IProductModule
     private void Wake(Vector3 at, WorldTime now)
     {
         WildlifeWaking waking = Catalog.Waking;
-        if (awake.Count >= waking.MostAwakeHerds) return;
         double reach = waking.WakeMetres + Catalog.Kinds.Max(kind => kind.Population.RangeMetres);
         Vector2 here = new(at.X, at.Z);
         HashSet<string> keys = [.. awake.Select(herd => herd.Key)];
@@ -299,9 +301,40 @@ internal sealed class WildlifeModule : IProductModule
             .OrderBy(entry => Vector2.Distance(entry.Point, here));
         foreach (var entry in candidates)
         {
-            if (awake.Count >= waking.MostAwakeHerds) break;
-            WakeAt(entry.Record, entry.Kind, entry.Point, entry.Alive);
+            if (entry.Kind.Pressed == PressedResponse.Hunt) HunterNear?.Invoke(entry.Record, entry.Kind, entry.Point);
+            else if (awake.Count < waking.MostAwakeHerds) WakeAt(entry.Record, entry.Kind, entry.Point, entry.Alive);
         }
+    }
+
+    /// <summary>A hostile animal's home has come near (#10615): the creature rules take it from here, and are told on every wake pass.</summary>
+    internal Action<HerdRecord, WildlifeKind, Vector2>? HunterNear { get; set; }
+
+    /// <summary>The hostile animals to draw this update.</summary>
+    internal Func<IReadOnlyList<Creatures.WildlifeHunter>>? Hunters { get; set; }
+
+    /// <summary>The kinds that hunt.</summary>
+    internal IEnumerable<WildlifeKind> HunterKinds => Catalog.Kinds.Where(kind => kind.Pressed == PressedResponse.Hunt);
+
+    /// <summary>A kind's clips, for the creature rules to show.</summary>
+    internal WildlifeRig RigOf(WildlifeKind kind) => Presentation.Meshes.RigOf(kind);
+
+    /// <summary>A hostile animal's body: wildlife draws its size and coat as it does any animal's, and holds its id until it goes.</summary>
+    internal WildlifeMember WakeHunter(HerdRecord record, WildlifeKind kind, Vector2 point) =>
+        WildlifeRules.Wake(record, kind, Catalog, Seed, point, 1, TakeId, Excluded).Leader;
+
+    /// <summary>A hostile animal has gone without dying: it leaves no body, and its herd record keeps it.</summary>
+    internal void ForgetHunter(WildlifeMember member) => Forget(member);
+
+    /// <summary>A hostile animal is dead: it falls where it stood, and its record counts the loss as a herd's does.</summary>
+    internal void HunterFell(Creatures.Hunter hunter, float feet)
+    {
+        WildlifeMember member = hunter.Member;
+        member.Velocity = Vector2.Zero;
+        bodies[member.Id] = new MemberBody { Feet = feet };
+        fallen.Add(new WildlifeFallen(hunter.Kind, member));
+        double day = Day(clock());
+        hunter.Record.Kill(day, hunter.Kind.Population.RecoveryDays);
+        slot.Save(Ledger.Losses(day));
     }
 
     private WildlifeHerd WakeAt(HerdRecord record, WildlifeKind kind, Vector2 point, int alive)
@@ -569,6 +602,7 @@ internal sealed class WildlifeModule : IProductModule
     {
         if (!started) return "wildlife: not started";
         if (!Catalog.TryKind(kindId, out WildlifeKind kind)) return $"no kind '{kindId}'; kinds: {string.Join(",", Catalog.Kinds.Select(k => k.Id))}";
+        if (kind.Pressed == PressedResponse.Hunt) return $"{kindId} hunts: use craft.creatures.hunter";
         Vector3 at = player.WorldPosition;
         Vector2 point = new(at.X + (float)(east ?? (kind.Senses.NoticeMetres + SpawnBeyondNoticeMetres)), at.Z + (float)(south ?? 0));
         if (Excluded(point)) return $"({point.X:F0}, {point.Y:F0}) is in a town's sanctuary: no herd stands there";
@@ -585,7 +619,7 @@ internal sealed class WildlifeModule : IProductModule
         foreach (WildlifeHerd herd in awake.ToArray()) Release(herd);
         foreach (WildlifeFallen body in fallen) Forget(body.Member);
         fallen.Clear();
-        Presentation.Sync(awake, fallen, FeetOf, Here, 0);
+        Presentation.Sync(awake, fallen, [], FeetOf, Here, 0);
         return "all herds asleep";
     }
 

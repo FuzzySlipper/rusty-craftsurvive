@@ -185,6 +185,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         wildlife = new Modules.Wildlife.WildlifeModule(context.Engine, context.Content, store, terrain.SaveIdentity, terrain, player, frame, () => conditions.Time, cues);
         creatures.SwingElsewhere = wildlife.PlayerSwing;
+        creatures.Wildlife = wildlife;
+        wildlife.HunterNear = creatures.AdmitHunter;
+        wildlife.Hunters = creatures.HunterFacts;
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition), () => weather.Exposure, () => weather.Here.Dominant?.Front.Kind.Name ?? "");
         survival.Slept += hours => party?.Rest(hours);

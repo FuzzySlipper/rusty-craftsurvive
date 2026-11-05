@@ -101,6 +101,27 @@
   },
   "kinds": [
     {
+      "id": "gaunt",
+      "name": "Gaunt",
+      "habitat": { "Alpine": 1.0, "Desert": 1.0 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 3.6, "heightMetres": 3.1, "widthMetres": 0.9, "sizeClass": "human", "colour": "#8a7d6a" },
+      "mesh": {
+        "file": "creatures/gaunt/gaunt.glb",
+        "manifest": "creatures/gaunt/gaunt.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.4, "grazeDrift": 0.4, "flee": 7.4, "turnDegrees": 160 },
+      "wariness": { "noticeMetres": 48, "actMetres": 30, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 48, "reachMetres": 2.8, "haltMetres": 2.2, "accuracy": 20, "power": 3, "cooldownTicks": 150, "biteWindupSeconds": 0.46, "dodgeMetres": 0.6 },
+      "schedule": "dusk-and-dawn",
+      "population": { "herdsPerSquareKilometre": 0.01, "rangeMetres": 200, "recoveryDays": 30 },
+      "combat": { "health": 60, "evasion": 55, "armour": 4, "experience": 300 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 2, "oneIn": 1 } ]
+    },
+    {
       "id": "ground-sloth",
       "name": "Giant ground sloth",
       "habitat": { "Grassland": 1.0, "Shrubland": 0.4, "TemperateForest": 0.3 },

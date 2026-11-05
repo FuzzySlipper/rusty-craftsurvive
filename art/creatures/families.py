@@ -379,6 +379,43 @@ def ungulate_gape(c, s, t):
     c.bone_offset("hips", (0, 0, -0.03))
 
 
+def ungulate_threat(c, s, t):
+    """A hunter's threat: the head rears up and back and the jaws gape as far as they go, shaking."""
+    up = gait.rise_hold_fall(t, 0.18, 0.85)
+    shake = 0.5 + 0.5 * gait.wave(t, 8)
+    c.bone_rotation("chest", pitch(5.0 * up))
+    c.bone_rotation("neck", pitch(16.0 * up) @ yaw(5.0 * up * gait.wave(t, 2)))
+    c.bone_rotation("neck2", pitch(20.0 * up))
+    c.bone_rotation("head", pitch(14.0 * up) @ yaw(3.0 * up * gait.wave(t, 8)))
+    c.bone_rotation("jaw", pitch((-46.0 - 5.0 * shake) * up))
+    c.bone_offset("hips", (0, -0.1 * up, -0.08 * up))
+
+
+def ungulate_bite(c, s, t):
+    """A lunge: the neck draws back with the jaws wide, strikes out and down, and they snap shut."""
+    back = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.34, 0.46))
+    strike = gait.ease_in_out(t, 0.36, 0.48) * (1.0 - gait.ease_in_out(t, 0.72, 1.0))
+    wide = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.46, 0.54))
+    shut = gait.ease_in_out(t, 0.46, 0.54) * (1.0 - gait.ease_in_out(t, 0.8, 1.0))
+    c.bone_rotation("chest", pitch(4.0 * back - 7.0 * strike))
+    c.bone_rotation("neck", pitch(16.0 * back - 16.0 * strike))
+    c.bone_rotation("neck2", pitch(14.0 * back - 10.0 * strike))
+    c.bone_rotation("head", pitch(-8.0 * back - 10.0 * strike))
+    c.bone_rotation("jaw", pitch(-44.0 * wide + 7.0 * shut))
+    c.bone_offset("hips", (0, -0.22 * back + 0.42 * strike, -0.1 * strike))
+
+
+def ungulate_hurt(c, s, t):
+    """A blow lands: it flinches off to one side and shudders back."""
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    c.bone_rotation("chest", roll(5.0 * hit))
+    c.bone_rotation("neck", pitch(10.0 * hit) @ yaw(-16.0 * hit))
+    c.bone_rotation("neck2", yaw(-12.0 * hit))
+    c.bone_rotation("head", pitch(10.0 * hit))
+    c.bone_rotation("jaw", pitch(-30.0 * hit))
+    c.bone_offset("hips", (0, -0.12 * hit, -0.05 * hit))
+
+
 def ungulate_rear(c, s, t):
     """Up on the hind legs, the forelegs hooked out in front: a chalicothere reaching for a branch, or warning."""
     up = gait.rise_hold_fall(t, 0.3, 0.75)
@@ -444,6 +481,9 @@ UNGULATE_CLIPS = {
     "bolt": (ungulate_bolt, False, False),
     "bellow": (ungulate_bellow, False, True),
     "gape": (ungulate_gape, True, True),
+    "threat": (ungulate_threat, False, True),
+    "bite": (ungulate_bite, False, True),
+    "hurt": (ungulate_hurt, False, True),
     "rear": (ungulate_rear, False, False),
     "shove": (ungulate_shove, False, True),
     "spar": (ungulate_spar, False, True),

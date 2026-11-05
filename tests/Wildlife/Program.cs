@@ -1,5 +1,6 @@
 using System.Numerics;
 using CraftSurvive.Game.Modules.Creatures;
+using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Wildlife;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -54,12 +55,91 @@ double ClosestPair(WildlifeHerd herd)
 double CohesionBound(WildlifeKind kind, int count) =>
     kind.SpacingMetres * ((0.75 * Math.Sqrt(count - 1)) + catalog.Behaviour.CatchUpSpacings + catalog.Behaviour.SlotJitterShare);
 
+Check.Section("hostile animals", () =>
+{
+    WildlifeKind gaunt = catalog.Kind("gaunt");
+    WildlifeHunt hunt = gaunt.Hunt ?? throw new InvalidDataException("the gaunt must hunt");
+    Check.That(catalog.Kinds.All(k => (k.Pressed == PressedResponse.Hunt) == (k.Hunt is not null)), "a kind hunts exactly when it has a hunt block");
+
+    // Patch, 2026-11-04: hostile animals keep to empty country, away from the lush ground neutral herds make idyllic.
+    MapBiome[] lush = [MapBiome.Grassland, MapBiome.TemperateForest, MapBiome.Rainforest, MapBiome.BorealForest, MapBiome.Shrubland];
+    Check.That(lush.All(biome => gaunt.HabitatWeight(biome) == 0), "a hostile animal lives on none of the lush country");
+    Check.That(gaunt.HabitatWeight(MapBiome.Alpine) > 0 && gaunt.HabitatWeight(MapBiome.Desert) > 0, "it lives high and dry");
+
+    int Gaunts(MapBiome biome) => Enumerable.Range(0, 2000)
+        .SelectMany(i => WildlifeSeeding.Seed(new WildlifeRegion(i, 7), 41, catalog, (_, _) => biome).Herds)
+        .Count(herd => herd.KindId == "gaunt");
+    Check.Equal(0, Gaunts(MapBiome.Grassland), "no hostile animal is seeded on grassland");
+    int alpine = Gaunts(MapBiome.Alpine);
+    Check.That(alpine is > 0 and < 60, $"it is rare where it lives: {alpine} homes in 2000 square kilometres of mountain");
+
+    CreatureKind creature = HunterRules.KindOf(gaunt);
+    Check.Equal(hunt.ReachMetres, creature.ReachMetres, "the creature rules bite at the content's reach");
+    Check.Equal(gaunt.Speeds.Flee, creature.PursueSpeedMetresPerSecond, "it hunts at its running speed");
+    Check.Equal(CreatureDisposition.Hostile, creature.Tuning.Disposition, "it is hostile");
+    Check.That(creature.HaltDistanceMetres < creature.ReachMetres, "it halts inside its reach");
+
+    string manifest = ReadResource("Wildlife.gaunt.manifest.json");
+    WildlifeRig rig = WildlifeRig.For(gaunt.Mesh!, CreatureManifest.Parse(manifest));
+    foreach (WildlifeClipRole role in new[] { WildlifeClipRole.Threat, WildlifeClipRole.Bite, WildlifeClipRole.Hurt, WildlifeClipRole.Die, WildlifeClipRole.Run })
+        Check.That(rig.Clips.ContainsKey(role), $"the gaunt has a {role} clip");
+    Check.That(rig.Clip(WildlifeClipRole.Bite).Seconds > hunt.BiteWindupSeconds, "the jaws close before the bite ends");
+
+    Hunter Fresh() => new(gaunt, new HerdRecord("gaunt@test", "gaunt", Vector2.Zero, 1),
+        new WildlifeMember(1, Vector2.Zero, Vector2.Zero, CombatantState.Fresh(gaunt.MaximumHealth, gaunt.Defence)));
+    const double Runs = 3.7, Threat = 2.4, Step = 1d / 60;
+
+    Hunter hunter = Fresh();
+    Check.Equal(WildlifeClipRole.Idle, HunterRules.Want(hunter, CreatureState.Idle, 0, Runs), "an unaware hunter idles");
+    Check.Equal(WildlifeClipRole.Walk, HunterRules.Want(hunter, CreatureState.Pursuing, 2, Runs), "slowly, it walks");
+    Check.Equal(WildlifeClipRole.Run, HunterRules.Want(hunter, CreatureState.Pursuing, 7, Runs), "fast, it runs");
+    Check.Equal(WildlifeClipRole.Look, HunterRules.Want(hunter, CreatureState.Attacking, 0, Runs), "standing at the player between bites, it watches them");
+
+    HunterRules.Advance(hunter, CreatureState.Pursuing, 30, Threat, Step);
+    Check.That(hunter.Holding, "a hunter that has seen the player stands to show its threat");
+    Check.Equal(WildlifeClipRole.Threat, HunterRules.Want(hunter, CreatureState.Pursuing, 0, Runs), "the threat shows");
+    for (int i = 0; i < 200; i++) HunterRules.Advance(hunter, CreatureState.Pursuing, 30, Threat, Step);
+    Check.That(!hunter.Holding, "the threat ends, and the hunt goes on");
+    HunterRules.Advance(hunter, CreatureState.Pursuing, 30, Threat, Step);
+    Check.That(!hunter.Holding, "it threatens once a hunt");
+    HunterRules.Advance(hunter, CreatureState.Idle, 60, Threat, Step);
+    HunterRules.Advance(hunter, CreatureState.Pursuing, 30, Threat, Step);
+    Check.That(hunter.Holding, "a hunter that lost interest threatens again on the next hunt");
+
+    Hunter close = Fresh();
+    HunterRules.Advance(close, CreatureState.Pursuing, hunt.ReachMetres - 0.1, Threat, Step);
+    Check.That(!close.Holding, "a player already in reach gets no threat");
+
+    Hunter biting = Fresh();
+    AttackProfile blow = new(hunt.Accuracy, hunt.Power, DamageType.Piercing);
+    HunterRules.Bite(biting, blow, 1.0);
+    Check.That(biting.Holding, "it stands to bite");
+    Check.Equal(WildlifeClipRole.Bite, HunterRules.Want(biting, CreatureState.Attacking, 0, Runs), "the bite shows");
+    int closesAt = 0;
+    for (int i = 1; i <= 60 && closesAt == 0; i++)
+    {
+        if (HunterRules.Advance(biting, CreatureState.Attacking, 2, Threat, Step) is not null) closesAt = i;
+    }
+
+    Check.That(Math.Abs((closesAt * Step) - hunt.BiteWindupSeconds) <= Step, $"the blow lands as the jaws close: step {closesAt}");
+    Check.That(HunterRules.Lands(hunt, hunt.ReachMetres + hunt.DodgeMetres - 0.01), "a player still in reach is bitten");
+    Check.That(!HunterRules.Lands(hunt, hunt.ReachMetres + hunt.DodgeMetres + 0.01), "a player who stepped away in time is not");
+
+    biting.HurtSeconds = 0.3;
+    Check.Equal(WildlifeClipRole.Hurt, HunterRules.Want(biting, CreatureState.Attacking, 0, Runs), "a blow shows over the bite");
+
+    Check.That(Math.Abs(HunterRules.Turned(0, new Vector2(1, 0), 90, 10) - (MathF.PI / 2)) < 1e-4, "it comes round to face east");
+    Check.That(Math.Abs(HunterRules.Turned(0, new Vector2(1, 0), 90, 0.1) - (MathF.PI / 20)) < 1e-4, "no faster than it can turn");
+    Check.Equal(1f, HunterRules.Turned(1, Vector2.Zero, 90, 1), "with nowhere to face it stays as it was");
+});
+
 Check.Section("kinds", () =>
 {
     string[] firstWave = ["ground-sloth", "hipparion", "giant-deer", "entelodont", "giant-beaver", "cave-goat", "glyptodon", "mammoth"];
     string[] secondWave = ["ancylotherium", "paraceratherium", "diprotodon", "megacerops", "sivatherium"];
     Check.That(firstWave.Concat(secondWave).All(id => catalog.TryKind(id, out _)), "the first- and second-wave kinds must load");
-    Check.Equal(firstWave.Length + secondWave.Length, catalog.Kinds.Count, "the content holds the two waves and nothing else");
+    string[] hunters = ["gaunt"];
+    Check.Equal(firstWave.Length + secondWave.Length + hunters.Length, catalog.Kinds.Count, "the content holds the two waves, the hunters and nothing else");
     Check.That(Enum.GetValues<PressedResponse>().All(r => catalog.Kinds.Any(k => k.Pressed == r)), "every pressed response must have a kind that shows it");
     Check.That(Enum.GetValues<WildlifeSizeClass>().All(c => catalog.SizeClasses.ContainsKey(c)), "every size class must have a capsule");
     WildlifeKind sloth = catalog.Kind("ground-sloth");

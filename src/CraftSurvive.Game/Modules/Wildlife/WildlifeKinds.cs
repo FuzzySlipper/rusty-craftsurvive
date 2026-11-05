@@ -26,6 +26,9 @@ internal enum PressedResponse
     /// <summary>Displays, then charges at the player; the others display.</summary>
     DisplayCharge,
 
+    /// <summary>A hostile animal (#10615): it wakes as a creature and hunts by the creature rules, not as a herd.</summary>
+    Hunt,
+
     /// <summary>Hunkers down where it is until the player has gone.</summary>
     Hunker,
 
@@ -66,6 +69,9 @@ internal enum WildlifeClipRole
     Die,
     Slip,
     LedgeHop,
+    Threat,
+    Bite,
+    Hurt,
 }
 
 /// <summary>A kind's animated body: its mesh and build manifest, and which clip plays each role. A kind without one is drawn as a placeholder.</summary>
@@ -90,6 +96,17 @@ internal sealed record WildlifeYoung(
     double HealthShare,
     double YieldShare,
     LootTable Loot);
+
+/// <summary>
+/// How a hostile animal hunts (#10615).
+/// </summary>
+/// <param name="SightMetres">How far it sees the player.</param>
+/// <param name="ReachMetres">How close it must stand to bite, by its body's centre: its head reaches far ahead of it.</param>
+/// <param name="HaltMetres">Where it stops, inside its reach.</param>
+/// <param name="CooldownTicks">How long after one bite before the next.</param>
+/// <param name="BiteWindupSeconds">How far into the bite the jaws close: the blow lands then.</param>
+/// <param name="DodgeMetres">How far past its reach a closing bite still finds the player.</param>
+internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, double HaltMetres, int Accuracy, int Power, long CooldownTicks, double BiteWindupSeconds, double DodgeMetres);
 
 /// <summary>A capsule: the body a size class moves as.</summary>
 internal readonly record struct WildlifeCapsule(float Radius, float Height);
@@ -146,6 +163,9 @@ internal sealed record WildlifeKind(
     int ExperienceAward,
     LootTable Loot)
 {
+    /// <summary>How it hunts, for a hostile animal; null for every other.</summary>
+    internal WildlifeHunt? Hunt { get; init; }
+
     /// <summary>How much of this kind's density a biome carries: zero where it does not live.</summary>
     internal double HabitatWeight(MapBiome biome) => Habitat.TryGetValue(biome, out double weight) ? weight : 0;
 }
@@ -253,6 +273,7 @@ internal static class WildlifeKinds
         ["flee"] = PressedResponse.Flee,
         ["stand"] = PressedResponse.Stand,
         ["display-charge"] = PressedResponse.DisplayCharge,
+        ["hunt"] = PressedResponse.Hunt,
         ["hunker"] = PressedResponse.Hunker,
         ["take-to-water"] = PressedResponse.TakeToWater,
     };
@@ -465,7 +486,28 @@ internal static class WildlifeKinds
             combat.GetProperty("health").GetInt32(),
             new DefenceProfile(combat.GetProperty("evasion").GetInt32(), new ArmourProfile(combat.GetProperty("armour").GetInt32())),
             combat.GetProperty("experience").GetInt32(),
-            table);
+            table)
+        {
+            Hunt = ReadHunt(kind, id),
+        };
+    }
+
+    private static WildlifeHunt? ReadHunt(JsonElement kind, string id)
+    {
+        bool hunts = kind.GetProperty("pressed").GetString() == "hunt";
+        if (!kind.TryGetProperty("hunt", out JsonElement hunt))
+            return hunts ? throw new InvalidDataException($"{id}: a kind that hunts needs a hunt block") : null;
+        WildlifeHunt read = new(
+            hunt.GetProperty("sightMetres").GetDouble(),
+            hunt.GetProperty("reachMetres").GetDouble(),
+            hunt.GetProperty("haltMetres").GetDouble(),
+            hunt.GetProperty("accuracy").GetInt32(),
+            hunt.GetProperty("power").GetInt32(),
+            hunt.GetProperty("cooldownTicks").GetInt64(),
+            hunt.GetProperty("biteWindupSeconds").GetDouble(),
+            hunt.GetProperty("dodgeMetres").GetDouble());
+        if (read.HaltMetres >= read.ReachMetres) throw new InvalidDataException($"{id}: a hunter halts inside its reach");
+        return read;
     }
 
     private static WildlifeYoung? ReadYoung(JsonElement kind, LootTable adult, Dictionary<WildlifeSizeClass, WildlifeCapsule> classes)

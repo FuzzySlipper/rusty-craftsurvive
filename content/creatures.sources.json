@@ -171,6 +171,17 @@
    "body": "Tripo P2 multiview-to-model, task dfc1e635-4c73-4fca-96b2-457a3349dfd0, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 4.6 --triangles 6000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10570/sivatherium/"
+  },
+  {
+   "mesh": "content/game/creatures/gaunt/gaunt.glb",
+   "sha256": "4cf080b09f0771210a9020605709a0e082e3bab418b339e8ec009f98450fc501",
+   "manifest": "content/game/creatures/gaunt/gaunt.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/gaunt/species.json with --mesh body.glb --texture body-64.png",
+   "concept": "art/creatures/gaunt/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen), from the starting point art/creatures/entelodont/concept/concept-3.png",
+   "reference": "art/creatures/gaunt/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
+   "body": "Tripo P2 multiview-to-model, task 32679b7c-3a8b-450f-a0ea-fa96fd8c22e5, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 3.6 --triangles 9000 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10615/gaunt/"
   }
  ],
  "reference": {

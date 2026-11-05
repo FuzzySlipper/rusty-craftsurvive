@@ -1,0 +1,13 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE invented predator, the gaunt, in exactly the shape of the first reference image. About 3.2 m high at the shoulder and 3.5 m long. It stands in a NEUTRAL STANCE on all four feet: all four legs straight and vertical, feet flat on the ground. Exactly the same creature in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE profile, head pointing to the left, the whole creature from nose to tail and from feet to spines. In this view the far legs stand EXACTLY BEHIND the near legs and are hidden by them, so only TWO legs can be seen, one fore and one hind.
+- BOTTOM LEFT: the FRONT view, looking straight at its face, both forelegs apart and visible.
+- BOTTOM RIGHT: the BACK view, from straight behind, both hind legs apart and visible.
+Portrait aspect about 1024x1536. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the first reference image exactly: the long bone-pale skull-like head with hollow dark eyes and no lips, the long thin sinewy neck held forward and low in a gentle S-curve so the head hangs well in front of the chest, the small narrow starved body with ribs showing, the row of black spines along the neck and back, and above all the EXCESSIVELY LONG thin legs, far longer than the body is deep, with long narrow two-toed clawed feet. Each lower leg is thin but solid, an even round rod about as thick as a man's wrist, never tapering to a thread. No tail or only a short stub. EXACTLY FOUR LEGS.
+
+THE MOUTH: the jaws stand HALF OPEN at rest, the lower jaw clearly separate from the upper with a wide dark gap between them, showing every long tooth in both jaws and the dark red mouth inside. Not closed, and not fully gaping.
+
+PAINT - follow the second reference image, a sheet of a giant ground sloth from the same game, only for its treatment and not its colours: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction. Hide the colour of ash and pale dust, darkening to charcoal down the legs, a bone-pale skull, black spines.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO rocks, NO other objects. NO extra legs. NOT photoreal, NOT a perspective render, NOT anime, NOT cel shading or outlines.
