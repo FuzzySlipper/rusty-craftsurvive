@@ -656,7 +656,7 @@ internal sealed class WildlifeModule : IProductModule
         cost = default;
         parts = default;
         return string.Create(CultureInfo.InvariantCulture,
-            $"step={step} day={now.Day} hour={now.DayFraction * WildlifeSchedule.HoursPerDay:F2} herds={awake.Count} animals={awake.Sum(herd => herd.Members.Count)} regions={Ledger.Regions.Count()} player={at.X:F0},{at.Z:F0} {costs} {Presentation.Meshes.Readout()} {ragdolls?.Readout()} fallen={fallen.Count} last={lastEvent} asleep={Asleep(at, now)} | ")
+            $"step={step} day={now.Day} hour={now.DayFraction * WildlifeSchedule.HoursPerDay:F2} herds={awake.Count} animals={awake.Sum(herd => herd.Members.Count)} regions={Ledger.Regions.Count()} player={at.X:F0},{at.Z:F0} {costs} {Presentation.Meshes.Readout()} {ragdolls?.Readout()} fallen={fallen.Count} fallenAt={string.Join("/", fallen.Select(body => string.Create(CultureInfo.InvariantCulture, $"{body.Member.Position.X:F1},{body.Member.Position.Y:F1}")))} last={lastEvent} asleep={Asleep(at, now)} | ")
             + string.Join(" | ", awake.Select(Readout));
     }
 

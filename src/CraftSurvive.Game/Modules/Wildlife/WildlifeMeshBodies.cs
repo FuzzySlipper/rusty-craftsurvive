@@ -82,9 +82,6 @@ internal sealed class WildlifeMeshBodies : IDisposable
         /// <summary>Its body in the physics world, once it has fallen as one.</summary>
         internal DynamicsRagdoll? Ragdoll { get; set; }
 
-        /// <summary>It has come to rest, so nothing it draws from moves.</summary>
-        internal bool Rested { get; set; }
-
         /// <summary>Its death has begun, as a ragdoll or a clip: a body that could not fall at once plays its clip and stays with it.</summary>
         internal bool Fell { get; set; }
     }
@@ -143,14 +140,14 @@ internal sealed class WildlifeMeshBodies : IDisposable
         body.Paused = true;
     }
 
-    /// <summary>A falling body's fact and record follow its hips, which is where the animal now is, for what bounds or distance it.</summary>
+    /// <summary>
+    /// A fallen body's fact and record follow its hips, which is where the animal now is, for what
+    /// bounds or distance it. Rest is not the end of it: a change in the ground under a body wakes it.
+    /// </summary>
     private void Follow(Body body, WildlifeMember member)
     {
-        if (body.Rested) return;
-        DynamicsRagdollResult read = engine.Dynamics.ReadRagdoll(body.Ragdoll!);
-        Vector3 hips = frame.ToWorld(read.Bones.Span[0].Translation);
+        Vector3 hips = frame.ToWorld(engine.Dynamics.ReadRagdoll(body.Ragdoll!).Bones.Span[0].Translation);
         member.Position = new Vector2(hips.X, hips.Z);
-        body.Rested = read.Resting;
     }
 
     /// <summary>Starts, changes, holds or resumes the clip the animal's state calls for.</summary>
