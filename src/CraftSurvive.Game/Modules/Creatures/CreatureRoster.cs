@@ -69,9 +69,9 @@ internal sealed class Creature
     internal Vector2 PathGoal { get; set; }
     internal long PathRevision { get; set; }
 
-    /// <summary>How many steps the creature has not closed on its waypoint, and how far it was last step.</summary>
+    /// <summary>How many steps the creature has meant to walk and not closed on its waypoint, and where it stood last step; null on a fresh path.</summary>
     internal int StuckSteps { get; set; }
-    internal float WaypointDistance { get; set; } = float.MaxValue;
+    internal Vector2? RoutedFrom { get; set; }
 }
 
 /// <summary>

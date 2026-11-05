@@ -305,6 +305,65 @@ host.Call(engine =>
             "a body walks through a doorway its width allows without entering either jamb");
         Check.That(Deepest(past, [(PostX, PostZ)]) <= skin, "a body walking at a post goes round it or stops; it never passes through");
     });
+
+    // A body not walking is still stepped (#9737): asked for no metres it stands on its floor, falls when
+    // the floor goes and finishes a fall it had begun.
+    Check.Section("a creature's body asked for no walk still stands and falls", () =>
+    {
+        const int Low = 2, SlabTop = StoneTop;
+        const double Seconds = 2, UpdateSeconds = 1d / 60d;
+        using SpatialSession ground = engine.Spatial.CreateSession(new SpatialSessionConfig(
+            TerrainConstants.VoxelSize, TerrainConstants.VoxelChunkSize, VoxelSurfaceMode.GreedyCubes));
+        engine.Voxel.ConfigureMaterialCollision(new VoxelMaterialCollisionRequest(ground, new[] { new VoxelMaterialCollision(StoneSlot, true) }));
+
+        void Lay(bool slab, VoxelResidencyOperationKind kind)
+        {
+            uint[] blocks = new uint[Edge * Edge * Edge];
+            for (int z = 0; z < Edge; z++)
+            for (int y = 0; y < SlabTop; y++)
+            for (int x = 0; x < Edge; x++)
+            {
+                if (y < Low || slab) blocks[(z * Edge * Edge) + (y * Edge) + x] = StoneSlot;
+            }
+
+            engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ground,
+                new[] { new VoxelResidencyOperation(kind, new VoxelChunkIdentity(0, 0, 0), 0U, (uint)blocks.Length) }, blocks));
+        }
+
+        CharacterControllerConfig creature = CreatureBody.Configure(CreatureBody.Capsule(engine.Spatial.DefaultCharacterControllerConfig()), 2f);
+        Vector2 spot = new(8.5f, 8.5f);
+        Vector3 centre = CreatureBody.CentreOver(new Vector3(spot.X, SlabTop + 0.05f, spot.Y), creature);
+        CreatureBodyState body = new(centre, CreatureBody.AtRest(centre));
+        ulong sequence = 0;
+
+        void Hold()
+        {
+            for (double t = 0; t < Seconds; t += UpdateSeconds)
+            {
+                body = CreatureBody.Step(engine.Spatial, ground, body, creature, spot, 0, UpdateSeconds, () => ++sequence) ?? body;
+            }
+        }
+
+        float Feet() => CreatureBody.FeetUnder(body.Centre, creature).Y;
+        float Drift() => Vector2.Distance(new Vector2(body.Centre.X, body.Centre.Z), spot);
+        const float Tolerance = 0.1f;
+
+        Lay(slab: true, VoxelResidencyOperationKind.Admit);
+        Hold();
+        float onSlab = Feet();
+        Check.That(Math.Abs(onSlab - SlabTop) < Tolerance && Drift() < Tolerance, $"a halted body stands on its floor, feet at {onSlab:F2} over {SlabTop}");
+
+        engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ground,
+            new[] { new VoxelResidencyOperation(VoxelResidencyOperationKind.Evict, new VoxelChunkIdentity(0, 0, 0), 0U, 0U) }, Array.Empty<uint>()));
+        Lay(slab: false, VoxelResidencyOperationKind.Admit);
+        body = CreatureBody.Step(engine.Spatial, ground, body, creature, spot, 0, UpdateSeconds, () => ++sequence) ?? body;
+        float falling = Feet();
+        Check.That(falling < onSlab + Tolerance && falling > Low + Tolerance, $"with its floor gone it has begun to fall, feet at {falling:F2}");
+        Hold();
+        float landed = Feet();
+        Console.WriteLine(FormattableString.Invariant($"bodies asked for no walk: stood at {onSlab:F2}, floor gone, landed at {landed:F2}, {Drift():F3} m from where it stood"));
+        Check.That(Math.Abs(landed - Low) < Tolerance && Drift() < Tolerance, $"it falls straight down to the floor below, feet at {landed:F2} over {Low}");
+    });
 });
 
 return Check.Finish("PlayerBody");

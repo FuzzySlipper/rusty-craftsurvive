@@ -468,6 +468,45 @@ CreatureSimulation.Step(unrouted, new CreatureSense(true), playerAt, playerCanBe
 Check.That(unrouted.Position == new Vector2(3, 4), $"a pursuer without a route must wait, moved to {unrouted.Position}");
 Check.Equal(new Vector2(7, 8), CreatureSimulation.WaypointOrWait(new Vector2(3, 4), new Vector2(7, 8)), "a routed waypoint is followed");
 
+// A body is stepped every update (#9737), asked for no metres when the creature is not walking, so a
+// creature that has halted, lost the player or has no route still falls when its floor goes.
+(double Travel, Vector2 Position) Stepped(CreatureState state, Vector2 from, Vector3 player, Vector2 waypoint)
+{
+    double asked = -1;
+    Creature body = new(10, CreatureKinds.Hostile, from) { Behavior = CreatureBehaviorState.Spawned with { State = state } };
+    CreatureSimulation.Step(body, new CreatureSense(state != CreatureState.Idle), player, playerCanBeHit: false, new ProductStep(1, 1, FixedDelta), sightScale: 1, waypoint,
+        (_, _, travel, _) => { asked = travel; return from + new Vector2(0, 0.5f); });
+    return (asked, body.Position);
+}
+
+double halt = CreatureKinds.Hostile.HaltDistanceMetres;
+Vector2 bodyAt = new(3, 4);
+var bodyWalking = Stepped(CreatureState.Pursuing, bodyAt, new Vector3(bodyAt.X + 10, 0, bodyAt.Y), new Vector2(bodyAt.X + 1, bodyAt.Y));
+Check.That(Math.Abs(bodyWalking.Travel - expectedOne) < 1e-5, $"a pursuer's body is asked for a step's walk, was asked {bodyWalking.Travel:F4}");
+var bodyHalted = Stepped(CreatureState.Pursuing, bodyAt, new Vector3(bodyAt.X + (float)halt - 0.5f, 0, bodyAt.Y), new Vector2(bodyAt.X + 1, bodyAt.Y));
+Check.That(bodyHalted.Travel == 0 && bodyHalted.Position == bodyAt + new Vector2(0, 0.5f), $"a halted pursuer's body is stepped with no walk and stands where the step leaves it, was asked {bodyHalted.Travel} and stands at {bodyHalted.Position}");
+var bodyWaiting = Stepped(CreatureState.Pursuing, bodyAt, new Vector3(bodyAt.X + 10, 0, bodyAt.Y), CreatureSimulation.WaypointOrWait(bodyAt, routed: null));
+Check.That(bodyWaiting.Travel == 0, $"a body waiting for a route is stepped with no walk, was asked {bodyWaiting.Travel}");
+var bodyIdle = Stepped(CreatureState.Idle, bodyAt, new Vector3(bodyAt.X + 1000, 0, bodyAt.Y), new Vector2(bodyAt.X + 1, bodyAt.Y));
+Check.That(bodyIdle.Travel == 0, $"a body that has given up the chase is stepped with no walk, was asked {bodyIdle.Travel}");
+
+bool steppedWithoutTime = false;
+CreatureSimulation.Step(new Creature(11, CreatureKinds.Hostile, bodyAt) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } },
+    new CreatureSense(true), new Vector3(bodyAt.X + 10, 0, bodyAt.Y), playerCanBeHit: false, new ProductStep(1, 0, FixedDelta), sightScale: 1, new Vector2(bodyAt.X + 1, bodyAt.Y),
+    (_, _, _, _) => { steppedWithoutTime = true; return bodyAt; });
+Check.That(!steppedWithoutTime, "an update with no steps admitted has no time to step a body through: the Engine refuses a step of no seconds");
+
+// A blocked pursuer is stuck on its way to the player as on its path (#9737), wherever the player
+// steps meanwhile; one at its halt has stopped on purpose.
+const float Progress = 0.01f;
+Vector2 blockedAt = new(0, 0), playerNear = new(2.5f, 0), playerAside = new(2, 1.4f);
+Check.That(CreatureSimulation.NotClosing(blockedAt, blockedAt, playerNear, 2.5, halt, Progress), "a pursuer that has not moved outside its halt is not closing");
+Check.That(CreatureSimulation.NotClosing(blockedAt, blockedAt, playerAside, playerAside.Length(), halt, Progress), "nor is it closing when the player has stepped nearer it meanwhile");
+Check.That(!CreatureSimulation.NotClosing(new Vector2(-0.05f, 0), blockedAt, playerNear, 2.5, halt, Progress), "one that came nearer is closing, on its path or the player");
+Check.That(!CreatureSimulation.NotClosing(new Vector2(0, -0.05f), blockedAt, new Vector2(0, 2.6f), 2.6, halt, Progress), "and stays so though the player backs away as fast as it walks");
+Check.That(!CreatureSimulation.NotClosing(blockedAt, blockedAt, playerNear, halt, halt, Progress), "one standing at its halt is not stuck");
+Check.That(!CreatureSimulation.NotClosing(null, blockedAt, playerNear, 2.5, halt, Progress), "one with a fresh path or just set walking has had no step to close in");
+
 Creature striker = new(3, CreatureKinds.Hostile, new Vector2(38, 0));
 Vector3 closePlayer = new(40, 0, 0);
 Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100, 1, FixedDelta), sightScale: 1, waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is CreatureStrike,

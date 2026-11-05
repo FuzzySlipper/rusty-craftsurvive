@@ -723,8 +723,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **Pursuers move as bodies (#9737).** Each awake pursuer's move toward its waypoint is the Engine's
   character step of the capsule navigation routes it with (`CreatureBody`: radius 0.3 m, 1.8 m tall,
   stepping 2 m), against the walking session's collision, in steps of at most 1/20 s. It stops at
-  walls, jambs, posts and terrain edges and stands where the step leaves it. A body the Engine refuses
-  (lodged in collision) stays put, and stuck detection routes it again. Bodies are set down afresh
+  walls, jambs, posts and terrain edges and stands where the step leaves it. Once it has a body it is
+  stepped every update, asked for no metres when halted, waiting or given up, so it falls when its
+  floor goes. A pursuer outside its halt that comes no nearer its waypoint, on its path or on the last
+  direct approach, is stuck: its body is set down afresh, free of the motion it carried, and it routes
+  again; so is a body the Engine refuses (lodged in collision), which stays put meanwhile. A body can
+  still come to rest at the end of a wall that hangs clear of sloping ground, asking again but not
+  rounding it. Bodies are set down afresh
   from where a creature stands when it wakes or the world's origin moves. The step is planar intent
   with no jumping or swimming, and creatures do not collide with each other or with the player's
   body. `craft.creatures.routing` reports the bodies' per-update cost beside routing's.

@@ -61,7 +61,7 @@ internal sealed class CreatureModule : IProductModule
     /// <summary>A path is asked for again once the player is this far from where it led (a few cells).</summary>
     private const float ReplanMetres = 3f;
 
-    /// <summary>A pursuer that has not closed on its waypoint for this many steps is stuck and asks again.</summary>
+    /// <summary>A pursuer that has meant to walk and not closed on its waypoint for this many steps is stuck and asks again.</summary>
     private const int StuckSteps = 30;
 
     /// <summary>Closing by less than this per step is not progress.</summary>
@@ -128,10 +128,12 @@ internal sealed class CreatureModule : IProductModule
     /// Moves a creature's body toward its waypoint by at most some metres (#9737): the Engine's character step
     /// carries its capsule against the walking session's collision, so it stops at what it meets, and its feet
     /// come from the step. A body the Engine refuses, lodged in collision, stays put; not closing on its
-    /// waypoint, it is soon found stuck and routed again.
+    /// waypoint, it is soon found stuck and routed again. A body asked for no metres is still stepped, so it
+    /// falls when what it stood on goes; a creature that has not walked has no body, and <see cref="Follow"/> keeps it.
     /// </summary>
     private Vector2 MoveBody(Creature creature, Vector2 waypoint, double travel, double seconds)
     {
+        if (travel <= 0 && creature.Body is null) return creature.Position;
         if (!bodies.TryGetValue(creature.Kind, out CharacterControllerConfig config))
             bodies[creature.Kind] = config = CreatureBody.Configure(capsule, (float)creature.Kind.PursueSpeedMetresPerSecond);
         CreatureBodyState body = creature.Body ?? Placed(creature, config);
@@ -223,7 +225,8 @@ internal sealed class CreatureModule : IProductModule
         long queriesBefore = navigation.Queries;
         CloseAmbush();
         HashSet<int> seeing = Sense(playerWorld);
-        Route(player.WorldFeetPosition);
+        // With no steps admitted nothing has moved, and a pursuer standing still is not stuck.
+        if (time.AdmittedSteps > 0) Route(player.WorldFeetPosition);
         routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, navigation.Queries - queriesBefore,
             roster.All.Count(creature => creature.Awake && creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking));
         bool playerCanBeHit = !player.Vitals.IsDown && !player.Vitals.IsInvulnerable(step);
@@ -461,6 +464,8 @@ internal sealed class CreatureModule : IProductModule
                     || Vector2.Distance(creature.PathGoal, playerGround) > ReplanMetres
                     || creature.PathRevision != navigation.Publishes
                     || creature.StuckSteps >= StuckSteps;
+                // A body that has stopped sliding along what it touches is set down afresh, free of the motion it carried.
+                if (creature.StuckSteps >= StuckSteps) creature.Body = null;
                 if (stale && !Replan(creature, playerFeet, playerGround))
                 {
                     continue;
@@ -475,10 +480,11 @@ internal sealed class CreatureModule : IProductModule
                 // Past the last cell the pursuer closes on the player directly.
                 bool following = creature.PathIndex < cells.Length;
                 Vector2 next = following ? cells[creature.PathIndex] : playerGround;
-                float distance = Vector2.Distance(next, creature.Position);
-                // Only a pursuer following its path can be stuck; one closing on the player stops at striking range.
-                creature.StuckSteps = following && creature.Waypoint == next && distance > creature.WaypointDistance - ProgressMetres ? creature.StuckSteps + 1 : 0;
-                creature.WaypointDistance = distance;
+                // Following its path or closing on the player, a blocked pursuer is stuck; one at striking range has stopped.
+                bool stuck = CreatureSimulation.NotClosing(creature.Waypoint is null ? null : creature.RoutedFrom, creature.Position, next,
+                    Vector2.Distance(creature.Position, playerGround), creature.Kind.HaltDistanceMetres, ProgressMetres);
+                creature.StuckSteps = stuck ? creature.StuckSteps + 1 : 0;
+                creature.RoutedFrom = creature.Position;
                 creature.Waypoint = next;
             }
         }
@@ -499,7 +505,7 @@ internal sealed class CreatureModule : IProductModule
         creature.RouteOutcome = result.Outcome.ToString();
         creature.WaypointStep = step;
         creature.StuckSteps = 0;
-        creature.WaypointDistance = float.MaxValue;
+        creature.RoutedFrom = null;
         if (result.Outcome == NavigationPathOutcome.StartBlocked)
         {
             // A creature already in deep water has no route out by the map: it wades straight for the player
@@ -731,8 +737,8 @@ internal sealed class CreatureModule : IProductModule
 
     /// <summary>
     /// A creature not moved as a body keeps its feet on the surface below its reach from where they were
-    /// (#9734), never the top of its column: under a roof it stays on the floor it walked onto. One whose
-    /// body stepped stands where the step left it (#9737).
+    /// (#9734), never the top of its column: under a roof it stays on the floor it walked onto. One with a
+    /// body stands where each update's step leaves it (#9737).
     /// </summary>
     private void Follow(Creature creature)
     {

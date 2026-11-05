@@ -34,6 +34,18 @@ internal static class CreatureSimulation
     /// </summary>
     internal static Vector2 WaypointOrWait(Vector2 position, Vector2? routed) => routed ?? position;
 
+    /// <summary>
+    /// Whether a pursuer that meant to walk came no nearer where it is heading (#9737). It is measured from
+    /// where it last stood, so a player moving about neither hides a blocked body nor makes a walking one
+    /// look blocked; one at its halt has stopped on purpose.
+    /// </summary>
+    /// <param name="from">Where it stood last step; null when it was not walking then, or has a fresh path.</param>
+    /// <param name="progressMetres">Closing by less than this is not progress, and this near its halt it has arrived.</param>
+    internal static bool NotClosing(Vector2? from, Vector2 position, Vector2 heading, double playerDistance, double haltDistance, float progressMetres) =>
+        from is Vector2 before
+        && playerDistance > haltDistance + progressMetres
+        && Vector2.Distance(before, heading) - Vector2.Distance(position, heading) < progressMetres;
+
     internal static double PlanarDistance(Vector2 creature, Vector3 player)
     {
         double dx = player.X - creature.X;
@@ -54,8 +66,10 @@ internal static class CreatureSimulation
     /// </param>
     /// <param name="move">
     /// Moves the creature toward the waypoint by at most some metres over the update's seconds and says
-    /// where it now stands (#9737: its body, stepped against the world's collision). Without one it is
-    /// set down along the line, as a point that meets nothing.
+    /// where it now stands (#9737: its body, stepped against the world's collision). It is called every
+    /// update with time in it, with no metres when the creature is not walking, so a body with nothing under
+    /// it still falls.
+    /// Without one the creature is set down along the line, as a point that meets nothing.
     /// </param>
     internal static CreatureStrike? Step(
         Creature creature,
@@ -74,23 +88,19 @@ internal static class CreatureSimulation
         BehaviorTuning tuning = kind.Tuning with { SightRange = kind.Tuning.SightRange * sightScale };
         creature.Behavior = CreatureBehaviorRules.Step(tuning, creature.Behavior, facts, time.Step);
 
+        double travel = 0;
         if (creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking
             && distance > kind.HaltDistanceMetres)
         {
             Vector2 offset = waypoint - creature.Position;
             double leg = offset.Length();
-            double travel = Math.Min(Math.Min(kind.PursueSpeedMetresPerSecond * time.ElapsedSeconds, distance - kind.HaltDistanceMetres), leg);
-            if (move is not null)
-            {
-                if (travel > 0) creature.Position = move(creature, waypoint, travel, time.ElapsedSeconds);
-            }
-            else if (leg > 0)
-            {
-                creature.Position += offset * (float)(travel / leg);
-            }
-
-            distance = PlanarDistance(creature.Position, playerWorld);
+            travel = Math.Min(Math.Min(kind.PursueSpeedMetresPerSecond * time.ElapsedSeconds, distance - kind.HaltDistanceMetres), leg);
+            if (move is null && leg > 0) creature.Position += offset * (float)(travel / leg);
         }
+
+        // An update the Engine admitted no steps to has no time to step a body through, and the Engine refuses one.
+        if (move is not null && time.ElapsedSeconds > 0) creature.Position = move(creature, waypoint, travel, time.ElapsedSeconds);
+        distance = PlanarDistance(creature.Position, playerWorld);
 
         // A blow needs a clear line as well as reach: a creature cannot strike through a wall it
         // stands against (#9734), and perception's casts meet built work as the session's collision.
