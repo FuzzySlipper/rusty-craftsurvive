@@ -9,8 +9,14 @@ namespace CraftSurvive.Game.Modules.Creatures;
 /// it. This is what it shows of itself: the animal wildlife drew for it, the herd record that counts it,
 /// and the threat, bite and flinch it is part way through.
 /// </summary>
-internal sealed class Hunter(WildlifeKind kind, HerdRecord record, WildlifeMember member)
+internal sealed class Hunter(WildlifeKind kind, HerdRecord record, WildlifeMember member, int order = 0)
 {
+    /// <summary>Which way and how far it swings wide of its pack's first: 0 for that one, then 1, -1, 2, -2 (#10626).</summary>
+    internal int Side { get; } = HunterRules.SideOf(order);
+
+    /// <summary>It met something as it swung wide, so it is routed in like any other from here.</summary>
+    internal bool FlankBlocked { get; set; }
+
     internal WildlifeKind Kind { get; } = kind ?? throw new ArgumentNullException(nameof(kind));
 
     internal HerdRecord Record { get; } = record ?? throw new ArgumentNullException(nameof(record));
@@ -116,6 +122,59 @@ internal static class HunterRules
     {
         float widest = Math.Max(radius, otherRadius);
         return (widest, Math.Max(height, otherHeight), Math.Max(smallestCell, Math.Ceiling(2 * widest)));
+    }
+
+    /// <summary>An animal's flank, by its place in its pack.</summary>
+    internal static int SideOf(int order) => order % 2 == 1 ? (order + 1) / 2 : -(order / 2);
+
+    /// <summary>
+    /// Where a pack animal heads while it swings wide, or null once it is near enough to go straight in:
+    /// at a point beside the player, turned out to its side from where the animal now stands. The point
+    /// moves round ahead of it as it comes, so a pack spreads and arrives from around the player, and
+    /// being nearer the player than the animal is, it always closes.
+    /// </summary>
+    internal static Vector2? Flank(Vector2 from, Vector2 player, int side, WildlifePack pack)
+    {
+        Vector2 away = from - player;
+        if (side == 0 || away.Length() <= pack.CloseMetres) return null;
+        double turn = Math.Clamp(side * pack.FlankDegrees, -MostFlankDegrees, MostFlankDegrees) * Math.PI / 180;
+        Vector2 beside = player + (Vector2.Transform(Vector2.Normalize(away), Matrix3x2.CreateRotation((float)turn)) * (float)pack.CloseMetres);
+        return from + (Vector2.Normalize(beside - from) * FlankLeadMetres);
+    }
+
+    private const double MostFlankDegrees = 75;
+
+    /// <summary>How far ahead a flanking animal's next waypoint is set: more than a step takes it.</summary>
+    private const float FlankLeadMetres = 4;
+
+    /// <summary>
+    /// Who hunts the player now: those who see it, and all of any pack one of them has called. A call
+    /// lasts its kind's <see cref="WildlifePack.AlarmSeconds"/> past the last sighting, so a pack keeps
+    /// coming when the ground hides the player for a moment.
+    /// </summary>
+    /// <param name="alarms">Each calling pack's record and how long its call has left: this moves them on.</param>
+    internal static HashSet<int> Alerted(HashSet<int> seeing, IReadOnlyDictionary<int, Hunter> hunters, Dictionary<string, double> alarms, double seconds)
+    {
+        foreach (string key in alarms.Keys.ToArray())
+        {
+            double left = alarms[key] - seconds;
+            if (left > 0) alarms[key] = left;
+            else alarms.Remove(key);
+        }
+
+        foreach ((int id, Hunter hunter) in hunters)
+        {
+            if (seeing.Contains(id) && hunter.Kind.Hunt!.Pack is { } pack) alarms[hunter.Record.Key] = pack.AlarmSeconds;
+        }
+
+        if (alarms.Count == 0) return seeing;
+        HashSet<int> alerted = [.. seeing];
+        foreach ((int id, Hunter hunter) in hunters)
+        {
+            if (alarms.ContainsKey(hunter.Record.Key)) alerted.Add(id);
+        }
+
+        return alerted;
     }
 
     internal static Vector2 Drawn(Vector2 capsule, float yaw, double hindMetres, double foreMetres, float size) =>

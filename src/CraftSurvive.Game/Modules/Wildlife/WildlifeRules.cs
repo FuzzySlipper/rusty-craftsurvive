@@ -99,13 +99,13 @@ internal static class WildlifeRules
     /// toward the leader until it is clear: the herd's spacing sorts them out from there.
     /// </summary>
     internal static WildlifeHerd Wake(HerdRecord record, WildlifeKind kind, WildlifeCatalog catalog, ulong seed, Vector2 at, int count, Func<int> nextId,
-        Func<Vector2, bool>? excluded = null)
+        Func<Vector2, bool>? excluded = null, int first = 0)
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(kind);
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(nextId);
-        return new WildlifeHerd(record, kind, Enumerable.Range(0, count).Select(order =>
+        return new WildlifeHerd(record, kind, Enumerable.Range(first, count).Select(order =>
         {
             Vector2 slot = Slot(order, kind, catalog.Behaviour, seed, record.Key);
             bool young = IsYoung(order, kind, seed, record.Key);

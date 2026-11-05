@@ -14,6 +14,12 @@
       "scale": 1.0
     },
     {
+      "name": "drift-runner",
+      "mesh": "creatures/drift-runner/drift-runner.glb",
+      "manifest": "creatures/drift-runner/drift-runner.manifest.json",
+      "scale": 1.0
+    },
+    {
       "name": "gaunt",
       "mesh": "creatures/gaunt/gaunt.glb",
       "manifest": "creatures/gaunt/gaunt.manifest.json",

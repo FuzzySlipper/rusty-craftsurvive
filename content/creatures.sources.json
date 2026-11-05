@@ -193,6 +193,17 @@
    "body": "Tripo P2 multiview-to-model, task 08d483af-8b4c-4f89-9d04-61f4c6933f20, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 5.2 --triangles 9000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10622/axe-beak/"
+  },
+  {
+   "mesh": "content/game/creatures/drift-runner/drift-runner.glb",
+   "sha256": "6179b41ea1a3a2e99243c91e897f2b8806143186b09e69552f357e7963c8e0aa",
+   "manifest": "content/game/creatures/drift-runner/drift-runner.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/drift-runner/species.json with --mesh body.glb --texture body-64.png",
+   "concept": "art/creatures/drift-runner/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/drift-runner/mesh/reference.png, spec beside it; views cut by art/creatures/cut_views.py",
+   "body": "Tripo P2 multiview-to-model, task 8a836cf6-49ec-4092-be13-952130a5945b, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 6.0 --triangles 9000 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10626/drift-runner/"
   }
  ],
  "reference": {

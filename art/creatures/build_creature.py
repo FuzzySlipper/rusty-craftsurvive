@@ -26,6 +26,7 @@ import bmesh
 import bpy
 from bpy_extras import anim_utils
 from mathutils import Matrix, Quaternion, Vector
+from mathutils.kdtree import KDTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from families import FAMILIES, SIDES  # noqa: E402
@@ -324,6 +325,48 @@ def pin_shell(species, mesh):
     print(f"shell: {len(pinned)} of {len(mesh.data.vertices)} vertices follow {shell['bone']}")
 
 
+def pin_islands(mesh):
+    """
+    A loose piece, such as a claw, moves as one with the surface nearest it. Weights by nearest bone
+    can give a claw at a foot's edge to the bone above the foot, and it hangs in the air when the foot lifts.
+    """
+    verts = mesh.data.vertices
+    parent = list(range(len(verts)))
+
+    def find(index):
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    # A UV seam splits vertices that stand in one place, so pieces are found by position.
+    first = {}
+    for vertex in verts:
+        spot = tuple(round(value, 4) for value in vertex.co)
+        parent[find(vertex.index)] = find(first.setdefault(spot, vertex.index))
+    for edge in mesh.data.edges:
+        parent[find(edge.vertices[0])] = find(edge.vertices[1])
+    pieces = {}
+    for vertex in verts:
+        pieces.setdefault(find(vertex.index), []).append(vertex.index)
+    body = max(pieces.values(), key=len)
+    tree = KDTree(len(body))
+    for index in body:
+        tree.insert(verts[index].co, index)
+    tree.balance()
+    groups = mesh.vertex_groups
+    for piece in pieces.values():
+        if piece is body:
+            continue
+        centre = sum((verts[index].co for index in piece), Vector()) / len(piece)
+        nearest = tree.find(centre)[1]
+        carrier = max(verts[nearest].groups, key=lambda group: group.weight).group
+        for group in groups:
+            group.remove(piece)
+        groups[carrier].add(piece, 1.0, "REPLACE")
+    print(f"islands: {len(pieces) - 1} loose pieces moved with the surface nearest them")
+
+
 def pin_mouth(species, mesh):
     """
     Teeth interlock, so heat weighting cannot part the jaws, and no line between them can. Upper and
@@ -358,7 +401,7 @@ def pin_mouth(species, mesh):
 
     def bite_height(vertex):
         share = (-vertex.co.y - forward) / (mouth["upper"][0] - forward)
-        return (1 - share) * species["points"]["jaw"][2] + share * (mouth["upper"][1] + mouth["lower"][1]) / 2
+        return (1 - share) * species["points"]["jaw"][2] + share * mouth.get("biteHeight", (mouth["upper"][1] + mouth["lower"][1]) / 2)
 
     side = {v.index: reached.get(v.index) or ("upper" if v.co.z > bite_height(v) else "lower") for v in inside}
     data.free()
@@ -602,6 +645,7 @@ def main(argv):
     mesh = import_mesh(mesh_path, texture) if mesh_path else build_proxy(species, rig, family)
     skin(rig, mesh)
     pin_shell(species, mesh)
+    pin_islands(mesh)
     pin_mouth(species, mesh)
     controls = Controls(rig, family)
     points = species["points"]

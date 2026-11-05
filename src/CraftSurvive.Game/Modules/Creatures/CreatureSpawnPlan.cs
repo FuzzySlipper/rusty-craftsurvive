@@ -55,14 +55,14 @@ internal static class CreatureSpawnPlan
     /// is never offered to <paramref name="accept"/> again.
     /// </summary>
     internal static List<(long X, long Z)> Choose(IEnumerable<(long X, long Z)> candidates, List<(long X, long Z)> placed, int count,
-        Func<(long X, long Z), bool> accept)
+        Func<(long X, long Z), bool> accept, double separationMetres = MinimumSeparationMetres)
     {
         ArgumentNullException.ThrowIfNull(placed);
         List<(long X, long Z)> chosen = [];
         foreach ((long X, long Z) candidate in candidates)
         {
             if (chosen.Count >= count) break;
-            if (!FarEnoughFrom(placed, candidate) || !accept(candidate)) continue;
+            if (!FarEnoughFrom(placed, candidate, separationMetres) || !accept(candidate)) continue;
             placed.Add(candidate);
             chosen.Add(candidate);
         }
@@ -70,14 +70,14 @@ internal static class CreatureSpawnPlan
         return chosen;
     }
 
-    internal static bool FarEnoughFrom(IEnumerable<(long X, long Z)> placed, (long X, long Z) candidate)
+    internal static bool FarEnoughFrom(IEnumerable<(long X, long Z)> placed, (long X, long Z) candidate, double separationMetres = MinimumSeparationMetres)
     {
         ArgumentNullException.ThrowIfNull(placed);
         foreach ((long x, long z) in placed)
         {
             double dx = candidate.X - x;
             double dz = candidate.Z - z;
-            if ((dx * dx) + (dz * dz) < MinimumSeparationMetres * MinimumSeparationMetres)
+            if ((dx * dx) + (dz * dz) < separationMetres * separationMetres)
             {
                 return false;
             }

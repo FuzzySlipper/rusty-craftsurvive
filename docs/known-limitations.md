@@ -730,6 +730,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   navigation covers, it comes straight on until it can be routed, so a wall out there stops it. The
   axe-beak's capsule stands between its feet, 4.6 m tall, and its neck and beak reach about 3.7 m past
   the capsule's centre, so its head passes through what stands in front of it.
+- **A pack is basic (#10626).** Drift-runners seeded from one record come when one sees the player, from up
+  to 100 m and for 8 s after it last did, and fan out to both sides as they come, closing straight in
+  from 10 m. That is all a pack does: they do not take
+  turns, hold back, or run when their numbers fall, and a travel ambush brings one alone. Their habitat
+  is `IceField` and `Tundra` until the wildlife chart (#10616), so they share the tundra with mammoths.
 - **The dead fall on terrain alone (#10621).** A killed animal with a mesh falls as a ragdoll in a
   physics world bound to the terrain's collision. It touches nothing else: other bodies, the player,
   scatter, and whatever a town or building keeps in a collision session of its own, so bodies can lie

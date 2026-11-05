@@ -107,7 +107,14 @@ internal sealed record WildlifeYoung(
 /// <param name="CooldownTicks">How long after one bite before the next.</param>
 /// <param name="BiteWindupSeconds">How far into the bite the jaws close: the blow lands then.</param>
 /// <param name="DodgeMetres">How far past its reach a closing bite still finds the player.</param>
-internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, double HaltMetres, int Accuracy, int Power, long CooldownTicks, double BiteWindupSeconds, double DodgeMetres);
+internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, double HaltMetres, int Accuracy, int Power, long CooldownTicks, double BiteWindupSeconds, double DodgeMetres, WildlifePack? Pack = null);
+
+/// <summary>
+/// How a pack hunts (#10626): what one sees calls the others from this far, for this long after it last
+/// saw, and each animal but the first comes in turned this far off the straight line, the next further,
+/// until it is this near the player, then straight in.
+/// </summary>
+internal sealed record WildlifePack(double AlarmMetres, double AlarmSeconds, double FlankDegrees, double CloseMetres);
 
 /// <summary>A capsule: the body a size class moves as.</summary>
 internal readonly record struct WildlifeCapsule(float Radius, float Height);
@@ -529,7 +536,10 @@ internal static class WildlifeKinds
             hunt.GetProperty("power").GetInt32(),
             hunt.GetProperty("cooldownTicks").GetInt64(),
             hunt.GetProperty("biteWindupSeconds").GetDouble(),
-            hunt.GetProperty("dodgeMetres").GetDouble());
+            hunt.GetProperty("dodgeMetres").GetDouble(),
+            hunt.TryGetProperty("pack", out JsonElement pack)
+                ? new WildlifePack(pack.GetProperty("alarmMetres").GetDouble(), pack.GetProperty("alarmSeconds").GetDouble(), pack.GetProperty("flankDegrees").GetDouble(), pack.GetProperty("closeMetres").GetDouble())
+                : null);
         if (read.HaltMetres >= read.ReachMetres) throw new InvalidDataException($"{id}: a hunter halts inside its reach");
         return read;
     }

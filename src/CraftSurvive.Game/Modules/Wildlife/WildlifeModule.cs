@@ -306,13 +306,13 @@ internal sealed class WildlifeModule : IProductModule
             .OrderBy(entry => Vector2.Distance(entry.Point, here));
         foreach (var entry in candidates)
         {
-            if (entry.Kind.Pressed == PressedResponse.Hunt) HunterNear?.Invoke(entry.Record, entry.Kind, entry.Point);
+            if (entry.Kind.Pressed == PressedResponse.Hunt) HunterNear?.Invoke(entry.Record, entry.Kind, entry.Point, entry.Alive);
             else if (awake.Count < waking.MostAwakeHerds) WakeAt(entry.Record, entry.Kind, entry.Point, entry.Alive);
         }
     }
 
     /// <summary>A hostile animal's home has come near (#10615): the creature rules take it from here, and are told on every wake pass.</summary>
-    internal Action<HerdRecord, WildlifeKind, Vector2>? HunterNear { get; set; }
+    internal Action<HerdRecord, WildlifeKind, Vector2, int>? HunterNear { get; set; }
 
     /// <summary>The hostile animals to draw this update.</summary>
     internal Func<IReadOnlyList<Creatures.WildlifeHunter>>? Hunters { get; set; }
@@ -327,8 +327,9 @@ internal sealed class WildlifeModule : IProductModule
     internal WildlifeRig RigOf(WildlifeKind kind) => Presentation.Meshes.RigOf(kind);
 
     /// <summary>A hostile animal's body: wildlife draws its size and coat as it does any animal's, and holds its id until it goes.</summary>
-    internal WildlifeMember WakeHunter(HerdRecord record, WildlifeKind kind, Vector2 point) =>
-        WildlifeRules.Wake(record, kind, Catalog, Seed, point, 1, TakeId, Excluded).Leader;
+    /// <param name="order">Its place in its pack: each animal keeps its own size and coat.</param>
+    internal WildlifeMember WakeHunter(HerdRecord record, WildlifeKind kind, Vector2 point, int order = 0) =>
+        WildlifeRules.Wake(record, kind, Catalog, Seed, point, 1, TakeId, Excluded, order).Leader;
 
     /// <summary>A hostile animal has gone without dying: it leaves no body, and its herd record keeps it.</summary>
     internal void ForgetHunter(WildlifeMember member) => Forget(member);

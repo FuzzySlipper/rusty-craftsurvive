@@ -133,6 +133,28 @@
       "loot": [ { "item": "hide", "minimum": 2, "maximum": 3, "oneIn": 1 } ]
     },
     {
+      "id": "drift-runner",
+      "name": "Drift-runner",
+      "habitat": { "IceField": 1.0, "Tundra": 1.0 },
+      "social": { "shape": "band", "groupMinimum": 3, "groupMaximum": 5, "spacingMetres": 6 },
+      "body": { "lengthMetres": 6.0, "heightMetres": 2.8, "widthMetres": 0.9, "sizeClass": "large", "colour": "#b5b0a6" },
+      "mesh": {
+        "file": "creatures/drift-runner/drift-runner.glb",
+        "manifest": "creatures/drift-runner/drift-runner.manifest.json",
+        "ragdoll": "creatures/drift-runner/drift-runner.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.42, "grazeDrift": 0.4, "flee": 7.8, "turnDegrees": 240 },
+      "wariness": { "noticeMetres": 40, "actMetres": 28, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 40, "reachMetres": 2.9, "haltMetres": 2.4, "accuracy": 20, "power": 2, "cooldownTicks": 120, "biteWindupSeconds": 0.38, "dodgeMetres": 0.6, "pack": { "alarmMetres": 100, "alarmSeconds": 8, "flankDegrees": 30, "closeMetres": 10 } },
+      "schedule": "dusk-and-dawn",
+      "population": { "herdsPerSquareKilometre": 0.004, "rangeMetres": 400, "recoveryDays": 30 },
+      "combat": { "health": 30, "evasion": 60, "armour": 2, "experience": 120 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
       "id": "gaunt",
       "name": "Gaunt",
       "habitat": { "Alpine": 1.0, "Desert": 1.0 },

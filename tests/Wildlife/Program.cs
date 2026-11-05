@@ -94,6 +94,53 @@ Check.Section("hostile animals", () =>
     Check.That(beak.Pressed == PressedResponse.Hunt, "the axe-beak hunts");
     Check.That(beak.Body.HeightMetres > catalog.Kind("gaunt").Body.HeightMetres, "the axe-beak stands over the gaunt");
     Check.That(catalog.SizeClasses[beak.Body.SizeClass].Height > catalog.SizeClasses[WildlifeSizeClass.Huge].Height, "its body is as tall as it is");
+    // Patch, 2026-11-05: the drift-runner hunts as a pack, in a basic form to start.
+    WildlifeKind runner = catalog.Kind("drift-runner");
+    WildlifePack pack = runner.Hunt!.Pack ?? throw new InvalidDataException("the drift-runner hunts as a pack");
+    Check.That(runner.GroupMinimum >= 3, "a pack is more than a pair");
+    Check.That(catalog.Kind("gaunt").Hunt!.Pack is null, "the gaunt hunts alone");
+    Check.That(Enumerable.Range(0, 5).Select(HunterRules.SideOf).SequenceEqual([0, 1, -1, 2, -2]), "a pack spreads to both sides of its first");
+
+    Vector2 player = Vector2.Zero, far = new(0, 40), near = new(0, 8);
+    Check.That(HunterRules.Flank(far, player, 0, pack) is null, "the first of a pack comes straight in");
+    Check.That(HunterRules.Flank(near, player, 1, pack) is null, "near the player they all go straight in");
+    Vector2 left = HunterRules.Flank(far, player, 1, pack)!.Value, right = HunterRules.Flank(far, player, -1, pack)!.Value;
+    Check.That(left.X * right.X < 0, "pack animals swing out to opposite sides");
+    foreach (int side in new[] { 1, -1, 2, -2, 9 })
+    {
+        // Followed all the way, an animal spreads from the line it started on and arrives at the edge of the close.
+        Vector2 walking = far;
+        int walked = 0;
+        while (HunterRules.Flank(walking, player, side, pack) is Vector2 aim && walked++ < 500)
+        {
+            double before = walking.Length();
+            walking += Vector2.Normalize(aim - walking) * 0.5f;
+            Check.That(walking.Length() < before, $"a flanking animal on side {side} keeps closing");
+        }
+
+        Check.That(walked < 500, $"an animal on side {side} gets there");
+        Check.That(Math.Abs(walking.X) > 2 && Math.Sign(walking.X) != Math.Sign(far.X) || walking.X != 0, $"an animal on side {side} arrives away from the straight line");
+    }
+
+    HerdRecord den = new("runners", runner.Id, Vector2.Zero, 3), other = new("others", runner.Id, Vector2.Zero, 1);
+    WildlifeMember Runner(int id) => WildlifeRules.Wake(den, runner, catalog, 7, Vector2.Zero, 1, () => id).Leader;
+    Dictionary<int, Hunter> packed = new()
+    {
+        [1] = new Hunter(runner, den, Runner(1), 0),
+        [2] = new Hunter(runner, den, Runner(2), 1),
+        [3] = new Hunter(runner, other, Runner(3)),
+    };
+    Dictionary<string, double> alarms = [];
+    Check.That(HunterRules.Alerted([], packed, alarms, 0.1).Count == 0, "a pack that has seen nothing stays as it was");
+    Check.That(HunterRules.Alerted([1], packed, alarms, 0.1).SetEquals([1, 2]), "what one of a pack sees they all come for, and no one else does");
+    Check.That(HunterRules.Alerted([], packed, alarms, pack.AlarmSeconds / 2).SetEquals([1, 2]), "a pack keeps coming when the ground hides the player for a moment");
+    Check.That(HunterRules.Alerted([], packed, alarms, pack.AlarmSeconds).Count == 0, "a call dies away");
+    Check.That(alarms.Count == 0, "a dead call leaves nothing behind");
+
+    WildlifeMember second = WildlifeRules.Wake(den, runner, catalog, 7, Vector2.Zero, 1, () => 1, null, 1).Leader;
+    WildlifeMember first = WildlifeRules.Wake(den, runner, catalog, 7, Vector2.Zero, 1, () => 2).Leader;
+    Check.That(first.Coat != second.Coat || first.Size != second.Size, "animals of a pack differ by their place in it");
+
     // Navigation holds one body: it has to clear the tallest hunter, whichever was met first.
     WildlifeCapsule gauntBody = catalog.SizeClasses[catalog.Kind("gaunt").Body.SizeClass], beakBody = catalog.SizeClasses[beak.Body.SizeClass];
     (float, float, double) gauntThenBeak = HunterRules.Envelope(gauntBody.Radius, gauntBody.Height, beakBody.Radius, beakBody.Height, 1);
@@ -197,7 +244,7 @@ Check.Section("kinds", () =>
     string[] firstWave = ["ground-sloth", "hipparion", "giant-deer", "entelodont", "giant-beaver", "cave-goat", "glyptodon", "mammoth"];
     string[] secondWave = ["ancylotherium", "paraceratherium", "diprotodon", "megacerops", "sivatherium"];
     Check.That(firstWave.Concat(secondWave).All(id => catalog.TryKind(id, out _)), "the first- and second-wave kinds must load");
-    string[] hunters = ["gaunt", "axe-beak"];
+    string[] hunters = ["gaunt", "axe-beak", "drift-runner"];
     Check.Equal(firstWave.Length + secondWave.Length + hunters.Length, catalog.Kinds.Count, "the content holds the two waves, the hunters and nothing else");
     Check.That(Enum.GetValues<PressedResponse>().All(r => catalog.Kinds.Any(k => k.Pressed == r)), "every pressed response must have a kind that shows it");
     Check.That(Enum.GetValues<WildlifeSizeClass>().All(c => catalog.SizeClasses.ContainsKey(c)), "every size class must have a capsule");

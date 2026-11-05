@@ -9,7 +9,7 @@ Provenance is in [`content/creatures.sources.json`](../../content/creatures.sour
 Humans borrow UAL's humanoid clips (`art/characters/`). Nothing comparable exists for four legs,
 and every animal's proportions differ. So each **family** in `families.py` (plantigrade: sloths and
 bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers;
-bird: two legs)
+bird and theropod: two legs)
 has a skeleton and a clip generator in code. A species bakes the family clips it has settings for:
 
 - A species file (`<kind>/species.json`) places the family's joints as metres
@@ -210,6 +210,11 @@ Its legs are the ungulate's hind legs, under a three-bone neck, with `wing` stum
 and its gait swings the body over the foot that stands. A two-legged body has one place its feet stand,
 so `hindMetres` equals `foreMetres` and the product does not pitch it. Its rest pose has the beak half
 open, so its clips open and shut from there by less than the gaunt's.
+
+The drift-runner (#10626) is the third: the `theropod` family, the bird's body and legs with two small
+arms in place of wings and a six-bone tail. `pin_islands` in `build_creature.py` moves loose pieces such
+as claws with the surface nearest them. `biteHeight` under `"mouth"` sets where upper and lower teeth
+part, where the mean of the two points would not.
 
 In game each is a kind in `content/game/wildlife/kinds.json` with `"pressed": "hunt"` and a `hunt` block.
 Its capsule is its size class's, centred between its feet with the mesh drawn ahead of it, and

@@ -878,6 +878,92 @@ BIRD_CLIPS = {
 }
 
 
+# ---------------------------------------------------------------- theropod: a bird's legs, arms and a long tail
+
+THEROPOD_TAIL = tuple(f"tail{index}" for index in range(1, 7))
+
+
+def theropod_bones():
+    """The bird's body and legs, with two small arms in place of wings and a tail long enough to balance on."""
+    bones = [bone for bone in bird_bones() if not bone[0].startswith("wing")]
+    bones += [(f"tail{i}", f"tail{i - 1}", f"tail{i - 1}", f"tail{i}", 1.0) for i in range(4, 7)]
+    for side, sign in SIDES.items():
+        bones += [
+            (f"upperarm.{side}", "chest", "shoulder", "elbow", sign),
+            (f"forearm.{side}", f"upperarm.{side}", "elbow", "wrist", sign),
+            (f"hand.{side}", f"forearm.{side}", "wrist", "hand_tip", sign),
+        ]
+    return bones
+
+
+def theropod_tail(c, t, swing, droop=0.0):
+    """The tail swings against the stride, each bone a little behind the last and further out."""
+    for index, bone in enumerate(THEROPOD_TAIL):
+        c.bone_rotation(bone, yaw(swing * gait.wave(t, 1, lag=0.08 * index)) @ pitch(droop))
+
+
+def theropod_arms(c, reach, wave=0.0):
+    """The arms draw up and out from the chest by `reach` degrees, with a little `wave` on top."""
+    for side in SIDES:
+        c.bone_rotation(f"upperarm.{side}", pitch(reach + wave))
+        c.bone_rotation(f"forearm.{side}", pitch(0.8 * reach))
+
+
+def theropod_walk(c, s, t):
+    bird_walk(c, s, t)
+    theropod_tail(c, t, 1.5 * s["walk"]["swayDegrees"])
+    theropod_arms(c, 8.0, 3.0 * gait.wave(t, 2))
+
+
+def theropod_run(c, s, t):
+    bird_run(c, s, t)
+    theropod_tail(c, t, 1.2 * s["run"]["swayDegrees"], droop=s["run"].get("tailLift", 0.0) / 3.0)
+    theropod_arms(c, 26.0, 4.0 * gait.wave(t, 2))
+
+
+def theropod_idle(c, s, t):
+    bird_idle(c, s, t)
+    theropod_tail(c, t, 3.0)
+    theropod_arms(c, 6.0, 1.5 * gait.wave(t))
+
+
+def theropod_alert(c, s, t):
+    bird_alert(c, s, t)
+    theropod_tail(c, t, 1.5, droop=-2.0)
+    theropod_arms(c, 16.0)
+
+
+def theropod_threat(c, s, t):
+    """The neck rears with the head kept level, the jaws gape, the arms open and the tail lashes."""
+    ungulate_threat(c, s, t)
+    up = gait.rise_hold_fall(t, 0.18, 0.85)
+    shake = 0.5 + 0.5 * gait.wave(t, 8)
+    c.bone_rotation("neck3", pitch(-6.0 * up))
+    c.bone_rotation("head", pitch(-14.0 * up) @ yaw(3.0 * up * gait.wave(t, 8)))
+    c.bone_rotation("jaw", pitch((-22.0 - 4.0 * shake) * up))
+    theropod_arms(c, 40.0 * up)
+    theropod_tail(c, t * 3.0, 6.0 * up)
+
+
+def theropod_bite(c, s, t):
+    bird_bite(c, s, t)
+    strike = gait.ease_in_out(t, 0.36, 0.48) * (1.0 - gait.ease_in_out(t, 0.72, 1.0))
+    theropod_arms(c, 34.0 * strike)
+
+
+THEROPOD_CLIPS = {
+    "rest": (clip_rest, False, True),
+    "idle": (theropod_idle, True, True),
+    "walk": (theropod_walk, True, True),
+    "run": (theropod_run, True, True),
+    "alert": (theropod_alert, True, True),
+    "die": (bird_die, False, False),
+    "threat": (theropod_threat, False, True),
+    "bite": (theropod_bite, False, True),
+    "hurt": (bird_hurt, False, True),
+}
+
+
 # ---------------------------------------------------------------- the table
 
 @dataclass(frozen=True)
@@ -906,6 +992,8 @@ FAMILIES = {
                           ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand")),
     "bird": Family(bird_bones, BIRD_LEGS, BIRD_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
                    ("thigh", "shin", "cannon"), ("hoof",)),
+    "theropod": Family(theropod_bones, BIRD_LEGS, THEROPOD_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
+                       ("thigh", "shin", "cannon"), ("hoof", "hand")),
     "low-slung": Family(low_slung_bones, PLANTIGRADE_LEGS, LOW_SLUNG_CLIPS,
                         (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                         ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand")),

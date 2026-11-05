@@ -173,6 +173,12 @@ internal sealed class CreatureModule : IProductModule
     private double SightScale(Creature creature) =>
         isNight() && creature.Kind.Tuning.Disposition == CreatureDisposition.Hostile ? NightSightFactor : 1d;
 
+    /// <summary>The same, for this update: a pack animal called in by another comes from as far as the call carries.</summary>
+    private double SightScale(Creature creature, HashSet<int> alerted) =>
+        alerted.Contains(creature.Id) && hunters.TryGetValue(creature.Id, out Hunter? hunter) && packAlarms.ContainsKey(hunter.Record.Key)
+            ? Math.Max(SightScale(creature), hunter.Kind.Hunt!.Pack!.AlarmMetres / creature.Kind.Tuning.SightRange)
+            : SightScale(creature);
+
     internal Rusty.Engine.Entities.EntityStore EntityStore => presentation.Entities;
 
     internal IReadOnlyList<AppearanceFact> AppearanceFacts => presentation.Facts;
@@ -220,6 +226,8 @@ internal sealed class CreatureModule : IProductModule
         long queriesBefore = navigation.Queries;
         CloseAmbush();
         HashSet<int> seeing = Sense(playerWorld);
+        // A pack hunts as one: what one sees they all come for, though a bite still needs its own sight.
+        HashSet<int> alerted = HunterRules.Alerted(seeing, hunters, packAlarms, time.ElapsedSeconds);
         // With no steps admitted nothing has moved, and a pursuer standing still is not stuck.
         if (time.AdmittedSteps > 0) Route(player.WorldFeetPosition);
         routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, navigation.Queries - queriesBefore,
@@ -235,8 +243,8 @@ internal sealed class CreatureModule : IProductModule
 
         foreach (Creature creature in roster.All.Where(creature => creature.Awake))
         {
-            CreatureSense sense = new(seeing.Contains(creature.Id));
-            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time, SightScale(creature),
+            CreatureSense sense = new(alerted.Contains(creature.Id));
+            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time, SightScale(creature, alerted),
                 CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody) is CreatureStrike strike)
             {
                 if (hunters.TryGetValue(creature.Id, out Hunter? biting)) HunterRules.Bite(biting, strike.Attack, ClipSeconds(biting, WildlifeClipRole.Bite));
@@ -303,6 +311,30 @@ internal sealed class CreatureModule : IProductModule
     private Vector2? BeyondNavigation(Creature creature, Vector2 playerGround) =>
         hunters.ContainsKey(creature.Id) && Vector2.Distance(creature.Position, playerGround) > CreatureNavigation.ReachMetres ? playerGround : null;
 
+    /// <summary>
+    /// A pack animal swings wide of the straight line while it has room, heading over open ground rather
+    /// than along a path. Stopped by what it meets, it gives that up and is routed in like any other.
+    /// </summary>
+    private bool Flanks(Creature creature, Hunter? hunter, Vector2 playerGround)
+    {
+        if (hunter is null || hunter.FlankBlocked || hunter.Kind.Hunt!.Pack is not { } pack
+            || HunterRules.Flank(creature.Position, playerGround, hunter.Side, pack) is not Vector2 aim) return false;
+        bool stuck = CreatureSimulation.NotClosing(creature.Waypoint is null ? null : creature.RoutedFrom, creature.Position, aim,
+            Vector2.Distance(creature.Position, playerGround), creature.Kind.HaltDistanceMetres, ProgressMetres);
+        creature.StuckSteps = stuck ? creature.StuckSteps + 1 : 0;
+        if (creature.StuckSteps >= StuckSteps)
+        {
+            hunter.FlankBlocked = true;
+            creature.StuckSteps = 0;
+            return false;
+        }
+
+        creature.Path = null;
+        creature.RoutedFrom = creature.Position;
+        creature.Waypoint = aim;
+        return true;
+    }
+
     /// <summary>A hostile animal going this slowly turns to face the player, not the way it is drifting.</summary>
     private const float HunterTurnsAboveMetres = 0.3f;
 
@@ -317,7 +349,12 @@ internal sealed class CreatureModule : IProductModule
 
     /// <summary>Hostile animals by creature id, and the herd records of those awake, so one home holds one animal.</summary>
     private readonly Dictionary<int, Hunter> hunters = [];
-    private readonly HashSet<string> hunted = [];
+
+    /// <summary>How many of each record's animals are on the ground: a pack is one record.</summary>
+    private readonly Dictionary<string, int> hunted = [];
+
+    /// <summary>The packs that have been called to the player, and how long the call has left.</summary>
+    private readonly Dictionary<string, double> packAlarms = [];
     private readonly Dictionary<string, CreatureKind> hunterKinds = [];
     private long hunterRegions;
 
@@ -344,24 +381,40 @@ internal sealed class CreatureModule : IProductModule
     /// A hostile animal's home has come near (#10615). It takes up its place once the ground there is
     /// resident, and one home holds one animal for as long as it is awake.
     /// </summary>
-    internal void AdmitHunter(HerdRecord record, WildlifeKind kind, Vector2 point)
+    internal void AdmitHunter(HerdRecord record, WildlifeKind kind, Vector2 point, int alive)
     {
-        if (!started || hunted.Contains(record.Key) || !terrain.IsResident(GroundCell(point))) return;
-        PlaceHunter(record, kind, point, 0, HunterHomeMetres);
+        if (!started || hunted.ContainsKey(record.Key) || !terrain.IsResident(GroundCell(point))) return;
+        PlaceHunter(record, kind, point, 0, HunterHomeMetres, count: alive);
     }
 
     private void PlaceHunter(HerdRecord record, WildlifeKind kind, Vector2 around, int minimumMetres, int maximumMetres,
-        Func<Vector2, bool>? usable = null, List<(long X, long Z)>? placed = null) =>
-        Place(1, HunterRegionBase + ++hunterRegions, _ => KindOf(kind), minimumMetres, maximumMetres, usable, placed, around, creature =>
-        {
-            hunters[creature.Id] = new Hunter(kind, record, Wildlife!.WakeHunter(record, kind, creature.Position));
-            hunted.Add(record.Key);
-        });
+        Func<Vector2, bool>? usable = null, List<(long X, long Z)>? placed = null, int count = 1)
+    {
+        int order = 0;
+        // A pack stands together, at its kind's own spacing.
+        double separation = kind.Hunt!.Pack is null ? CreatureSpawnPlan.MinimumSeparationMetres : kind.SpacingMetres;
+        Place(count, HunterRegionBase + ++hunterRegions, _ => KindOf(kind), minimumMetres, maximumMetres, usable, placed, around, creature =>
+            Admit(creature, kind, record, order++), separation);
+    }
+
+    private void Admit(Creature creature, WildlifeKind kind, HerdRecord record, int order)
+    {
+        hunters[creature.Id] = new Hunter(kind, record, Wildlife!.WakeHunter(record, kind, creature.Position, order), order);
+        hunted[record.Key] = hunted.GetValueOrDefault(record.Key) + 1;
+    }
+
+    /// <summary>One of a record's animals has left the ground.</summary>
+    private void Unhunted(HerdRecord record)
+    {
+        int left = hunted[record.Key] - 1;
+        if (left > 0) hunted[record.Key] = left;
+        else hunted.Remove(record.Key);
+    }
 
     private void ForgetHunter(int id)
     {
         if (!hunters.Remove(id, out Hunter? hunter)) return;
-        hunted.Remove(hunter.Record.Key);
+        Unhunted(hunter.Record);
         Wildlife?.ForgetHunter(hunter.Member);
     }
 
@@ -373,7 +426,8 @@ internal sealed class CreatureModule : IProductModule
         if (kind is null) return $"no hunter '{kindId}'; hunters: {string.Join(",", Wildlife.HunterKinds.Select(k => k.Id))}";
         Vector3 at = player.WorldPosition;
         Vector2 point = new(at.X + (float)east, at.Z + (float)south);
-        PlaceHunter(new HerdRecord($"{kind.Id}@near#{++hunterRegions}", kind.Id, point, 1), kind, point, 0, HunterHomeMetres);
+        int count = kind.GroupMaximum;
+        PlaceHunter(new HerdRecord($"{kind.Id}@near#{++hunterRegions}", kind.Id, point, count), kind, point, 0, HunterHomeMetres, count: count);
         return Readout();
     }
 
@@ -477,7 +531,7 @@ internal sealed class CreatureModule : IProductModule
 
         if (hunters.Remove(target.Id, out Hunter? fallen))
         {
-            hunted.Remove(fallen.Record.Key);
+            Unhunted(fallen.Record);
             Wildlife!.HunterFell(fallen, StandingAt(target));
         }
 
@@ -582,6 +636,7 @@ internal sealed class CreatureModule : IProductModule
             {
                 // A hostile animal standing to show its threat or bite is not walking, so it is not stuck either.
                 if (hunters.TryGetValue(creature.Id, out Hunter? hunter) && hunter.Holding) continue;
+                if (Flanks(creature, hunter, playerGround)) continue;
                 if (step < creature.BackoffUntil)
                 {
                     creature.Waypoint = BeyondNavigation(creature, playerGround);
@@ -716,8 +771,7 @@ internal sealed class CreatureModule : IProductModule
                 }, ambushColumns, null, hunter is null ? null : creature =>
                 {
                     HerdRecord record = new($"{hunter.Id}@ambush#{++hunterRegions}", hunter.Id, creature.Position, 1);
-                    hunters[creature.Id] = new Hunter(hunter, record, Wildlife!.WakeHunter(record, hunter, creature.Position));
-                    hunted.Add(record.Key);
+                    Admit(creature, hunter, record, 0);
                 });
             ambushWaiting -= placed;
             ambushPlaced += placed;
@@ -757,7 +811,8 @@ internal sealed class CreatureModule : IProductModule
     /// <param name="placed">Columns this placement has already filled, kept across updates by a pending
     /// ambush (#9531): none is filled again, and new creatures keep their separation from all of them.</param>
     private int Place(int count, long regionId, Func<int, CreatureKind> kindFor, int minimumMetres, int maximumMetres,
-        Func<Vector2, bool>? usable = null, List<(long X, long Z)>? placed = null, Vector2? around = null, Action<Creature>? joined = null)
+        Func<Vector2, bool>? usable = null, List<(long X, long Z)>? placed = null, Vector2? around = null, Action<Creature>? joined = null,
+        double separationMetres = CreatureSpawnPlan.MinimumSeparationMetres)
     {
         TerrainEncounterFacts facts = new(terrain.Recipe);
         Vector3 at = player.WorldPosition;
@@ -786,7 +841,7 @@ internal sealed class CreatureModule : IProductModule
                 roster.Add(creature);
                 joined?.Invoke(creature);
                 return true;
-            });
+            }, separationMetres);
         return chosen.Count;
     }
 
