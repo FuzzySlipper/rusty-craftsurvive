@@ -336,7 +336,9 @@ def ungulate_die(c, s, t):
         c.bone_rotation(f"fcannon.{side}", pitch(25.0 * limp))
     angle = 84.0 * fall
     c.bone_rotation("root", roll(angle))
-    c.bone_offset("root", (0, 0, max(0.0, 0.5 * height - height * math.cos(math.radians(angle))) * fall))
+    # How high the fallen body rests, as a share of the leg: a long leg lifts a body off the ground if it keeps the usual share.
+    lies = s["die"].get("restShare", 0.5)
+    c.bone_offset("root", (0, 0, max(0.0, lies * height - height * math.cos(math.radians(angle))) * fall))
     c.bone_offset("hips", (0, 0, -0.3 * height * buckle))
     c.bone_rotation("neck", pitch(-18.0 * fall) @ yaw(-14.0 * fall))
     c.bone_rotation("neck2", pitch(-10.0 * fall))

@@ -85,6 +85,18 @@ Check.Section("hostile animals", () =>
         Check.That(rig.Clips.ContainsKey(role), $"the gaunt has a {role} clip");
     Check.That(rig.Clip(WildlifeClipRole.Bite).Seconds > hunt.BiteWindupSeconds, "the jaws close before the bite ends");
 
+    // The capsule holds the legs (R10615-1): the mesh stands ahead of it, so all four feet lie within its radius.
+    WildlifeCapsule capsule = catalog.SizeClasses[gaunt.Body.SizeClass];
+    CreatureRig stance = CreatureManifest.Parse(manifest);
+    Vector2 drawn = HunterRules.Drawn(Vector2.Zero, 0, stance.HindMetres, stance.ForeMetres, 1);
+    Vector2 facing = WildlifeRules.Facing(0);
+    Check.That(Vector2.Dot(drawn, facing) > 0, "the mesh stands ahead of the capsule");
+    double hindFoot = Vector2.Dot(drawn + (facing * (float)stance.HindMetres), facing), foreFoot = Vector2.Dot(drawn + (facing * (float)stance.ForeMetres), facing);
+    Check.That(Math.Abs(hindFoot + foreFoot) < 1e-4, $"the capsule stands between the feet: {hindFoot:F2} and {foreFoot:F2}");
+    Check.That(Math.Abs(hindFoot) < capsule.Radius && gaunt.Body.WidthMetres / 2 < capsule.Radius, "the feet lie within its radius");
+    Check.That(capsule.Height >= gaunt.Body.HeightMetres, "and it is as tall as the animal's back");
+    Check.That(hunt.HaltMetres > capsule.Radius, "it halts clear of its own capsule");
+
     Hunter Fresh() => new(gaunt, new HerdRecord("gaunt@test", "gaunt", Vector2.Zero, 1),
         new WildlifeMember(1, Vector2.Zero, Vector2.Zero, CombatantState.Fresh(gaunt.MaximumHealth, gaunt.Defence)));
     const double Runs = 3.7, Threat = 2.4, Step = 1d / 60;
@@ -122,8 +134,9 @@ Check.Section("hostile animals", () =>
     }
 
     Check.That(Math.Abs((closesAt * Step) - hunt.BiteWindupSeconds) <= Step, $"the blow lands as the jaws close: step {closesAt}");
-    Check.That(HunterRules.Lands(hunt, hunt.ReachMetres + hunt.DodgeMetres - 0.01), "a player still in reach is bitten");
-    Check.That(!HunterRules.Lands(hunt, hunt.ReachMetres + hunt.DodgeMetres + 0.01), "a player who stepped away in time is not");
+    Check.That(HunterRules.Lands(hunt, hunt.ReachMetres + hunt.DodgeMetres - 0.01, seesPlayer: true), "a player still in reach is bitten");
+    Check.That(!HunterRules.Lands(hunt, hunt.ReachMetres + hunt.DodgeMetres + 0.01, seesPlayer: true), "a player who stepped away in time is not");
+    Check.That(!HunterRules.Lands(hunt, hunt.ReachMetres - 0.5, seesPlayer: false), "a bite begun in sight does not land round a corner, however near the player stands");
 
     biting.HurtSeconds = 0.3;
     Check.Equal(WildlifeClipRole.Hurt, HunterRules.Want(biting, CreatureState.Attacking, 0, Runs), "a blow shows over the bite");

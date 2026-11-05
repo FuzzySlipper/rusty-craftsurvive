@@ -130,7 +130,7 @@ internal sealed class CreatureModule : IProductModule
         if (hunters.TryGetValue(creature.Id, out Hunter? hunter) && hunter.Holding) travel = 0;
         if (travel <= 0 && creature.Body is null) return creature.Position;
         if (!bodies.TryGetValue(creature.Kind, out CharacterControllerConfig config))
-            bodies[creature.Kind] = config = CreatureBody.Configure(capsule, (float)creature.Kind.PursueSpeedMetresPerSecond);
+            bodies[creature.Kind] = config = CreatureBody.Configure(hunter is null ? capsule : BodyOf(hunter.Kind), (float)creature.Kind.PursueSpeedMetresPerSecond);
         CreatureBodyState body = creature.Body ?? Placed(creature, config);
         Vector3 toward = frame.ToLocal(waypoint.X, 0, waypoint.Y);
         bodiesStepped++;
@@ -247,7 +247,7 @@ internal sealed class CreatureModule : IProductModule
             Follow(creature);
             if (hunters.TryGetValue(creature.Id, out Hunter? hunter))
             {
-                Show(creature, hunter, playerWorld, playerCanBeHit, time.ElapsedSeconds);
+                Show(creature, hunter, playerWorld, playerCanBeHit, seeing.Contains(creature.Id), time.ElapsedSeconds);
                 playerCanBeHit = playerCanBeHit && !player.Vitals.IsDown;
             }
         }
@@ -266,13 +266,14 @@ internal sealed class CreatureModule : IProductModule
     }
 
     /// <summary>A hostile animal's threat, bite and flinch move on, and what it shows follows what it is doing.</summary>
-    private void Show(Creature creature, Hunter hunter, Vector3 playerWorld, bool playerCanBeHit, double seconds)
+    /// <param name="seesPlayer">What the Engine's perception says now: a bite begun in sight does not reach round a corner.</param>
+    private void Show(Creature creature, Hunter hunter, Vector3 playerWorld, bool playerCanBeHit, bool seesPlayer, double seconds)
     {
         double distance = CreatureSimulation.PlanarDistance(creature.Position, playerWorld);
         CreatureState state = creature.Behavior.State;
         if (HunterRules.Advance(hunter, state, distance, ClipSeconds(hunter, WildlifeClipRole.Threat), seconds) is AttackProfile blow)
         {
-            if (playerCanBeHit && HunterRules.Lands(hunter.Kind.Hunt!, distance)) ResolveStrike(new CreatureStrike(creature.Id, blow));
+            if (playerCanBeHit && HunterRules.Lands(hunter.Kind.Hunt!, distance, seesPlayer)) ResolveStrike(new CreatureStrike(creature.Id, blow));
             else cues.Raise(Cue.Swing);
         }
 
@@ -283,11 +284,11 @@ internal sealed class CreatureModule : IProductModule
             hunter.LastPosition = creature.Position;
         }
 
-        member.Position = creature.Position;
         WildlifeRig rig = Wildlife!.RigOf(hunter.Kind);
         Vector2 toPlayer = new Vector2(playerWorld.X, playerWorld.Z) - creature.Position;
         Vector2 heading = member.Velocity.Length() > HunterTurnsAboveMetres ? member.Velocity : state == CreatureState.Idle ? Vector2.Zero : toPlayer;
         member.Yaw = HunterRules.Turned(member.Yaw, heading, hunter.Kind.Speeds.TurnDegrees, seconds);
+        member.Position = HunterRules.Drawn(creature.Position, member.Yaw, rig.Rig.HindMetres, rig.Rig.ForeMetres, member.Size);
         double runsAbove = (rig.Clip(WildlifeClipRole.Walk).Speed + rig.Clip(WildlifeClipRole.Run).Speed) / 2 * member.Size;
         member.Clip = HunterRules.Want(hunter, state, member.Velocity.Length(), runsAbove);
     }
@@ -320,8 +321,19 @@ internal sealed class CreatureModule : IProductModule
     private readonly Dictionary<string, CreatureKind> hunterKinds = [];
     private long hunterRegions;
 
-    private CreatureKind KindOf(WildlifeKind kind) =>
-        hunterKinds.TryGetValue(kind.Id, out CreatureKind? found) ? found : hunterKinds[kind.Id] = HunterRules.KindOf(kind);
+    private CreatureKind KindOf(WildlifeKind kind)
+    {
+        if (hunterKinds.TryGetValue(kind.Id, out CreatureKind? found)) return found;
+        navigation.Fit(BodyOf(kind));
+        return hunterKinds[kind.Id] = HunterRules.KindOf(kind);
+    }
+
+    /// <summary>A hostile animal's capsule, its kind's size class: wide enough to hold its legs, so it is routed and stopped as what it is.</summary>
+    private CharacterControllerConfig BodyOf(WildlifeKind kind)
+    {
+        WildlifeCapsule body = Wildlife!.CapsuleOf(kind);
+        return CreatureBody.Capsule(engine.Spatial.DefaultCharacterControllerConfig(), body.Radius, body.Height);
+    }
 
     /// <summary>The hostile animals to draw this update: only those on resident ground.</summary>
     internal IReadOnlyList<WildlifeHunter> HunterFacts() =>

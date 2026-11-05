@@ -192,7 +192,11 @@ bind it, and it goes through the same workflow with these differences:
   `hingeForward` (`pin_mouth` in `build_creature.py`). Interlocking teeth defeat both heat weighting
   and a dividing line.
 - **Hunter clips** in the ungulate family: `threat`, `bite` and `hurt`.
+- **`restShare` under `clips.die`** sets how high the fallen body rests, as a share of the leg. Long
+  legs leave a body in the air at the usual 0.5.
 
 In game it is a kind in `content/game/wildlife/kinds.json` with `"pressed": "hunt"` and a `hunt` block.
+Its capsule is its size class's, centred between its feet with the mesh drawn ahead of it, and
+creatures are routed for the largest body hunting, on cells that fit it.
 Wildlife seeds it, draws it and counts its losses; `CreatureModule` hunts with it (`HunterRules`).
 `craft.creatures.hunter <kind> <east> <south>` places one.

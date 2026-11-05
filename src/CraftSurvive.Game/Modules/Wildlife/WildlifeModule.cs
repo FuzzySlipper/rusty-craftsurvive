@@ -315,6 +315,9 @@ internal sealed class WildlifeModule : IProductModule
     /// <summary>The kinds that hunt.</summary>
     internal IEnumerable<WildlifeKind> HunterKinds => Catalog.Kinds.Where(kind => kind.Pressed == PressedResponse.Hunt);
 
+    /// <summary>The capsule a kind's size class moves as.</summary>
+    internal WildlifeCapsule CapsuleOf(WildlifeKind kind) => Catalog.SizeClasses[kind.Body.SizeClass];
+
     /// <summary>A kind's clips, for the creature rules to show.</summary>
     internal WildlifeRig RigOf(WildlifeKind kind) => Presentation.Meshes.RigOf(kind);
 

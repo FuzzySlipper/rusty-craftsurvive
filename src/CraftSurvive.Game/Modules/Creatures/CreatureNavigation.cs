@@ -72,7 +72,7 @@ internal sealed class CreatureNavigation
     private const float RepublishDistanceMetres = 12f;
 
     private readonly IEngineContext engine;
-    private readonly CollisionNavigationConfig config;
+    private CollisionNavigationConfig config;
     private readonly TerrainWorld terrain;
     private readonly WorldFrame frame;
     /// <summary>Deep water closed to creatures, laid over each publication (#9879 follow-up).</summary>
@@ -125,6 +125,25 @@ internal sealed class CreatureNavigation
         };
     }
 
+    /// <summary>
+    /// Routes for a larger body from now on (#10615). A session holds one navigation projection, so it
+    /// is the largest body pursuing: routes that fit it fit a smaller one. The Engine wants a cell at
+    /// least the body's diameter, so a body wider than a voxel is routed on whole-metre cells that fit it.
+    /// </summary>
+    internal void Fit(CharacterControllerConfig character)
+    {
+        if (character.Shape.Radius <= config.Character.Shape.Radius) return;
+        double cell = Math.Max(TerrainConstants.VoxelSize, Math.Ceiling(2 * character.Shape.Radius));
+        config = config with
+        {
+            Character = character,
+            CellSize = cell,
+            VerticalSearchCells = (uint)Math.Max(1, Math.Ceiling(CreatureBody.StepMetres / cell)),
+        };
+        publishedAround = null;
+        publishedBottom = null;
+    }
+
     /// <summary>Publishes navigation around the player if what was published no longer covers them or the world.</summary>
     internal void EnsurePublished(Vector3 playerFeetWorld, bool force = false)
     {
@@ -143,7 +162,7 @@ internal sealed class CreatureNavigation
             && local.Y - kept >= DepthBelow && local.Y - kept <= DepthBelow + VerticalSlackMetres
                 ? kept
                 : MathF.Floor(local.Y) - DepthBelow - (VerticalSlackMetres / 2f);
-        const float cell = (float)TerrainConstants.VoxelSize;
+        float cell = (float)config.CellSize;
         float cellX = MathF.Floor(local.X / cell) * cell;
         float cellZ = MathF.Floor(local.Z / cell) * cell;
         long started = Stopwatch.GetTimestamp();
@@ -170,7 +189,7 @@ internal sealed class CreatureNavigation
     /// <summary>The water over a local cell column, in the local frame, or null where it is dry.</summary>
     private ColumnWater? WaterAt(long x, long z)
     {
-        const double cell = TerrainConstants.VoxelSize;
+        double cell = config.CellSize;
         Vector3 world = frame.ToWorld(new Vector3((float)((x + 0.5) * cell), 0f, (float)((z + 0.5) * cell)));
         if (sampledWaterRevision != terrain.WaterRevision || waterSamples.Count > MostWaterSamples)
         {
@@ -208,7 +227,7 @@ internal sealed class CreatureNavigation
     /// <summary>A path's cells as world X/Z centres, for a mover to walk.</summary>
     internal Vector2[] CellCentres(ReadOnlySpan<PlanarNavCell> path)
     {
-        const double cell = TerrainConstants.VoxelSize;
+        double cell = config.CellSize;
         Vector2[] centres = new Vector2[path.Length];
         for (int i = 0; i < path.Length; i++)
         {

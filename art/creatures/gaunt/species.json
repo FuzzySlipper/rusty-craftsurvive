@@ -188,7 +188,8 @@
    "seconds": 3.0
   },
   "die": {
-   "seconds": 2.2
+   "seconds": 2.2,
+   "restShare": 0.12
   },
   "threat": {
    "seconds": 2.4

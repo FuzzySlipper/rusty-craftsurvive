@@ -100,8 +100,16 @@ internal static class HunterRules
         return blow;
     }
 
-    /// <summary>Whether a closing bite finds the player: they are still within its reach and a step more.</summary>
-    internal static bool Lands(WildlifeHunt hunt, double playerDistance) => playerDistance <= hunt.ReachMetres + hunt.DodgeMetres;
+    /// <summary>Whether a closing bite finds the player: it still sees them, so no wall has come between, and they are within its reach and a step more.</summary>
+    internal static bool Lands(WildlifeHunt hunt, double playerDistance, bool seesPlayer) => seesPlayer && playerDistance <= hunt.ReachMetres + hunt.DodgeMetres;
+
+    /// <summary>
+    /// Where its mesh stands for a capsule at a point. The mesh's origin is under its bounding box, well
+    /// forward of its legs on so long a head; the capsule holds the legs, so the mesh stands ahead of it
+    /// by as much as the middle of its feet lies behind the origin.
+    /// </summary>
+    internal static Vector2 Drawn(Vector2 capsule, float yaw, double hindMetres, double foreMetres, float size) =>
+        capsule + (WildlifeRules.Facing(yaw) * (float)(-(hindMetres + foreMetres) / 2 * size));
 
     /// <summary>The clip its state calls for. Being hit shows over anything; a bite or threat runs its length; then it goes by its speed.</summary>
     /// <param name="speed">Its speed over the ground, in metres a second.</param>

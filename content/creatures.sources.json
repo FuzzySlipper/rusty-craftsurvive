@@ -174,7 +174,7 @@
   },
   {
    "mesh": "content/game/creatures/gaunt/gaunt.glb",
-   "sha256": "4cf080b09f0771210a9020605709a0e082e3bab418b339e8ec009f98450fc501",
+   "sha256": "2c9770019ee4fdc860fc9e441abc4401abc7ca4ee2a937f532307e9b008bcfc5",
    "manifest": "content/game/creatures/gaunt/gaunt.manifest.json",
    "built": "art/creatures/build_creature.py from art/creatures/gaunt/species.json with --mesh body.glb --texture body-64.png",
    "concept": "art/creatures/gaunt/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen), from the starting point art/creatures/entelodont/concept/concept-3.png",

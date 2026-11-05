@@ -723,9 +723,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **Hostile animals are one kind, placed roughly (#10615).** The gaunt lives on `Alpine` and `Desert`
   by `kinds.json`, a stand-in until the wildlife chart (#10616). Rocky canyons have no biome of their
   own, and a home can fall in a desert lake, where it stays empty because no site there will take it.
-  It moves as the 0.3 m capsule the other pursuers use, not its 3 m body, so its head and legs pass
-  through what the capsule misses. Past the 32 m around the player that navigation covers, it comes
-  straight on until it can be routed, so a wall out there stops it.
+  It moves and is routed as its size class's capsule, 1 m in radius and 3.2 m tall, centred between
+  its feet, and a session holds one navigation projection, so while it is the largest body creatures
+  are routed on 2 m cells. That holds its legs, but its long neck and head reach out past the capsule's
+  front and can pass through what stands at that height. Past the 32 m around the player that
+  navigation covers, it comes straight on until it can be routed, so a wall out there stops it.
 - **Pursuers move as bodies (#9737).** Each awake pursuer's move toward its waypoint is the Engine's
   character step of the capsule navigation routes it with (`CreatureBody`: radius 0.3 m, 1.8 m tall,
   stepping 2 m), against the walking session's collision, in steps of at most 1/20 s. It stops at
