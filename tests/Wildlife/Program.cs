@@ -131,10 +131,14 @@ Check.Section("hostile animals", () =>
         [3] = new Hunter(runner, other, Runner(3)),
     };
     Dictionary<string, double> alarms = [];
-    Check.That(HunterRules.Alerted([], packed, alarms, 0.1).Count == 0, "a pack that has seen nothing stays as it was");
-    Check.That(HunterRules.Alerted([1], packed, alarms, 0.1).SetEquals([1, 2]), "what one of a pack sees they all come for, and no one else does");
-    Check.That(HunterRules.Alerted([], packed, alarms, pack.AlarmSeconds / 2).SetEquals([1, 2]), "a pack keeps coming when the ground hides the player for a moment");
-    Check.That(HunterRules.Alerted([], packed, alarms, pack.AlarmSeconds).Count == 0, "a call dies away");
+    bool InSight(int _) => true;
+    bool OutOfSight(int _) => false;
+    Check.That(HunterRules.Alerted([], packed, alarms, 0.1, InSight).Count == 0, "a pack that has seen nothing stays as it was");
+    Check.That(HunterRules.Alerted([1], packed, alarms, 0.1, OutOfSight).SetEquals([1]) && alarms.Count == 0, "a clear line beyond an animal's own sight calls no one");
+    Check.That(HunterRules.Alerted([1], packed, alarms, 0.1, InSight).SetEquals([1, 2]), "what one of a pack sees they all come for, and no one else does");
+    Check.That(HunterRules.Alerted([], packed, alarms, pack.AlarmSeconds / 2, InSight).SetEquals([1, 2]), "a pack keeps coming when the ground hides the player for a moment");
+    Check.That(HunterRules.Alerted([1], packed, alarms, pack.AlarmSeconds / 4, OutOfSight).SetEquals([1, 2]), "a call runs on while it lasts");
+    Check.That(HunterRules.Alerted([1], packed, alarms, pack.AlarmSeconds / 2, OutOfSight).SetEquals([1]), "a line beyond sight does not renew a call, so it dies away");
     Check.That(alarms.Count == 0, "a dead call leaves nothing behind");
 
     WildlifeMember second = WildlifeRules.Wake(den, runner, catalog, 7, Vector2.Zero, 1, () => 1, null, 1).Leader;

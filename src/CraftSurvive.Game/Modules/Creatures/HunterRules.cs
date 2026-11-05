@@ -152,8 +152,10 @@ internal static class HunterRules
     /// lasts its kind's <see cref="WildlifePack.AlarmSeconds"/> past the last sighting, so a pack keeps
     /// coming when the ground hides the player for a moment.
     /// </summary>
+    /// <param name="seeing">Who has a clear line to the player, however far: perception does not apply an animal's sight.</param>
     /// <param name="alarms">Each calling pack's record and how long its call has left: this moves them on.</param>
-    internal static HashSet<int> Alerted(HashSet<int> seeing, IReadOnlyDictionary<int, Hunter> hunters, Dictionary<string, double> alarms, double seconds)
+    /// <param name="inSight">Whether the player is within an animal's own sight. Only then can it raise or renew a call.</param>
+    internal static HashSet<int> Alerted(HashSet<int> seeing, IReadOnlyDictionary<int, Hunter> hunters, Dictionary<string, double> alarms, double seconds, Func<int, bool> inSight)
     {
         foreach (string key in alarms.Keys.ToArray())
         {
@@ -164,7 +166,7 @@ internal static class HunterRules
 
         foreach ((int id, Hunter hunter) in hunters)
         {
-            if (seeing.Contains(id) && hunter.Kind.Hunt!.Pack is { } pack) alarms[hunter.Record.Key] = pack.AlarmSeconds;
+            if (seeing.Contains(id) && inSight(id) && hunter.Kind.Hunt!.Pack is { } pack) alarms[hunter.Record.Key] = pack.AlarmSeconds;
         }
 
         if (alarms.Count == 0) return seeing;

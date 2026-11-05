@@ -173,6 +173,10 @@ internal sealed class CreatureModule : IProductModule
     private double SightScale(Creature creature) =>
         isNight() && creature.Kind.Tuning.Disposition == CreatureDisposition.Hostile ? NightSightFactor : 1d;
 
+    /// <summary>Whether a creature is near enough to the player for its own sight to reach, as the behaviour rules judge it.</summary>
+    private bool InOwnSight(int id, Vector3 playerWorld) => roster.TryGet(id, out Creature creature)
+        && CreatureSimulation.PlanarDistance(creature.Position, playerWorld) <= creature.Kind.Tuning.SightRange * SightScale(creature);
+
     /// <summary>The same, for this update: a pack animal called in by another comes from as far as the call carries.</summary>
     private double SightScale(Creature creature, HashSet<int> alerted) =>
         alerted.Contains(creature.Id) && hunters.TryGetValue(creature.Id, out Hunter? hunter) && packAlarms.ContainsKey(hunter.Record.Key)
@@ -227,7 +231,7 @@ internal sealed class CreatureModule : IProductModule
         CloseAmbush();
         HashSet<int> seeing = Sense(playerWorld);
         // A pack hunts as one: what one sees they all come for, though a bite still needs its own sight.
-        HashSet<int> alerted = HunterRules.Alerted(seeing, hunters, packAlarms, time.ElapsedSeconds);
+        HashSet<int> alerted = HunterRules.Alerted(seeing, hunters, packAlarms, time.ElapsedSeconds, id => InOwnSight(id, playerWorld));
         // With no steps admitted nothing has moved, and a pursuer standing still is not stuck.
         if (time.AdmittedSteps > 0) Route(player.WorldFeetPosition);
         routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, navigation.Queries - queriesBefore,
