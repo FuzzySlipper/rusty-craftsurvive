@@ -718,8 +718,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   player has moved a few cells from where it led, navigation was published again, or it is stuck;
   a failed query backs it off (doubling up to about eight seconds). Creatures stand on the
   generator's column height, so navigation snaps feet to the reconstructed ground within 0.6 m. An
-  ambush tests at most three candidate columns per update with a small search. A pursuer outside
-  the box, or with no route, waits.
+  ambush tests at most three candidate columns per update with a small search. A pursuer with no
+  route waits; a hostile animal outside the box comes on (below).
 - **Hostile animals are one kind, placed roughly (#10615).** The gaunt lives on `Alpine` and `Desert`
   by `kinds.json`, a stand-in until the wildlife chart (#10616). Rocky canyons have no biome of their
   own, and a home can fall in a desert lake, where it stays empty because no site there will take it.
