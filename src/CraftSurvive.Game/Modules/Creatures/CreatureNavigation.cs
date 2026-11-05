@@ -132,11 +132,12 @@ internal sealed class CreatureNavigation
     /// </summary>
     internal void Fit(CharacterControllerConfig character)
     {
-        if (character.Shape.Radius <= config.Character.Shape.Radius) return;
-        double cell = Math.Max(TerrainConstants.VoxelSize, Math.Ceiling(2 * character.Shape.Radius));
+        CharacterShapeConfig held = config.Character.Shape;
+        (float radius, float height, double cell) = HunterRules.Envelope(held.Radius, held.StandingHeight, character.Shape.Radius, character.Shape.StandingHeight, TerrainConstants.VoxelSize);
+        if (radius == held.Radius && height == held.StandingHeight) return;
         config = config with
         {
-            Character = character,
+            Character = CreatureBody.Capsule(engine.Spatial.DefaultCharacterControllerConfig(), radius, height),
             CellSize = cell,
             VerticalSearchCells = (uint)Math.Max(1, Math.Ceiling(CreatureBody.StepMetres / cell)),
         };

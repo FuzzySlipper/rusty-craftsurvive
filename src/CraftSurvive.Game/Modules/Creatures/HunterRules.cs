@@ -108,6 +108,16 @@ internal static class HunterRules
     /// forward of its legs on so long a head; the capsule holds the legs, so the mesh stands ahead of it
     /// by as much as the middle of its feet lies behind the origin.
     /// </summary>
+    /// <summary>
+    /// The body creatures are routed for, once another has joined them: as wide as the widest and as
+    /// tall as the tallest, whichever came first, on cells at least the width of it (#10622).
+    /// </summary>
+    internal static (float Radius, float Height, double Cell) Envelope(float radius, float height, float otherRadius, float otherHeight, double smallestCell)
+    {
+        float widest = Math.Max(radius, otherRadius);
+        return (widest, Math.Max(height, otherHeight), Math.Max(smallestCell, Math.Ceiling(2 * widest)));
+    }
+
     internal static Vector2 Drawn(Vector2 capsule, float yaw, double hindMetres, double foreMetres, float size) =>
         capsule + (WildlifeRules.Facing(yaw) * (float)(-(hindMetres + foreMetres) / 2 * size));
 

@@ -94,6 +94,12 @@ Check.Section("hostile animals", () =>
     Check.That(beak.Pressed == PressedResponse.Hunt, "the axe-beak hunts");
     Check.That(beak.Body.HeightMetres > catalog.Kind("gaunt").Body.HeightMetres, "the axe-beak stands over the gaunt");
     Check.That(catalog.SizeClasses[beak.Body.SizeClass].Height > catalog.SizeClasses[WildlifeSizeClass.Huge].Height, "its body is as tall as it is");
+    // Navigation holds one body: it has to clear the tallest hunter, whichever was met first.
+    WildlifeCapsule gauntBody = catalog.SizeClasses[catalog.Kind("gaunt").Body.SizeClass], beakBody = catalog.SizeClasses[beak.Body.SizeClass];
+    (float, float, double) gauntThenBeak = HunterRules.Envelope(gauntBody.Radius, gauntBody.Height, beakBody.Radius, beakBody.Height, 1);
+    (float, float, double) beakThenGaunt = HunterRules.Envelope(beakBody.Radius, beakBody.Height, gauntBody.Radius, gauntBody.Height, 1);
+    Check.That(gauntThenBeak == (1f, 4.6f, 2d), "a gaunt then an axe-beak are routed for the bird's height, on the same 2 m cells");
+    Check.That(beakThenGaunt == gauntThenBeak, "the other way round holds the same body");
     (float standing, float tilt) = WildlifeClips.Stance(10, 12, 8, -1.08, -1.08, catalog.Animation);
     Check.That(standing == 10 && tilt == 0, "a body whose feet stand in one place is not pitched by the ground");
 
