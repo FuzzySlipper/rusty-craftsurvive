@@ -97,7 +97,16 @@
     "mostPlanted": 8,
     "replantMetres": 0.03,
     "replantDegrees": 1,
-    "corpseSeconds": 60
+    "corpseSeconds": 60,
+    "corpseMetres": 120,
+    "ragdoll": {
+      "friction": 0.8,
+      "restitution": 0,
+      "linearDamping": 0.05,
+      "angularDamping": 0.4,
+      "blowMetresPerSecond": 1.2,
+      "blowLift": 0.2
+    }
   },
   "kinds": [
     {
@@ -109,6 +118,7 @@
       "mesh": {
         "file": "creatures/gaunt/gaunt.glb",
         "manifest": "creatures/gaunt/gaunt.manifest.json",
+        "ragdoll": "creatures/gaunt/gaunt.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
       },
@@ -130,6 +140,7 @@
       "mesh": {
         "file": "creatures/sloth/sloth.glb",
         "manifest": "creatures/sloth/sloth.manifest.json",
+        "ragdoll": "creatures/sloth/sloth.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "stand": "defend-swipe", "die": "die" }
       },
@@ -164,6 +175,7 @@
       "mesh": {
         "file": "creatures/hipparion/hipparion.glb",
         "manifest": "creatures/hipparion/hipparion.manifest.json",
+        "ragdoll": "creatures/hipparion/hipparion.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "bolt", "die": "die" }
       },
@@ -184,6 +196,7 @@
       "mesh": {
         "file": "creatures/giant-deer/giant-deer.glb",
         "manifest": "creatures/giant-deer/giant-deer.manifest.json",
+        "ragdoll": "creatures/giant-deer/giant-deer.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "bellow", "die": "die" }
       },
@@ -204,6 +217,7 @@
       "mesh": {
         "file": "creatures/entelodont/entelodont.glb",
         "manifest": "creatures/entelodont/entelodont.manifest.json",
+        "ragdoll": "creatures/entelodont/entelodont.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "gape", "die": "die" }
       },
@@ -224,6 +238,7 @@
       "mesh": {
         "file": "creatures/giant-beaver/giant-beaver.glb",
         "manifest": "creatures/giant-beaver/giant-beaver.manifest.json",
+        "ragdoll": "creatures/giant-beaver/giant-beaver.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "slip": "slip", "die": "die" }
       },
@@ -244,6 +259,7 @@
       "mesh": {
         "file": "creatures/cave-goat/cave-goat.glb",
         "manifest": "creatures/cave-goat/cave-goat.manifest.json",
+        "ragdoll": "creatures/cave-goat/cave-goat.ragdoll.json",
         "scale": 0.85,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "bolt", "ledgeHop": "ledge-hop", "die": "die" }
       },
@@ -264,6 +280,7 @@
       "mesh": {
         "file": "creatures/glyptodon/glyptodon.glb",
         "manifest": "creatures/glyptodon/glyptodon.manifest.json",
+        "ragdoll": "creatures/glyptodon/glyptodon.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "hunker": "hunker", "die": "die" }
       },
@@ -284,6 +301,7 @@
       "mesh": {
         "file": "creatures/mammoth/mammoth.glb",
         "manifest": "creatures/mammoth/mammoth.manifest.json",
+        "ragdoll": "creatures/mammoth/mammoth.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "stand": "threat", "die": "die" }
       },
@@ -304,6 +322,7 @@
       "mesh": {
         "file": "creatures/ancylotherium/ancylotherium.glb",
         "manifest": "creatures/ancylotherium/ancylotherium.manifest.json",
+        "ragdoll": "creatures/ancylotherium/ancylotherium.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "stand": "rear", "die": "die" }
       },
@@ -324,6 +343,7 @@
       "mesh": {
         "file": "creatures/paraceratherium/paraceratherium.glb",
         "manifest": "creatures/paraceratherium/paraceratherium.manifest.json",
+        "ragdoll": "creatures/paraceratherium/paraceratherium.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "stand": "bellow", "die": "die" }
       },
@@ -344,6 +364,7 @@
       "mesh": {
         "file": "creatures/diprotodon/diprotodon.glb",
         "manifest": "creatures/diprotodon/diprotodon.manifest.json",
+        "ragdoll": "creatures/diprotodon/diprotodon.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "die": "die" }
       },
@@ -364,6 +385,7 @@
       "mesh": {
         "file": "creatures/megacerops/megacerops.glb",
         "manifest": "creatures/megacerops/megacerops.manifest.json",
+        "ragdoll": "creatures/megacerops/megacerops.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "stand": "shove", "die": "die" }
       },
@@ -384,6 +406,7 @@
       "mesh": {
         "file": "creatures/sivatherium/sivatherium.glb",
         "manifest": "creatures/sivatherium/sivatherium.manifest.json",
+        "ragdoll": "creatures/sivatherium/sivatherium.ragdoll.json",
         "scale": 1.0,
         "clips": { "idle": "idle", "graze": "graze", "walk": "walk", "run": "run", "look": "alert", "warn": "spar", "die": "die" }
       },

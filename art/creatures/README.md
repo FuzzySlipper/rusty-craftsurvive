@@ -119,6 +119,15 @@ A species file can also carry what a body needs:
 | `plant` | Turns two-bone foot IK on uneven ground on or off |
 | `read`, `clips`, `clear` | Report the placed creatures, list a kind's clips, remove them all |
 
+## Ragdolls
+
+`python3 art/creatures/ragdoll.py [species ...]` writes `<species>.ragdoll.json` beside the GLB, the
+bones and links a killed animal falls with (#10621). Run it after every rebuild of a body. It needs
+no Blender: one table of joint names serves every family, and sizes and masses come from the mesh, as
+its header says. `mesh.ragdoll` in `kinds.json` turns it on for a kind. A new joint name has to go in
+its tables, as a cone, a hinge or left to the clips. The `die` clip stays, for an animal that cannot
+fall.
+
 ## Concepts
 
 `sloth/concept/` holds the three GPT-image turnaround options (A faithful, B storybook bulk,

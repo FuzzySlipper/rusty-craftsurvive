@@ -53,6 +53,7 @@ internal sealed class WildlifeModule : IProductModule
     private WildlifePresentation? presentation;
     private readonly List<WildlifeHerd> awake = [];
     private readonly List<WildlifeFallen> fallen = [];
+    private WildlifeRagdolls? ragdolls;
     private readonly Dictionary<int, MemberBody> bodies = [];
     private readonly Dictionary<(string Kind, WildlifeSizeClass SizeClass), CharacterControllerConfig> configs = [];
     private readonly Dictionary<string, Vector2?> waters = [];
@@ -123,7 +124,8 @@ internal sealed class WildlifeModule : IProductModule
         catalog ??= WildlifeKinds.Parse(content.ReadText(WildlifeKinds.ContentPath));
         if (presentation is null)
         {
-            WildlifeMeshBodies meshes = new(engine, content, frame, catalog.Animation, GroundOf, Seed);
+            ragdolls = new WildlifeRagdolls(engine, frame, () => terrain.Session, catalog.Animation.Ragdoll);
+            WildlifeMeshBodies meshes = new(engine, content, frame, catalog.Animation, GroundOf, Seed, ragdolls);
             foreach (WildlifeKind kind in catalog.Kinds.Where(kind => kind.Mesh is not null)) meshes.Prepare(kind);
             presentation = new WildlifePresentation(engine, frame, meshes);
         }
@@ -144,6 +146,7 @@ internal sealed class WildlifeModule : IProductModule
         {
             // The open world's herds sleep while the player is in a dungeon: nothing draws them there.
             if (awake.Count > 0 || fallen.Count > 0 || AppearanceFacts.Count > 0) SleepAll();
+            ragdolls?.Update(time);
             return;
         }
 
@@ -171,6 +174,7 @@ internal sealed class WildlifeModule : IProductModule
 
         Decay(here, time.ElapsedSeconds);
         Presentation.Sync(awake, fallen, Hunters?.Invoke() ?? [], FeetOf, here, time.ElapsedSeconds);
+        ragdolls?.Update(time);
         double milliseconds = Stopwatch.GetElapsedTime(began).TotalMilliseconds;
         cost = (cost.Total + milliseconds, cost.Count + 1, Math.Max(cost.Worst, milliseconds), cost.Steps, cost.Refused, cost.Glides);
     }
@@ -188,6 +192,7 @@ internal sealed class WildlifeModule : IProductModule
         fallen.Clear();
         bodies.Clear();
         presentation?.Dispose();
+        ragdolls?.Dispose();
         started = false;
     }
 
@@ -334,7 +339,7 @@ internal sealed class WildlifeModule : IProductModule
         WildlifeMember member = hunter.Member;
         member.Velocity = Vector2.Zero;
         bodies[member.Id] = new MemberBody { Feet = feet };
-        fallen.Add(new WildlifeFallen(hunter.Kind, member));
+        fallen.Add(new WildlifeFallen(hunter.Kind, member, BlowOn(member)));
         double day = Day(clock());
         hunter.Record.Kill(day, hunter.Kind.Population.RecoveryDays);
         slot.Save(Ledger.Losses(day));
@@ -359,13 +364,20 @@ internal sealed class WildlifeModule : IProductModule
         awake.Remove(herd);
     }
 
-    /// <summary>The fallen lie where they fell for a while, or until the player has gone.</summary>
+    /// <summary>The way a blow from the player drives an animal, along the ground.</summary>
+    private Vector2 BlowOn(WildlifeMember member)
+    {
+        Vector2 away = member.Position - Here;
+        return away == Vector2.Zero ? Vector2.Zero : Vector2.Normalize(away);
+    }
+
+    /// <summary>The fallen lie where they fell for a while, or until the player has gone. A body must go while the ground under it is still resident.</summary>
     private void Decay(Vector2 here, double seconds)
     {
         foreach (WildlifeFallen body in fallen.ToArray())
         {
             body.Seconds += seconds;
-            if (body.Seconds < Catalog.Animation.CorpseSeconds && Vector2.Distance(body.Member.Position, here) <= Catalog.Waking.SleepMetres) continue;
+            if (body.Seconds < Catalog.Animation.CorpseSeconds && Vector2.Distance(body.Member.Position, here) <= Catalog.Animation.CorpseMetres) continue;
             fallen.Remove(body);
             Forget(body.Member);
         }
@@ -583,7 +595,7 @@ internal sealed class WildlifeModule : IProductModule
         double day = Day(clock());
         herd.Remove(member);
         member.Velocity = Vector2.Zero;
-        fallen.Add(new WildlifeFallen(herd.Kind, member));
+        fallen.Add(new WildlifeFallen(herd.Kind, member, BlowOn(member)));
         herd.Record.Kill(day, herd.Kind.Population.RecoveryDays);
         slot.Save(Ledger.Losses(day));
         if (herd.Members.Count == 0) awake.Remove(herd);
@@ -626,6 +638,13 @@ internal sealed class WildlifeModule : IProductModule
         return "all herds asleep";
     }
 
+    /// <summary>Test aid: leaves every awake animal one health.</summary>
+    internal string WeakenAll()
+    {
+        foreach (WildlifeMember member in awake.SelectMany(herd => herd.Members)) member.Combat = member.Combat with { Health = 1 };
+        return string.Create(CultureInfo.InvariantCulture, $"weakened {awake.Sum(herd => herd.Members.Count)}");
+    }
+
     /// <summary>The awake herds, their activity, alarm and animals, and what updates have cost since the last readout (which it resets).</summary>
     internal string Readout()
     {
@@ -637,7 +656,7 @@ internal sealed class WildlifeModule : IProductModule
         cost = default;
         parts = default;
         return string.Create(CultureInfo.InvariantCulture,
-            $"step={step} day={now.Day} hour={now.DayFraction * WildlifeSchedule.HoursPerDay:F2} herds={awake.Count} animals={awake.Sum(herd => herd.Members.Count)} regions={Ledger.Regions.Count()} player={at.X:F0},{at.Z:F0} {costs} {Presentation.Meshes.Readout()} fallen={fallen.Count} last={lastEvent} asleep={Asleep(at, now)} | ")
+            $"step={step} day={now.Day} hour={now.DayFraction * WildlifeSchedule.HoursPerDay:F2} herds={awake.Count} animals={awake.Sum(herd => herd.Members.Count)} regions={Ledger.Regions.Count()} player={at.X:F0},{at.Z:F0} {costs} {Presentation.Meshes.Readout()} {ragdolls?.Readout()} fallen={fallen.Count} last={lastEvent} asleep={Asleep(at, now)} | ")
             + string.Join(" | ", awake.Select(Readout));
     }
 

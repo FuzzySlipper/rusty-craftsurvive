@@ -495,6 +495,13 @@ internal sealed class CreatureModule : IProductModule
             $"defeated {target.Id}; xp={progression.Experience} level={progression.Level}{(progression.Advanced ? " advanced" : string.Empty)} drops={string.Join(",", reward.Drops.Select(drop => $"{drop.ItemId}:{drop.Quantity}"))}");
     }
 
+    /// <summary>Test aid: leaves every creature one health.</summary>
+    internal string WeakenAll()
+    {
+        foreach (Creature creature in roster.All) creature.Combat = creature.Combat with { Health = 1 };
+        return string.Create(CultureInfo.InvariantCulture, $"weakened {roster.All.Count()}");
+    }
+
     internal string Readout()
     {
         if (!started)

@@ -111,7 +111,7 @@ internal sealed class WildlifePresentation : IDisposable
             }
 
             kept.Add(body.Member);
-            next.Add(meshes.Pose(null, body.Kind, body.Member, feet(body.Member), Vector2.Distance(body.Member.Position, here), seconds, plantWithin, fallen: true));
+            next.Add(meshes.Pose(null, body.Kind, body.Member, feet(body.Member), Vector2.Distance(body.Member.Position, here), seconds, plantWithin, fallen: true, body.Blow));
         }
 
         meshes.Keep(kept);

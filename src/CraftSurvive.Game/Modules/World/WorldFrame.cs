@@ -21,6 +21,9 @@ internal sealed class WorldFrame
     /// <summary>Raised after a committed rebase, with the translation local positions moved by.</summary>
     internal event Action<Vector3>? Rebased;
 
+    /// <summary>Raised with the Engine's receipt of a committed rebase, for what the Engine does not move by itself.</summary>
+    internal event Action<WorldOriginCommitReceipt>? Committed;
+
     internal (long X, long Y, long Z) Origin => (originX, originY, originZ);
 
     internal Vector3 ToLocal(double worldX, double worldY, double worldZ) => new(
@@ -45,6 +48,9 @@ internal sealed class WorldFrame
         SetOrigin(cellX, cellY, cellZ);
         Rebased?.Invoke(translation);
     }
+
+    /// <summary>Passes on the receipt of the rebase just committed.</summary>
+    internal void Receipt(WorldOriginCommitReceipt receipt) => Committed?.Invoke(receipt);
 
     private void SetOrigin(long cellX, long cellY, long cellZ)
     {

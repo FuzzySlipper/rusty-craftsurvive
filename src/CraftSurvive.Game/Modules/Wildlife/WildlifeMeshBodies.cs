@@ -26,6 +26,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     private readonly WildlifeAnimation animation;
     private readonly Func<double, double, float> groundAt;
     private readonly ulong seed;
+    private readonly WildlifeRagdolls ragdolls;
     private readonly Dictionary<string, Opened> opened = [];
     private readonly OwnedBodies<Body> bodies = new();
     private readonly CyclingSlots slots = new(WildlifePresentation.MostMembers);
@@ -45,7 +46,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
     private readonly Dictionary<string, (RenderResource Texture, Material Material)> paints = [];
 
-    private sealed record Opened(RenderResource Mesh, WildlifeRig Rig, (uint Root, uint Mid, uint End)[] Legs, string[] Joints)
+    private sealed record Opened(RenderResource Mesh, WildlifeRig Rig, (uint Root, uint Mid, uint End)[] Legs, string[] Joints, WildlifeRagdollRig? Ragdoll)
     {
         internal uint Joint(string name)
         {
@@ -77,9 +78,18 @@ internal sealed class WildlifeMeshBodies : IDisposable
         internal float Pitch { get; set; }
         internal bool Sitting { get; set; }
         internal int SinceSitting { get; set; }
+
+        /// <summary>Its body in the physics world, once it has fallen as one.</summary>
+        internal DynamicsRagdoll? Ragdoll { get; set; }
+
+        /// <summary>It has come to rest, so nothing it draws from moves.</summary>
+        internal bool Rested { get; set; }
+
+        /// <summary>Its death has begun, as a ragdoll or a clip: a body that could not fall at once plays its clip and stays with it.</summary>
+        internal bool Fell { get; set; }
     }
 
-    internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<double, double, float> groundAt, ulong seed)
+    internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<double, double, float> groundAt, ulong seed, WildlifeRagdolls ragdolls)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
@@ -87,19 +97,30 @@ internal sealed class WildlifeMeshBodies : IDisposable
         this.animation = animation;
         this.groundAt = groundAt ?? throw new ArgumentNullException(nameof(groundAt));
         this.seed = seed;
+        this.ragdolls = ragdolls ?? throw new ArgumentNullException(nameof(ragdolls));
     }
 
     internal WildlifeAnimation Animation => animation;
 
     /// <summary>The fact that draws an animal this update.</summary>
-    /// <param name="fallen">It is dead: it plays its death once and stays where it fell.</param>
+    /// <param name="fallen">It is dead: it falls as a ragdoll or plays its death, and stays where it fell.</param>
+    /// <param name="blow">The way the killing blow drove it.</param>
     /// <param name="plantWithin">How near it must be for its feet to be planted.</param>
-    internal AppearanceFact Pose(WildlifeHerd? herd, WildlifeKind kind, WildlifeMember member, float feet, double distance, double seconds, double plantWithin, bool fallen)
+    internal AppearanceFact Pose(WildlifeHerd? herd, WildlifeKind kind, WildlifeMember member, float feet, double distance, double seconds, double plantWithin, bool fallen, Vector2 blow = default)
     {
         Body body = bodies.Take(member, () => Create(kind, member), Retire);
         body.Tier = WildlifeClips.Tier(distance, body.Tier, animation);
-        Play(body, herd, kind, member, seconds, fallen);
-        Sit(body, kind, member, feet, seconds);
+        if (fallen && !body.Fell) Fall(body, kind, member, blow);
+        if (body.Ragdoll is not null)
+        {
+            Follow(body, member);
+        }
+        else
+        {
+            Play(body, herd, kind, member, seconds, fallen);
+            Sit(body, kind, member, feet, seconds);
+        }
+
         float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
         // The mesh faces +Z; yaw 0 faces north (-Z) and a quarter turn east (+X). A rising front turns the nose up: a negative turn about the mesh's own X.
         Quaternion lift = Quaternion.CreateFromAxisAngle(Vector3.UnitX, -body.Pitch);
@@ -108,6 +129,28 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Transform placement = new(frame.ToLocal(world.X, world.Y, world.Z), Quaternion.Concatenate(lift, turn), new Vector3(scale));
         Plant(body, placement, world, scale, plant: !fallen && distance <= plantWithin);
         return new AppearanceFact(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.Cast);
+    }
+
+    /// <summary>Lets a body fall if it has a ragdoll and a pose to fall from, holding its clip so that what the ragdoll leaves to the clips stays still.</summary>
+    private void Fall(Body body, WildlifeKind kind, WildlifeMember member, Vector2 blow)
+    {
+        body.Fell = true;
+        if (body.Kind.Ragdoll is not { } rig || !body.Published || !engine.Animation.ReadJointPose(body.Instance).Reported) return;
+        float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
+        body.Ragdoll = ragdolls.Fall(body.Instance, rig, body.Kind.Joint, scale, blow);
+        if (body.Playing is not null && !body.Paused)
+            engine.Animation.SetPlayback(new(body.Instance, AnimationPlaybackKind.Pause, "", AnimationLoopMode.Once, 0, 0, false, 0, false, 0));
+        body.Paused = true;
+    }
+
+    /// <summary>A falling body's fact and record follow its hips, which is where the animal now is, for what bounds or distance it.</summary>
+    private void Follow(Body body, WildlifeMember member)
+    {
+        if (body.Rested) return;
+        DynamicsRagdollResult read = engine.Dynamics.ReadRagdoll(body.Ragdoll!);
+        Vector3 hips = frame.ToWorld(read.Bones.Span[0].Translation);
+        member.Position = new Vector2(hips.X, hips.Z);
+        body.Rested = read.Resting;
     }
 
     /// <summary>Starts, changes, holds or resumes the clip the animal's state calls for.</summary>
@@ -274,7 +317,8 @@ internal sealed class WildlifeMeshBodies : IDisposable
         string[] joints = [.. engine.Animation.ReadJoints(resource).ToArray().Select(joint => joint.Id)];
         (uint, uint, uint)[] legs = [.. rig.Rig.Legs.Select(leg =>
             ((uint)Array.IndexOf(joints, leg.Root), (uint)Array.IndexOf(joints, leg.Mid), (uint)Array.IndexOf(joints, leg.End)))];
-        return opened[kind.Id] = new Opened(resource, rig, legs, joints);
+        WildlifeRagdollRig? ragdoll = mesh.Ragdoll is { } path ? WildlifeRagdollRig.Parse(content.ReadText(path)) : null;
+        return opened[kind.Id] = new Opened(resource, rig, legs, joints, ragdoll);
     }
 
     /// <summary>Retires every body not owned by these animals. Call before the snapshot built without them.</summary>
@@ -283,6 +327,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <summary>The instance goes now, before the snapshot that drops its fact; its appearance after that snapshot.</summary>
     private void Retire(Body body)
     {
+        if (body.Ragdoll is { } ragdoll) ragdolls.Release(ragdoll);
         body.Instance.Dispose();
         retiring.Add(body.Appearance);
         slots.Release(body.Slot);
@@ -306,7 +351,29 @@ internal sealed class WildlifeMeshBodies : IDisposable
         string text = string.Create(CultureInfo.InvariantCulture,
             $"mostPitch={bodies.All.Select(b => Math.Abs(b.Pitch) * 180 / MathF.PI).DefaultIfEmpty().Max():F1} meshes={bodies.Count} full={bodies.All.Count(b => b.Tier == WildlifeTier.Full)} play={bodies.All.Count(b => b.Tier == WildlifeTier.Play)} held={bodies.All.Count(b => b.Tier == WildlifeTier.Held)} hidden={bodies.All.Count(b => b.Tier == WildlifeTier.Hidden)} planted={bodies.All.Count(b => b.Planted)} steepest={bodies.All.Select(b => Math.Abs(b.Pitch)).DefaultIfEmpty(0).Max() * 180 / MathF.PI:F1} retired={retired} plants={planting.Calls} sampleMs={planting.Sample:F1} castMs={planting.Casts:F1} poseMs={planting.Pose:F1}");
         planting = default;
-        return text;
+        return text + Lying();
+    }
+
+    /// <summary>How the ragdolls lie: at rest or not, and how far the deepest bone's surface has gone below the ground.</summary>
+    private string Lying()
+    {
+        int resting = 0;
+        float deepest = float.NegativeInfinity;
+        Vector3 hips = default;
+        foreach (Body body in bodies.All.Where(body => body.Ragdoll is not null))
+        {
+            DynamicsRagdollResult read = engine.Dynamics.ReadRagdoll(body.Ragdoll!);
+            if (read.Resting) resting++;
+            ReadOnlySpan<Transform> bones = read.Bones.Span;
+            hips = frame.ToWorld(bones[0].Translation);
+            for (int index = 0; index < bones.Length; index++)
+            {
+                Vector3 at = frame.ToWorld(bones[index].Translation);
+                deepest = MathF.Max(deepest, groundAt(at.X, at.Z) - (at.Y - body.Kind.Ragdoll!.Bones[index].Radius));
+            }
+        }
+
+        return string.Create(CultureInfo.InvariantCulture, $" resting={resting} deepest={(float.IsInfinity(deepest) ? 0 : deepest):F2} hips={hips.X:F1},{hips.Y:F1},{hips.Z:F1}");
     }
 
     public void Dispose()

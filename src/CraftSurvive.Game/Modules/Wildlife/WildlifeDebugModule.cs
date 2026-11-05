@@ -39,6 +39,9 @@ public sealed class WildlifeDebugModule : IDebugCommandModule
     [DebugCommand("craft.wildlife.country", Description = "Wildlife (#10570): the nearest ground of a biome within some kilometres, to see a kind in its own country.")]
     public string Country(string biome, double kilometres) => wildlife.Country(biome, kilometres);
 
+    [DebugCommand("craft.wildlife.weaken", Description = "Test aid (#10621): leaves every awake animal one health, so the next blow that lands kills it.")]
+    public string Weaken() => wildlife.WeakenAll();
+
     [DebugCommand("craft.wildlife.sleep", Description = "Wildlife (#10567): put every awake herd to sleep; the ledger keeps them, and they wake again where their range puts them.")]
     public string Sleep() => wildlife.SleepAll();
 

@@ -16,6 +16,7 @@
     <Compile Include="$(ProductModules)Wildlife/HerdLoss.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/WildlifeClips.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/OwnedBodies.cs" LinkBase="Product/Wildlife" />
+    <Compile Include="$(ProductModules)Wildlife/WildlifeRagdollRig.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Creatures/CreatureManifest.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Creatures/HunterRules.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Rpg/CreatureBehavior.cs" LinkBase="Product/Rpg" />
@@ -32,5 +33,6 @@
     <EmbeddedResource Include="../../content/game/creatures/cave-goat/cave-goat.manifest.json" LogicalName="Wildlife.cave-goat.manifest.json" />
     <EmbeddedResource Include="../../content/game/creatures/sloth/sloth.manifest.json" LogicalName="Wildlife.sloth.manifest.json" />
     <EmbeddedResource Include="../../content/game/creatures/gaunt/gaunt.manifest.json" LogicalName="Wildlife.gaunt.manifest.json" />
+    <EmbeddedResource Include="../../content/game/creatures/*/*.ragdoll.json" LogicalName="Wildlife.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

@@ -102,11 +102,14 @@ internal sealed class WildlifeMember
 }
 
 /// <summary>An animal that has been killed, left where it fell for a while: it holds its id until it goes.</summary>
-internal sealed class WildlifeFallen(WildlifeKind kind, WildlifeMember member)
+internal sealed class WildlifeFallen(WildlifeKind kind, WildlifeMember member, Vector2 blow)
 {
     internal WildlifeKind Kind { get; } = kind;
 
     internal WildlifeMember Member { get; } = member;
+
+    /// <summary>The way the killing blow drove it, as a unit along the ground.</summary>
+    internal Vector2 Blow { get; } = blow;
 
     internal double Seconds { get; set; }
 }

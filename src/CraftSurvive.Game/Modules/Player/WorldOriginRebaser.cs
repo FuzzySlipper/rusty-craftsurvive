@@ -37,8 +37,9 @@ internal sealed class WorldOriginRebaser(IEngineContext engine, WorldFrame frame
         // Prepare returns one affected transform per root, in request order.
         Vector3 rebased = engine.WorldOrigin.ReadPrepared(new WorldOriginPreparedReadRequest(prepared))
             .Affected.Span[0].LocalTransform.Translation;
-        engine.WorldOrigin.Commit(new WorldOriginCommitRequest(prepared));
+        WorldOriginCommitReceipt receipt = engine.WorldOrigin.Commit(new WorldOriginCommitRequest(prepared));
         frame.Commit(world.CellX, origin.CellY, world.CellZ);
+        frame.Receipt(receipt);
         return rebased;
     }
 }

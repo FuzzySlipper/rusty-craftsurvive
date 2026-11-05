@@ -728,6 +728,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   are routed on 2 m cells. That holds its legs, but its long neck and head reach out past the capsule's
   front and can pass through what stands at that height. Past the 32 m around the player that
   navigation covers, it comes straight on until it can be routed, so a wall out there stops it.
+- **The dead fall on terrain alone (#10621).** A killed animal with a mesh falls as a ragdoll in a
+  physics world bound to the terrain's collision. It touches nothing else: other bodies, the player,
+  scatter, and whatever a town or building keeps in a collision session of its own, so bodies can lie
+  through each other and a running one can slide through the player. A body goes when the player is
+  120 m away, while the ground under it is still resident. The world is opened at the first death and
+  its first bind took about 30 ms on the streamed terrain, which can show as a hitch at that blow. An
+  animal with no pose to fall from, such as one hidden by distance, plays its `die` clip instead.
 - **Pursuers move as bodies (#9737).** Each awake pursuer's move toward its waypoint is the Engine's
   character step of the capsule navigation routes it with (`CreatureBody`: radius 0.3 m, 1.8 m tall,
   stepping 2 m), against the walking session's collision, in steps of at most 1/20 s. It stops at

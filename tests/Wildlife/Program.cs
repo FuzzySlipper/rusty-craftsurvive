@@ -55,6 +55,38 @@ double ClosestPair(WildlifeHerd herd)
 double CohesionBound(WildlifeKind kind, int count) =>
     kind.SpacingMetres * ((0.75 * Math.Sqrt(count - 1)) + catalog.Behaviour.CatchUpSpacings + catalog.Behaviour.SlotJitterShare);
 
+Check.Section("ragdolls", () =>
+{
+    // A body has to go while the ground under it is resident: 8 requested chunks of 16 m (TerrainConstants).
+    const double ResidentMetres = 128;
+    Check.That(catalog.Animation.CorpseMetres > 0 && catalog.Animation.CorpseMetres <= ResidentMetres, "a body goes before the ground under it does");
+    Check.That(catalog.Animation.Ragdoll.BlowMetresPerSecond >= 0, "a killing blow drives a body away from the player");
+
+    foreach (WildlifeKind kind in catalog.Kinds.Where(kind => kind.Mesh is not null))
+    {
+        string path = kind.Mesh!.Ragdoll ?? throw new InvalidDataException($"{kind.Id} has a mesh and no ragdoll");
+        WildlifeRagdollRig rig = WildlifeRagdollRig.Parse(ReadResource($"Wildlife.{Path.GetFileName(path)}"));
+        string[] joints = [.. rig.Bones.Select(bone => bone.Joint)];
+
+        Check.That(rig.Bones[0].Joint == "hips", $"{kind.Id}'s ragdoll starts from its hips, which the fall follows");
+        Check.That(joints[rig.HitBone] == "chest", $"{kind.Id}'s killing blow lands on its chest");
+        Check.That(rig.Bones.All(bone => bone.Radius > 0 && bone.Mass > 0), $"{kind.Id}'s bones have a body");
+        Check.That(rig.Bones.All(bone => bone.End is null ? bone.Length > 0 : joints.Contains(bone.End)), $"{kind.Id}'s bones end at a bone or in a length");
+
+        // One link to each bone but the first, so the body hangs together as one tree.
+        int[] children = [.. rig.Links.Select(link => link.Child).Order()];
+        Check.That(children.SequenceEqual(Enumerable.Range(1, rig.Bones.Count - 1)), $"{kind.Id}'s bones are joined into one body");
+
+        // Limits count from the rest pose, so a limit that leaves it out would throw the body at the first step.
+        Check.That(rig.Links.All(link => link.Least <= 0 && link.Most >= 0), $"{kind.Id}'s joints can stand at rest");
+        Check.That(rig.Links.All(link => link.Swing is null or > 0), $"{kind.Id}'s cones can swing");
+        Check.That(rig.Links.All(link => MathF.Abs(link.Axis.Length() - 1) < 0.01f), $"{kind.Id}'s joint axes are units");
+    }
+
+    Check.Throws<InvalidDataException>(() => WildlifeRagdollRig.Parse("""{"hitBone":0,"bones":[],"links":[]}"""), "a ragdoll with no bones is refused");
+    Check.Throws<InvalidDataException>(() => WildlifeRagdollRig.Parse("""{"hitBone":3,"bones":[{"joint":"hips","end":null,"length":1,"radius":0.1,"mass":1}],"links":[]}"""), "a hit bone it does not have is refused");
+});
+
 Check.Section("hostile animals", () =>
 {
     WildlifeKind gaunt = catalog.Kind("gaunt");

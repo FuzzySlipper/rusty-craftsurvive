@@ -36,6 +36,9 @@ public sealed class CreatureDebugModule : IDebugCommandModule
     [DebugCommand("craft.creatures.hunter", Description = "Assisted: places a hostile animal of a kind (kind east south) from the player, in no region's population.")]
     public string Hunter(string kind, double east, double south) => creatures.PlaceHunterNear(kind, east, south);
 
+    [DebugCommand("craft.creatures.weaken", Description = "Assisted: leaves every creature one health, so the next blow that lands kills it where it is, as a fall from a run needs.")]
+    public string Weaken() => creatures.WeakenAll();
+
     [DebugCommand("craft.creatures.route", Description = "Reads the navigation route from a world column (x z) to the player as cells, for diagnosis.")]
     public string Route(double x, double z) => creatures.RouteReadout(x, z);
 

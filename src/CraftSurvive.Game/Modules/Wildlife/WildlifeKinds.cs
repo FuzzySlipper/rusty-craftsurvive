@@ -74,8 +74,8 @@ internal enum WildlifeClipRole
     Hurt,
 }
 
-/// <summary>A kind's animated body: its mesh and build manifest, and which clip plays each role. A kind without one is drawn as a placeholder.</summary>
-internal sealed record WildlifeMesh(string File, string Manifest, float Scale, IReadOnlyDictionary<WildlifeClipRole, string> Clips);
+/// <summary>A kind's animated body: its mesh and build manifest, which clip plays each role, and how it falls when killed, if it does more than play its death. A kind without one is drawn as a placeholder.</summary>
+internal sealed record WildlifeMesh(string File, string Manifest, float Scale, IReadOnlyDictionary<WildlifeClipRole, string> Clips, string? Ragdoll = null);
 
 /// <summary>
 /// A kind's young (#10600): this share of a herd's animals, the adult's mesh at this scale with its
@@ -230,7 +230,18 @@ internal readonly record struct WildlifeAnimation(
     int MostPlanted,
     double ReplantMetres,
     double ReplantDegrees,
-    double CorpseSeconds);
+    double CorpseSeconds,
+    double CorpseMetres,
+    WildlifeRagdollFeel Ragdoll);
+
+/// <summary>How the dead fall (#10621): the surface of a ragdoll, and the killing blow as the speed it would give the whole body, with a share of it upward.</summary>
+internal readonly record struct WildlifeRagdollFeel(
+    double Friction,
+    double Restitution,
+    double LinearDamping,
+    double AngularDamping,
+    double BlowMetresPerSecond,
+    double BlowLift);
 
 /// <summary>Every wildlife kind and the rules they share, as read from content (#10567).</summary>
 internal sealed record WildlifeCatalog(
@@ -400,12 +411,22 @@ internal static class WildlifeKinds
             animation.GetProperty("mostPlanted").GetInt32(),
             animation.GetProperty("replantMetres").GetDouble(),
             animation.GetProperty("replantDegrees").GetDouble(),
-            animation.GetProperty("corpseSeconds").GetDouble());
+            animation.GetProperty("corpseSeconds").GetDouble(),
+            animation.GetProperty("corpseMetres").GetDouble(),
+            ReadRagdollFeel(animation.GetProperty("ragdoll")));
         if (read.FullMetres >= read.PlayMetres || read.PlayMetres >= read.DrawMetres)
             throw new InvalidDataException("animation tiers must widen outward: full, then play, then draw");
         if (read.PitchEveryUpdates < 1) throw new InvalidDataException("a body must pitch at least every so many updates");
         return read;
     }
+
+    private static WildlifeRagdollFeel ReadRagdollFeel(JsonElement ragdoll) => new(
+        ragdoll.GetProperty("friction").GetDouble(),
+        ragdoll.GetProperty("restitution").GetDouble(),
+        ragdoll.GetProperty("linearDamping").GetDouble(),
+        ragdoll.GetProperty("angularDamping").GetDouble(),
+        ragdoll.GetProperty("blowMetresPerSecond").GetDouble(),
+        ragdoll.GetProperty("blowLift").GetDouble());
 
     private static WildlifeMesh? ReadMesh(JsonElement kind)
     {
@@ -416,7 +437,8 @@ internal static class WildlifeKinds
             clips[Enum<WildlifeClipRole>(clip.Name)] = clip.Value.GetString()!;
         }
 
-        return new WildlifeMesh(mesh.GetProperty("file").GetString()!, mesh.GetProperty("manifest").GetString()!, mesh.GetProperty("scale").GetSingle(), clips);
+        return new WildlifeMesh(mesh.GetProperty("file").GetString()!, mesh.GetProperty("manifest").GetString()!, mesh.GetProperty("scale").GetSingle(), clips,
+            mesh.TryGetProperty("ragdoll", out JsonElement ragdoll) ? ragdoll.GetString() : null);
     }
 
     private static WildlifeKind ReadKind(JsonElement kind, Dictionary<WildlifeSizeClass, WildlifeCapsule> classes,
