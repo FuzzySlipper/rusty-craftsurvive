@@ -182,6 +182,11 @@ internal static class ProductIds
 
     internal const ulong WildlifeAppearanceLimit = 0x1000UL;
 
+    /// <summary>Birds in the sky (#10630): one object a bird.</summary>
+    internal const ulong BirdAppearanceBase = WildlifeAppearanceBase + WildlifeAppearanceLimit;
+
+    internal const ulong BirdAppearanceLimit = 0x100UL;
+
     /// <summary>The overworld places' kit pieces standing in the near ground (#9992), at most <see cref="PlaceMeshLimit"/>.</summary>
     internal const ulong PlaceMeshBase = 0x9_A000UL;
 

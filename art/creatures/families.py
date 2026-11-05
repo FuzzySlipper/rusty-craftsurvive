@@ -964,6 +964,71 @@ THEROPOD_CLIPS = {
 }
 
 
+# ---------------------------------------------------------------- flyer: wings and no legs
+
+def flyer_bones():
+    """A bird in the air, seen from far below: a stiff body, jointed wings and a tail. Its legs stay tucked, so it has none."""
+    bones = [
+        ("root", None, "root", "root_tip", 1.0),
+        ("body", "root", "body", "chest", 1.0),
+        ("chest", "body", "chest", "neck", 1.0),
+        ("neck", "chest", "neck", "head", 1.0),
+        ("head", "neck", "head", "nose", 1.0),
+        ("tail", "body", "tail0", "tail1", 1.0),
+    ]
+    for side, sign in SIDES.items():
+        bones += [
+            (f"wing1.{side}", "chest", "shoulder", "elbow", sign),
+            (f"wing2.{side}", f"wing1.{side}", "elbow", "wrist", sign),
+            (f"wing3.{side}", f"wing2.{side}", "wrist", "wing_tip", sign),
+            (f"streamer1.{side}", "tail", "streamer0", "streamer1", sign),
+            (f"streamer2.{side}", f"streamer1.{side}", "streamer1", "streamer2", sign),
+        ]
+    return bones
+
+
+def flyer_wings(c, shoulder, elbow, wrist):
+    """Both wings, by degrees of lift at each joint: positive raises the wing toward the back."""
+    for side, sign in SIDES.items():
+        c.bone_rotation(f"wing1.{side}", roll(sign * shoulder))
+        c.bone_rotation(f"wing2.{side}", roll(sign * elbow))
+        c.bone_rotation(f"wing3.{side}", roll(sign * wrist))
+
+
+def flyer_streamers(c, t, swing):
+    """The streamers trail, one a little behind the other, the second bone further out."""
+    for side, sign in SIDES.items():
+        lag = 0.08 if sign > 0 else 0.0
+        c.bone_rotation(f"streamer1.{side}", pitch(swing * gait.wave(t, lag=lag)))
+        c.bone_rotation(f"streamer2.{side}", pitch(1.6 * swing * gait.wave(t, lag=lag + 0.12)))
+
+
+def flyer_glide(c, s, t):
+    """Wings held a little raised, the tips feeling the air, the tail working to steer."""
+    settle = s["glide"]
+    flyer_wings(c, settle["dihedralDegrees"] + 0.8 * gait.wave(t), -0.5 * gait.wave(t, lag=0.1), 1.5 * gait.wave(t, lag=0.2))
+    c.bone_rotation("tail", yaw(2.0 * gait.wave(t, lag=0.3)))
+    c.bone_rotation("head", yaw(4.0 * gait.wave(t, lag=0.15)))
+    flyer_streamers(c, t, 3.0)
+
+
+def flyer_flap(c, s, t):
+    """Slow deep beats: the downstroke leads from the shoulder and the tips follow it."""
+    settle = s["flap"]
+    beat = settle["beatDegrees"]
+    flyer_wings(c, settle["dihedralDegrees"] + beat * gait.wave(t), 0.3 * beat * gait.wave(t, lag=0.1), 0.5 * beat * gait.wave(t, lag=0.2))
+    c.bone_offset("body", (0, 0, -settle["bobMetres"] * gait.wave(t, lag=0.25)))
+    c.bone_rotation("head", pitch(-0.1 * beat * gait.wave(t, lag=0.3)))
+    flyer_streamers(c, t, 6.0)
+
+
+FLYER_CLIPS = {
+    "rest": (clip_rest, False, False),
+    "glide": (flyer_glide, True, False),
+    "flap": (flyer_flap, True, False),
+}
+
+
 # ---------------------------------------------------------------- the table
 
 @dataclass(frozen=True)
@@ -994,6 +1059,7 @@ FAMILIES = {
                    ("thigh", "shin", "cannon"), ("hoof",)),
     "theropod": Family(theropod_bones, BIRD_LEGS, THEROPOD_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
                        ("thigh", "shin", "cannon"), ("hoof", "hand")),
+    "flyer": Family(flyer_bones, {}, FLYER_CLIPS, (), "body", "body", ("wing1", "wing2", "wing3"), ("streamer1", "streamer2")),
     "low-slung": Family(low_slung_bones, PLANTIGRADE_LEGS, LOW_SLUNG_CLIPS,
                         (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                         ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand")),

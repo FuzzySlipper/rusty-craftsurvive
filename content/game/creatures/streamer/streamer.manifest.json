@@ -1,0 +1,26 @@
+{
+  "species": "streamer",
+  "family": "flyer",
+  "body": {
+    "hindMetres": 0.7,
+    "foreMetres": 0.7
+  },
+  "legs": [],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "glide": {
+      "seconds": 6.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "flap": {
+      "seconds": 1.6,
+      "loops": true,
+      "plantsFeet": false
+    }
+  }
+}

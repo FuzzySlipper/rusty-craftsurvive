@@ -1,0 +1,27 @@
+{
+  "$comment": "Birds in the sky (#10630): drawn, not simulated, and nothing is seeded or saved. A flight crosses a circle of reachMetres around the player, passing it by missMetres. Distances are metres, speeds metres a second, hours of the day, turn and flap times seconds.",
+  "mostFlights": 3,
+  "everySeconds": { "least": 60, "most": 180 },
+  "reachMetres": 900,
+  "missMetres": { "least": 80, "most": 400 },
+  "groundEveryMetres": 200,
+  "kinds": [
+    {
+      "id": "streamer",
+      "habitat": { "Desert": 1.0 },
+      "hours": { "least": 8, "most": 18 },
+      "seasons": [ "Spring", "Summer", "Autumn", "Winter" ],
+      "flight": {
+        "heightMetres": { "least": 80, "most": 140 },
+        "driftMetresPerSecond": 5,
+        "radiusMetres": { "least": 50, "most": 90 },
+        "turnSeconds": { "least": 40, "most": 70 },
+        "bankDegrees": 22,
+        "flapEverySeconds": 45,
+        "flapSeconds": 3
+      },
+      "flock": { "least": 1, "most": 3, "heightMetres": 14, "radiusShare": 0.25 },
+      "mesh": { "file": "creatures/streamer/streamer.glb", "scale": 1.2, "glide": "glide", "flap": "flap" }
+    }
+  ]
+}

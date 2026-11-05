@@ -1,0 +1,13 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE invented soaring desert bird, the streamer, in exactly the shape of the first reference image. Wingspan about 5 m, body about 1.3 m long, with two stiff tail streamers each about as long as the body. It is in a LEVEL GLIDE with both wings held out flat and fully spread. Exactly the same bird in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the strict LEFT SIDE view, head pointing to the left, wings edge-on so they are a thin line, the whole bird from beak to the tips of the streamers.
+- BOTTOM LEFT: the view from DIRECTLY BELOW, head pointing to the TOP of the sheet, both wings spread out to the left and right and both streamers trailing down the sheet.
+- BOTTOM RIGHT: the view from DIRECTLY ABOVE, head pointing to the TOP of the sheet, both wings spread out to the left and right and both streamers trailing down the sheet.
+Landscape aspect about 1536x1024. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the first reference image exactly: the long swept crescent wings angled at the wrist, the broad stiff wing-tip feathers, the slender body, the long narrow pale head with a short hooked bill, a small fan of tail feathers and the two long stiff tail streamers, straight and slightly apart. Each streamer is a solid tapering blade as thick as a broom handle at its root. The legs are tucked away and do not show.
+
+SOLID SHAPES ONLY: the wing is one solid surface with some thickness, with a few large stiff feather shapes along its trailing edge and thick clearly separate fingers at the tip. No fine strands or fringes. The bill is closed.
+
+PAINT - follow the second reference image, a sheet of a giant ground sloth from the same game, only for its treatment and not its colours: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction. Sand-pale body and wing linings, charcoal wing tips, leading edges and streamers, as in the first reference image.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO other objects. NOT photoreal, NOT a perspective render, NOT anime, NOT cel shading or outlines.

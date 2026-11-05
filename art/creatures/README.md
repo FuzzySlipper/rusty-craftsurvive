@@ -9,7 +9,7 @@ Provenance is in [`content/creatures.sources.json`](../../content/creatures.sour
 Humans borrow UAL's humanoid clips (`art/characters/`). Nothing comparable exists for four legs,
 and every animal's proportions differ. So each **family** in `families.py` (plantigrade: sloths and
 bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers;
-bird and theropod: two legs)
+bird and theropod: two legs; flyer: wings)
 has a skeleton and a clip generator in code. A species bakes the family clips it has settings for:
 
 - A species file (`<kind>/species.json`) places the family's joints as metres
@@ -189,6 +189,22 @@ same tint as data, as `kit-stone.wgsl` does; product shaders on skinned meshes a
 Measured with planting budgeted to the nearest eight: about 2.5 ms an update for 24 sloths
 awake near the player. Planting every animal in a crowd cost about ten times that and tripled
 render time, so keep the budget unless the Engine changes.
+
+## Birds in the air
+
+The streamer (#10630) is the first, on the `flyer` family in `families.py`: a body, jointed wings and a
+tail, with `glide` and `flap` clips and no legs. Tripo sees a body from its front, sides and back, and
+level wings are a line from all of those, so a flyer is meshed standing on its tail:
+
+```sh
+python3 -I art/creatures/cut_flyer_views.py art/creatures/streamer/mesh/reference.png art/creatures/streamer/mesh
+blender -b --factory-startup --python-exit-code 1 --python art/creatures/prepare_flyer.py -- <tripo.glb> <level.glb>
+```
+
+The sheet has the side across its top and the views from below and above beneath it (`reference-spec.txt`).
+`cut_flyer_views.py` turns those into a belly-on front and a back, and `prepare_flyer.py` lays the body level for
+`prepare_mesh.py --head +x`. In game a bird is a kind in `content/game/birds/birds.json`, not a wildlife
+kind: `Modules/Birds` draws flights and keeps nothing. `craft.birds.overhead <kind>` sends one past the player.
 
 ## Hostile animals
 

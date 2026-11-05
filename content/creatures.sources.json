@@ -204,6 +204,17 @@
    "body": "Tripo P2 multiview-to-model, task 8a836cf6-49ec-4092-be13-952130a5945b, triangle topology, 30000 faces, seeds 1; prepare_mesh.py --head +x --length 6.0 --triangles 9000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10626/drift-runner/"
+  },
+  {
+   "mesh": "content/game/creatures/streamer/streamer.glb",
+   "sha256": "8ba60a0528ab07b3785c5f50301899a6dc64237558d2fb6b6b352e9941e0804c",
+   "manifest": "content/game/creatures/streamer/streamer.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/streamer/species.json with --mesh body.glb --texture body-64.png",
+   "concept": "art/creatures/streamer/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/streamer/mesh/reference.png, spec beside it; views cut by art/creatures/cut_flyer_views.py",
+   "body": "Tripo P2 multiview-to-model, task da190e81-aa97-4095-9e95-a2ff291f3324, triangle topology, 30000 faces, seeds 1; prepare_flyer.py, then prepare_mesh.py --head +x --length 5.4 --triangles 7000 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10630/streamer/"
   }
  ],
  "reference": {

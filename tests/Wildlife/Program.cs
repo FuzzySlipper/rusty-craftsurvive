@@ -1,7 +1,9 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Birds;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Sky;
+using CraftSurvive.Game.Modules.Water;
 using CraftSurvive.Game.Modules.Wildlife;
 using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Tests;
@@ -54,6 +56,48 @@ double ClosestPair(WildlifeHerd herd)
 // How far a herd of n may spread around its leader and still be one herd.
 double CohesionBound(WildlifeKind kind, int count) =>
     kind.SpacingMetres * ((0.75 * Math.Sqrt(count - 1)) + catalog.Behaviour.CatchUpSpacings + catalog.Behaviour.SlotJitterShare);
+
+Check.Section("birds", () =>
+{
+    // Patch, 2026-11-05: birds are drawn, not simulated. They come from beyond sight and cross the sky, never speeding towards the player.
+    BirdCatalog birds = BirdCatalog.Parse(ReadResource("Wildlife.birds.json"));
+    BirdKind soarer = birds.Kinds[0];
+    Check.That(birds.Kinds.All(kind => kind.Mesh.Glide != kind.Mesh.Flap), "a bird's glide and flap are different clips");
+    Check.That(soarer.FliesAt(MapBiome.Desert, 12, Season.Summer), "a soaring bird flies over the desert at noon");
+    Check.That(!soarer.FliesAt(MapBiome.Desert, 3, Season.Summer), "it does not fly in the night");
+    Check.That(!soarer.FliesAt(MapBiome.Grassland, 12, Season.Summer), "it keeps to its own country");
+    Check.That(FlightRules.Choose([], MapBiome.Desert, 0.5) is null, "with nothing flying here no flight is sent");
+    Check.That(FlightRules.Choose(birds.Kinds, MapBiome.Desert, 0.5) == soarer, "a kind is chosen for the ground");
+
+    Random random = new(10630);
+    Vector2 player = new(5000, -3000);
+    for (int trial = 0; trial < 200; trial++)
+    {
+        Flight flight = FlightRules.Plan(soarer, birds, player, random.NextDouble, (x, z) => 900 + (x % 40));
+        foreach (FlightSlot slot in flight.Slots)
+        {
+            BirdPose first = FlightRules.At(flight, slot, 0), last = FlightRules.At(flight, slot, flight.Seconds);
+            double circle = (flight.Radius * (1 + soarer.Flock.RadiusShare)) + 1;
+            Check.That(Vector2.Distance(first.Ground, player) >= birds.ReachMetres - circle, "a flight starts beyond sight");
+            Check.That(Vector2.Distance(last.Ground, player) >= birds.ReachMetres - circle, "a flight ends beyond sight");
+            Check.That(first.Position.Y >= 900 + soarer.Flight.HeightMetres.Least, "a flight is high above the ground it crosses");
+        }
+
+        Check.That(FlightRules.Passes(flight, player) >= birds.MissMetres.Least - 1, "a flight's line misses the player");
+        Check.That(FlightRules.Passes(flight, player) <= birds.MissMetres.Most + 1, "and passes within the sky above them");
+        Check.That(flight.Slots.Count >= soarer.Flock.Least && flight.Slots.Count <= soarer.Flock.Most, "a flock is its kind's size");
+    }
+
+    Flight circling = FlightRules.Plan(soarer, birds, player, random.NextDouble, (_, _) => 900);
+    FlightSlot only = circling.Slots[0];
+    BirdPose a = FlightRules.At(circling, only, 100), b = FlightRules.At(circling, only, 100.1);
+    Vector2 facing = WildlifeRules.Facing(a.Yaw);
+    Check.That(Vector2.Dot(facing, Vector2.Normalize(b.Ground - a.Ground)) > 0.99f, "a bird faces the way it is going");
+    Check.That(Math.Sign(a.Bank) == Math.Sign(circling.TurnRadiansPerSecond), "it leans into its turn");
+    int flapping = Enumerable.Range(0, 900).Count(second => FlightRules.Flapping(circling, only, second));
+    Check.That(flapping > 0 && flapping < 200, "it soars, and flaps now and then");
+    Check.Throws<InvalidDataException>(() => BirdCatalog.Parse(ReadResource("Wildlife.birds.json").Replace("\"Desert\"", "\"Dessert\"")), "an unknown biome is refused");
+});
 
 Check.Section("ragdolls", () =>
 {
