@@ -185,7 +185,12 @@ internal static class ProductIds
     /// <summary>Birds in the sky (#10630): one object a bird.</summary>
     internal const ulong BirdAppearanceBase = WildlifeAppearanceBase + WildlifeAppearanceLimit;
 
-    internal const ulong BirdAppearanceLimit = 0x100UL;
+    internal const ulong BirdAppearanceLimit = 0x80UL;
+
+    /// <summary>Parties of small birds on the ground (#10639): one object a bird.</summary>
+    internal const ulong PartyAppearanceBase = BirdAppearanceBase + BirdAppearanceLimit;
+
+    internal const ulong PartyAppearanceLimit = 0x80UL;
 
     /// <summary>The overworld places' kit pieces standing in the near ground (#9992), at most <see cref="PlaceMeshLimit"/>.</summary>
     internal const ulong PlaceMeshBase = 0x9_A000UL;

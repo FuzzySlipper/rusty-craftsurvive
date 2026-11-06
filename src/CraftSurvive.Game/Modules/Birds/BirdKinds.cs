@@ -133,7 +133,7 @@ internal sealed record BirdCatalog(int MostFlights, int MostBirds, BirdSpan Ever
         return read;
     }
 
-    private static BirdSpan Span(JsonElement span)
+    internal static BirdSpan Span(JsonElement span)
     {
         BirdSpan read = new(span.GetProperty("least").GetDouble(), span.GetProperty("most").GetDouble());
         return read.Most < read.Least ? throw new InvalidDataException("a span goes from least to most") : read;

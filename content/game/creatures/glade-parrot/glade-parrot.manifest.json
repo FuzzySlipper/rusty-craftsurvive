@@ -1,0 +1,42 @@
+{
+  "species": "glade-parrot",
+  "family": "percher",
+  "body": {
+    "hindMetres": 0.073,
+    "foreMetres": 0.073
+  },
+  "legs": [
+    [
+      "shin.L",
+      "cannon.L",
+      "hoof.L"
+    ],
+    [
+      "shin.R",
+      "cannon.R",
+      "hoof.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "peck": {
+      "seconds": 1.4,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "hop": {
+      "seconds": 0.3,
+      "loops": true,
+      "plantsFeet": false
+    }
+  }
+}

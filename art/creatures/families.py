@@ -964,6 +964,42 @@ THEROPOD_CLIPS = {
 }
 
 
+# ---------------------------------------------------------------- percher: a small bird on the ground
+
+def percher_idle(c, s, t):
+    """Standing still and looking about in quick small turns of the head, the tail ticking."""
+    c.bone_rotation("neck3", yaw(16.0 * gait.wave(t, lag=0.1)) @ pitch(3.0 * gait.wave(t, 2, lag=0.3)))
+    c.bone_rotation("tail1", pitch(3.0 * gait.wave(t, 2)))
+
+
+def percher_peck(c, s, t):
+    """Head down to the ground and up, twice a clip, the body tipping forward over its feet to reach."""
+    settle = s["peck"]
+    dip = 0.5 - 0.5 * math.cos(2 * gait.TAU * t)
+    c.bone_rotation("hips", pitch(-settle["tipDegrees"]))
+    c.bone_rotation("neck", pitch(-settle["neckDegrees"] * (0.6 + 0.4 * dip)))
+    c.bone_rotation("neck3", pitch(-settle["headDegrees"] * dip))
+    c.bone_rotation("tail1", pitch(0.5 * settle["tipDegrees"]))
+
+
+def percher_hop(c, s, t):
+    """One hop on both feet: legs fold on the way up and open to land. The clip plays for the length of the hop, so it holds no travel."""
+    settle = s["hop"]
+    tuck = math.sin(math.pi * t)
+    for side in SIDES:
+        c.bone_rotation(f"thigh.{side}", pitch(settle["tuckDegrees"] * tuck))
+        c.bone_rotation(f"shin.{side}", pitch(-1.6 * settle["tuckDegrees"] * tuck))
+    c.bone_rotation("tail1", pitch(settle["tailDegrees"] * tuck))
+
+
+PERCHER_CLIPS = {
+    "rest": (clip_rest, False, True),
+    "idle": (percher_idle, True, True),
+    "peck": (percher_peck, True, True),
+    "hop": (percher_hop, True, False),
+}
+
+
 # ---------------------------------------------------------------- flyer: wings and no legs
 
 def flyer_bones():
@@ -1059,6 +1095,8 @@ FAMILIES = {
                    ("thigh", "shin", "cannon"), ("hoof",)),
     "theropod": Family(theropod_bones, BIRD_LEGS, THEROPOD_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
                        ("thigh", "shin", "cannon"), ("hoof", "hand")),
+    "percher": Family(bird_bones, BIRD_LEGS, PERCHER_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
+                      ("thigh", "shin", "cannon"), ("hoof",)),
     "flyer": Family(flyer_bones, {}, FLYER_CLIPS, (), "body", "body", ("wing1", "wing2", "wing3"), ("streamer1", "streamer2")),
     "low-slung": Family(low_slung_bones, PLANTIGRADE_LEGS, LOW_SLUNG_CLIPS,
                         (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",

@@ -1,0 +1,26 @@
+{
+  "species": "glade-parrot-flying",
+  "family": "flyer",
+  "body": {
+    "hindMetres": 0.02,
+    "foreMetres": 0.02
+  },
+  "legs": [],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "glide": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "flap": {
+      "seconds": 0.3,
+      "loops": true,
+      "plantsFeet": false
+    }
+  }
+}

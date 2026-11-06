@@ -226,6 +226,28 @@
    "body": "art/creatures/sheet_flyer.py from the reference sheet, no generator (Tripo had no credit); prepare_mesh.py --head +x --length 2.5 --triangles 2500 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10631/skein/"
+  },
+  {
+   "mesh": "content/game/creatures/glade-parrot/glade-parrot.glb",
+   "sha256": "e7bd661113c6eaf40255061a891e2076c22ac6edba5aec8f513d410d625f8451",
+   "manifest": "content/game/creatures/glade-parrot/glade-parrot.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/glade-parrot/species.json with --mesh body.glb --texture body-300.png",
+   "concept": "art/creatures/glade-parrot/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/glade-parrot/mesh/reference.png, spec beside it",
+   "body": "Tripo H3.1 on studio.tripo3d.ai (website, not API; multi-view, 30 credits, texture 20), task page workspace/generate/3feb1473-bd14-4015-b168-3864290695b6; prepare_mesh.py --head -y --length 0.30 --triangles 2000 --texels 600",
+   "reduced": "pixel_reduce.py --factor 2 --colors 16 --luminance 0.44 --saturation 0.95 (300 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10639/glade-parrot/"
+  },
+  {
+   "mesh": "content/game/creatures/glade-parrot-flying/glade-parrot-flying.glb",
+   "sha256": "ecd27e3106f7bcee6ca697566b7dd5d5594455e5afb466161d600bc0d22ec08b",
+   "manifest": "content/game/creatures/glade-parrot-flying/glade-parrot-flying.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/glade-parrot-flying/species.json with --mesh body.glb --texture body-300.png",
+   "concept": "art/creatures/glade-parrot/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/glade-parrot/flying/reference.png, spec beside it",
+   "body": "art/creatures/sheet_flyer.py --step 2 --wing 0.006 from art/creatures/glade-parrot/flying/reference.png; prepare_mesh.py --head +x --length 0.44 --triangles 1200 --texels 600",
+   "reduced": "pixel_reduce.py --factor 2 --colors 16 --luminance 0.6 --saturation 1.0 (300 texels/m): brighter than the ground body, since it is seen from below against the sky",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10639/glade-parrot/"
   }
  ],
  "reference": {

@@ -94,6 +94,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     private CreatureModule creatures = null!;
     private Modules.Wildlife.WildlifeModule wildlife = null!;
     private Modules.Birds.BirdModule birds = null!;
+    private Modules.Birds.PartyModule parties = null!;
     private readonly CreatureDebugModule creatureDebug;
     private DiscoveryModule discovery = null!;
     private BlastModule blast = null!;
@@ -186,6 +187,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         wildlife = new Modules.Wildlife.WildlifeModule(context.Engine, context.Content, store, terrain.SaveIdentity, terrain, player, frame, () => conditions.Time, cues);
         birds = new Modules.Birds.BirdModule(context.Engine, context.Content, terrain, player, frame, () => conditions.Time);
+        parties = new Modules.Birds.PartyModule(context.Engine, context.Content, terrain, player, frame, () => conditions.Time);
         creatures.SwingElsewhere = wildlife.PlayerSwing;
         creatures.Wildlife = wildlife;
         wildlife.HunterNear = creatures.AdmitHunter;
@@ -240,7 +242,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 PlaceStands = at => terrain.PlaceStands(at),
             },
         };
-        gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, wildlife, birds, discovery, inventory, blast, build, pieces, entityStore, lamps, chemistry, casting, feedback, cold, tracks, horizon];
+        gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, wildlife, birds, parties, discovery, inventory, blast, build, pieces, entityStore, lamps, chemistry, casting, feedback, cold, tracks, horizon];
         CreateTowns();
         styleTest = new CharacterStyleTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
         creatureStyle = new CreatureStyleTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
@@ -349,7 +351,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));
-        RequireRegistration(registrar.Register(new Modules.Birds.BirdDebugModule(() => Owner(birds))));
+        RequireRegistration(registrar.Register(new Modules.Birds.BirdDebugModule(() => Owner(birds), () => Owner(parties))));
         RequireRegistration(registrar.Register(new Modules.Wildlife.WildlifeDebugModule(() => Owner(wildlife),
             () => worldBuilt ? Owner(wildlife).NavigationCost(Owner(creatures).MeasureNavigation) : "no world")));
         RequireRegistration(registrar.Register(new CharacterStyleDebugModule(() => Owner(styleTest))));
@@ -617,7 +619,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     }
 
     /// <summary>The overworld's water, studies, places, build pieces and wildlife, unless the player is in a separate space (a dungeon or a study).</summary>
-    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts(), .. chemistry.OverlayFacts, .. wildlife.AppearanceFacts, .. birds.AppearanceFacts];
+    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts(), .. chemistry.OverlayFacts, .. wildlife.AppearanceFacts, .. birds.AppearanceFacts, .. parties.AppearanceFacts];
 
     /// <summary>The style tests' travellers and creatures and the place study's variants, unless the player is in a separate space.</summary>
     private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : [.. styleTest.Facts, .. creatureStyle.Facts, .. placeStudy.Facts];
@@ -640,6 +642,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         creatures.AfterAppearanceSnapshot();
         wildlife.AfterAppearanceSnapshot(drawn: !player.InSeparateSpace && (town.Open || !mapOpen || mapView is null));
         birds.AfterAppearanceSnapshot();
+        parties.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();
         terrain.AfterAppearanceSnapshot();
         chemistry.AfterAppearanceSnapshot();

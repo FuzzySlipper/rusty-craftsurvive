@@ -7,6 +7,31 @@
   "fadeMetres": 300,
   "missMetres": { "least": 80, "most": 400 },
   "groundEveryMetres": 200,
+  "parties": {
+    "$comment": "Small birds on the ground (#10639): a party appears out of the player's view at appearMetres, feeds, and goes up when the player comes within flushMetres. Nothing lands in view. A flushed bird shrinks to nothing over the last fadeMetres before goneMetres.",
+    "mostParties": 2,
+    "everySeconds": { "least": 25, "most": 70 },
+    "appearMetres": { "least": 28, "most": 55 },
+    "staySeconds": { "least": 60, "most": 180 },
+    "goneMetres": 90,
+    "fadeMetres": 25,
+    "viewMarginDegrees": 5,
+    "placeTries": 12,
+    "kinds": [
+      {
+        "id": "glade-parrot",
+        "habitat": { "TemperateForest": 1.0, "Rainforest": 0.7, "Grassland": 0.15 },
+        "hours": { "least": 6, "most": 19 },
+        "seasons": [ "Spring", "Summer", "Autumn" ],
+        "mostCanopy": 0.55,
+        "least": 6, "most": 8,
+        "spreadMetres": 4,
+        "gait": { "hopEverySeconds": { "least": 1.2, "most": 5 }, "hopSeconds": 0.28, "hopMetres": 0.55, "hopHeightMetres": 0.14, "peckShare": 0.65 },
+        "burst": { "flushMetres": 7, "staggerSeconds": 0.5, "metresPerSecond": 6.5, "climbMetresPerSecond": 6, "fanDegrees": 110 },
+        "mesh": { "ground": "creatures/glade-parrot/glade-parrot.glb", "groundScale": 1.8, "idle": "idle", "peck": "peck", "hop": "hop", "air": "creatures/glade-parrot-flying/glade-parrot-flying.glb", "airScale": 1.8, "flap": "flap" }
+      }
+    ]
+  },
   "kinds": [
     {
       "id": "streamer",

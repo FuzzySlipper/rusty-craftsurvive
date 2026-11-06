@@ -185,6 +185,78 @@ Check.Section("birds", () =>
     Check.Throws<InvalidDataException>(() => BirdCatalog.Parse(ReadResource("Wildlife.birds.json").Replace("\"Desert\"", "\"Dessert\"")), "an unknown biome is refused");
 });
 
+Check.Section("parties", () =>
+{
+    // Patch, 2026-11-05: small birds are drawn too. Nothing lands in view, and a bird on the ground and a bird in the air need not be the same bird.
+    PartyCatalog parties = PartyCatalog.Parse(ReadResource("Wildlife.birds.json"));
+    PartyKind parrot = parties.Kinds[0];
+    const double Fov = 70, Margin = 5, Step = 0.1;
+    Check.That(parrot.FeedsAt(MapBiome.TemperateForest, 12, Season.Summer), "a glade parrot feeds in the forest");
+    Check.That(!parrot.FeedsAt(MapBiome.TemperateForest, 2, Season.Summer), "not in the night");
+    Check.That(!parrot.FeedsAt(MapBiome.Desert, 12, Season.Summer), "and not in the desert");
+
+    Vector3 eye = new(100, 11.6f, 200), forward = new(0, 0, -1);
+    Check.That(PartyRules.InView(eye + new Vector3(0, 0, -30), eye, forward, Fov, Margin), "what is straight ahead is in view");
+    Check.That(!PartyRules.InView(eye + new Vector3(0, 0, 30), eye, forward, Fov, Margin), "what is behind is not");
+    Check.That(PartyRules.InView(eye + new Vector3(30, 0, -30), eye, forward, Fov, Margin), "what is at the corner of a wide screen counts as seen");
+
+    Random random = new(10639);
+    Vector2 player = new(eye.X, eye.Z);
+    for (int trial = 0; trial < 300; trial++)
+    {
+        double bearing = random.NextDouble() * 2 * Math.PI;
+        Vector3 look = new((float)Math.Sin(bearing), 0, (float)-Math.Cos(bearing));
+        Vector2? spot = PartyRules.Place(parties, player, eye, look, Fov, random.NextDouble, _ => 10, _ => true);
+        Check.That(spot is not null, "open ground gives a party a spot");
+        Vector2 found = spot!.Value;
+        Check.That(!PartyRules.InView(new Vector3(found.X, 10, found.Y), eye, look, Fov, Margin), "a party appears out of view");
+        double metres = Vector2.Distance(found, player);
+        Check.That(metres >= parties.AppearMetres.Least - 0.01 && metres <= parties.AppearMetres.Most + 0.01, "and at the distance parties appear");
+    }
+
+    Check.That(PartyRules.Place(parties, player, eye, forward, Fov, random.NextDouble, _ => 10, _ => false) is null, "ground that does not suit gives no spot");
+
+    Vector2 spotAt = new(0, 0);
+    PartyBird[] birds = PartyRules.Scatter(parrot, spotAt, random.NextDouble);
+    Check.That(birds.Length >= parrot.Least && birds.Length <= parrot.Most, "a party is its kind's size");
+    Check.That(birds.All(bird => Vector2.Distance(bird.At, spotAt) <= parrot.SpreadMetres + 0.01), "its birds stand about its spot");
+    int hops = 0;
+    double wandered = 0;
+    for (double age = 0; age < 300; age += Step)
+    {
+        foreach (PartyBird bird in birds)
+        {
+            bool was = bird.HopLeft > 0;
+            PartyRules.Feed(bird, parrot, spotAt, Step, random.NextDouble);
+            if (!was && bird.HopLeft > 0) hops++;
+            wandered = Math.Max(wandered, Vector2.Distance(bird.At, spotAt));
+            Check.That(PartyRules.HopHeight(bird, parrot) <= parrot.Gait.HopHeightMetres + 1e-6, "a hop keeps to its height");
+        }
+    }
+
+    Check.That(hops > birds.Length, "birds hop about as they feed");
+    Check.That(wandered <= parrot.SpreadMetres + (3 * parrot.Gait.HopMetres), "and keep to the party's ground");
+    Check.That(!PartyRules.Spooked(birds, parrot, new Vector2(100, 0)), "a far player flushes nothing");
+    Vector2 near = birds[0].At + new Vector2((float)parrot.Burst.FlushMetres - 0.5f, 0);
+    Check.That(PartyRules.Spooked(birds, parrot, near), "a player who comes near does");
+    PartyRules.Flush(birds, parrot, near, random.NextDouble);
+    Check.That(birds.All(bird => bird.FlushIn is not null && bird.FlushIn <= parrot.Burst.StaggerSeconds), "the whole party goes within a moment");
+    foreach (PartyBird bird in birds)
+    {
+        bird.Launch = new Vector3(bird.At.X, 10, bird.At.Y);
+        bird.Flying = 3;
+        BirdPose pose = PartyRules.Burst(bird, parrot);
+        Check.That(Vector2.Distance(pose.Ground, near) > Vector2.Distance(bird.At, near), "a flushed bird goes away from the player");
+        Check.That(pose.Position.Y > bird.Launch.Y, "and up");
+        Vector2 way = WildlifeRules.Facing(pose.Yaw);
+        Check.That(Vector2.Dot(way, bird.Away) > 0.99f, "facing where it goes");
+    }
+
+    Check.That(PartyRules.Size(parties.GoneMetres - parties.FadeMetres - 1, parties) == 1, "a bird keeps its size until the last of the way");
+    Check.That(PartyRules.Size(parties.GoneMetres, parties) == 0, "and is nothing when it goes");
+    Check.Throws<InvalidDataException>(() => PartyCatalog.Parse(ReadResource("Wildlife.birds.json").Replace("\"Rainforest\"", "\"Rainforrest\"")), "an unknown biome is refused");
+});
+
 Check.Section("ragdolls", () =>
 {
     // A body has to go while the ground under it is resident: 8 requested chunks of 16 m (TerrainConstants).

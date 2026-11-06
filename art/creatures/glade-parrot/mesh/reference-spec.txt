@@ -1,0 +1,13 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE slim long-tailed ground parrot, the glade parrot, in exactly the shape of the first reference image. About 28 cm long from beak to tail tip. It stands in a NEUTRAL STANCE on both feet, its body sloping gently, its wings folded closed against its sides, its long tail straight behind it and clear of the ground. Exactly the same bird in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE profile, head pointing to the left, the whole bird from beak to tail tip. In this view the far leg stands EXACTLY BEHIND the near leg and is hidden by it, so only ONE leg can be seen.
+- BOTTOM LEFT: the FRONT view, looking straight at its face, both legs apart and visible.
+- BOTTOM RIGHT: the BACK view, from straight behind, both legs apart and visible.
+Portrait aspect about 1024x1536. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the first reference image exactly: the round head, short hooked beak, slim body, and the long narrow tapering tail. The legs are short and thick enough to read as solid rods, with simple three-toed feet flat on the ground, the toes thick and clearly separate. EXACTLY TWO LEGS. The beak is closed.
+
+SOLID SHAPES ONLY: the wings are each one solid folded shape pressed to the body, and the tail is one solid tapering blade. No fine strands or fringes.
+
+PAINT - follow the first reference image for its colours and the second reference image, a sheet of a giant ground sloth from the same game, only for its treatment: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction. Turquoise face, breast, belly and rump; dark brown cap, back and wing feathers; one big block of vivid scarlet on each shoulder and under the tail; a grey hooked beak and grey-brown legs.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO other objects, NO ground. NOT photoreal, NOT a perspective render, NOT anime, NOT cel shading or outlines.
