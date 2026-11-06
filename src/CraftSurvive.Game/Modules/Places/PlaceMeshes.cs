@@ -84,7 +84,7 @@ internal sealed class PlaceMeshes : IDisposable
     /// A piece's drawing and its collision shape (the mesh's own triangles, in its metres); on an overgrown place, also
     /// its ivy blanket (a shell over its walls).
     /// </summary>
-    private sealed record Loaded(MeshResource Mesh, Appearance Appearance, Vector3[] Positions, Triangle[] Triangles, ulong Asset,
+    private sealed record Loaded(MeshResource Mesh, Appearance Appearance, Vector3[] Positions, Vector3[] Normals, Triangle[] Triangles, ulong Asset,
         float Overgrowth, MeshResource? BlanketMesh, Appearance? Blanket);
 
     private sealed record Standing(string Site, Loaded Piece, float Sink, Vector3 World, Quaternion Rotation, Vector3 Scale);
@@ -194,7 +194,7 @@ internal sealed class PlaceMeshes : IDisposable
     }
 
     /// <summary>Lays the hanging moss cards again over the pieces standing (#10044): after a layout, or when the moss changed.</summary>
-    internal void LayCards(Vector3 about) => cards?.Lay([.. standing.Select(s => new PlaceMossCards.Piece(s.Piece.Mesh, s.Piece.Positions, s.Piece.Triangles,
+    internal void LayCards(Vector3 about) => cards?.Lay([.. standing.Select(s => new PlaceMossCards.Piece(s.Piece.Mesh, s.Piece.Positions, s.Piece.Normals, s.Piece.Triangles,
         s.Sink, s.World, s.Rotation, s.Scale, s.Piece.Overgrowth))], new Vector3(about.X, standing.Count > 0 ? standing[0].World.Y : about.Y, about.Z));
 
     /// <summary>Lays the cards again where they were last laid (the moss's strength changed).</summary>
@@ -221,7 +221,7 @@ internal sealed class PlaceMeshes : IDisposable
         Triangle[] triangles = new Triangle[indices.Length / 3];
         for (int i = 0; i < triangles.Length; i++) triangles[i] = new Triangle(indices[3 * i], indices[(3 * i) + 1], indices[(3 * i) + 2]);
         MeshResource? blanketMesh = extra > 0 && moss is not null ? engine.Graphics.CreateMeshResource(Blanket(request, BlanketMaterial(extra))) : null;
-        Loaded result = new(mesh, engine.Graphics.CreateMeshAppearance(mesh), request.Positions.ToArray(), triangles, CollisionAssetBase + (ulong)loaded.Count,
+        Loaded result = new(mesh, engine.Graphics.CreateMeshAppearance(mesh), request.Positions.ToArray(), request.Normals.ToArray(), triangles, CollisionAssetBase + (ulong)loaded.Count,
             extra, blanketMesh, blanketMesh is null ? null : engine.Graphics.CreateMeshAppearance(blanketMesh));
         loaded[(piece.Name, extra)] = result;
         return result;

@@ -1,9 +1,10 @@
-// Surface moss (#10044): the damp under the moss. One shader marks where moss grows on every stone place and
-// field stone, from where it stands, as a soft damp stain: the stone's own painted texture darkened and greened,
-// never painted over, so its texels and cracks show through. The moss itself is painted cards
-// (Modules/Places/PlaceMossCards: ivy curtains, flat mats, cushions, leaf clusters) and, on an overgrown place, the
-// ivy blanket (ivy-blanket.wgsl), all grown from this same field where it is strongest; the stain reaches a little
-// wider, so every card sits on a damp patch that fades out around it.
+// Surface moss (#10044, #10640): the moss and the damp under it. One shader marks where moss grows on every stone
+// place and field stone, from where it stands, as a soft damp stain: the stone's own painted texture darkened and
+// greened, so its texels and cracks show through. Where the field is thicker on a place's stone the moss itself is
+// painted in, so it sits on the surface whatever its shape, with the stone's cracks still showing. The depth on it is
+// Modules/Places/PlaceMossCards (tufts, curtains, cushions) and, on an overgrown place, the ivy blanket
+// (ivy-blanket.wgsl), all grown from this same field; the stain reaches a little wider, so all of it sits on a damp
+// patch that fades out around it.
 //
 // material.parameters (SurfaceMoss):
 //   [0] xyz: the frame origin (metres), wrapped by the material's period; w: strength (0 none, 2 moss; an
@@ -12,7 +13,8 @@
 //   [2] x: texels per metre; y: how much a vertical face holds; z: how far down a surface may face and hold
 //       moss; w: 1 when the vertex colour's alpha is the vertex's moisture.
 //   [3] x: the wrap period (whole metres; every lattice divides it, in texels); y: lichen amount (0 none, 1 the
-//       default); w: how much of the tint the fullest stain takes.
+//       default); z: 1 paints the moss into the stone (#10640); w: how much of the tint the fullest stain takes.
+// product_map_a: the moss painted in where [3].z is set, one texel to one of the field's.
 //
 // Snow (#10068) is the Engine's scene-wide cover (CameraView.SetSnow), laid before this stage: where it covers the stone,
 // neither the stain nor the lichen is drawn over it.
@@ -22,7 +24,7 @@
 // over the same period as the field), in a grey-green and an ochre.
 
 #import rusty::types::Surface
-#import rusty::material::material
+#import rusty::material::{material, product_map_a, product_sampler_a}
 #import rusty::shade::standard_shade
 #import rusty::view::frame
 #import rusty::lighting::{open_sky, snow_cover, snow_texel}
@@ -41,6 +43,14 @@ const LICHEN_COVER: f32 = 0.65;
 const LICHEN_AT: f32 = 1.05;
 const LICHEN_PER_AMOUNT: f32 = 0.10;
 const LICHEN_STAIN_LIMIT: f32 = 0.25;
+
+// Painted moss (#10640): it shows this far over the cards' threshold; the tile's texels across; stone this bright or
+// more keeps the moss whole, and a crack darker than the first shows through it down to PAINT_CRACK of its colour.
+const PAINT_MARGIN: f32 = 0.13;
+const PAINT_TILE_TEXELS: f32 = 128.0;
+const PAINT_MARK_FROM: f32 = 0.02;
+const PAINT_MARK_TO: f32 = 0.16;
+const PAINT_CRACK: f32 = 0.45;
 
 // --- The moss field (kept equal in surface-moss.wgsl, ivy-blanket.wgsl and SurfaceMoss.Field) ---
 // The field is read once per texel of the surface's dominant plane. Its noise lattice counts whole texels
@@ -160,6 +170,9 @@ fn shade(surface: Surface) -> vec4<f32> {
     var s = surface;
     let strength = material.parameters[0].w;
     let n = normalize(surface.normal);
+    // Painted moss's mip, from how much world a screen pixel spans (its texels are the field's).
+    let span = max(length(dpdx(surface.world_position)), length(dpdy(surface.world_position)));
+    let paint_mip = max(log2(span * material.parameters[2].x), 0.0);
     let texel = texel_of(surface.world_position, n);
     let m = moss_field(texel.xy, texel.z == 1) * wetness(n, surface.tint.a);
     // Strength lowers the threshold. The cards grow above it; the stain starts STAIN_REACH below it.
@@ -175,6 +188,14 @@ fn shade(surface: Surface) -> vec4<f32> {
     s.base = vec4<f32>(s.base.rgb * tint, s.base.a);
     // Damp stone is a little less rough.
     s.roughness = mix(s.roughness, s.roughness * 0.85, stain);
+
+    if material.parameters[3].z > 0.5 && strength > 0.0 && snowed < 0.5 && m >= threshold + PAINT_MARGIN {
+        let uv = (vec2<f32>(texel.xy) + 0.5) / PAINT_TILE_TEXELS;
+        let painted = textureSampleLevel(product_map_a, product_sampler_a, uv, paint_mip).rgb;
+        let stone = dot(surface.base.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+        s.base = vec4<f32>(painted * mix(PAINT_CRACK, 1.0, smoothstep(PAINT_MARK_FROM, PAINT_MARK_TO, stone)), s.base.a);
+        s.roughness = 0.95;
+    }
 
     if stain < LICHEN_STAIN_LIMIT && snowed < 0.5 {
         let spot = lichen(texel.xy, n, surface.tint.a);

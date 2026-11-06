@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json.Nodes;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -22,6 +23,7 @@ internal static class ContentChecks
     {
         PlaceKit();
         MossField();
+        MossTufts();
 
         // The staged atlas layout must satisfy the product's registry: every material block binds
         // tiles of its own name and face, no two tiles overlap, and every tile names a real block.
@@ -112,6 +114,73 @@ internal static class ContentChecks
                     $"the place kit's {piece} texture {texture.Value} must be installed");
             }
         }
+    }
+
+    /// <summary>
+    /// Moss on a stone's sides (#10640): a tuft lies on the stone round a corner and never on its far side, and a flat card
+    /// fits only where the stone lies under both its ends. The stone is a square post 1 m across, in small triangles as a
+    /// kit piece's are, its corner at x = z = 0.5.
+    /// </summary>
+    private static void MossTufts()
+    {
+        const float Half = 0.5f, Top = 4f, Step = 0.1f;
+        List<Vector3> stoneAt = [], stoneFacing = [];
+        List<Triangle> post = [];
+        void Face(Vector3 corner, Vector3 along, Vector3 facing)
+        {
+            for (float a = 0; a < 1 - (Step / 2); a += Step)
+            {
+                for (float y = 0; y < Top - (Step / 2); y += Step)
+                {
+                    uint first = (uint)stoneAt.Count;
+                    Vector3 at = corner + (along * a) + (Vector3.UnitY * y);
+                    stoneAt.AddRange([at, at + (along * Step), at + (along * Step) + (Vector3.UnitY * Step), at + (Vector3.UnitY * Step)]);
+                    stoneFacing.AddRange([facing, facing, facing, facing]);
+                    post.Add(new Triangle(first, first + 1, first + 2));
+                    post.Add(new Triangle(first, first + 2, first + 3));
+                }
+            }
+        }
+
+        Face(new(-Half, 0, Half), Vector3.UnitX, Vector3.UnitZ);
+        Face(new(Half, 0, Half), -Vector3.UnitZ, Vector3.UnitX);
+        Face(new(Half, 0, -Half), -Vector3.UnitX, -Vector3.UnitZ);
+        StoneTufts tufts = new([.. stoneAt], [.. stoneFacing], [.. post]);
+
+        List<Vector3> positions = [], normals = [];
+        List<Vector2> uvs = [];
+        List<uint> indices = [];
+        // Anchored 0.1 m from the corner on the +z face: wider than that either way, so it must bend.
+        tufts.Lay(new(0.4f, 2, Half), Vector3.UnitZ, 0.6f, 1, positions, normals, uvs, indices);
+        Check.That(indices.Count > 0 && indices.Count % 3 == 0, $"a tuft is whole triangles, had {indices.Count} indices");
+        Check.That(positions.Any(p => p.X > Half), "a tuft near a corner bends round it, onto the next face");
+        Check.That(positions.All(p => p.Z > -Half + 0.2f), "a tuft stays off the stone's far side");
+        const float MostLift = 0.04f;
+        Check.That(positions.All(p => MathF.Max(MathF.Abs(p.X), MathF.Abs(p.Z)) is >= Half and <= Half + MostLift), "a tuft lies just off the stone, every point of it");
+        Vector2 middle = new(uvs.Average(uv => uv.X), uvs.Average(uv => uv.Y));
+        float cellX = MathF.Floor(middle.X * 2) / 2, cellY = MathF.Floor(middle.Y * 2) / 2;
+        const float Seam = 1e-3f;
+        Check.That(uvs.All(uv => uv.X >= cellX - Seam && uv.X <= cellX + 0.5f + Seam && uv.Y >= cellY - Seam && uv.Y <= cellY + 0.5f + Seam), "a tuft stays in its one atlas cell");
+
+        // A tuft on a piece standing at another scale keeps its size: half the scale, twice the piece's metres.
+        List<Vector3> scaled = [];
+        tufts.Lay(new(0, 2, Half), Vector3.UnitZ, 0.6f, 0.5f, scaled, [], [], []);
+        positions.Clear();
+        tufts.Lay(new(0, 2, Half), Vector3.UnitZ, 0.6f, 1, positions, [], [], []);
+        float Tall(List<Vector3> points) => points.Max(p => p.Y) - points.Min(p => p.Y);
+        Check.That(Tall(scaled) > Tall(positions) * 1.5f, "a tuft keeps its size on a piece standing at another scale");
+
+        Check.That(tufts.Fits(new(0, 2, Half), Vector3.UnitX, Vector3.UnitZ, 0.4f), "a flat card narrower than the face fits");
+        Check.That(!tufts.Fits(new(0, 2, Half), Vector3.UnitX, Vector3.UnitZ, 0.7f), "a flat card wider than the face does not");
+        Check.That(!tufts.Fits(new(0.3f, 2, Half), Vector3.UnitX, Vector3.UnitZ, 0.4f), "a flat card hanging past the corner does not");
+
+        // surface-moss.wgsl counts the painted moss's tile in its own texels.
+        string root = RepositoryRoot();
+        byte[] png = File.ReadAllBytes(Path.Combine(root, "content/game/textures/places/moss-tile.png"));
+        const int WidthAt = 16;
+        int width = (png[WidthAt] << 24) | (png[WidthAt + 1] << 16) | (png[WidthAt + 2] << 8) | png[WidthAt + 3];
+        string shader = File.ReadAllText(Path.Combine(root, "content/game/shaders/surface-moss.wgsl"));
+        Check.That(shader.Contains($"PAINT_TILE_TEXELS: f32 = {width}.0;", StringComparison.Ordinal), $"surface-moss.wgsl's tile size must be the tile's, {width} texels");
     }
 
     /// <summary>

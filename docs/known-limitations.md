@@ -630,8 +630,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     One kit, no per-biome variants; per-site variety comes from layout, scale and turn only.
 - **Moss and overgrowth on places (#10044).** One field decides where growth sits: world-space clump noise on a
   whole-texel lattice, times facing, a north and south bias, and each stone vertex's height moisture. The same field
-  drives the damp stain (`surface-moss.wgsl`), the painted cards (`PlaceMossCards`) and, on an overgrown place, the
-  ivy blanket (`ivy-blanket.wgsl`).
+  drives the damp stain and the moss painted into the stone (`surface-moss.wgsl`), the cards (`PlaceMossCards`) and, on
+  an overgrown place, the ivy blanket (`ivy-blanket.wgsl`).
+  - **Moss on a stone's sides (#10640)** is painted into it, so it holds to any shape. Depth comes from small tufts cut
+    from the stone's own triangles (`StoneTufts`), in the heart of the thickest patches. Curtains and cushions are flat,
+    so they grow only where the stone lies under the whole card: walls keep them, and pillars mostly lose them.
+  - **The painted moss is one tile** (`scripts/make-moss-tile.py`, quilted from the moss mats). The field's outline keeps
+    its 4 m repeat from showing so far; it is not painted for the purpose.
   - **Overgrowth** comes from the site's climate: wet and warm country overgrows its places, a few of them heavily,
     while deserts and frozen country stay clean. `craft.moss.overgrow` overrides it. Within a place, variation comes
     from the field only; a dungeon-scale moisture spread is designed (on #10044 and #9833) but not built.
@@ -639,9 +644,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     it seamless when the frame origin moves; the repeat is not visible at those scales.
   - **Lichen** is the moss's opposite, in the stain shader: sparse grey-green and ochre spots on dry, sunny, high
     stone, kept off the damp. One global amount; it does not follow climate yet.
-  - **Not covered:** dungeon and cave surfaces (#9833); field stones get the stain and lichen only, no cards.
-  - **Cost:** an overgrown ruin carries about 800 cards and a blanket shell per piece. Offline renders put the
-    moss within a few milliseconds of none at 1080p, close up; this is not measured live.
+  - **Not covered:** dungeon and cave surfaces (#9833), where caves keep flat face cards; field stones get the stain and
+    lichen only, no cards.
+  - **Cost:** painting and tufts cost about the same on the GPU as the flat face cards they replaced. An overgrown
+    place carries about 11,000 card vertices and a blanket shell per piece.
   The terrain blend takes up to sixteen layers (four a chunk); the fifth is dry meadow (#10041).
 - **Snow and cold (#10068).** The snow lying is a depth per 500 m cell (`SnowCover`). It builds under snow fronts,
   and under any front once the air is freezing (climate, plus the season's swing, minus a front's cold). It melts

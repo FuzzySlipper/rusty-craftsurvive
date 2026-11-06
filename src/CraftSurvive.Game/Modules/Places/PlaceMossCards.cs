@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using CraftSurvive.Game.Modules.Content;
@@ -7,10 +8,10 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Places;
 
 /// <summary>
-/// Hanging moss and ivy on the places (#10044): painted alpha-cut cards, the depth the flat painted moss cannot
-/// give. A curtain hangs from a lip (an edge where a piece's top meets its side), a smaller one lies flat on a side
-/// face (ivy on a wall or a stele, in the heart of a painted patch), and a cushion stands at a wall's foot, each only
-/// where the surface moss (<see cref="SurfaceMoss.Field"/>) is thick, so a card always
+/// The depth on the places' moss (#10044, #10640), which the shader paints into the stone. A curtain hangs from a lip (an
+/// edge where a piece's top meets its side) and a cushion stands at a wall's foot, each only where the stone lies under the
+/// whole card, and a tuft (<see cref="StoneTufts"/>) follows the stone in the heart of a thick patch, each where the surface
+/// moss (<see cref="SurfaceMoss.Field"/>) is thick enough, so a card always
 /// continues a painted patch. Every kit piece's lips and feet are found once from its own triangles; the
 /// cards of every place standing are one mesh, built again whenever the places are laid out again or the
 /// moss's strength changes, around its own centre so the frame origin can move under it.
@@ -20,6 +21,8 @@ internal sealed class PlaceMossCards : IDisposable
     internal const string AtlasPath = "textures/places/moss-cards.png";
     /// <summary>Flat moss mats seen from above (make-grass-atlas.py --centre): a 2x2 atlas of patches.</summary>
     internal const string MatsPath = "textures/places/moss-mats.png";
+    /// <summary>The mats lightened to match the moss painted into the stone (scripts/make-moss-tile.py), for the tufts on it.</summary>
+    private const string TuftsPath = "textures/places/moss-tufts.png";
     /// <summary>Icicle fringes (#10068, scripts/generate-icicles.py): a 2x2 atlas, the top row's icicles shorter than the bottom's.</summary>
     private const string IciclesPath = "textures/places/icicles.png";
     /// <summary>
@@ -44,14 +47,16 @@ internal sealed class PlaceMossCards : IDisposable
     private const float MatSpacing = 0.55f, MatMinimum = 0.45f, MatMaximum = 0.85f, MatStandoff = 0.015f;
     /// <summary>How far above the threshold the moss must be for a card: cards continue thick moss, not every speck.</summary>
     private const float ThickMargin = 0.0f;
-    /// <summary>A card on a side face grows only this far into a painted patch, so its edge stays painted moss.</summary>
-    private const float FaceMargin = 0.0f;
     /// <summary>Side faces are thinned more than lips: a patch carries a card or two, not a coat.</summary>
     private const float FaceSpacing = 0.6f;
     /// <summary>A card on a face: its width, and its hang as a share of the width.</summary>
     private const float FaceMinimum = 0.3f, FaceMaximum = 0.6f, FaceHang = 1.3f;
     /// <summary>A face card turns up to this many degrees about its face's normal, so its straight top edge never lines up with its neighbours'.</summary>
     private const float FaceRollDegrees = 35f;
+    /// <summary>Tufts grow only this far over the threshold, in the heart of a patch (#10640).</summary>
+    private const float TuftMargin = 0.2f;
+    /// <summary>A flat card is tried this far along it from where it starts, so a lip's own edge does not decide whether it fits.</summary>
+    private const float FitInset = 0.2f;
     /// <summary>A top is a face whose normal rises at least this much; a side, one this near the horizontal.</summary>
     private const float TopRise = 0.6f, SideRise = 0.35f;
     /// <summary>Lips and feet are thinned to one per this many metres (a piece's mesh edges are a few centimetres long).</summary>
@@ -70,10 +75,11 @@ internal sealed class PlaceMossCards : IDisposable
     private readonly WorldFrame frame;
     private readonly SurfaceMoss moss;
     private readonly PropMaterials materials, ice;
-    private readonly Material material, mats, icicles;
+    private readonly Material material, tuftMaterial, icicles;
     private readonly Dictionary<MeshResource, (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces, Anchor[] Tops)> anchors = [];
+    private readonly Dictionary<MeshResource, StoneTufts> tufts = [];
 
-    /// <summary>What a card is; a cave grows the first four on its rock too (#10092).</summary>
+    /// <summary>What a card is; a cave grows the first five on its rock (#10092), and a place only the curtains, cushions, icicles and tufts.</summary>
     internal enum Kind
     {
         Curtain,
@@ -82,6 +88,7 @@ internal sealed class PlaceMossCards : IDisposable
         Mat,
         Cluster,
         Icicle,
+        Tuft,
     }
     private MeshResource? mesh;
     private Appearance? appearance;
@@ -99,7 +106,7 @@ internal sealed class PlaceMossCards : IDisposable
         // Cards are the leaves role: alpha-cut, one-sided with both windings; nothing about them sways (stone holds them).
         materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0));
         material = materials.For(PropMaterials.LeavesRole, AtlasPath);
-        mats = materials.For(PropMaterials.LeavesRole, MatsPath);
+        tuftMaterial = materials.For(PropMaterials.LeavesRole, TuftsPath);
         ice = new PropMaterials(engine, _ => new PropMaterials.Finish(IceRoughness, 0, 0));
         icicles = ice.For(PropMaterials.LeavesRole, IciclesPath);
     }
@@ -108,18 +115,20 @@ internal sealed class PlaceMossCards : IDisposable
     private readonly record struct Anchor(Vector3 At, Vector3 Out, Vector3 Normal);
 
     /// <summary>One piece standing, as the cards need it.</summary>
-    internal readonly record struct Piece(MeshResource Key, Vector3[] Positions, Triangle[] Triangles, float Sink, Vector3 World, Quaternion Rotation, Vector3 Scale,
+    internal readonly record struct Piece(MeshResource Key, Vector3[] Positions, Vector3[] Normals, Triangle[] Triangles, float Sink, Vector3 World, Quaternion Rotation, Vector3 Scale,
         float Overgrowth = 0);
 
     internal int Cards { get; private set; }
 
-    /// <summary>Cards laid by kind (curtain, cushion, face) and the face anchors considered, for the readout.</summary>
-    private readonly int[] byKind = new int[6];
-    private int faceAnchors;
+    /// <summary>Cards laid by kind and the face anchors considered, for the readout.</summary>
+    private readonly int[] byKind = new int[7];
+    private int faceAnchors, vertices;
+    private double layMilliseconds;
 
     /// <summary>Lays the cards out again over the pieces standing now.</summary>
     internal void Lay(IReadOnlyList<Piece> pieces, Vector3 about)
     {
+        long started = Stopwatch.GetTimestamp();
         centre = about;
         List<Vector3> positions = [], normals = [];
         List<Vector2> uvs = [];
@@ -132,9 +141,9 @@ internal sealed class PlaceMossCards : IDisposable
             float threshold = moss.ThresholdAt(Math.Min(piece.Overgrowth, CardOvergrowthLimit)) + ThickMargin;
             // No moss at all (strength 0 and no overgrowth), as the stain shader draws none: no moss cards either (#10044 review).
             bool mossy = moss.Strength + piece.Overgrowth > 0;
-            float blanket = piece.Overgrowth > 0 ? moss.BlanketThreshold(piece.Overgrowth) : float.PositiveInfinity;
             if (cards >= MaximumCards) break;
             (Anchor[] lips, Anchor[] feet, Anchor[] faces, Anchor[] tops) = AnchorsOf(piece);
+            if (!tufts.TryGetValue(piece.Key, out StoneTufts? onStone)) tufts[piece.Key] = onStone = new StoneTufts(piece.Positions, piece.Normals, piece.Triangles);
             if (moss.Snow >= IciclesFromMetres)
             {
                 // Icicles (#10068) along the lips wherever they freeze, moss or none.
@@ -160,21 +169,32 @@ internal sealed class PlaceMossCards : IDisposable
                     Vector3 normal = Vector3.Normalize(Vector3.Transform(anchor.Normal, piece.Rotation));
                     if (kind == Kind.Face) faceAnchors++;
                     float field = moss.Field(at.X, at.Y, at.Z, normal, SurfaceMoss.PlaceGrain, SurfaceMoss.HeightMoisture(anchor.At.Y - piece.Sink));
-                    if (!float.IsFinite(field) || field < threshold + (kind == Kind.Face ? FaceMargin : 0) || cards >= MaximumCards) continue;
+                    if (!float.IsFinite(field) || field < threshold || cards >= MaximumCards) continue;
                     // Snow (#10068) buries the cushions at the feet once it lies deep; mats on tops take the Engine's cover as the stone does.
                     if (kind == Kind.Cushion && moss.Snow >= CushionsBuriedMetres) continue;
                     float pick = Hash(at);
-                    Kind laid = kind;
-                    if (field >= blanket && kind is Kind.Face or Kind.Mat)
+                    // Tufts follow the stone; a curtain or a cushion is flat, so it grows only where the stone lies under all of it.
+                    if (kind is Kind.Face or Kind.Mat)
                     {
-                        // Under the blanket a face card or a mat would be hidden: leaves stand out of it instead.
-                        laid = Kind.Cluster;
+                        if (field < threshold + TuftMargin) continue;
+                        int first = positions.Count;
+                        onStone.Lay(anchor.At, anchor.Normal, pick, piece.Scale.X, positions, normals, uvs, matIndices);
+                        for (int i = first; i < positions.Count; i++)
+                        {
+                            positions[i] = piece.World + Vector3.Transform(positions[i] * piece.Scale, piece.Rotation) - centre;
+                            normals[i] = Vector3.Normalize(Vector3.Transform(normals[i], piece.Rotation));
+                        }
+
+                        byKind[(int)Kind.Tuft]++;
+                        cards++;
+                        continue;
                     }
 
-                    if (laid == Kind.Mat) Mat(at - centre, normal, pick, positions, normals, uvs, matIndices);
-                    else if (laid == Kind.Cluster) Cluster(at - centre, normal, pick, positions, normals, uvs, indices);
-                    else Card(at - centre, outward, normal, laid, pick, positions, normals, uvs, indices);
-                    byKind[(int)laid]++;
+                    float width = kind == Kind.Curtain ? Lerp(CurtainMinimum, CurtainMaximum, pick) : Lerp(CushionMinimum, CushionMaximum, pick);
+                    Vector3 tried = anchor.At + ((kind == Kind.Curtain ? -Vector3.UnitY : Vector3.UnitY) * FitInset);
+                    if (!onStone.Fits(tried, Vector3.Normalize(Vector3.Cross(Vector3.UnitY, anchor.Out)), anchor.Out, width / 2 / piece.Scale.X)) continue;
+                    Card(at - centre, outward, normal, kind, pick, positions, normals, uvs, indices);
+                    byKind[(int)kind]++;
                     cards++;
                 }
             }
@@ -182,6 +202,8 @@ internal sealed class PlaceMossCards : IDisposable
 
         Retire();
         Cards = cards;
+        vertices = positions.Count;
+        layMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         if (cards == 0) return;
         // The Engine refuses an empty group: one for the cards and one for the mats, each only if it has triangles.
         List<MeshGroup> groups = [];
@@ -196,7 +218,7 @@ internal sealed class PlaceMossCards : IDisposable
         {
             uint slot = (uint)bindings.Count;
             groups.Add(new(slot, (uint)indices.Count, (uint)matIndices.Count));
-            bindings.Add(new(slot, mats));
+            bindings.Add(new(slot, tuftMaterial));
         }
 
         if (iceIndices.Count > 0)
@@ -498,7 +520,7 @@ internal sealed class PlaceMossCards : IDisposable
         retiring.Clear();
     }
 
-    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} faces={byKind[2]}/{faceAnchors} mats={byKind[3]} clusters={byKind[4]} icicles={byKind[5]} pieces={anchors.Count}");
+    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} tufts={byKind[6]}/{faceAnchors} icicles={byKind[5]} vertices={vertices} layMs={layMilliseconds:F1} pieces={anchors.Count}");
 
     public void Dispose()
     {

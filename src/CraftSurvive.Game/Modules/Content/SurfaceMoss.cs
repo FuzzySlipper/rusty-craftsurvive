@@ -5,9 +5,9 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Content;
 
 /// <summary>
-/// Surface moss (#10044): the one product shader that marks where moss grows on stone places and field stones,
-/// as a soft damp stain under the painted moss cards
-/// (content/game/shaders/surface-moss.wgsl), and the materials that draw with it. Its strength and colours
+/// Surface moss (#10044): the one product shader that marks where moss grows on stone places and field stones
+/// (content/game/shaders/surface-moss.wgsl) as a soft damp stain, with the moss itself painted in on a place's stone
+/// (#10640), and the materials that draw with it. Its strength and colours
 /// are this owner's, so one change restyles every place. The shader reads world points (renderer-local
 /// position plus the frame origin, wrapped), so the materials are refreshed whenever the origin moves.
 /// </summary>
@@ -38,8 +38,11 @@ internal sealed class SurfaceMoss : IDisposable
     /// <summary>How much of the stain's tint (surface-moss.wgsl's STAIN_TINT) the fullest stain takes.</summary>
     private const float StainDepth = 1.0f;
 
+    /// <summary>The moss painted into a place's stone (#10640), through the same field as the stain.</summary>
+    private const string PaintTilePath = "textures/places/moss-tile.png";
+
     private readonly IEngineContext engine;
-    private readonly RenderResource shader, blanketShader;
+    private readonly RenderResource shader, blanketShader, paintTile;
     private readonly Dictionary<Material, (MaterialRequest Request, Grain Grain, float Overgrowth, bool Blanket)> materials = [];
     private (long X, long Y, long Z) origin;
 
@@ -48,6 +51,7 @@ internal sealed class SurfaceMoss : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         shader = engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
         blanketShader = engine.Graphics.OpenResource(new RenderResourceRequest(BlanketShaderPath)).Handle;
+        paintTile = engine.Graphics.OpenResource(new RenderResourceRequest(PaintTilePath, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
     }
 
     internal float Strength { get; private set; } = DefaultStrength;
@@ -102,7 +106,7 @@ internal sealed class SurfaceMoss : IDisposable
             new(Wrap(origin.X, period), Wrap(origin.Y, period), Wrap(origin.Z, period), Strength + overgrowth),
             new(a, b, c, d),
             new(grain.TexelsPerMetre, SideShare, LowestFacing, grain.VertexMoisture ? 1 : 0),
-            new(period, LichenAmount, 0, StainDepth),
+            new(period, LichenAmount, grain.VertexMoisture ? 1 : 0, StainDepth),
         ];
     }
 
@@ -110,7 +114,7 @@ internal sealed class SurfaceMoss : IDisposable
     internal MaterialShader Shader(Grain grain, float overgrowth = 0)
     {
         Vector4[] v = Parameters(grain, overgrowth);
-        return new MaterialShader(shader, v[0], v[1], v[2], v[3]);
+        return new MaterialShader(shader, v[0], v[1], v[2], v[3], paintTile, default(RenderResourceReference));
     }
 
     /// <summary>The ivy blanket as a material carries it now, for a place with <paramref name="overgrowth"/>.</summary>
@@ -257,5 +261,6 @@ internal sealed class SurfaceMoss : IDisposable
         materials.Clear();
         shader.Dispose();
         blanketShader.Dispose();
+        paintTile.Dispose();
     }
 }
