@@ -40,6 +40,8 @@ internal sealed class SurfaceMoss : IDisposable
 
     /// <summary>The moss painted into a place's stone (#10640), through the same field as the stain.</summary>
     private const string PaintTilePath = "textures/places/moss-tile.png";
+    /// <summary>The tile's texels across (surface-moss.wgsl's PAINT_TILE_TEXELS), which every wrap period holds whole.</summary>
+    internal const int PaintTileTexels = 128;
 
     private readonly IEngineContext engine;
     private readonly RenderResource shader, blanketShader, paintTile;
@@ -75,15 +77,15 @@ internal sealed class SurfaceMoss : IDisposable
         }
 
         /// <summary>
-        /// The whole metres the origin is wrapped by: the least period every lattice divides (in texels), so the
-        /// wrapped pattern is the world's pattern exactly and never jumps when the origin moves.
+        /// The whole metres the origin is wrapped by: the least period every lattice and the painted tile divide (in
+        /// texels), so the wrapped pattern and paint are the world's exactly and never jump when the origin moves.
         /// </summary>
         internal long PeriodMetres
         {
             get
             {
                 (int a, int b, int c, int d) = Lattice;
-                long cells = Lcm(Lcm(a, b), Lcm(c, d));
+                long cells = Lcm(Lcm(Lcm(a, b), Lcm(c, d)), PaintTileTexels);
                 return cells / Gcd(cells, TexelsPerMetre);
             }
         }
@@ -202,14 +204,9 @@ internal sealed class SurfaceMoss : IDisposable
     internal static float FieldAt((long X, long Y, long Z) frameOrigin, double worldX, double worldY, double worldZ, Vector3 normal, Grain grain,
         float vertexMoisture = 1)
     {
-        (long X, long Y, long Z) origin = frameOrigin;
         long period = grain.PeriodMetres;
-        double px = worldX - (period * Math.Floor(origin.X / (double)period));
-        double py = worldY - (period * Math.Floor(origin.Y / (double)period));
-        double pz = worldZ - (period * Math.Floor(origin.Z / (double)period));
-        Vector3 n = Vector3.Normalize(normal), a = Vector3.Abs(n);
-        (double qx, double qy, bool top) = a.Y >= a.X && a.Y >= a.Z ? (px, pz, true) : a.X >= a.Z ? (pz, py, false) : (px, py, false);
-        long tx = (long)Math.Floor(qx * grain.TexelsPerMetre), ty = (long)Math.Floor(qy * grain.TexelsPerMetre);
+        Vector3 n = Vector3.Normalize(normal);
+        (long tx, long ty, bool top) = TexelAt(frameOrigin, worldX, worldY, worldZ, n, grain);
         (int b, int bd, int f, int fd) = grain.Lattice;
         (int bx, int by) = top ? (b, b) : (b, bd);
         (int fx, int fy) = top ? (f, f) : (f, fd);
@@ -221,6 +218,25 @@ internal sealed class SurfaceMoss : IDisposable
         // As the shader reads it: stored as an alpha (moisture / MoistureScale) and scaled back.
         float own = grain.VertexMoisture ? (vertexMoisture / MoistureScale) * MoistureScale : 1;
         return (clump + fray) * facing * sun * own;
+    }
+
+    /// <summary>The painted tile's texel at a world point as the shader reads it with the frame origin at <paramref name="frameOrigin"/>; the same for every origin.</summary>
+    internal static (long X, long Y) PaintTexelAt((long X, long Y, long Z) frameOrigin, double worldX, double worldY, double worldZ, Vector3 normal, Grain grain)
+    {
+        (long tx, long ty, _) = TexelAt(frameOrigin, worldX, worldY, worldZ, Vector3.Normalize(normal), grain);
+        return (WrapIndex(tx, PaintTileTexels), WrapIndex(ty, PaintTileTexels));
+    }
+
+    /// <summary>As the shaders' texel_of: the texel of a surface's dominant plane at a world point, wrapped as the frame origin is.</summary>
+    private static (long X, long Y, bool Top) TexelAt((long X, long Y, long Z) origin, double worldX, double worldY, double worldZ, Vector3 n, Grain grain)
+    {
+        long period = grain.PeriodMetres;
+        double px = worldX - (period * Math.Floor(origin.X / (double)period));
+        double py = worldY - (period * Math.Floor(origin.Y / (double)period));
+        double pz = worldZ - (period * Math.Floor(origin.Z / (double)period));
+        Vector3 a = Vector3.Abs(n);
+        (double qx, double qy, bool top) = a.Y >= a.X && a.Y >= a.Z ? (px, pz, true) : a.X >= a.Z ? (pz, py, false) : (px, py, false);
+        return ((long)Math.Floor(qx * grain.TexelsPerMetre), (long)Math.Floor(qy * grain.TexelsPerMetre), top);
     }
 
     /// <summary>As the shader's hash: the cell's two 32-bit coordinates, wrapping as WGSL's u32 arithmetic does.</summary>

@@ -180,6 +180,7 @@ internal static class ContentChecks
         const int WidthAt = 16;
         int width = (png[WidthAt] << 24) | (png[WidthAt + 1] << 16) | (png[WidthAt + 2] << 8) | png[WidthAt + 3];
         string shader = File.ReadAllText(Path.Combine(root, "content/game/shaders/surface-moss.wgsl"));
+        Check.That(width == SurfaceMoss.PaintTileTexels, $"the painted tile is {SurfaceMoss.PaintTileTexels} texels across, was {width}");
         Check.That(shader.Contains($"PAINT_TILE_TEXELS: f32 = {width}.0;", StringComparison.Ordinal), $"surface-moss.wgsl's tile size must be the tile's, {width} texels");
     }
 
@@ -208,6 +209,26 @@ internal static class ContentChecks
 
             Check.That(differing == 0, $"the moss field is the same at a world point for any frame origin ({grain}: {differing} of 2000 differed)");
         }
+
+        // The painted moss (#10640) holds still as the origin crosses wrap periods, an odd number of them either way included.
+        SurfaceMoss.Grain place = SurfaceMoss.PlaceGrain;
+        long period = place.PeriodMetres;
+        Check.That(period * place.TexelsPerMetre % SurfaceMoss.PaintTileTexels == 0, $"a wrap period holds whole painted tiles, was {period} m");
+        int moved = 0;
+        for (int i = 0; i < 2000; i++)
+        {
+            double x = (random.NextDouble() - 0.5) * 300_000, y = random.NextDouble() * 400, z = (random.NextDouble() - 0.5) * 300_000;
+            Vector3 normal = Vector3.Normalize(new((float)random.NextDouble() - 0.5f, (float)random.NextDouble(), (float)random.NextDouble() - 0.5f));
+            (long, long, long) near = ((long)x, (long)y, (long)z);
+            (long X, long Y) painted = SurfaceMoss.PaintTexelAt(near, x, y, z, normal, place);
+            foreach (long crossed in new[] { -3L, -1L, 1L, 3L })
+            {
+                (long, long, long) rebased = ((long)x + (crossed * period), (long)y + (crossed * period), (long)z - (crossed * period));
+                if (SurfaceMoss.PaintTexelAt(rebased, x, y, z, normal, place) != painted) moved++;
+            }
+        }
+
+        Check.That(moved == 0, $"the painted moss is the same at a world point for any frame origin ({moved} of 8000 moved)");
     }
 
     internal static string RepositoryRoot()

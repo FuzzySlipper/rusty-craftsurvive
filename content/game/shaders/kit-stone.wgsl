@@ -73,7 +73,7 @@ fn smooth_noise(p: vec2<f32>, salt: u32) -> f32 {
 // fine across and down), and the wrap period in metres every lattice divides.
 const MOSS_TEXELS: f32 = 32.0;
 const MOSS_LATTICE: vec4<i32> = vec4<i32>(29, 64, 11, 24);
-const MOSS_PERIOD: i32 = 1914;
+const MOSS_PERIOD: i32 = 3828;
 const EDGE_FRAY: f32 = 0.04;
 // How wet a surface is for its moisture (0..1): a dungeon's air is 0.3 at its driest and 1 by the caves, and moss
 // should hold from about the middle of that (the places' MOISTURE_SCALE, 1.25, is for their vertex moisture, near 1).

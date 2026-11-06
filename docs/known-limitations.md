@@ -640,7 +640,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - **Overgrowth** comes from the site's climate: wet and warm country overgrows its places, a few of them heavily,
     while deserts and frozen country stay clean. `craft.moss.overgrow` overrides it. Within a place, variation comes
     from the field only; a dungeon-scale moisture spread is designed (on #10044 and #9833) but not built.
-  - **The field repeats** over its wrap period (about 1.9 km for places, 117 m for field stones). That is what keeps
+  - **The field repeats** over its wrap period (about 3.8 km for places, 234 m for field stones). That is what keeps
     it seamless when the frame origin moves; the repeat is not visible at those scales.
   - **Lichen** is the moss's opposite, in the stain shader: sparse grey-green and ochre spots on dry, sunny, high
     stone, kept off the damp. One global amount; it does not follow climate yet.
