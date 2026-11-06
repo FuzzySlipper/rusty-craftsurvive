@@ -30,6 +30,7 @@ env:
 jobs:
   propose:
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
         with:
@@ -77,9 +78,11 @@ jobs:
         run: |
           set -o pipefail
           {
-            for check in tests/TerrainResidency tests/SubstrateProof tests/RpgCore tests/DiscoveryCore; do
+            # Every lane: a pin commit starts no verify run, so this is all it gets until the next push.
+            for check in tests/*/*.csproj; do
               dotnet run --project "$check" -c Release
             done
+            dotnet build tools/MapLab -c Release
           } 2>&1 | tee checks.log
 
       - name: Serve the product on the proposed pair
@@ -107,7 +110,22 @@ jobs:
             sed -n '/^What changed/,/^Next:/p' update.log | sed '$d'
           } > message.txt
           git commit -q -F message.txt Directory.Build.props
-          git push origin "HEAD:$GITHUB_REF_NAME"
+          # main moves during a run, so a rejected push is not a broken pair: rebase and try again.
+          # A conflict means someone else moved the pin; the next run proposes from there.
+          pushed=false
+          for attempt in 1 2 3 4 5; do
+            if ! git pull -q --rebase --autostash origin "$GITHUB_REF_NAME"; then
+              git rebase --abort
+              echo "$GITHUB_REF_NAME moved the pin during this run, so $TO was not adopted."
+              exit 0
+            fi
+            if git push origin "HEAD:$GITHUB_REF_NAME"; then
+              pushed=true
+              break
+            fi
+            sleep $((attempt * 10))
+          done
+          [[ "$pushed" == true ]]
           for issue in $(gh issue list --label "$FAILURE_LABEL" --state open --json number --jq '.[].number'); do
             gh issue close "$issue" --comment "CraftSurvive adopted Engine pair $TO in $(git rev-parse --short HEAD)."
           done
