@@ -183,13 +183,35 @@ Check.Section("birds", () =>
     Check.That(east!.Value.Metres >= 20000 && east.Value.Metres <= birds.SeaRingsMetres[^1], "at the ring that reaches it");
     Check.That(Vector2.Dot(east.Value.Way, Vector2.UnitX) > 0.95f, "and the way to it is true");
     Check.That(FlightRules.FindSea(birds, new Vector2(0, 0), _ => false) is null, "no sea within reach is no sea");
-    Check.That(FlightRules.Weight(shag, MapBiome.Grassland, null) == 0, "a sea bird does not fly where no sea is found");
-    Check.That(FlightRules.Weight(shag, MapBiome.Grassland, new SeaReading(tie.WithinMetres, Vector2.UnitX)) == 0, "nor at the edge of its distance");
-    double near = FlightRules.Weight(shag, MapBiome.Grassland, new SeaReading(3000, Vector2.UnitX));
-    double far = FlightRules.Weight(shag, MapBiome.Grassland, new SeaReading(25000, Vector2.UnitX));
-    Check.That(near > far && far > 0, "it thins out with distance from the sea");
+    Check.That(FlightRules.SeaChance(shag, null) == 0, "a sea bird does not fly where no sea is found");
+    Check.That(FlightRules.SeaChance(shag, new SeaReading(tie.WithinMetres, Vector2.UnitX)) == 0, "nor at the edge of its distance");
+    Check.That(FlightRules.SeaChance(skein, null) == 1, "and the sea does not matter to other birds");
     Check.That(FlightRules.Choose([shag], MapBiome.Grassland, 0.5, null) is null, "with only sea birds and no sea, no flight is sent");
     Check.That(FlightRules.Choose([shag, skein], MapBiome.Grassland, 0.99, new SeaReading(3000, Vector2.UnitX)) is not null, "by the coast both can be sent");
+
+    // R10642-1: thinning has to mean fewer flights, even where a sea bird is the only kind that flies.
+    int Launches(IReadOnlyList<BirdKind> kinds, MapBiome biome, double metres, BirdKind wanted)
+    {
+        Random tries = new(106421);
+        SeaReading reading = new(metres, Vector2.UnitX);
+        return Enumerable.Range(0, 10000).Count(_ => FlightRules.Choose(kinds, biome, tries.NextDouble(), reading, tries.NextDouble()) == wanted);
+    }
+
+    int coastal = Launches([shag], MapBiome.Tundra, 3000, shag), inland = Launches([shag], MapBiome.Tundra, 25000, shag);
+    Check.That(coastal > 8500, "where only shags fly, the coast sends one nearly every time");
+    Check.That(inland > 3000 && inland < 4500, "and 25 km in, far fewer");
+    Check.That(Launches([shag], MapBiome.Tundra, tie.WithinMetres, shag) == 0, "and at the edge of its distance, none");
+    int skeinsFar = Launches([shag, skein], MapBiome.Grassland, tie.WithinMetres, skein);
+    Check.That(skeinsFar == 10000, "a shag that does not come leaves the sky to the others");
+
+    // R10642-2: sea on every side is still sea, though its bearings cancel.
+    SeaReading? island = FlightRules.FindSea(birds, Vector2.Zero, point => point.Length() > 1000);
+    Check.That(island is not null, "a place with sea on every side has found it");
+    Check.That(island!.Value.Metres == birds.SeaRingsMetres[0], "on the first ring");
+    Check.That(MathF.Abs(island.Value.Way.Length() - 1) < 0.001f, "with a way to go");
+    Func<Vector2, bool> strait = point => Math.Abs(point.X) > 2000;
+    SeaReading? between = FlightRules.FindSea(birds, Vector2.Zero, strait);
+    Check.That(between is not null && strait(between.Value.Way * (float)between.Value.Metres), "between two coasts the way leads to one of them");
     SeaReading coast = new(8000, new Vector2(0.6f, 0.8f));
     Random lines = new(10641);
     for (int trial = 0; trial < 100; trial++)

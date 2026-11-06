@@ -169,7 +169,7 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
         BirdKind[] flying = [.. Catalog.Kinds.Where(kind => kind.FliesAt(biome, hour, season))];
         // Looked for only when a sea bird could fly here, since it costs a few dozen map samples.
         SeaReading? sea = flying.Any(kind => kind.Sea is not null) ? Sea(here) : null;
-        if (FlightRules.Choose(flying, biome, draws.NextDouble(), sea) is { } kind && Fits(kind)) Launch(kind, here, sea);
+        if (FlightRules.Choose(flying, biome, draws.NextDouble(), sea, draws.NextDouble()) is { } kind && Fits(kind)) Launch(kind, here, sea);
     }
 
     /// <summary>Whether a flock of this kind's largest size has room in the sky.</summary>

@@ -43,38 +43,41 @@ internal static class FlightRules
     private const int SlotPhaseTurns = 1;
     private const double FarBehindReaches = 2;
     private const double StrayBesideRate = 0.7;
+
+    /// <summary>The summed bearings to the sea give a way only if they come to at least one bearing's length; below that they have cancelled.</summary>
+    private const float ClearWay = 1;
     private const double FullTurn = 2 * Math.PI;
 
-    /// <summary>The kind to send from those that fly here and now, by how much each likes the ground and, for a sea bird, how near the sea is; or null for none.</summary>
-    internal static BirdKind? Choose(IReadOnlyList<BirdKind> flying, WorldGen.MapBiome biome, double draw, SeaReading? sea = null)
+    /// <summary>
+    /// The kind to send from those that fly here and now, by how much each likes the ground, or null for none. A sea bird
+    /// first has to pass its chance at this distance from the sea, so it grows rarer inland even where nothing else flies,
+    /// and leaves the other kinds' share to them where it does not pass.
+    /// </summary>
+    /// <param name="seaDraw">A draw from 0 to 1 that a sea bird's chance is tried against.</param>
+    internal static BirdKind? Choose(IReadOnlyList<BirdKind> flying, WorldGen.MapBiome biome, double draw, SeaReading? sea = null, double seaDraw = 0)
     {
-        double whole = flying.Sum(kind => Weight(kind, biome, sea));
-        if (whole <= 0) return null;
-        double left = draw * whole;
-        BirdKind? last = null;
-        foreach (BirdKind kind in flying)
+        BirdKind[] going = [.. flying.Where(kind => kind.Habitat.GetValueOrDefault(biome) > 0 && seaDraw < SeaChance(kind, sea))];
+        double left = draw * going.Sum(kind => kind.Habitat.GetValueOrDefault(biome));
+        foreach (BirdKind kind in going)
         {
-            double weight = Weight(kind, biome, sea);
-            if (weight <= 0) continue;
-            last = kind;
-            left -= weight;
+            left -= kind.Habitat.GetValueOrDefault(biome);
             if (left < 0) return kind;
         }
 
-        return last;
+        return going.Length > 0 ? going[^1] : null;
     }
 
-    /// <summary>How much of a kind's liking for the ground holds here: a sea bird's thins to nothing at the edge of its distance from the sea.</summary>
-    internal static double Weight(BirdKind kind, WorldGen.MapBiome biome, SeaReading? sea)
+    /// <summary>The chance that a kind flies this far from the sea: a sea bird's thins to nothing at the edge of its distance, and any other's is whole.</summary>
+    internal static double SeaChance(BirdKind kind, SeaReading? sea)
     {
-        double liking = kind.Habitat.GetValueOrDefault(biome);
-        if (kind.Sea is not { } tie) return liking;
-        return sea is { } found ? liking * Math.Clamp(1 - (found.Metres / tie.WithinMetres), 0, 1) : 0;
+        if (kind.Sea is not { } tie) return 1;
+        return sea is { } found ? Math.Clamp(1 - (found.Metres / tie.WithinMetres), 0, 1) : 0;
     }
 
     /// <summary>
     /// The nearest sea, looked for ring by ring from near to far, stopping at the first ring that finds any. Its way is the
-    /// middle of the bearings that did, so a coast in view gives the way to it. Null if the sea is beyond the last ring.
+    /// middle of the bearings that did, so a coast in view gives the way to it. Where sea lies on opposite sides, as on an
+    /// island, that middle means nothing, so the way is the first bearing that found it. Null if the sea is beyond the last ring.
     /// </summary>
     /// <param name="isSea">Whether a point on the map is sea.</param>
     internal static SeaReading? FindSea(BirdCatalog catalog, Vector2 from, Func<Vector2, bool> isSea)
@@ -82,14 +85,17 @@ internal static class FlightRules
         foreach (double ring in catalog.SeaRingsMetres)
         {
             Vector2 sum = Vector2.Zero;
+            Vector2? first = null;
             for (int bearing = 0; bearing < catalog.SeaBearings; bearing++)
             {
                 double angle = bearing * FullTurn / catalog.SeaBearings;
                 Vector2 way = new((float)Math.Cos(angle), (float)Math.Sin(angle));
-                if (isSea(from + (way * (float)ring))) sum += way;
+                if (!isSea(from + (way * (float)ring))) continue;
+                sum += way;
+                first ??= way;
             }
 
-            if (sum.LengthSquared() > 1e-6f) return new SeaReading(ring, Vector2.Normalize(sum));
+            if (first is { } found) return new SeaReading(ring, sum.Length() >= ClearWay ? Vector2.Normalize(sum) : found);
         }
 
         return null;
