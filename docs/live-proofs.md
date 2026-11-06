@@ -6,7 +6,9 @@ headless test host. The **live lane** runs the real product against the
 installed runtime pack and is the only lane that can prove host-bound mechanisms, rendering and
 load paths. A build passing is not evidence about the live lane. CI's `product` job is the one
 automated live check: it serves the product, checks it keeps updating with a matching generator
-fingerprint, and walks the player on input with the client below.
+fingerprint, and walks the player a short way on input with the client below. Every step of that
+walk draws a software-rendered frame, so CI walks 12 steps at a 1 m bar and the longer default is for
+a machine with a GPU.
 
 The live substrate proof that established the Engine constraints this product builds on left
 with the authoring lane; its record is Den `history/live-substrate-proof`.
