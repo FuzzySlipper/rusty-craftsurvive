@@ -739,6 +739,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   It chooses by the ground under the player when it sets out, and may carry on over other country.
   A skein (#10631) holds one fixed V from start to finish: it does not reform, turn or call, and its
   birds only stray a little from their places.
+- **Sea birds read the sea from the map (#10642).** A flight looks for the sea once, as it sets out, on rings around
+  the player, so a bay or inlet between ring bearings can be missed. It reads map biome, so large lakes do not count.
+  Line shags stop 40 km from the sea, thinning out on the way. They fly out to sea before 13:00 and back after it, on
+  a straight line, and they do not land on the water or reach anywhere.
 - **Parties of small birds are drawn too (#10639).** A party appears out of view and is kept nowhere. Birds do not
   land, perch or settle again: one that goes up is simply gone, and a party that has stayed its time goes while
   none of it can be seen. They are drawn about 1.8 times life size, and tall grass still hides them until they go up.

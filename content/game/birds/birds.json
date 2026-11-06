@@ -7,6 +7,8 @@
   "fadeMetres": 300,
   "missMetres": { "least": 80, "most": 400 },
   "groundEveryMetres": 200,
+  "seaRingsMetres": [ 3000, 8000, 15000, 25000, 40000 ],
+  "seaBearings": 12,
   "parties": {
     "$comment": "Small birds on the ground (#10639): a party appears out of the player's view at appearMetres, feeds, and goes up when the player comes within flushMetres. Nothing lands in view. A flushed bird shrinks to nothing over the last fadeMetres before goneMetres.",
     "mostParties": 2,
@@ -71,6 +73,28 @@
         "formation": { "spacingMetres": 9, "sweepDegrees": 42, "longerArmShare": 0.62, "strayMetres": 1.2, "straySeconds": 11 }
       },
       "mesh": { "file": "creatures/skein/skein.glb", "scale": 1.6, "glide": "glide", "flap": "flap" }
+    },
+    {
+      "id": "line-shag",
+      "habitat": { "Grassland": 1.5, "Shrubland": 1.5, "TemperateForest": 1.5, "BorealForest": 1.5, "ColdSteppe": 1.5, "Tundra": 1.5, "Desert": 1.5, "Rainforest": 1.5 },
+      "hours": { "least": 6, "most": 19 },
+      "seasons": [ "Spring", "Summer", "Autumn", "Winter" ],
+      "sea": { "withinMetres": 40000, "headingSpreadDegrees": 20, "turnHomeHour": 13 },
+      "flight": {
+        "heightMetres": { "least": 35, "most": 70 },
+        "driftMetresPerSecond": 13,
+        "climbMetresPerSecond": 6,
+        "radiusMetres": { "least": 0, "most": 0 },
+        "turnSeconds": { "least": 1, "most": 1 },
+        "bankDegrees": 0,
+        "flapEverySeconds": 30,
+        "flapSeconds": 28
+      },
+      "flock": {
+        "least": 10, "most": 14, "heightMetres": 0, "radiusShare": 0,
+        "formation": { "spacingMetres": 7, "sweepDegrees": 0, "longerArmShare": 1, "strayMetres": 0.7, "straySeconds": 9 }
+      },
+      "mesh": { "file": "creatures/line-shag/line-shag.glb", "scale": 1.6, "glide": "glide", "flap": "flap" }
     }
   ]
 }

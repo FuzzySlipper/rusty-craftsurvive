@@ -217,6 +217,9 @@ python3 -I art/creatures/sheet_flyer.py art/creatures/skein/mesh/reference.png <
 The output goes straight to `prepare_mesh.py --head +x`, with no `prepare_flyer.py`. The image model draws the
 near wing standing up in the side view however the spec asks for it to be edge-on, so paint that out first.
 
+The line shag (#10642) is built the same way as the skein bird, with its `streamer` bones on the two halves of its tail.
+Check the sheet's lower views: the image model drew the feet on the view from above, so they had to be swapped.
+
 The glade parrot (#10639) has two bodies, because folded wings cannot open by skinning: `glade-parrot` on the
 ground, on the `percher` family (the bird's bones with `idle`, `peck` and `hop` clips), and `glade-parrot-flying`, a
 flyer built by `sheet_flyer.py` with its tail on the `streamer` bones. A bird swaps from one to the other as it goes

@@ -36,6 +36,12 @@ internal sealed record BirdFormation(double SpacingMetres, double SweepDegrees, 
 /// <summary>A flock: how many birds, how far they keep apart in height and along their circle, and the V they fly in, if any.</summary>
 internal sealed record BirdFlock(int Least, int Most, double HeightMetres, double RadiusShare, BirdFormation? Formation);
 
+/// <summary>
+/// A sea bird's tie to the sea: it flies only within this distance of it, thinning out with distance, and
+/// its flights run along the line to the sea, within this spread, outward before this hour and back after it.
+/// </summary>
+internal sealed record BirdSea(double WithinMetres, double HeadingSpreadDegrees, double TurnHomeHour);
+
 /// <summary>A kind's body and its two clips.</summary>
 internal sealed record BirdMesh(string File, float Scale, string Glide, string Flap);
 
@@ -47,7 +53,8 @@ internal sealed record BirdKind(
     IReadOnlySet<Season> Seasons,
     BirdFlight Flight,
     BirdFlock Flock,
-    BirdMesh Mesh)
+    BirdMesh Mesh,
+    BirdSea? Sea = null)
 {
     /// <summary>Whether it flies here and now.</summary>
     internal bool FliesAt(MapBiome biome, double hour, Season season) =>
@@ -55,7 +62,7 @@ internal sealed record BirdKind(
 }
 
 /// <summary>Every bird and the rules they share, as read from content.</summary>
-internal sealed record BirdCatalog(int MostFlights, int MostBirds, BirdSpan EverySeconds, double ReachMetres, double FadeMetres, BirdSpan MissMetres, double GroundEveryMetres, IReadOnlyList<BirdKind> Kinds)
+internal sealed record BirdCatalog(int MostFlights, int MostBirds, BirdSpan EverySeconds, double ReachMetres, double FadeMetres, BirdSpan MissMetres, double GroundEveryMetres, IReadOnlyList<double> SeaRingsMetres, int SeaBearings, IReadOnlyList<BirdKind> Kinds)
 {
     internal const string ContentPath = "birds/birds.json";
 
@@ -71,12 +78,17 @@ internal sealed record BirdCatalog(int MostFlights, int MostBirds, BirdSpan Ever
             root.GetProperty("fadeMetres").GetDouble(),
             Span(root.GetProperty("missMetres")),
             root.GetProperty("groundEveryMetres").GetDouble(),
+            [.. root.GetProperty("seaRingsMetres").EnumerateArray().Select(ring => ring.GetDouble())],
+            root.GetProperty("seaBearings").GetInt32(),
             [.. root.GetProperty("kinds").EnumerateArray().Select(ReadKind)]);
         if (read.Kinds.Count == 0) throw new InvalidDataException("birds need a kind");
         if (read.Kinds.Any(kind => kind.Flock.Most > read.MostBirds)) throw new InvalidDataException("a flock has to fit in the sky");
         if (read.FadeMetres <= 0) throw new InvalidDataException("a bird has to fade in over some distance");
         if (read.MissMetres.Most >= read.ReachMetres - read.FadeMetres) throw new InvalidDataException("a flight misses the player inside its fade");
         if (read.GroundEveryMetres <= 0) throw new InvalidDataException("a flight has to sample the ground");
+        if (read.SeaBearings < 1 || read.SeaRingsMetres.Count == 0) throw new InvalidDataException("the sea has to be looked for");
+        if (read.SeaRingsMetres.Zip(read.SeaRingsMetres.Skip(1)).Any(pair => pair.Second <= pair.First)) throw new InvalidDataException("the sea is looked for from near to far");
+        if (read.Kinds.Any(kind => kind.Sea is { } sea && sea.WithinMetres > read.SeaRingsMetres[^1])) throw new InvalidDataException("a sea bird cannot fly further from the sea than it is looked for");
         return read;
     }
 
@@ -112,7 +124,8 @@ internal sealed record BirdCatalog(int MostFlights, int MostBirds, BirdSpan Ever
                 flock.GetProperty("heightMetres").GetDouble(), flock.GetProperty("radiusShare").GetDouble(),
                 flock.TryGetProperty("formation", out JsonElement formation) ? ReadFormation(formation) : null),
             new BirdMesh(mesh.GetProperty("file").GetString()!, mesh.GetProperty("scale").GetSingle(),
-                mesh.GetProperty("glide").GetString()!, mesh.GetProperty("flap").GetString()!));
+                mesh.GetProperty("glide").GetString()!, mesh.GetProperty("flap").GetString()!),
+            kind.TryGetProperty("sea", out JsonElement sea) ? new BirdSea(sea.GetProperty("withinMetres").GetDouble(), sea.GetProperty("headingSpreadDegrees").GetDouble(), sea.GetProperty("turnHomeHour").GetDouble()) : null);
         if (read.Flight.DriftMetresPerSecond <= 0) throw new InvalidDataException($"{id}: a flight has to get somewhere");
         if (read.Flight.ClimbMetresPerSecond <= 0) throw new InvalidDataException($"{id}: a flight has to be able to climb");
         if (read.Flock.Least < 1 || read.Flock.Most < read.Flock.Least) throw new InvalidDataException($"{id}: a flock is one or more, least first");

@@ -1,0 +1,13 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE heavy dark sea bird, the line shag, in exactly the shape of the first reference image. Wingspan about 1.6 m, about 1 m long from bill to tail. It is in LEVEL FLIGHT with both wings held out flat and fully spread, its neck stretched out ahead with a slight kink, and its long stiff tail straight behind it. Its feet are tucked flat under the base of the tail. Exactly the same bird in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the strict LEFT SIDE view, head pointing to the left. The wings are EDGE-ON, so they do not show at all: nothing rises above the back. The whole bird from bill to tail tip in one line.
+- BOTTOM LEFT: the view from DIRECTLY BELOW, head pointing to the TOP of the sheet, both wings spread out to the left and right and the tail trailing down the sheet.
+- BOTTOM RIGHT: the view from DIRECTLY ABOVE, head pointing to the TOP of the sheet, both wings spread out to the left and right and the tail trailing down the sheet.
+Landscape aspect about 1536x1024. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the first reference image: the long thin neck, small crested head, long hooked bill, heavy body, broad blunt wings with big stiff feathers along their trailing edge, and the long stiff tail.
+
+SOLID SHAPES ONLY: the wing is one solid surface with some thickness, with a few large stiff feather shapes along its trailing edge. No fine strands or fringes. The bill is closed.
+
+PAINT - follow the first reference image for its colours and the second reference image, a sheet of a giant ground sloth from the same game, only for its treatment: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction. Glossy blue-black all over, a blue sheen along the upper wing, a pale ring round the eye, a white patch on each flank, grey-brown feet and bill.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO other objects. NOT photoreal, NOT a perspective render, NOT anime, NOT cel shading or outlines.

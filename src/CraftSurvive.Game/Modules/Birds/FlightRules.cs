@@ -27,6 +27,9 @@ internal sealed record Flight(BirdKind Kind, Vector2 Start, Vector2 Heading, dou
 /// </summary>
 internal readonly record struct FlightSlot(double Phase, double RadiusShare, double Height, double FlapOffset, double Behind = 0, double Beside = 0, double StrayPhase = 0);
 
+/// <summary>The nearest sea found around a point: how far, and which way.</summary>
+internal readonly record struct SeaReading(double Metres, Vector2 Way);
+
 /// <summary>Where a bird is at a moment: world metres, and which way it faces (yaw 0 is north) and leans.</summary>
 internal readonly record struct BirdPose(Vector3 Position, float Yaw, float Bank)
 {
@@ -42,18 +45,61 @@ internal static class FlightRules
     private const double StrayBesideRate = 0.7;
     private const double FullTurn = 2 * Math.PI;
 
-    /// <summary>The kind to send from those that fly here and now, by how much each likes the ground, or null for none.</summary>
-    internal static BirdKind? Choose(IReadOnlyList<BirdKind> flying, WorldGen.MapBiome biome, double draw)
+    /// <summary>The kind to send from those that fly here and now, by how much each likes the ground and, for a sea bird, how near the sea is; or null for none.</summary>
+    internal static BirdKind? Choose(IReadOnlyList<BirdKind> flying, WorldGen.MapBiome biome, double draw, SeaReading? sea = null)
     {
-        double whole = flying.Sum(kind => kind.Habitat.GetValueOrDefault(biome));
+        double whole = flying.Sum(kind => Weight(kind, biome, sea));
+        if (whole <= 0) return null;
         double left = draw * whole;
+        BirdKind? last = null;
         foreach (BirdKind kind in flying)
         {
-            left -= kind.Habitat.GetValueOrDefault(biome);
+            double weight = Weight(kind, biome, sea);
+            if (weight <= 0) continue;
+            last = kind;
+            left -= weight;
             if (left < 0) return kind;
         }
 
-        return flying.Count > 0 ? flying[^1] : null;
+        return last;
+    }
+
+    /// <summary>How much of a kind's liking for the ground holds here: a sea bird's thins to nothing at the edge of its distance from the sea.</summary>
+    internal static double Weight(BirdKind kind, WorldGen.MapBiome biome, SeaReading? sea)
+    {
+        double liking = kind.Habitat.GetValueOrDefault(biome);
+        if (kind.Sea is not { } tie) return liking;
+        return sea is { } found ? liking * Math.Clamp(1 - (found.Metres / tie.WithinMetres), 0, 1) : 0;
+    }
+
+    /// <summary>
+    /// The nearest sea, looked for ring by ring from near to far, stopping at the first ring that finds any. Its way is the
+    /// middle of the bearings that did, so a coast in view gives the way to it. Null if the sea is beyond the last ring.
+    /// </summary>
+    /// <param name="isSea">Whether a point on the map is sea.</param>
+    internal static SeaReading? FindSea(BirdCatalog catalog, Vector2 from, Func<Vector2, bool> isSea)
+    {
+        foreach (double ring in catalog.SeaRingsMetres)
+        {
+            Vector2 sum = Vector2.Zero;
+            for (int bearing = 0; bearing < catalog.SeaBearings; bearing++)
+            {
+                double angle = bearing * FullTurn / catalog.SeaBearings;
+                Vector2 way = new((float)Math.Cos(angle), (float)Math.Sin(angle));
+                if (isSea(from + (way * (float)ring))) sum += way;
+            }
+
+            if (sum.LengthSquared() > 1e-6f) return new SeaReading(ring, Vector2.Normalize(sum));
+        }
+
+        return null;
+    }
+
+    /// <summary>The way a sea bird's flight runs: out along the line to the sea before the hour it turns for home, and back along it after, within its spread.</summary>
+    internal static double SeaBearing(BirdSea tie, SeaReading sea, double hour, double draw)
+    {
+        Vector2 way = hour < tie.TurnHomeHour ? sea.Way : -sea.Way;
+        return Math.Atan2(way.Y, way.X) + (((2 * draw) - 1) * tie.HeadingSpreadDegrees * Math.PI / 180);
     }
 
     /// <summary>
@@ -62,9 +108,10 @@ internal static class FlightRules
     /// </summary>
     /// <param name="draw">A draw from 0 to 1, as many as it asks for.</param>
     /// <param name="groundAt">The ground's height at a point.</param>
-    internal static Flight Plan(BirdKind kind, BirdCatalog catalog, Vector2 player, Func<double> draw, Func<double, double, double> groundAt)
+    /// <param name="fixedBearing">The way it has to run, in radians, or null for any way.</param>
+    internal static Flight Plan(BirdKind kind, BirdCatalog catalog, Vector2 player, Func<double> draw, Func<double, double, double> groundAt, double? fixedBearing = null)
     {
-        double bearing = draw() * FullTurn;
+        double bearing = fixedBearing ?? (draw() * FullTurn);
         Vector2 heading = new((float)Math.Cos(bearing), (float)Math.Sin(bearing));
         Vector2 side = new(-heading.Y, heading.X);
         double miss = catalog.MissMetres.At(draw()) * (draw() < 0.5 ? -1 : 1);

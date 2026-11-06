@@ -37,7 +37,8 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
     private bool started;
     private double nextFlightIn;
     private AppearanceFact[] facts = [];
-    private (long Updates, double Spent, double Worst, double Plan) cost;
+    private (long Updates, double Spent, double Worst, double Plan, double Sea) cost;
+    private SeaReading? lastSea;
 
     private sealed class Body(int slot, ulong objectId, Appearance appearance, AnimationInstance instance)
     {
@@ -99,7 +100,7 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
 
         facts = [.. next];
         double spent = Stopwatch.GetElapsedTime(began).TotalMilliseconds;
-        cost = (cost.Updates + 1, cost.Spent + spent, Math.Max(cost.Worst, spent), cost.Plan);
+        cost = (cost.Updates + 1, cost.Spent + spent, Math.Max(cost.Worst, spent), cost.Plan, cost.Sea);
     }
 
     public void Restart() => Clear();
@@ -127,7 +128,8 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
         if (Catalog.Kinds.FirstOrDefault(kind => kind.Id == kindId) is not { } kind) return $"no bird '{kindId}'; birds: {string.Join(",", Catalog.Kinds.Select(k => k.Id))}";
         if (!Fits(kind)) return $"no room in the sky for a flock of {kind.Id}; {Readout()}";
         Vector3 at = player.WorldPosition;
-        Flying flying = Launch(kind, new Vector2(at.X, at.Z));
+        Vector2 from = new(at.X, at.Z);
+        Flying flying = Launch(kind, from, kind.Sea is null ? null : Sea(from));
         if (overhead) flying.Flight.Age = flying.Flight.Seconds / 2;
         return Readout();
     }
@@ -146,7 +148,7 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
         Vector2 here = new(at.X, at.Z);
         double mean = cost.Updates > 0 ? cost.Spent / cost.Updates : 0;
         string text = string.Create(CultureInfo.InvariantCulture,
-            $"flights={flights.Count} birds={flights.Sum(flying => flying.Bodies.Length)} nextIn={nextFlightIn:F0} updates={cost.Updates} meanMs={mean:F3} worstMs={cost.Worst:F3} planMs={cost.Plan:F2}");
+            $"flights={flights.Count} birds={flights.Sum(flying => flying.Bodies.Length)} nextIn={nextFlightIn:F0} updates={cost.Updates} meanMs={mean:F3} worstMs={cost.Worst:F3} planMs={cost.Plan:F2} seaMs={cost.Sea:F2} sea={(lastSea is { } read ? string.Create(CultureInfo.InvariantCulture, $"{read.Metres:F0}m,{read.Way.X:F2},{read.Way.Y:F2}") : "none")}");
         cost = default;
         return text + string.Concat(flights.Select(flying =>
         {
@@ -165,16 +167,28 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
         double hour = now.DayFraction * HoursPerDay;
         Season season = Seasons.At((now.Day * HoursPerDay) + hour);
         BirdKind[] flying = [.. Catalog.Kinds.Where(kind => kind.FliesAt(biome, hour, season))];
-        if (FlightRules.Choose(flying, biome, draws.NextDouble()) is { } kind && Fits(kind)) Launch(kind, here);
+        // Looked for only when a sea bird could fly here, since it costs a few dozen map samples.
+        SeaReading? sea = flying.Any(kind => kind.Sea is not null) ? Sea(here) : null;
+        if (FlightRules.Choose(flying, biome, draws.NextDouble(), sea) is { } kind && Fits(kind)) Launch(kind, here, sea);
     }
 
     /// <summary>Whether a flock of this kind's largest size has room in the sky.</summary>
     private bool Fits(BirdKind kind) => flights.Sum(flying => flying.Bodies.Length) + kind.Flock.Most <= Catalog.MostBirds;
 
-    private Flying Launch(BirdKind kind, Vector2 here)
+    private SeaReading? Sea(Vector2 here)
     {
         long began = Stopwatch.GetTimestamp();
-        Flight flight = FlightRules.Plan(kind, Catalog, here, draws.NextDouble, GroundAt);
+        SeaReading? sea = FlightRules.FindSea(Catalog, here, point => WorldMap.Biome(terrain.Recipe.Map.Sample(point.X, point.Y)) == MapBiome.Sea);
+        cost = cost with { Sea = Math.Max(cost.Sea, Stopwatch.GetElapsedTime(began).TotalMilliseconds) };
+        lastSea = sea;
+        return sea;
+    }
+
+    private Flying Launch(BirdKind kind, Vector2 here, SeaReading? sea)
+    {
+        long began = Stopwatch.GetTimestamp();
+        double? bearing = kind.Sea is { } tie && sea is { } found ? FlightRules.SeaBearing(tie, found, clock().DayFraction * HoursPerDay, draws.NextDouble()) : null;
+        Flight flight = FlightRules.Plan(kind, Catalog, here, draws.NextDouble, GroundAt, bearing);
         Flying flying = new(flight, [.. flight.Slots.Select(_ => Create(kind))]);
         flights.Add(flying);
         cost = cost with { Plan = Math.Max(cost.Plan, Stopwatch.GetElapsedTime(began).TotalMilliseconds) };

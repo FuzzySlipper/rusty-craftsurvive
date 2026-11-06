@@ -1,0 +1,100 @@
+{
+ "id": "line-shag",
+ "family": "flyer",
+ "about": "The line shag, from the spectacled cormorant, about 1.4 m across the wings, fitted to the body built from its sheet (art/creatures/line-shag/mesh). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right. The family's streamer bones carry the two halves of its tail.",
+ "clips": {
+  "fps": 30,
+  "glide": {
+   "seconds": 4.0,
+   "dihedralDegrees": 2.0
+  },
+  "flap": {
+   "seconds": 0.6,
+   "beatDegrees": 26.0,
+   "dihedralDegrees": 3.0,
+   "bobMetres": 0.02
+  }
+ },
+ "points": {
+  "root": [
+   0,
+   0,
+   0
+  ],
+  "root_tip": [
+   0,
+   0.2,
+   0
+  ],
+  "body": [
+   0,
+   -0.1,
+   0.06501901149749756
+  ],
+  "chest": [
+   0,
+   0.08,
+   0.06501901149749756
+  ],
+  "neck": [
+   0,
+   0.17,
+   0.06501901149749756
+  ],
+  "head": [
+   0,
+   0.42,
+   0.06501901149749756
+  ],
+  "nose": [
+   0,
+   0.5,
+   0.06501901149749756
+  ],
+  "tail0": [
+   0,
+   -0.1,
+   0.06501901149749756
+  ],
+  "tail1": [
+   0,
+   -0.2,
+   0.06501901149749756
+  ],
+  "shoulder": [
+   0.08,
+   0.09,
+   0.06501901149749756
+  ],
+  "elbow": [
+   0.26,
+   0.14,
+   0.06501901149749756
+  ],
+  "wrist": [
+   0.45,
+   0.11,
+   0.06501901149749756
+  ],
+  "wing_tip": [
+   0.69,
+   -0.01,
+   0.06501901149749756
+  ],
+  "streamer0": [
+   0.02,
+   -0.2,
+   0.06501901149749756
+  ],
+  "streamer1": [
+   0.03,
+   -0.35,
+   0.06501901149749756
+  ],
+  "streamer2": [
+   0.035,
+   -0.5,
+   0.06501901149749756
+  ]
+ }
+}

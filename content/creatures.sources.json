@@ -248,6 +248,17 @@
    "body": "art/creatures/sheet_flyer.py --step 2 --wing 0.006 from art/creatures/glade-parrot/flying/reference.png; prepare_mesh.py --head +x --length 0.44 --triangles 1200 --texels 600",
    "reduced": "pixel_reduce.py --factor 2 --colors 16 --luminance 0.6 --saturation 1.0 (300 texels/m): brighter than the ground body, since it is seen from below against the sky",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10639/glade-parrot/"
+  },
+  {
+   "mesh": "content/game/creatures/line-shag/line-shag.glb",
+   "sha256": "e6ae83aaae4fe95653a2daceadb88d82d09e61ebb0d699f1a791793694053156",
+   "manifest": "content/game/creatures/line-shag/line-shag.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/line-shag/species.json with --mesh body.glb --texture body-128.png",
+   "concept": "art/creatures/line-shag/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/line-shag/mesh/reference.png, spec beside it; its two lower views swapped, as the image model drew them the wrong way round (raw sheet: reference-raw.png)",
+   "body": "art/creatures/sheet_flyer.py --step 2 --wing 0.015; prepare_mesh.py --head +x --length 1.0 --triangles 1800 --texels 256",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.7 --saturation 1.0 (128 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10642/line-shag/"
   }
  ],
  "reference": {

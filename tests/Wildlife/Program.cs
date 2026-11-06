@@ -140,10 +140,10 @@ Check.Section("birds", () =>
     Check.That(lowest > 0, "and is never in it");
 
     // Patch, 2026-11-05: greener country has flocks. A skein flies straight, in a V with one arm longer than the other.
-    BirdKind skein = birds.Kinds.Single(kind => kind.Flock.Formation is not null);
+    BirdKind skein = birds.Kinds.Single(kind => kind.Id == "skein");
     Check.That(skein.FliesAt(MapBiome.Grassland, 12, Season.Spring), "a skein flies over the grass");
     Check.That(!skein.FliesAt(MapBiome.Desert, 12, Season.Spring), "and leaves the desert to the streamer");
-    Check.That(FlightRules.Choose(birds.Kinds, MapBiome.Grassland, 0.5) == skein, "the kind that likes the ground is chosen");
+    Check.That(FlightRules.Choose(birds.Kinds, MapBiome.Grassland, 0.5) == skein, "away from the sea, the kind that likes the ground is chosen");
     Random flocks = new(10631);
     for (int trial = 0; trial < 100; trial++)
     {
@@ -173,6 +173,39 @@ Check.Section("birds", () =>
     }
 
     Check.Throws<InvalidDataException>(() => BirdCatalog.Parse(ReadResource("Wildlife.birds.json").Replace("\"mostBirds\": 30", "\"mostBirds\": 5")), "a flock too big for the sky is refused");
+
+    // Patch, 2026-11-05: a sea bird says the sea is somewhere near, and its way points to it.
+    BirdKind shag = birds.Kinds.Single(kind => kind.Id == "line-shag");
+    BirdSea tie = shag.Sea!;
+    Func<Vector2, bool> seaEast = point => point.X > 20000;
+    SeaReading? east = FlightRules.FindSea(birds, new Vector2(0, 0), seaEast);
+    Check.That(east is not null, "a sea within the last ring is found");
+    Check.That(east!.Value.Metres >= 20000 && east.Value.Metres <= birds.SeaRingsMetres[^1], "at the ring that reaches it");
+    Check.That(Vector2.Dot(east.Value.Way, Vector2.UnitX) > 0.95f, "and the way to it is true");
+    Check.That(FlightRules.FindSea(birds, new Vector2(0, 0), _ => false) is null, "no sea within reach is no sea");
+    Check.That(FlightRules.Weight(shag, MapBiome.Grassland, null) == 0, "a sea bird does not fly where no sea is found");
+    Check.That(FlightRules.Weight(shag, MapBiome.Grassland, new SeaReading(tie.WithinMetres, Vector2.UnitX)) == 0, "nor at the edge of its distance");
+    double near = FlightRules.Weight(shag, MapBiome.Grassland, new SeaReading(3000, Vector2.UnitX));
+    double far = FlightRules.Weight(shag, MapBiome.Grassland, new SeaReading(25000, Vector2.UnitX));
+    Check.That(near > far && far > 0, "it thins out with distance from the sea");
+    Check.That(FlightRules.Choose([shag], MapBiome.Grassland, 0.5, null) is null, "with only sea birds and no sea, no flight is sent");
+    Check.That(FlightRules.Choose([shag, skein], MapBiome.Grassland, 0.99, new SeaReading(3000, Vector2.UnitX)) is not null, "by the coast both can be sent");
+    SeaReading coast = new(8000, new Vector2(0.6f, 0.8f));
+    Random lines = new(10641);
+    for (int trial = 0; trial < 100; trial++)
+    {
+        Flight outbound = FlightRules.Plan(shag, birds, player, lines.NextDouble, (_, _) => 900, FlightRules.SeaBearing(tie, coast, 8, lines.NextDouble()));
+        Flight inbound = FlightRules.Plan(shag, birds, player, lines.NextDouble, (_, _) => 900, FlightRules.SeaBearing(tie, coast, 16, lines.NextDouble()));
+        double spread = Math.Cos((tie.HeadingSpreadDegrees + 0.1) * Math.PI / 180);
+        Check.That(Vector2.Dot(outbound.Heading, coast.Way) >= spread, "in the morning a flight runs out to sea");
+        Check.That(Vector2.Dot(inbound.Heading, -coast.Way) >= spread, "in the afternoon it runs back");
+        BirdPose[] file = [.. outbound.Slots.Select(slot => FlightRules.At(outbound, slot, outbound.Seconds / 2))];
+        Vector2 sideways = new(-outbound.Heading.Y, outbound.Heading.X);
+        Check.That(file.All(pose => Math.Abs(Vector2.Dot(pose.Ground - file[0].Ground, sideways)) <= 2 * shag.Flock.Formation!.StrayMetres + 0.01), "a file keeps to one line");
+        Check.That(file.Skip(1).All(pose => Vector2.Dot(pose.Ground - file[0].Ground, outbound.Heading) < 0), "behind its leader");
+        Check.That(FlightRules.Passes(outbound, player) >= birds.MissMetres.Least - 1, "and misses the player");
+        Check.That(outbound.Slots.All(slot => FlightRules.Size(FlightRules.At(outbound, slot, 0), player, birds) == 0), "and starts out of sight");
+    }
 
     Flight circling = FlightRules.Plan(soarer, birds, player, random.NextDouble, (_, _) => 900);
     FlightSlot only = circling.Slots[0];

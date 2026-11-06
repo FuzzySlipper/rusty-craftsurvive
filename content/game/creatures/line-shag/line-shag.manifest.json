@@ -1,0 +1,26 @@
+{
+  "species": "line-shag",
+  "family": "flyer",
+  "body": {
+    "hindMetres": -0.1,
+    "foreMetres": -0.1
+  },
+  "legs": [],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "glide": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "flap": {
+      "seconds": 0.6,
+      "loops": true,
+      "plantsFeet": false
+    }
+  }
+}
