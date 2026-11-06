@@ -3093,6 +3093,9 @@
     "density": 0.0006
    },
    "colliders": "trunk"
-  }
- }
+  },
+    "scree-rock": {"role": "rock", "height": 0.45, "folder": "scatter", "variants": [{"seed": 1, "name": "scree-rock-1"}, {"seed": 2, "name": "scree-rock-2"}, {"seed": 3, "name": "scree-rock-3"}, {"seed": 4, "name": "scree-rock-4"}], "ecology": {"temperature": [-0.2, 0.1, 0.36], "moisture": [-1.0, 0.5, 2.0], "habit": "open", "abundance": 1.0, "rock": 1.1, "density": 0.03, "patch": 0.58}},
+    "boulder": {"role": "rock", "height": 1.3, "folder": "scatter", "variants": [{"seed": 1, "name": "boulder-1"}, {"seed": 2, "name": "boulder-2"}, {"seed": 3, "name": "boulder-3"}, {"seed": 4, "name": "boulder-4"}], "ecology": {"temperature": [-0.2, 0.1, 0.36], "moisture": [-1.0, 0.5, 2.0], "habit": "open", "abundance": 1.0, "rock": 1.1, "density": 0.006, "patch": 0.62}},
+    "outcrop": {"role": "rock", "height": 2.2, "folder": "scatter", "variants": [{"seed": 1, "name": "outcrop-1"}, {"seed": 2, "name": "outcrop-2"}, {"seed": 3, "name": "outcrop-3"}], "ecology": {"temperature": [-0.2, 0.1, 0.36], "moisture": [-1.0, 0.5, 2.0], "habit": "open", "abundance": 1.0, "rock": 1.1, "density": 0.001, "patch": 0.68}}
+}
 }

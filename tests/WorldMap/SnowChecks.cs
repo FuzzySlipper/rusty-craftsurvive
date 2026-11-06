@@ -21,8 +21,28 @@ internal static class SnowChecks
     private static Func<double, double, MapSample> Climate(double temperature) =>
         (_, _) => new MapSample(Elevation: 50, Temperature: temperature, Moisture: 0.5, Rock: 0, Detail: 0);
 
+    /// <summary>Frozen ground keeps its painted drifts in view under the cover shown, until fresh snow whitens them (#10629).</summary>
+    private static void FrozenGround()
+    {
+        const double Lying = 0.1, Fresh = 1, Settled = 0, Whole = 1, Thin = 0.01;
+        MapSample Sample(double temperature) => Climate(temperature)(0, 0);
+        double deep = SnowCover.FrozenShare(Sample(0.1)), edge = SnowCover.FrozenShare(Sample(MapBiomes.TundraTemperature - (SnowCover.FrozenEdgeTemperature / 2)));
+        Check.That(deep == 1, $"well inside frozen country the ground is wholly frozen, was {deep}");
+        Check.That(edge is > 0 and < 1, $"frozen ground comes in gradually from its edge, was {edge}");
+        Check.That(SnowCover.FrozenShare(Sample(0.4)) == 0, "warm country is not frozen ground");
+        Check.That(SnowCover.FrozenShare(Climate(0.2)(0, 0) with { Elevation = -50 }) == 0, "the sea is not frozen ground");
+
+        Check.That(SnowCover.ShownDepth(Lying, Whole, Settled) == SnowCover.FrozenShownMetres, "settled snow on frozen ground shows only a dusting");
+        Check.That(SnowCover.ShownDepth(Lying, Whole, Fresh) == Lying, "fresh snow on frozen ground shows whole");
+        Check.That(SnowCover.ShownDepth(Lying, 0, Settled) == Lying, "snow on other ground shows whole");
+        Check.That(SnowCover.ShownDepth(Thin, Whole, Settled) == Thin, "the dusting never shows more than lies");
+        double half = SnowCover.ShownDepth(Lying, 0.5, Settled);
+        Check.That(half > SnowCover.FrozenShownMetres && half < Lying, "the cover shown eases across frozen ground's edge");
+    }
+
     internal static void Run()
     {
+        FrozenGround();
         WeatherField polar = new(Seed, WindAngle, WorldMetres, Peak, Climate(Polar));
         SnowCover cover = new(polar);
         cover.Lay(0, 0, StartHours, -SnowCover.MostDepth);

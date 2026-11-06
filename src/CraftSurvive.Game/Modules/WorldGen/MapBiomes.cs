@@ -4,7 +4,7 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 internal static class MapBiomes
 {
     private const double IceTemperature = 0.14;
-    private const double TundraTemperature = 0.28;
+    internal const double TundraTemperature = 0.28;
     private const double CoolTemperature = 0.45;
     private const double HotTemperature = 0.62;
     private const double TropicalTemperature = 0.72;

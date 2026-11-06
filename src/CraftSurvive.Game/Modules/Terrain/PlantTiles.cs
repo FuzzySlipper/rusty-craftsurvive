@@ -46,6 +46,8 @@ internal sealed class PlantTiles : IDisposable
     private const double ScaleMinimum = 0.8, ScaleMaximum = 1.2;
     /// <summary>Deadwood varies less, so a fallen trunk always stands above the player's step and mostly below a jump.</summary>
     private const double DeadwoodScaleMinimum = 0.9, DeadwoodScaleMaximum = 1.1;
+    /// <summary>Rocks vary widely, and one this tall or taller collides as deadwood does; scree is walked through, as field stones are.</summary>
+    private const double RockScaleMinimum = 0.6, RockScaleMaximum = 1.5, RockCollidesFrom = 1;
     private const double ShadeScaleMinimum = 1.15, ShadeScaleMaximum = 1.8;
     /// <summary>A sapling stands this tall, whatever its species grows to.</summary>
     private const double SaplingHeightMinimum = 1.2, SaplingHeightMaximum = 3.6;
@@ -127,7 +129,7 @@ internal sealed class PlantTiles : IDisposable
             {
                 MeshResourceCreateRequest request = PropMesh.Read(content, ModelsFolder + species.Folder + "/" + name + PropMesh.Suffix,
                     (role, texture) => texture is null ? plain : textured.For(role, texture));
-                if (species.Role == FloraRole.Deadwood)
+                if (species.Role == FloraRole.Deadwood || (species.Role == FloraRole.Rock && species.Height >= RockCollidesFrom))
                 {
                     // Deadwood tall enough to block collides as its upright-sided boxes, when the generator wrote them; the rest as its mesh.
                     IReadOnlyList<(Vector3 Centre, Vector3 Half, float Yaw)> boxes = PropMesh.Colliders(content, ModelsFolder + species.Folder + "/" + name + PropMesh.Suffix);
@@ -369,34 +371,41 @@ internal sealed class PlantTiles : IDisposable
             for (long cellZ = firstZ; cellZ <= lastZ; cellZ++)
             {
                 long centreX = (cellX * CellMetres) + (CellMetres / 2), centreZ = (cellZ * CellMetres) + (CellMetres / 2);
-                if (ground.At(centreX, centreZ) is not var (_, centreTop, geography) || !Soil(recipe, centreTop, centreX, centreZ)) continue;
+                if (ground.At(centreX, centreZ) is not var (_, centreTop, geography)) continue;
+                bool snow = centreTop == BlockId.Snow;
+                if (!snow && !Soil(recipe, centreTop, centreX, centreZ)) continue;
                 double canopy = recipe.Forest.Canopy(centreX, centreZ, geography);
                 growing.Clear();
                 recipe.Forest.Plants(cellX, cellZ, canopy, geography, growing);
                 foreach ((FloraSpecies species, ulong hash) in growing)
                 {
+                    // Rocks lie on snow and nothing else does.
+                    if ((species.Role == FloraRole.Rock) != snow) continue;
                     int variant = (int)(Part(hash, Draw.Variant) * variantCounts[species.Id]);
-                    (double low, double high) = species.Role == FloraRole.Deadwood
-                        ? (DeadwoodScaleMinimum, DeadwoodScaleMaximum)
-                        : (ScaleMinimum, ScaleMaximum);
+                    (double low, double high) = species.Role switch
+                    {
+                        FloraRole.Deadwood => (DeadwoodScaleMinimum, DeadwoodScaleMaximum),
+                        FloraRole.Rock => (RockScaleMinimum, RockScaleMaximum),
+                        _ => (ScaleMinimum, ScaleMaximum),
+                    };
                     double scale = low + ((high - low) * Part(hash, Draw.Scale));
-                    Place(tile, samples, cellX, cellZ, CellMetres, CombinedHash(placement, hash), PlantKey(species.Id, variant), scale, Sink);
+                    Place(tile, samples, cellX, cellZ, CellMetres, CombinedHash(placement, hash), PlantKey(species.Id, variant), scale, Sink, snow);
                 }
 
-                if (recipe.Forest.Sapling(cellX, cellZ, centreX, centreZ, canopy, geography, out ulong saplingHash) is FloraSpecies sapling)
+                if (!snow && recipe.Forest.Sapling(cellX, cellZ, centreX, centreZ, canopy, geography, out ulong saplingHash) is FloraSpecies sapling)
                 {
                     double tall = SaplingHeightMinimum + ((SaplingHeightMaximum - SaplingHeightMinimum) * Part(saplingHash, Draw.Scale));
-                    Place(tile, samples, cellX, cellZ, CellMetres, CombinedHash(placement, saplingHash), SaplingKey(sapling.Id), tall / sapling.Height, Sink);
+                    Place(tile, samples, cellX, cellZ, CellMetres, CombinedHash(placement, saplingHash), SaplingKey(sapling.Id), tall / sapling.Height, Sink, false);
                 }
             }
         }
 
         private void Place(VegetationTileRequest tile, VegetationTileSamples samples, long cellX, long cellZ, double cell, ulong hash,
-            uint key, double scale, float sink)
+            uint key, double scale, float sink, bool onSnow)
         {
             double x = (cellX + Part(hash, Draw.X)) * cell, z = (cellZ + Part(hash, Draw.Z)) * cell;
             long column = (long)Math.Floor(x), row = (long)Math.Floor(z);
-            if (ground.At(column, row) is not var (height, top, _) || !Soil(recipe, top, column, row)) return;
+            if (ground.At(column, row) is not var (height, top, _) || !(onSnow ? top == BlockId.Snow : Soil(recipe, top, column, row))) return;
             float yaw = (float)(Part(hash, Draw.Yaw) * Math.Tau);
             if (lying.TryGetValue(key, out (double Half, bool Blocking) shape))
             {

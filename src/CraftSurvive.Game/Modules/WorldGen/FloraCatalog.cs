@@ -10,6 +10,8 @@ internal enum FloraRole : byte
     Shrub,
     Ground,
     Deadwood,
+    /// <summary>Rocks of frozen ground (#10629): they lie where no plant roots, on snow, gathered by <see cref="FloraEcology.Patch"/>.</summary>
+    Rock,
 }
 
 /// <summary>
@@ -44,8 +46,9 @@ internal readonly record struct FloraRange(double Minimum, double Optimum, doubl
 /// is, how bare and rocky a place it bears, and how much it seeks the water's edge.
 /// </summary>
 /// <param name="Density">For a plant (#10034): how many grow per square metre where the climate and canopy suit it fully.</param>
+/// <param name="Patch">Above 0, it gathers (#10629): it lies only where the forest's patch field passes this, thickest further in.</param>
 internal sealed record FloraEcology(FloraRange Temperature, FloraRange Moisture, FloraHabit Habit, double Abundance,
-    double RockTolerance, double Riparian, double Density)
+    double RockTolerance, double Riparian, double Density, double Patch = 0)
 {
     /// <summary>How well a place suits the species, from its map sample: its climate, scaled by how common it is.</summary>
     internal double Suitability(MapSample sample) => Fit(sample) * Abundance;
@@ -164,7 +167,8 @@ internal sealed class FloraCatalog
             ecology.TryGetProperty("abundance", out JsonElement abundance) ? abundance.GetDouble() : 1,
             ecology.TryGetProperty("rock", out JsonElement rock) ? rock.GetDouble() : DefaultRockTolerance,
             ecology.TryGetProperty("riparian", out JsonElement riparian) ? riparian.GetDouble() : 0,
-            ecology.TryGetProperty("density", out JsonElement density) ? density.GetDouble() : 0);
+            ecology.TryGetProperty("density", out JsonElement density) ? density.GetDouble() : 0,
+            ecology.TryGetProperty("patch", out JsonElement patch) ? patch.GetDouble() : 0);
     }
 
     /// <summary>Most species keep off bare rock; those that bear it (juniper, mountain pine) say so.</summary>

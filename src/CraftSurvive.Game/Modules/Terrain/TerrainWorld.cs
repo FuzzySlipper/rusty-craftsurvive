@@ -275,6 +275,14 @@ internal sealed class TerrainWorld : IDisposable
         places.RelayCards();
     }
 
+    /// <summary>The natural ground at a column, by the near ground's rules (VegetationGround), for the readout.</summary>
+    internal string GroundReadout(long x, long z)
+    {
+        if (new VegetationGround(recipe).At(x, z) is not var (height, top, here)) return "ground: outside the world";
+        return string.Create(CultureInfo.InvariantCulture,
+            $"ground top={top} height={height:F1} biome={WorldMap.Biome(here)} temperature={here.Temperature:F3} moisture={here.Moisture:F3} rock={here.Rock:F3} canopy={recipe.Forest.Canopy(x, z, here):F2} yard={recipe.InTownYard(x, z)}");
+    }
+
     internal string TuneScatter(float grassPerSquareMetre)
     {
         string readout = presentation.TuneScatter(grassPerSquareMetre);

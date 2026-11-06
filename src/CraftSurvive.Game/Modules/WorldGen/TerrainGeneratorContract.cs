@@ -76,9 +76,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// recess, the shaft and the vantage lamp (#9992); version 40 sits small rivers in the land (#10180): the walked
     /// network's water stands at an open lake's own level over its bed and its outflow cuts the sill to it, region
     /// tiles raise their ground to the floors the network filled and hold a small stream's ground as far out as a
-    /// large river's, and local relief stays off a river's bank.
+    /// large river's, and local relief stays off a river's bank; version 41 leaves frozen ground no soil (#10629): too
+    /// steep for snow, it is bare stone.
     /// </summary>
-    internal const uint CurrentVersion = 40;
+    internal const uint CurrentVersion = 41;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

@@ -1014,7 +1014,8 @@ def contact_sheet(names, output):
 
 def main():
     args = arguments()
-    names = args.species or list(KINDS)
+    # Rocks are cut from the field stones by scripts/make-frozen-rocks.py, not grown here.
+    names = args.species or [name for name, kind in KINDS.items() if kind["role"] != "rock"]
     if args.single:
         build_one(args)
     elif not args.no_build:

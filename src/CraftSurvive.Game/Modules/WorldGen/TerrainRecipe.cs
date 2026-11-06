@@ -201,8 +201,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return (ushort)Topsoil(address.X, address.Z, geography);
         }
 
+        // Frozen ground has no soil: too steep for snow, it is bare stone (#10629).
         return depthFromSurface <= GenerationConstants.SubsoilDepthMaximum
             && slope <= GenerationConstants.SubsoilSlopeMaximum
+            && !WorldMap.Frozen(geography)
             ? TerrainConstants.DirtMaterial
             : TerrainConstants.StoneMaterial;
     }

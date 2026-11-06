@@ -1,3 +1,4 @@
+using System.Numerics;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -25,6 +26,71 @@ internal static class ForestChecks
     // A closed forest's floor holds at least this many plants a square metre (ferns, flowers, shrubs).
     private const double DenseUnderstory = 0.1;
     private const string MeshSuffix = ".prop-mesh.json";
+
+    /// <summary>
+    /// Rocks on frozen ground (#10629) gather: most of the ground is bare, some of it thick with them, and they are thinner
+    /// overall than the two even field stone layers they replace. Each species' meshes are closed solids.
+    /// </summary>
+    private static void FrozenRocks(Forest forest)
+    {
+        const int Blocks = 40, CellsPerBlock = 10;
+        const double OldStonesPerSquareMetre = 0.016;
+        MapSample frozen = new(Elevation: 2000, Temperature: 0.1, Moisture: 0.4, Rock: 0.1, Detail: 0);
+        List<(FloraSpecies Species, ulong Hash)> growing = [];
+        int[,] perBlock = new int[Blocks, Blocks];
+        int rocks = 0, bare = 0, thick = 0;
+        for (long x = 0; x < Blocks * CellsPerBlock; x++)
+        for (long z = 0; z < Blocks * CellsPerBlock; z++)
+        {
+            growing.Clear();
+            forest.Plants(x, z, 0, frozen, growing);
+            foreach ((FloraSpecies species, _) in growing)
+            {
+                Check.That(species.Role == FloraRole.Rock, $"only rocks lie on frozen ground, not {species.Name}");
+                perBlock[x / CellsPerBlock, z / CellsPerBlock]++;
+                rocks++;
+            }
+        }
+
+        foreach (int count in perBlock)
+        {
+            if (count == 0) bare++;
+            if (count >= 5) thick++;
+        }
+
+        double area = Blocks * CellsPerBlock * Blocks * CellsPerBlock * (double)Forest.PlantCellMetres * Forest.PlantCellMetres;
+        Check.That(rocks / area < OldStonesPerSquareMetre / 2, $"frozen ground's rocks are far sparser than the field stones were: {rocks / area:F4} a square metre");
+        Check.That(bare > Blocks * Blocks / 2, $"most of frozen ground is bare: {bare} of {Blocks * Blocks} blocks");
+        Check.That(thick > 0, "frozen ground's rocks gather in places");
+
+        string models = Path.Combine(ContentChecks.RepositoryRoot(), "content/game/models");
+        foreach (FloraSpecies species in FloraCatalog.Shared.Species.Where(s => s.Role == FloraRole.Rock))
+        {
+            foreach (string variant in species.Variants)
+            {
+                using System.Text.Json.JsonDocument mesh = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(models, species.Folder, variant + ".prop-mesh.json")));
+                System.Text.Json.JsonElement part = mesh.RootElement.GetProperty("parts")[0];
+                double[] at = [.. part.GetProperty("positions").EnumerateArray().Select(value => value.GetDouble())];
+                int[] triangles = [.. part.GetProperty("indices").EnumerateArray().Select(value => value.GetInt32())];
+                double volume = 0;
+                for (int t = 0; t < triangles.Length; t += 3)
+                {
+                    Vector3 Point(int index) => new((float)at[triangles[t + index] * 3], (float)at[(triangles[t + index] * 3) + 1], (float)at[(triangles[t + index] * 3) + 2]);
+                    volume += Vector3.Dot(Point(0), Vector3.Cross(Point(1), Point(2))) / 6;
+                }
+
+                const double SolidShare = 0.15;
+                double box = 1;
+                for (int axis = 0; axis < 3; axis++)
+                {
+                    IEnumerable<double> along = at.Where((_, index) => index % 3 == axis);
+                    box *= along.Max() - along.Min();
+                }
+
+                Check.That(volume > box * SolidShare, $"{variant} must be a closed solid wound outward: {volume:F3} of a {box:F3} box");
+            }
+        }
+    }
 
     internal static void Run()
     {
@@ -83,6 +149,8 @@ internal static class ForestChecks
             Check.That(recipe.TreeAtColumn(tree.X, tree.Z) == tree, "column and mesh decisions must agree");
             Check.That(recipe.MaterialAt(new(tree.X, tree.GroundY, tree.Z)) == (ushort)BlockId.TreeCore, "a tree must keep its colliding core");
         }
+
+        FrozenRocks(forest);
 
         // Understory under the canopy (#10034): species grow on their own, so plants overlap, with saplings and deadwood.
         int understory = 0, others = 0, overlapping = 0, saplings = 0, deadwood = 0;

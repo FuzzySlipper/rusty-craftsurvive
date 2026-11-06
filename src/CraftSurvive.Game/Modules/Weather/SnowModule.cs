@@ -29,6 +29,9 @@ internal sealed class SnowModule : IProductModule
     /// </summary>
     private const double FrostHours = 3, ThawHours = 0.75, FrostShowsAsMetres = 0.035;
     private double frostHours = double.NaN;
+    /// <summary>Fresh snow whitens frozen ground this quickly while it falls, and settles to the painted drifts this slowly after.</summary>
+    private const double FreshGathersHours = 1, FreshSettlesHours = 18;
+    private double frozenShare;
 
     private readonly ProductSaveSlot<IReadOnlyList<SnowCell>>? slot;
     private readonly WeatherField field;
@@ -64,8 +67,11 @@ internal sealed class SnowModule : IProductModule
     /// <summary>The frost where the party stands, 0..1.</summary>
     internal double Frost { get; private set; }
 
-    /// <summary>What surfaces show: the depth, and frost as a thin snow where there is less.</summary>
-    internal double Shown => Math.Max(Depth, Frost * FrostShowsAsMetres);
+    /// <summary>How fresh the snow here is, 0..1: whole while it falls, and settled over <see cref="FreshSettlesHours"/> after (#10629).</summary>
+    internal double Fresh { get; private set; }
+
+    /// <summary>What surfaces show: the depth as frozen ground shows it, and frost as a thin snow where there is less.</summary>
+    internal double Shown => Math.Max(SnowCover.ShownDepth(Depth, frozenShare, Fresh), Frost * FrostShowsAsMetres);
 
     public void Start()
     {
@@ -91,6 +97,7 @@ internal sealed class SnowModule : IProductModule
         Vector3 at = playerWorld();
         Cover.FollowAround(at.X, at.Z, now);
         Depth = Cover.DepthAt(at.X, at.Z, now);
+        frozenShare = SnowCover.FrozenShare(field.Ground(at.X, at.Z).Sample);
         GatherFrost(at, now);
         if (double.IsNaN(toldDepth) || Math.Abs(Shown - toldDepth) >= TellStepMetres)
         {
@@ -120,6 +127,8 @@ internal sealed class SnowModule : IProductModule
         {
             double passed = Math.Max(0, now - frostHours);
             Frost += (target - Frost) * (1 - Math.Exp(-passed / (freezing ? FrostHours : ThawHours)));
+            bool falling = Falling > 0;
+            Fresh += ((falling ? 1 : 0) - Fresh) * (1 - Math.Exp(-passed / (falling ? FreshGathersHours : FreshSettlesHours)));
         }
 
         frostHours = now;
@@ -149,7 +158,7 @@ internal sealed class SnowModule : IProductModule
         EnvironmentSample sample = field.Sample(at.X, at.Z, now);
         double air = Cover.Air(at.X, at.Z, now, sample);
         return string.Create(CultureInfo.InvariantCulture,
-            $"snow depth={Depth:F3}m frost={Frost:F2} shown={Shown:F3}m fallen={Cover.FallenAt(at.X, at.Z, now):F3}m air={air:F3} freezing={Water.Seasons.Freezing:F2} season={Water.Seasons.At(now)} falling={SnowCover.Snowfall(sample, air):F2} ")
+            $"snow depth={Depth:F3}m frost={Frost:F2} frozen={frozenShare:F2} fresh={Fresh:F2} shown={Shown:F3}m fallen={Cover.FallenAt(at.X, at.Z, now):F3}m air={air:F3} freezing={Water.Seasons.Freezing:F2} season={Water.Seasons.At(now)} falling={SnowCover.Snowfall(sample, air):F2} ")
             + string.Create(CultureInfo.InvariantCulture,
             $"followMs={lastFollowMs:F3} worstFollowMs={worstFollowMs:F2} tellMs={lastTellMs:F2} worstTellMs={worstTellMs:F2} cells={Cover.Count} settled={Cover.Settled} steps={Cover.Stepped} stepMs={Cover.StepMs:F3} saved={savedHours:F1} restore={slot?.RestoreOutcome ?? "none"} saves={slot?.Saves ?? 0} failure={slot?.LastFailure ?? "none"}");
     }

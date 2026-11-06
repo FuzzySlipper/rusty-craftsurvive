@@ -98,7 +98,7 @@ internal sealed class VegetationGround(TerrainRecipe recipe)
             return recipe.Topsoil(x, z, geography);
         }
 
-        return slope <= GenerationConstants.SubsoilSlopeMaximum ? BlockId.Dirt : BlockId.Stone;
+        return slope <= GenerationConstants.SubsoilSlopeMaximum && !WorldMap.Frozen(geography) ? BlockId.Dirt : BlockId.Stone;
     }
 
     private static byte Slot(BlockId block) => (byte)BlockRegistry.Get(block).Slot;

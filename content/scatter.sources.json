@@ -213,6 +213,61 @@
    "sha256": "e64aa15e1221ad11256a78e29fc93d128a22a72706ec4efbfcf0554edd7c4b70",
    "tool": "scripts/generate-flora.py (flora catalog, #10034)",
    "command": "python3 scripts/generate-flora.py fallen-trunk"
+  },
+  {
+   "model": "content/game/models/scatter/scree-rock-1.prop-mesh.json",
+   "sha256": "33d5b1a6ef0220bf17e6a7f251a6c795fdb249045a55a528846b6e8945a06c03",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+  },
+  {
+   "model": "content/game/models/scatter/scree-rock-2.prop-mesh.json",
+   "sha256": "6cea8d49a3962a7934abbf2308d30c8ed71467695f77b7fabd4c7baec2bc1622",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+  },
+  {
+   "model": "content/game/models/scatter/scree-rock-3.prop-mesh.json",
+   "sha256": "c6fe76a51351e18aec1b2048800249406489f8cbc3fe6664089a6c51ada45bba",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+  },
+  {
+   "model": "content/game/models/scatter/scree-rock-4.prop-mesh.json",
+   "sha256": "15b39f90606377dd8a676375729d0ee6eeee7abc4ddb0ce39ab56421056096fa",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+  },
+  {
+   "model": "content/game/models/scatter/boulder-1.prop-mesh.json",
+   "sha256": "adea814e426df53b32d2f09b7ff73379388cca23829f7c85a9cd72ec06ce9a26",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+  },
+  {
+   "model": "content/game/models/scatter/boulder-2.prop-mesh.json",
+   "sha256": "98fb093274c6be4467d9e8e19265483164197bd06c6c5a3a51d57ecb1110c877",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+  },
+  {
+   "model": "content/game/models/scatter/boulder-3.prop-mesh.json",
+   "sha256": "19c4dff6631a92617d4b2a4c05b4c98f12d1cae657c5f62aaa3ec7865fdd573d",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+  },
+  {
+   "model": "content/game/models/scatter/boulder-4.prop-mesh.json",
+   "sha256": "e062421243953a34de83aac17968b041058e093c86af21ec63c3e98988b203f9",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+  },
+  {
+   "model": "content/game/models/scatter/outcrop-1.prop-mesh.json",
+   "sha256": "0f8775107fc904c487b7722609da578751e9700c95270517bb40024685a64c06",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+  },
+  {
+   "model": "content/game/models/scatter/outcrop-2.prop-mesh.json",
+   "sha256": "8de1b4fa9cfed3a494ef3790e3761dc99a3649d9451c6ee75d44490a6019339b",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+  },
+  {
+   "model": "content/game/models/scatter/outcrop-3.prop-mesh.json",
+   "sha256": "52ecfe24bd95d599e31c60cbc61e62d76233b0283ce10e9aa7a312df2680924f",
+   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   }
  ],
  "textures": [
@@ -264,6 +319,11 @@
      "prompt": "a small clump of blue cornflower wildflowers on slender stems with green leaves at the base, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, painterly brush strokes, soft shading, the stems rise from a straight base line along the bottom edge of the image, isolated on a pure flat magenta background, no ground, no soil, no shadow, no text, centered, fills the frame width"
     }
    ]
+  },
+  {
+   "texture": "content/game/textures/scatter/frozen-rock.png",
+   "sha256": "3908c893ba81f1858f3835e290ba7089c21aed56ffa74a4cbb45435d9e4cf087",
+   "purpose": "The rocks of frozen ground: content/game/textures/scatter/stones.png reduced to 128 texels, its green taken out and dimmed (scripts/make-frozen-rocks.py)."
   }
  ]
 }

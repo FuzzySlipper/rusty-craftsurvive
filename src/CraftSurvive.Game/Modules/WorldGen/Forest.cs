@@ -44,6 +44,10 @@ internal sealed class Forest
     /// <summary>Plants are drawn per cell this many metres square (PlantTiles): each species on its own.</summary>
     internal const int PlantCellMetres = 2;
     private const double PlantCellArea = PlantCellMetres * PlantCellMetres;
+    /// <summary>The patch field's lattices in plant cells (about 80 m and 24 m), the finer one's share, how far past its threshold a species is at full density, and its hash stream.</summary>
+    private const long PatchBroadCells = 40, PatchFineCells = 12;
+    private const double PatchFineShare = 0.35, PatchFade = 0.12;
+    private const ulong PatchStream = 0x7A3C_1F52_90D4_E6B1UL;
     /// <summary>A species may grow more than once in a cell where its density asks for it, up to this many.</summary>
     private const int MostPerCell = 3;
 
@@ -130,6 +134,8 @@ internal sealed class Forest
             FloraEcology ecology = species.Ecology!;
             double expected = ecology.Density * PlantCellArea * ecology.Fit(geography) * HabitShare(ecology.Habit, canopyHere);
             if (expected <= 0) continue;
+            if (ecology.Patch > 0) expected *= Smooth((Patches(cellX, cellZ) - ecology.Patch) / PatchFade);
+            if (expected <= 0) continue;
             ulong hash = TerrainRecipe.CoordinateHash(mixSeed ^ ((ulong)species.Id * 0x9E37_79B9_7F4A_7C15UL), cellX, cellZ);
             for (int n = 0; n < MostPerCell && TerrainRecipe.HashUnit(hash) < expected - n; n++)
             {
@@ -137,6 +143,23 @@ internal sealed class Forest
                 hash = TerrainRecipe.CoordinateHash(hash, n + 1, 0);
             }
         }
+    }
+
+    /// <summary>
+    /// The patch field at a plant cell (#10629), 0 to 1 and about 0.5 on average: what gathers rocks, broad patches with
+    /// smaller ones among them. One field serves every species, so scree lies around its boulders and outcrops.
+    /// </summary>
+    internal double Patches(long cellX, long cellZ) =>
+        ((1 - PatchFineShare) * PatchNoise(cellX, cellZ, PatchBroadCells)) + (PatchFineShare * PatchNoise(cellX, cellZ, PatchFineCells));
+
+    private double PatchNoise(long cellX, long cellZ, long cells)
+    {
+        long ix = Math.DivRem(cellX - (cellX < 0 ? cells - 1 : 0), cells, out _), iz = Math.DivRem(cellZ - (cellZ < 0 ? cells - 1 : 0), cells, out _);
+        double tx = Smooth((cellX - (ix * cells)) / (double)cells), tz = Smooth((cellZ - (iz * cells)) / (double)cells);
+        double Corner(long x, long z) => TerrainRecipe.HashUnit(TerrainRecipe.CoordinateHash(mixSeed ^ PatchStream ^ (ulong)cells, x, z));
+        double near = Corner(ix, iz) + ((Corner(ix + 1, iz) - Corner(ix, iz)) * tx);
+        double far = Corner(ix, iz + 1) + ((Corner(ix + 1, iz + 1) - Corner(ix, iz + 1)) * tx);
+        return near + ((far - near) * tz);
     }
 
     /// <summary>

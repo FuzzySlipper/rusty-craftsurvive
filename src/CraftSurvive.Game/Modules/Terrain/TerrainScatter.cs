@@ -62,8 +62,8 @@ internal sealed class TerrainScatter : IDisposable
     private static readonly Vector3 PlantTintLow = new(0.8f, 0.85f, 0.75f), PlantTintHigh = new(1.12f, 1.08f, 0.92f);
     private static readonly Vector3 StoneTintLow = new(0.85f, 0.85f, 0.85f), StoneTintHigh = new(1.1f, 1.05f, 1f);
     private static readonly BlockId[] Meadow = [BlockId.Grass];
-    // Bare earth carries no field stones: a town's yard is trodden earth (#9895).
-    private static readonly BlockId[] Stony = [BlockId.Grass, BlockId.DryGrass, BlockId.Stone, BlockId.Gravel, BlockId.Snow];
+    // Bare earth carries no field stones: a town's yard is trodden earth (#9895). Nor does snow: its rocks gather in patches (#10629, PlantTiles).
+    private static readonly BlockId[] Stony = [BlockId.Grass, BlockId.DryGrass, BlockId.Stone, BlockId.Gravel];
     private static readonly BlockId[] DryMeadow = [BlockId.DryGrass];
 
     /// <summary>

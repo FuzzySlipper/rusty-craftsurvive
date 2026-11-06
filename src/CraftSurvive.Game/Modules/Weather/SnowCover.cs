@@ -1,5 +1,6 @@
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Water;
+using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Weather;
 
@@ -58,6 +59,9 @@ internal sealed class SnowCover
         internal bool Settling;
     }
 
+    /// <summary>The cover shown over frozen ground: enough to dust its rocks, not enough to hide its paint. Frozen ground is whole this far in, in temperature.</summary>
+    internal const double FrozenShownMetres = 0.03, FrozenEdgeTemperature = 0.03;
+
     internal int Count => cells.Count;
 
     /// <summary>Cells worked out from the weather before, and steps carried on, for the readout.</summary>
@@ -98,6 +102,27 @@ internal sealed class SnowCover
         double a = Follow(ix, iz, hours).Depth, b = Follow(ix + 1, iz, hours).Depth;
         double c = Follow(ix, iz + 1, hours).Depth, d = Follow(ix + 1, iz + 1, hours).Depth;
         return ((a * (1 - tx)) + (b * tx)) * (1 - tz) + (((c * (1 - tx)) + (d * tx)) * tz);
+    }
+
+    /// <summary>
+    /// How much of a place is frozen ground (#10629), 0 to 1: painted snow all year, whose own drifts the lying cover would
+    /// hide. It comes in over <see cref="FrozenEdgeTemperature"/> of cooling from the edge, so the cover shown eases across it.
+    /// </summary>
+    internal static double FrozenShare(MapSample sample)
+    {
+        if (!WorldMap.Frozen(sample)) return 0;
+        double t = Math.Clamp((MapBiomes.TundraTemperature - sample.Temperature) / FrozenEdgeTemperature, 0, 1);
+        return t * t * (3 - (2 * t));
+    }
+
+    /// <summary>
+    /// The depth to show for what lies (#10629): frozen ground's painted drifts stay in view under <see cref="FrozenShownMetres"/>
+    /// of cover, unless fresh snow (<paramref name="fresh"/>, 0 to 1) has whitened them over.
+    /// </summary>
+    internal static double ShownDepth(double depth, double frozenShare, double fresh)
+    {
+        double settled = Math.Min(depth, FrozenShownMetres);
+        return depth + ((settled - depth) * frozenShare * (1 - fresh));
     }
 
     /// <summary>The snow that has fallen on a point's cell this session, in metres: a track fades as more falls on it.</summary>

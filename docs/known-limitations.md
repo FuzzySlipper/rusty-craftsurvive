@@ -649,6 +649,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - **Cost:** painting and tufts cost about the same on the GPU as the flat face cards they replaced. An overgrown
     place carries about 11,000 card vertices and a blanket shell per piece.
   The terrain blend takes up to sixteen layers (four a chunk); the fifth is dry meadow (#10041).
+- **Frozen ground (#10629).** Ice field and tundra are set by climate, not height, and are painted snow all year; nothing
+  grows there. Too steep for snow, they are bare stone.
+  - **Lying snow** would paint over the ground's own drifts, so over frozen ground the cover shown stops at a dusting
+    (`SnowCover.ShownDepth`). Fresh snow whitens it while it falls and settles back over most of a day. The cover is one
+    scene-wide value at the player, so it eases over frozen ground's edge rather than following it.
+  - **Rocks** are the flora catalog's `rock` species (`scripts/make-frozen-rocks.py`), placed by `PlantTiles` to their
+    reach and gathered by `Forest.Patches`. Past that reach the ground is bare. The tall ones collide, as deadwood does.
+    Field stones still lie on stone and gravel in frozen country.
 - **Snow and cold (#10068).** The snow lying is a depth per 500 m cell (`SnowCover`). It builds under snow fronts,
   and under any front once the air is freezing (climate, plus the season's swing, minus a front's cold). It melts
   with warmth and, near freezing, with sun.
