@@ -1,8 +1,9 @@
 {
-  "$comment": "Birds in the sky (#10630): drawn, not simulated, and nothing is seeded or saved. A flight crosses a circle of reachMetres around the player, passing it by missMetres. Distances are metres, speeds metres a second, hours of the day, turn and flap times seconds.",
+  "$comment": "Birds in the sky (#10630): drawn, not simulated, and nothing is seeded or saved. A flight crosses a circle of reachMetres around the player, passing it by missMetres, and carries on past the far side until every bird is beyond reachMetres of where the player is now. A speck can still be seen at that range, so a bird grows from nothing at reachMetres to its size fadeMetres further in. Distances are metres, speeds metres a second, hours of the day, turn and flap times seconds.",
   "mostFlights": 3,
   "everySeconds": { "least": 60, "most": 180 },
   "reachMetres": 900,
+  "fadeMetres": 300,
   "missMetres": { "least": 80, "most": 400 },
   "groundEveryMetres": 200,
   "kinds": [
@@ -14,6 +15,7 @@
       "flight": {
         "heightMetres": { "least": 80, "most": 140 },
         "driftMetresPerSecond": 5,
+        "climbMetresPerSecond": 3,
         "radiusMetres": { "least": 50, "most": 90 },
         "turnSeconds": { "least": 40, "most": 70 },
         "bankDegrees": 22,

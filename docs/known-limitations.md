@@ -730,10 +730,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   navigation covers, it comes straight on until it can be routed, so a wall out there stops it. The
   axe-beak's capsule stands between its feet, 4.6 m tall, and its neck and beak reach about 3.7 m past
   the capsule's centre, so its head passes through what stands in front of it.
-- **Birds are drawn, not simulated (#10630).** A flight is a formula of time. It keeps no record and is
+- **Birds are drawn, not simulated (#10630).** A flight is a formula of time, and it stays in the air until
+  it is out of sight of the player, so a player who keeps up with one keeps it there. A bird shrinks to
+  nothing at the edge of its reach, which is nearer than it would really go out of sight. It keeps no record and is
   not saved, so flights are not the same ones when a world is loaded, and they stop at the door of a
-  dungeon. It clears the highest ground under its line by height sampled when it sets out, and it
-  ignores what is built or grows there. Birds do not land, react to the player, or cast shadows.
+  dungeon. It clears the highest ground under its line by height sampled when it sets out, looks ahead
+  and climbs if it is kept in sight past that, and ignores what is built or grows there. Birds do not land, react to the player, or cast shadows.
   It chooses by the ground under the player when it sets out, and may carry on over other country.
 - **A pack is basic (#10626).** Drift-runners seeded from one record come when one sees the player, from up
   to 100 m and for 8 s after it last did, and fan out to both sides as they come, closing straight in

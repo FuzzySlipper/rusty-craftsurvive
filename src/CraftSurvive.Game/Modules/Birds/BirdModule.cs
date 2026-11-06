@@ -26,6 +26,7 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
     private const float FullWeight = 1;
     private const float PlaybackRate = 1;
     private const float FadeSeconds = 0.6f;
+    private const float SmallestSize = 0.01f;
 
     private readonly List<Flying> flights = [];
     private readonly List<Appearance> retiring = [];
@@ -86,15 +87,14 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
         List<AppearanceFact> next = [];
         foreach (Flying flying in flights.ToArray())
         {
-            flying.Flight.Age += seconds;
-            // A flight ends at the far side of its circle; a player who has gone far away leaves it behind.
-            if (flying.Flight.Age >= flying.Flight.Seconds || Vector2.Distance(FlightRules.At(flying.Flight, flying.Flight.Slots[0], flying.Flight.Age).Ground, here) > 2 * Catalog.ReachMetres)
+            FlightRules.Advance(flying.Flight, Catalog, seconds, GroundAt);
+            if (FlightRules.Gone(flying.Flight, here, Catalog.ReachMetres))
             {
                 Land(flying);
                 continue;
             }
 
-            Pose(flying, next);
+            Pose(flying, here, next);
         }
 
         facts = [.. next];
@@ -151,8 +151,9 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
         {
             Flight flight = flying.Flight;
             BirdPose pose = FlightRules.At(flight, flight.Slots[0], flight.Age);
+            Vector2 end = FlightRules.End(flight);
             return string.Create(CultureInfo.InvariantCulture,
-                $" | {flight.Kind.Id} n={flight.Slots.Count} age={flight.Age:F0}/{flight.Seconds:F0} at={pose.Position.X:F0},{pose.Position.Y:F0},{pose.Position.Z:F0} d={Vector2.Distance(pose.Ground, here):F0} passes={FlightRules.Passes(flight, here):F0} radius={flight.Radius:F0} flapping={flying.Bodies.Count(body => body.Flapping == true)}");
+                $" | {flight.Kind.Id} n={flight.Slots.Count} age={flight.Age:F0}/{flight.Seconds:F0} at={pose.Position.X:F0},{pose.Position.Y:F0},{pose.Position.Z:F0} d={Vector2.Distance(pose.Ground, here):F0} size={FlightRules.Size(pose, here, Catalog):F2} climbed={flight.Climbed:F0} ends={end.X:F0},{end.Y:F0} passes={FlightRules.Passes(flight, here):F0} radius={flight.Radius:F0} flapping={flying.Bodies.Count(body => body.Flapping == true)}");
         }));
     }
 
@@ -169,12 +170,14 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
     private Flying Launch(BirdKind kind, Vector2 here)
     {
         long began = Stopwatch.GetTimestamp();
-        Flight flight = FlightRules.Plan(kind, Catalog, here, draws.NextDouble, (x, z) => terrain.Recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)));
+        Flight flight = FlightRules.Plan(kind, Catalog, here, draws.NextDouble, GroundAt);
         Flying flying = new(flight, [.. flight.Slots.Select(_ => Create(kind))]);
         flights.Add(flying);
         cost = cost with { Plan = Math.Max(cost.Plan, Stopwatch.GetElapsedTime(began).TotalMilliseconds) };
         return flying;
     }
+
+    private double GroundAt(double x, double z) => terrain.Recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z));
 
     private Body Create(BirdKind kind)
     {
@@ -184,7 +187,7 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
         return new Body(slot, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId)));
     }
 
-    private void Pose(Flying flying, List<AppearanceFact> into)
+    private void Pose(Flying flying, Vector2 here, List<AppearanceFact> into)
     {
         Flight flight = flying.Flight;
         for (int index = 0; index < flying.Bodies.Length; index++)
@@ -200,11 +203,12 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
             }
 
             BirdPose pose = FlightRules.At(flight, slot, flight.Age);
+            float size = FlightRules.Size(pose, here, Catalog);
             // The mesh faces +Z; yaw 0 faces north (-Z) and a quarter turn east (+X). A positive turn about its own Z lifts its left wing.
             Quaternion lean = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, pose.Bank);
             Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, HalfTurn - pose.Yaw);
-            Transform placement = new(frame.ToLocal(pose.Position), Quaternion.Concatenate(lean, turn), new Vector3(flight.Kind.Mesh.Scale));
-            into.Add(new AppearanceFact(body.ObjectId, false, 0, placement, body.Appearance, Visible: true, RenderLayer.Scene, ShadowCasting.None));
+            Transform placement = new(frame.ToLocal(pose.Position), Quaternion.Concatenate(lean, turn), new Vector3(flight.Kind.Mesh.Scale * MathF.Max(size, SmallestSize)));
+            into.Add(new AppearanceFact(body.ObjectId, false, 0, placement, body.Appearance, Visible: size > 0, RenderLayer.Scene, ShadowCasting.None));
         }
     }
 

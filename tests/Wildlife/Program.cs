@@ -77,9 +77,8 @@ Check.Section("birds", () =>
         foreach (FlightSlot slot in flight.Slots)
         {
             BirdPose first = FlightRules.At(flight, slot, 0), last = FlightRules.At(flight, slot, flight.Seconds);
-            double circle = (flight.Radius * (1 + soarer.Flock.RadiusShare)) + 1;
-            Check.That(Vector2.Distance(first.Ground, player) >= birds.ReachMetres - circle, "a flight starts beyond sight");
-            Check.That(Vector2.Distance(last.Ground, player) >= birds.ReachMetres - circle, "a flight ends beyond sight");
+            Check.That(FlightRules.Size(first, player, birds) == 0, "a flight starts with nothing to see of it");
+            Check.That(FlightRules.Size(last, player, birds) == 0, "and a player who stayed put sees nothing of it at the end of its line");
             Check.That(first.Position.Y >= 900 + soarer.Flight.HeightMetres.Least, "a flight is high above the ground it crosses");
         }
 
@@ -87,6 +86,58 @@ Check.Section("birds", () =>
         Check.That(FlightRules.Passes(flight, player) <= birds.MissMetres.Most + 1, "and passes within the sky above them");
         Check.That(flight.Slots.Count >= soarer.Flock.Least && flight.Slots.Count <= soarer.Flock.Most, "a flock is its kind's size");
     }
+
+    // R10630-2: a flight's line is drawn from where the player was, so a player who walks to its far end must not see it go.
+    const double Step = 0.5, Walking = 2.6, Horizon = 3000;
+    Func<double, double, double> flat = (_, _) => 900;
+    Random moving = new(106302);
+    for (int trial = 0; trial < 50; trial++)
+    {
+        Flight flight = FlightRules.Plan(soarer, birds, player, moving.NextDouble, flat);
+        Vector2 walker = FlightRules.End(flight) - (flight.Heading * (float)(Walking * flight.Seconds));
+        bool left = false;
+        for (double age = 0; age < Horizon && !left; age += Step)
+        {
+            FlightRules.Advance(flight, birds, Step, flat);
+            walker += flight.Heading * (float)(Walking * Step);
+            left = FlightRules.Gone(flight, walker, birds.ReachMetres);
+            float seen = flight.Slots.Max(slot => FlightRules.Size(FlightRules.At(flight, slot, flight.Age), walker, birds));
+            Check.That(!left || seen == 0, "a flight goes only when nothing of it can be seen by a player walking after it");
+        }
+
+        Check.That(left, "and a walker does not hold a flight in the sky for ever");
+        Check.That(flight.Age > flight.Seconds, "it carries on past the end of its line to do so");
+    }
+
+    // At the reach a bird is still a speck of a few pixels, so it grows from nothing rather than appearing.
+    BirdPose at(double metres) => new(new Vector3(player.X + (float)metres, 1000, player.Y), 0, 0);
+    Check.That(FlightRules.Size(at(birds.ReachMetres), player, birds) == 0, "a bird at the reach is not drawn");
+    Check.That(FlightRules.Size(at(birds.ReachMetres - (birds.FadeMetres / 2)), player, birds) is > 0 and < 1, "it grows as it comes in");
+    Check.That(FlightRules.Size(at(birds.ReachMetres - birds.FadeMetres), player, birds) == 1, "and is its whole size inside the fade");
+    Check.That(FlightRules.Size(at(birds.MissMetres.Most), player, birds) == 1, "as it is where a flight passes nearest");
+
+    Flight stayed = FlightRules.Plan(soarer, birds, player, moving.NextDouble, flat);
+    stayed.Age = stayed.Seconds;
+    Check.That(!FlightRules.Gone(stayed, FlightRules.At(stayed, stayed.Slots[0], stayed.Age).Ground, birds.ReachMetres), "a player under a flight at the end of its line keeps it in the sky");
+    stayed.Age = 0;
+    Check.That(!FlightRules.Gone(stayed, player + (stayed.Heading * (float)birds.ReachMetres), birds.ReachMetres), "a flight does not go early for a player who has moved within reach of it");
+    Check.That(FlightRules.Gone(stayed, player + new Vector2(0, (float)(5 * birds.ReachMetres)), birds.ReachMetres), "a player who has gone far away leaves it behind");
+
+    // A sprinter can stay under a flight past the ground its plan looked at, up a slope, and it climbs to stay clear.
+    const double Slope = 0.3;
+    Flight chased = FlightRules.Plan(soarer, birds, player, moving.NextDouble, flat);
+    Func<double, double, double> rising = (x, z) => 900 + Math.Max(0, Slope * (Vector2.Dot(new Vector2((float)x, (float)z) - chased.Start, chased.Heading) - (soarer.Flight.DriftMetresPerSecond * chased.Seconds)));
+    double lowest = double.PositiveInfinity;
+    for (double age = 0; age < Horizon; age += Step)
+    {
+        FlightRules.Advance(chased, birds, Step, rising);
+        BirdPose bird = FlightRules.At(chased, chased.Slots[0], chased.Age);
+        lowest = Math.Min(lowest, bird.Position.Y - rising(bird.Position.X, bird.Position.Z));
+        Check.That(!FlightRules.Gone(chased, bird.Ground, birds.ReachMetres), "a player keeping up with a flight keeps it in the sky");
+    }
+
+    Check.That(chased.Climbed > 0, "past its plan a flight climbs with the ground");
+    Check.That(lowest > 0, "and is never in it");
 
     Flight circling = FlightRules.Plan(soarer, birds, player, random.NextDouble, (_, _) => 900);
     FlightSlot only = circling.Slots[0];

@@ -14,10 +14,12 @@ internal readonly record struct BirdSpan(double Least, double Most)
 /// <summary>
 /// How a kind flies (#10630). Its flights drift across the sky at this speed while circling at this radius,
 /// one turn in this many seconds; a radius of zero flies straight. Its birds flap for a few seconds now and then.
+/// Past the end of its line it climbs at this rate over rising ground.
 /// </summary>
 internal sealed record BirdFlight(
     BirdSpan HeightMetres,
     double DriftMetresPerSecond,
+    double ClimbMetresPerSecond,
     BirdSpan RadiusMetres,
     BirdSpan TurnSeconds,
     double BankDegrees,
@@ -46,7 +48,7 @@ internal sealed record BirdKind(
 }
 
 /// <summary>Every bird and the rules they share, as read from content.</summary>
-internal sealed record BirdCatalog(int MostFlights, BirdSpan EverySeconds, double ReachMetres, BirdSpan MissMetres, double GroundEveryMetres, IReadOnlyList<BirdKind> Kinds)
+internal sealed record BirdCatalog(int MostFlights, BirdSpan EverySeconds, double ReachMetres, double FadeMetres, BirdSpan MissMetres, double GroundEveryMetres, IReadOnlyList<BirdKind> Kinds)
 {
     internal const string ContentPath = "birds/birds.json";
 
@@ -61,11 +63,13 @@ internal sealed record BirdCatalog(int MostFlights, BirdSpan EverySeconds, doubl
             root.GetProperty("mostFlights").GetInt32(),
             Span(root.GetProperty("everySeconds")),
             root.GetProperty("reachMetres").GetDouble(),
+            root.GetProperty("fadeMetres").GetDouble(),
             Span(root.GetProperty("missMetres")),
             root.GetProperty("groundEveryMetres").GetDouble(),
             [.. root.GetProperty("kinds").EnumerateArray().Select(ReadKind)]);
         if (read.Kinds.Count == 0) throw new InvalidDataException("birds need a kind");
-        if (read.MissMetres.Most >= read.ReachMetres) throw new InvalidDataException("a flight misses the player inside its reach");
+        if (read.FadeMetres <= 0) throw new InvalidDataException("a bird has to fade in over some distance");
+        if (read.MissMetres.Most >= read.ReachMetres - read.FadeMetres) throw new InvalidDataException("a flight misses the player inside its fade");
         if (read.GroundEveryMetres <= 0) throw new InvalidDataException("a flight has to sample the ground");
         return read;
     }
@@ -92,6 +96,7 @@ internal sealed record BirdCatalog(int MostFlights, BirdSpan EverySeconds, doubl
             new BirdFlight(
                 Span(flight.GetProperty("heightMetres")),
                 flight.GetProperty("driftMetresPerSecond").GetDouble(),
+                flight.GetProperty("climbMetresPerSecond").GetDouble(),
                 Span(flight.GetProperty("radiusMetres")),
                 Span(flight.GetProperty("turnSeconds")),
                 flight.GetProperty("bankDegrees").GetDouble(),
@@ -102,6 +107,7 @@ internal sealed record BirdCatalog(int MostFlights, BirdSpan EverySeconds, doubl
             new BirdMesh(mesh.GetProperty("file").GetString()!, mesh.GetProperty("scale").GetSingle(),
                 mesh.GetProperty("glide").GetString()!, mesh.GetProperty("flap").GetString()!));
         if (read.Flight.DriftMetresPerSecond <= 0) throw new InvalidDataException($"{id}: a flight has to get somewhere");
+        if (read.Flight.ClimbMetresPerSecond <= 0) throw new InvalidDataException($"{id}: a flight has to be able to climb");
         if (read.Flock.Least < 1 || read.Flock.Most < read.Flock.Least) throw new InvalidDataException($"{id}: a flock is one or more, least first");
         if (read.Flight.FlapSeconds >= read.Flight.FlapEverySeconds) throw new InvalidDataException($"{id}: a bird has to rest from flapping");
         return read;
