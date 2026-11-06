@@ -206,6 +206,17 @@ The sheet has the side across its top and the views from below and above beneath
 `prepare_mesh.py --head +x`. In game a bird is a kind in `content/game/birds/birds.json`, not a wildlife
 kind: `Modules/Birds` draws flights and keeps nothing. `craft.birds.overhead <kind>` sends one past the player.
 
+The skein bird (#10631) is the second, on the same family: its `streamer` bones carry its trailing legs, and it
+flies in the V under `flock.formation`. Its body was built from the sheet alone, which suits a bird that is
+mostly a plan seen from far below and needs no generator:
+
+```sh
+python3 -I art/creatures/sheet_flyer.py art/creatures/skein/mesh/reference.png <level.glb>
+```
+
+The output goes straight to `prepare_mesh.py --head +x`, with no `prepare_flyer.py`. The image model draws the
+near wing standing up in the side view however the spec asks for it to be edge-on, so paint that out first.
+
 ## Hostile animals
 
 The gaunt (#10615) is the first. It is an invented animal, so the faithful-proportions rule does not

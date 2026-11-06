@@ -21,8 +21,11 @@ internal sealed record Flight(BirdKind Kind, Vector2 Start, Vector2 Heading, dou
     internal double ClimbingTo { get; set; }
 }
 
-/// <summary>A bird's place in its flight: how far round the circle, how far out, how much higher, and when it flaps.</summary>
-internal readonly record struct FlightSlot(double Phase, double RadiusShare, double Height, double FlapOffset);
+/// <summary>
+/// A bird's place in its flight: how far round the circle, how far out, how much higher, and when it flaps.
+/// In a formation it also keeps a place behind and beside the head of the flight, and strays from it a little.
+/// </summary>
+internal readonly record struct FlightSlot(double Phase, double RadiusShare, double Height, double FlapOffset, double Behind = 0, double Beside = 0, double StrayPhase = 0);
 
 /// <summary>Where a bird is at a moment: world metres, and which way it faces (yaw 0 is north) and leans.</summary>
 internal readonly record struct BirdPose(Vector3 Position, float Yaw, float Bank)
@@ -36,6 +39,7 @@ internal static class FlightRules
 {
     private const int SlotPhaseTurns = 1;
     private const double FarBehindReaches = 2;
+    private const double StrayBesideRate = 0.7;
     private const double FullTurn = 2 * Math.PI;
 
     /// <summary>The kind to send from those that fly here and now, by how much each likes the ground, or null for none.</summary>
@@ -66,8 +70,13 @@ internal static class FlightRules
         double miss = catalog.MissMetres.At(draw()) * (draw() < 0.5 ? -1 : 1);
         BirdFlight flight = kind.Flight;
         double radius = flight.RadiusMetres.At(draw());
+        int count = kind.Flock.Least + (int)Math.Floor(draw() * (kind.Flock.Most - kind.Flock.Least + 1));
+        count = Math.Min(count, kind.Flock.Most);
+        double turn = flight.Straight ? 0 : FullTurn / flight.TurnSeconds.At(draw()) * (draw() < 0.5 ? -1 : 1);
+        FlightSlot[] slots = Slots(kind, count, draw);
         // Its widest bird starts at the reach, so the whole flock starts out of sight.
-        double outer = catalog.ReachMetres + (radius * (1 + kind.Flock.RadiusShare));
+        double spread = slots.Max(slot => (radius * slot.RadiusShare) + Math.Sqrt((slot.Behind * slot.Behind) + (slot.Beside * slot.Beside)));
+        double outer = catalog.ReachMetres + spread;
         double half = Math.Sqrt((outer * outer) - (miss * miss));
         Vector2 start = player + (side * (float)miss) - (heading * (float)half);
         double highest = double.NegativeInfinity;
@@ -77,17 +86,49 @@ internal static class FlightRules
             highest = Math.Max(highest, groundAt(at.X, at.Y));
         }
 
-        double turn = FullTurn / flight.TurnSeconds.At(draw()) * (draw() < 0.5 ? -1 : 1);
-        int count = kind.Flock.Least + (int)Math.Floor(draw() * (kind.Flock.Most - kind.Flock.Least + 1));
-        count = Math.Min(count, kind.Flock.Most);
         double height = highest + flight.HeightMetres.At(draw());
         double phase = draw() * FullTurn;
-        FlightSlot[] slots = [.. Enumerable.Range(0, count).Select(order => new FlightSlot(
-            order * SlotPhaseTurns * FullTurn / count,
-            1 + (((2 * draw()) - 1) * kind.Flock.RadiusShare),
-            order * kind.Flock.HeightMetres,
-            draw() * flight.FlapEverySeconds))];
         return new Flight(kind, start, heading, 2 * half / flight.DriftMetresPerSecond, radius, turn, height, phase, slots) { SampledMetres = 2 * half };
+    }
+
+    /// <summary>
+    /// Where each bird of a flock flies: spaced round the circle, or in a V from the first bird back, with
+    /// the rest split unevenly between its two arms, as a skein is.
+    /// </summary>
+    private static FlightSlot[] Slots(BirdKind kind, int count, Func<double> draw)
+    {
+        BirdFormation? formation = kind.Flock.Formation;
+        int side = draw() < 0.5 ? -1 : 1;
+        int longArm = formation is null ? 0 : (int)Math.Ceiling((count - 1) * formation.LongerArmShare);
+        FlightSlot[] slots = new FlightSlot[count];
+        for (int order = 0; order < count; order++)
+        {
+            double phase = order * SlotPhaseTurns * FullTurn / count;
+            double share = 1 + (((2 * draw()) - 1) * kind.Flock.RadiusShare);
+            double flapOffset = draw() * kind.Flight.FlapEverySeconds;
+            double stray = draw() * FullTurn;
+            if (formation is null)
+            {
+                slots[order] = new FlightSlot(phase, share, order * kind.Flock.HeightMetres, flapOffset);
+                continue;
+            }
+
+            // The head is place 0; the long arm takes the next places, and the short arm the rest.
+            bool onLongArm = order <= longArm;
+            int place = onLongArm ? order : order - longArm;
+            double metres = place * formation.SpacingMetres;
+            double sweep = formation.SweepDegrees * Math.PI / 180;
+            slots[order] = new FlightSlot(
+                phase,
+                share,
+                place * kind.Flock.HeightMetres,
+                flapOffset,
+                metres * Math.Cos(sweep),
+                metres * Math.Sin(sweep) * (onLongArm ? side : -side),
+                stray);
+        }
+
+        return slots;
     }
 
     /// <summary>
@@ -132,12 +173,22 @@ internal static class FlightRules
         double radius = flight.Radius * slot.RadiusShare;
         double angle = flight.Phase + slot.Phase + (flight.TurnRadiansPerSecond * age);
         Vector2 round = new((float)Math.Cos(angle), (float)Math.Sin(angle));
-        Vector2 position = flight.Start + (flight.Heading * (float)(drift * age)) + (round * (float)radius);
+        Vector2 position = flight.Start + (flight.Heading * (float)(drift * age)) + (round * (float)radius) + Place(flight, slot, age);
         Vector2 velocity = (flight.Heading * (float)drift) + (new Vector2(-round.Y, round.X) * (float)(radius * flight.TurnRadiansPerSecond));
         // Yaw 0 faces north (-Z) and a quarter turn east (+X).
         float yaw = MathF.Atan2(velocity.X, -velocity.Y);
         float bank = radius > 0 ? (float)(Math.Sign(flight.TurnRadiansPerSecond) * flight.Kind.Flight.BankDegrees * Math.PI / 180) : 0;
         return new BirdPose(new Vector3(position.X, (float)(flight.Height + flight.Climbed + slot.Height), position.Y), yaw, bank);
+    }
+
+    /// <summary>A bird's place in its formation, behind and beside the head, straying from it a little.</summary>
+    private static Vector2 Place(Flight flight, FlightSlot slot, double age)
+    {
+        if (flight.Kind.Flock.Formation is not { } formation) return Vector2.Zero;
+        double wander = (FullTurn * age / formation.StraySeconds) + slot.StrayPhase;
+        double back = slot.Behind + (formation.StrayMetres * Math.Sin(wander));
+        double beside = slot.Beside + (formation.StrayMetres * Math.Cos(wander * StrayBesideRate));
+        return (flight.Heading * (float)-back) + (new Vector2(-flight.Heading.Y, flight.Heading.X) * (float)beside);
     }
 
     /// <summary>

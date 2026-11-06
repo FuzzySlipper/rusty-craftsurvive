@@ -1,0 +1,26 @@
+{
+  "species": "skein",
+  "family": "flyer",
+  "body": {
+    "hindMetres": -0.3,
+    "foreMetres": -0.3
+  },
+  "legs": [],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "glide": {
+      "seconds": 6.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "flap": {
+      "seconds": 0.9,
+      "loops": true,
+      "plantsFeet": false
+    }
+  }
+}

@@ -125,6 +125,7 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
     internal string SendNow(string kindId, bool overhead)
     {
         if (Catalog.Kinds.FirstOrDefault(kind => kind.Id == kindId) is not { } kind) return $"no bird '{kindId}'; birds: {string.Join(",", Catalog.Kinds.Select(k => k.Id))}";
+        if (!Fits(kind)) return $"no room in the sky for a flock of {kind.Id}; {Readout()}";
         Vector3 at = player.WorldPosition;
         Flying flying = Launch(kind, new Vector2(at.X, at.Z));
         if (overhead) flying.Flight.Age = flying.Flight.Seconds / 2;
@@ -164,8 +165,11 @@ internal sealed class BirdModule(IEngineContext engine, ProductContent content, 
         double hour = now.DayFraction * HoursPerDay;
         Season season = Seasons.At((now.Day * HoursPerDay) + hour);
         BirdKind[] flying = [.. Catalog.Kinds.Where(kind => kind.FliesAt(biome, hour, season))];
-        if (FlightRules.Choose(flying, biome, draws.NextDouble()) is { } kind) Launch(kind, here);
+        if (FlightRules.Choose(flying, biome, draws.NextDouble()) is { } kind && Fits(kind)) Launch(kind, here);
     }
+
+    /// <summary>Whether a flock of this kind's largest size has room in the sky.</summary>
+    private bool Fits(BirdKind kind) => flights.Sum(flying => flying.Bodies.Length) + kind.Flock.Most <= Catalog.MostBirds;
 
     private Flying Launch(BirdKind kind, Vector2 here)
     {

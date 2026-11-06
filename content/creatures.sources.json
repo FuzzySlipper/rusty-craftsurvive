@@ -215,6 +215,17 @@
    "body": "Tripo P2 multiview-to-model, task da190e81-aa97-4095-9e95-a2ff291f3324, triangle topology, 30000 faces, seeds 1; prepare_flyer.py, then prepare_mesh.py --head +x --length 5.4 --triangles 7000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
    "retained": "/data/evidence/rusty-craftsurvive/creatures-10630/streamer/"
+  },
+  {
+   "mesh": "content/game/creatures/skein/skein.glb",
+   "sha256": "746e9618aaca762fd883704783e7c5de46c6bf0b9a7745d969d32ec10b726e3e",
+   "manifest": "content/game/creatures/skein/skein.manifest.json",
+   "built": "art/creatures/build_creature.py from art/creatures/skein/species.json with --mesh body.glb --texture body-64.png",
+   "concept": "art/creatures/skein/concept/concept.png (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "art/creatures/skein/mesh/reference.png, spec beside it; the near wing painted out of the side view (raw sheet: reference-raw.png)",
+   "body": "art/creatures/sheet_flyer.py from the reference sheet, no generator (Tripo had no credit); prepare_mesh.py --head +x --length 2.5 --triangles 2500 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.44 --saturation 0.85 (64 texels/m)",
+   "retained": "/data/evidence/rusty-craftsurvive/creatures-10631/skein/"
   }
  ],
  "reference": {

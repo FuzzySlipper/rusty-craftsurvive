@@ -1,0 +1,100 @@
+{
+ "id": "skein",
+ "family": "flyer",
+ "about": "The skein bird, a long-necked goose from Presbyornis about 3 m across the wings, fitted to the body built from its sheet (art/creatures/skein/mesh). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right. The family's streamer bones carry its trailing legs.",
+ "clips": {
+  "fps": 30,
+  "glide": {
+   "seconds": 6.0,
+   "dihedralDegrees": 3.0
+  },
+  "flap": {
+   "seconds": 0.9,
+   "beatDegrees": 26.0,
+   "dihedralDegrees": 6.0,
+   "bobMetres": 0.03
+  }
+ },
+ "points": {
+  "root": [
+   0,
+   0,
+   0
+  ],
+  "root_tip": [
+   0,
+   0.5,
+   0
+  ],
+  "body": [
+   0,
+   -0.3,
+   0.17
+  ],
+  "chest": [
+   0,
+   0.25,
+   0.17
+  ],
+  "neck": [
+   0,
+   0.55,
+   0.2
+  ],
+  "head": [
+   0,
+   1.05,
+   0.23
+  ],
+  "nose": [
+   0,
+   1.25,
+   0.2
+  ],
+  "tail0": [
+   0,
+   -0.35,
+   0.2
+  ],
+  "tail1": [
+   0,
+   -0.6,
+   0.2
+  ],
+  "shoulder": [
+   0.18,
+   0.3,
+   0.21
+  ],
+  "elbow": [
+   0.62,
+   0.33,
+   0.21
+  ],
+  "wrist": [
+   1.02,
+   0.33,
+   0.21
+  ],
+  "wing_tip": [
+   1.5,
+   0.28,
+   0.21
+  ],
+  "streamer0": [
+   0.06,
+   -0.4,
+   0.14
+  ],
+  "streamer1": [
+   0.06,
+   -0.85,
+   0.14
+  ],
+  "streamer2": [
+   0.06,
+   -1.25,
+   0.14
+  ]
+ }
+}

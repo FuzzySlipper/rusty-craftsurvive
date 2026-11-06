@@ -120,7 +120,7 @@ Check.Section("birds", () =>
     stayed.Age = stayed.Seconds;
     Check.That(!FlightRules.Gone(stayed, FlightRules.At(stayed, stayed.Slots[0], stayed.Age).Ground, birds.ReachMetres), "a player under a flight at the end of its line keeps it in the sky");
     stayed.Age = 0;
-    Check.That(!FlightRules.Gone(stayed, player + (stayed.Heading * (float)birds.ReachMetres), birds.ReachMetres), "a flight does not go early for a player who has moved within reach of it");
+    Check.That(!FlightRules.Gone(stayed, stayed.Start + (stayed.Heading * (float)(1.5 * birds.ReachMetres)), birds.ReachMetres), "a flight on its way does not go early for a player who is not far from it");
     Check.That(FlightRules.Gone(stayed, player + new Vector2(0, (float)(5 * birds.ReachMetres)), birds.ReachMetres), "a player who has gone far away leaves it behind");
 
     // A sprinter can stay under a flight past the ground its plan looked at, up a slope, and it climbs to stay clear.
@@ -138,6 +138,41 @@ Check.Section("birds", () =>
 
     Check.That(chased.Climbed > 0, "past its plan a flight climbs with the ground");
     Check.That(lowest > 0, "and is never in it");
+
+    // Patch, 2026-11-05: greener country has flocks. A skein flies straight, in a V with one arm longer than the other.
+    BirdKind skein = birds.Kinds.Single(kind => kind.Flock.Formation is not null);
+    Check.That(skein.FliesAt(MapBiome.Grassland, 12, Season.Spring), "a skein flies over the grass");
+    Check.That(!skein.FliesAt(MapBiome.Desert, 12, Season.Spring), "and leaves the desert to the streamer");
+    Check.That(FlightRules.Choose(birds.Kinds, MapBiome.Grassland, 0.5) == skein, "the kind that likes the ground is chosen");
+    Random flocks = new(10631);
+    for (int trial = 0; trial < 100; trial++)
+    {
+        Flight v = FlightRules.Plan(skein, birds, player, flocks.NextDouble, (_, _) => 900);
+        Check.That(v.Slots.Count >= skein.Flock.Least && v.Slots.Count <= skein.Flock.Most, "a skein is its kind's size");
+        Check.That(v.Slots.Count <= birds.MostBirds, "and fits in the sky");
+        double age = v.Seconds / 2;
+        BirdPose[] poses = [.. v.Slots.Select(slot => FlightRules.At(v, slot, age))];
+        Vector2 side = new(-v.Heading.Y, v.Heading.X);
+        float[] along = [.. poses.Select(pose => Vector2.Dot(pose.Ground, v.Heading))];
+        float[] across = [.. poses.Select(pose => Vector2.Dot(pose.Ground - poses[0].Ground, side))];
+        Check.That(along[0] >= along.Max() - (2 * skein.Flock.Formation!.StrayMetres), "its first bird leads");
+        int left = across.Count(metres => metres < -skein.Flock.Formation.SpacingMetres / 2), right = across.Count(metres => metres > skein.Flock.Formation.SpacingMetres / 2);
+        Check.That(left > 0 && right > 0, "it has two arms");
+        Check.That(left != right, "and one is longer than the other");
+        double closest = poses.SelectMany((a, i) => poses.Skip(i + 1).Select(b => Vector2.Distance(a.Ground, b.Ground))).Min();
+        Check.That(closest > skein.Flock.Formation.SpacingMetres / 3, "no two birds fly in each other");
+        Vector2 facing2 = WildlifeRules.Facing(poses[1].Yaw);
+        foreach (FlightSlot slot in v.Slots)
+        {
+            Check.That(FlightRules.Size(FlightRules.At(v, slot, 0), player, birds) == 0, "a skein starts with nothing to see of it");
+            Check.That(FlightRules.Size(FlightRules.At(v, slot, v.Seconds), player, birds) == 0, "and all of it is out of sight at the end of its line");
+        }
+
+        Check.That(Vector2.Dot(facing2, v.Heading) > 0.99f, "it faces along its line");
+        Check.That(FlightRules.Passes(v, player) >= birds.MissMetres.Least - 1, "and its line misses the player");
+    }
+
+    Check.Throws<InvalidDataException>(() => BirdCatalog.Parse(ReadResource("Wildlife.birds.json").Replace("\"mostBirds\": 30", "\"mostBirds\": 5")), "a flock too big for the sky is refused");
 
     Flight circling = FlightRules.Plan(soarer, birds, player, random.NextDouble, (_, _) => 900);
     FlightSlot only = circling.Slots[0];

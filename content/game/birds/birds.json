@@ -1,6 +1,7 @@
 {
   "$comment": "Birds in the sky (#10630): drawn, not simulated, and nothing is seeded or saved. A flight crosses a circle of reachMetres around the player, passing it by missMetres, and carries on past the far side until every bird is beyond reachMetres of where the player is now. A speck can still be seen at that range, so a bird grows from nothing at reachMetres to its size fadeMetres further in. Distances are metres, speeds metres a second, hours of the day, turn and flap times seconds.",
   "mostFlights": 3,
+  "mostBirds": 30,
   "everySeconds": { "least": 60, "most": 180 },
   "reachMetres": 900,
   "fadeMetres": 300,
@@ -24,6 +25,27 @@
       },
       "flock": { "least": 1, "most": 3, "heightMetres": 14, "radiusShare": 0.25 },
       "mesh": { "file": "creatures/streamer/streamer.glb", "scale": 1.2, "glide": "glide", "flap": "flap" }
+    },
+    {
+      "id": "skein",
+      "habitat": { "Grassland": 1.0, "TemperateForest": 0.6, "BorealForest": 0.4 },
+      "hours": { "least": 6, "most": 20 },
+      "seasons": [ "Spring", "Summer", "Autumn" ],
+      "flight": {
+        "heightMetres": { "least": 90, "most": 150 },
+        "driftMetresPerSecond": 12,
+        "climbMetresPerSecond": 6,
+        "radiusMetres": { "least": 0, "most": 0 },
+        "turnSeconds": { "least": 1, "most": 1 },
+        "bankDegrees": 0,
+        "flapEverySeconds": 20,
+        "flapSeconds": 16
+      },
+      "flock": {
+        "least": 15, "most": 20, "heightMetres": 0.4, "radiusShare": 0,
+        "formation": { "spacingMetres": 9, "sweepDegrees": 42, "longerArmShare": 0.62, "strayMetres": 1.2, "straySeconds": 11 }
+      },
+      "mesh": { "file": "creatures/skein/skein.glb", "scale": 1.6, "glide": "glide", "flap": "flap" }
     }
   ]
 }

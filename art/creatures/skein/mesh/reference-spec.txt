@@ -1,0 +1,13 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE invented long-necked goose, the skein bird, in exactly the shape of the first reference image. Wingspan about 3 m, about 2 m long from bill to feet. It is in LEVEL FLIGHT with both wings held out flat and fully spread, the neck stretched straight out ahead and the long legs trailing straight out behind. Exactly the same bird in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the strict LEFT SIDE view, head pointing to the left, wings edge-on so they are a thin line, the whole bird from bill to feet in one straight line.
+- BOTTOM LEFT: the view from DIRECTLY BELOW, head pointing to the TOP of the sheet, both wings spread out to the left and right and both legs trailing down the sheet.
+- BOTTOM RIGHT: the view from DIRECTLY ABOVE, head pointing to the TOP of the sheet, both wings spread out to the left and right and both legs trailing down the sheet.
+Landscape aspect about 1536x1024. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the first reference image exactly: the long broad wings with their big dark rounded primary feathers, the heavy oval body, the very long straight neck, the small head with a flat duck bill, the short tail, and the two long thin legs straight and side by side, each ending in a folded webbed foot. Each leg is a solid tapering rod as thick as a broom handle.
+
+SOLID SHAPES ONLY: the wing is one solid surface with some thickness, with a few large stiff feather shapes along its trailing edge and at its tip. No fine strands or fringes. The bill is closed.
+
+PAINT - follow the first reference image for its colours and the second reference image, a sheet of a giant ground sloth from the same game, only for its treatment: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction. Slate-grey back, buff belly and wing band, dark neck with one white band at its base, near-black wing tips, red-brown bill and legs.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO other objects. NOT photoreal, NOT a perspective render, NOT anime, NOT cel shading or outlines.

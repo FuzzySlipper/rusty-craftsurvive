@@ -737,6 +737,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   dungeon. It clears the highest ground under its line by height sampled when it sets out, looks ahead
   and climbs if it is kept in sight past that, and ignores what is built or grows there. Birds do not land, react to the player, or cast shadows.
   It chooses by the ground under the player when it sets out, and may carry on over other country.
+  A skein (#10631) holds one fixed V from start to finish: it does not reform, turn or call, and its
+  birds only stray a little from their places.
 - **A pack is basic (#10626).** Drift-runners seeded from one record come when one sees the player, from up
   to 100 m and for 8 s after it last did, and fan out to both sides as they come, closing straight in
   from 10 m. That is all a pack does: they do not take
