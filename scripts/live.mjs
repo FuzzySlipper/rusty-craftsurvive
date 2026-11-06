@@ -27,11 +27,11 @@ const CLAIM_LABEL = 'craft-live';
 const LEASE_MS = '60000';
 const INPUT_OBSERVATION_TIMEOUT_MS = 30000;
 const INPUT_OBSERVATION_POLL_MS = 100;
-// The Engine's fixed simulation rate, and the most held time one advance call is asked for: six steps,
-// so one call stays well inside fetch's five-minute response limit on the GPU-less CI runner, where a
-// step renders in software and has taken over ten seconds near the moss-carded places.
+// The Engine's fixed simulation rate, and the most held time one advance call is asked for: three
+// steps, so one call stays well inside fetch's five-minute response limit on the GPU-less CI runner,
+// where a step renders in software and has taken over forty seconds on the slowest runners.
 const STEPS_PER_SECOND = 60;
-const ADVANCE_CHUNK_MS = 100;
+const ADVANCE_CHUNK_MS = 50;
 // Steps run after the release so the product sees it before the claim goes.
 const RELEASE_STEPS = 6;
 const DISCOVERY_WAIT_MS = 3000;

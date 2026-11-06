@@ -2,7 +2,7 @@
 # Serves the product on its pinned pair and proves it runs: the bootstrap names
 # the product, the runtime stays Running while the player's update count
 # advances, and the generator's live fingerprint is the one recorded for its
-# version, and a 60-step walk through the live-lane client moves the player on input.
+# version, and a short walk through the live-lane client moves the player on input.
 #   scripts/ci-serve-product.sh <product.csproj> <port>
 set -euo pipefail
 
@@ -10,6 +10,12 @@ project=$1
 port=$2
 origin=http://127.0.0.1:$port
 log=${RUNNER_TEMP:-/tmp}/craftsurvive-serve.log
+# The first update waits for the first software-rendered frames: over a minute on the slowest runners.
+first_update_seconds=180
+# Each step draws a software-rendered frame, so the walk is this job's whole cost. Twelve steps walk
+# about 1.5 m on level ground, and 1 m is asked for.
+walk_steps=12
+walk_minimum_metres=1
 
 # The product pauses without a watching page; input/debug claims are not watchers.
 rusty dev --project "$project" --headless --live-debug --bind-host 127.0.0.1 --port "$port" > "$log" 2>&1 &
@@ -49,7 +55,7 @@ updates() {
 }
 
 first=""
-for _ in $(seq 1 60); do
+for _ in $(seq 1 "$first_update_seconds"); do
     if first=$(updates) && ((first > 0)); then
         break
     fi
@@ -71,10 +77,9 @@ if [[ "$generation" != *golden=match* ]]; then
 fi
 
 # The documented walk: input reaches the product and moves the player, on this machine too.
-# The key is held over 60 simulation steps of the Engine's held time (#9843), so the walk is the
-# same however slowly the GPU-less runner renders: a second at the walking speed is about 7 m, and
-# 4 m is asked for. It fails if the key events do not reach the product.
-if ! CRAFT_ORIGIN=$origin node "$(dirname "$0")/live.mjs" walk --steps 60 --minimum 4; then
+# The key is held over counted simulation steps of the Engine's held time (#9843), so the walk is the
+# same however slowly the GPU-less runner renders. It fails if the key events do not reach the product.
+if ! CRAFT_ORIGIN=$origin node "$(dirname "$0")/live.mjs" walk --steps "$walk_steps" --minimum "$walk_minimum_metres"; then
     echo "The player did not walk on input." >&2
     exit 1
 fi

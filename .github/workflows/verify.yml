@@ -8,8 +8,11 @@ on:
 permissions:
   contents: read
 
+# Pull requests share a group per ref, so a new push cancels the old run. Each
+# commit on main has its own group: runs share no state and deploy nothing, so
+# none waits for another, and no pending run is replaced before it starts.
 concurrency:
-  group: verify-${{ github.ref }}
+  group: verify-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -21,6 +24,7 @@ env:
 jobs:
   managed-checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,9 +62,12 @@ jobs:
         run: dotnet run --project tests/SaveCore -c Release
       - name: Check a bank of dungeon seeds can be walked as their flow intends
         run: dotnet run --project tests/DungeonBank -c Release
+      - name: Check town content, layouts and arrival views
+        run: dotnet run --project tests/Towns -c Release
 
   product:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -88,15 +95,16 @@ jobs:
         run: dotnet build src/CraftSurvive.Game -c Release
       - name: Build and stage the product through rusty
         run: rusty build --project "$PROJECT"
+      - name: Audit the terrain textures
+        run: pnpm run audit:textures
       - name: Serve the product and run one update
         env:
           WGPU_BACKEND: vulkan
         run: scripts/ci-serve-product.sh "$PROJECT" 8787
-      - name: Audit the terrain textures
-        run: pnpm run audit:textures
 
   product-ui:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
