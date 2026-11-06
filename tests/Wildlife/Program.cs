@@ -206,18 +206,19 @@ Check.Section("parties", () =>
     {
         double bearing = random.NextDouble() * 2 * Math.PI;
         Vector3 look = new((float)Math.Sin(bearing), 0, (float)-Math.Cos(bearing));
-        Vector2? spot = PartyRules.Place(parties, player, eye, look, Fov, random.NextDouble, _ => 10, _ => true);
-        Check.That(spot is not null, "open ground gives a party a spot");
-        Vector2 found = spot!.Value;
-        Check.That(!PartyRules.InView(new Vector3(found.X, 10, found.Y), eye, look, Fov, Margin), "a party appears out of view");
+        var placed = PartyRules.Place(parties, parrot, player, eye, look, Fov, random.NextDouble, _ => 10, _ => true);
+        Check.That(placed is not null, "open ground gives a party a spot");
+        Vector2 found = placed!.Value.Spot;
+        // R10639-2: a spot out of view can still scatter a bird onto the screen.
+        Check.That(placed.Value.Birds.All(bird => !PartyRules.InView(PartyRules.Standing(bird), eye, look, Fov, Margin)), "every bird of a party appears out of view");
         double metres = Vector2.Distance(found, player);
         Check.That(metres >= parties.AppearMetres.Least - 0.01 && metres <= parties.AppearMetres.Most + 0.01, "and at the distance parties appear");
     }
 
-    Check.That(PartyRules.Place(parties, player, eye, forward, Fov, random.NextDouble, _ => 10, _ => false) is null, "ground that does not suit gives no spot");
+    Check.That(PartyRules.Place(parties, parrot, player, eye, forward, Fov, random.NextDouble, _ => 10, _ => false) is null, "ground that does not suit gives no spot");
 
     Vector2 spotAt = new(0, 0);
-    PartyBird[] birds = PartyRules.Scatter(parrot, spotAt, random.NextDouble);
+    PartyBird[] birds = PartyRules.Scatter(parrot, spotAt, random.NextDouble, _ => 10);
     Check.That(birds.Length >= parrot.Least && birds.Length <= parrot.Most, "a party is its kind's size");
     Check.That(birds.All(bird => Vector2.Distance(bird.At, spotAt) <= parrot.SpreadMetres + 0.01), "its birds stand about its spot");
     int hops = 0;
@@ -251,6 +252,18 @@ Check.Section("parties", () =>
         Vector2 way = WildlifeRules.Facing(pose.Yaw);
         Check.That(Vector2.Dot(way, bird.Away) > 0.99f, "facing where it goes");
     }
+
+    // R10639-1: a party whose time is up must not take a bird out of the sky in front of the player.
+    Func<Vector3, bool> noneSeen = _ => false, allSeen = _ => true;
+    Check.That(!PartyRules.Leaves(birds, 0, 0, parties, noneSeen), "a party with birds in the air stays until they have flown");
+    PartyBird flushed = PartyRules.Scatter(parrot, spotAt, random.NextDouble, _ => 10)[0];
+    flushed.FlushIn = 0.1;
+    Check.That(!PartyRules.Leaves([flushed], 0, 0, parties, noneSeen), "as does one with a bird about to go");
+    PartyBird[] feeding = PartyRules.Scatter(parrot, spotAt, random.NextDouble, _ => 10);
+    Check.That(!PartyRules.Leaves(feeding, 30, 0, parties, noneSeen), "a party stays its time");
+    Check.That(PartyRules.Leaves(feeding, 0, 0, parties, noneSeen), "then goes when nothing of it can be seen");
+    Check.That(!PartyRules.Leaves(feeding, 0, 0, parties, allSeen), "and not while it can");
+    Check.That(PartyRules.Leaves(feeding, 30, parties.GoneMetres, parties, noneSeen), "a party left far behind goes early");
 
     Check.That(PartyRules.Size(parties.GoneMetres - parties.FadeMetres - 1, parties) == 1, "a bird keeps its size until the last of the way");
     Check.That(PartyRules.Size(parties.GoneMetres, parties) == 0, "and is nothing when it goes");

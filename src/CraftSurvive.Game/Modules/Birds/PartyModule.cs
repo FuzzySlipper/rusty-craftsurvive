@@ -51,7 +51,6 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         internal string? Clip { get; set; }
         internal bool Gone { get; set; }
         internal float FromGround { get; set; }
-        internal float ToGround { get; set; }
     }
 
     private sealed class Party(PartyKind kind, Vector2 spot, double stay, Body[] bodies)
@@ -116,7 +115,7 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
                 if (!body.Gone) Step(party, body, seconds, here);
             }
 
-            if (party.Bodies.All(body => body.Gone) || Leaves(party, here))
+            if (party.Bodies.All(body => body.Gone) || PartyRules.Leaves(party.Bodies.Where(body => !body.Gone).Select(body => body.Bird), party.StayLeft, Vector2.Distance(party.Spot, here), Catalog, Seen))
             {
                 Land(party);
                 continue;
@@ -158,7 +157,8 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         if (parties.Count >= Catalog.MostParties) return $"the ground is full; {Readout()}";
         Vector3 at = player.WorldPosition;
         Vector2 ahead = Vector2.Normalize(new Vector2(player.AimForward.X, player.AimForward.Z));
-        Launch(kind, new Vector2(at.X, at.Z) + (ahead * (float)metres));
+        Vector2 spot = new Vector2(at.X, at.Z) + (ahead * (float)metres);
+        Launch(kind, spot, PartyRules.Scatter(kind, spot, draws.NextDouble, GroundOf));
         return Readout();
     }
 
@@ -203,7 +203,7 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         {
             Body[] left = [.. party.Bodies.Where(body => !body.Gone)];
             return string.Create(CultureInfo.InvariantCulture,
-                $" | {party.Kind.Id} at={party.Spot.X:F0},{party.Spot.Y:F0} d={Vector2.Distance(party.Spot, here):F0} n={left.Length} flying={left.Count(body => body.Bird.Flying is not null)} stay={party.StayLeft:F0} seen={left.Count(body => Seen(Point(body)))}");
+                $" | {party.Kind.Id} at={party.Spot.X:F0},{party.Spot.Y:F0} d={Vector2.Distance(party.Spot, here):F0} n={left.Length} flying={left.Count(body => body.Bird.Flying is not null)} stay={party.StayLeft:F0} seen={left.Count(body => Seen(Now(party, body)))}");
         }));
     }
 
@@ -215,9 +215,8 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         Season season = Seasons.At((now.Day * HoursPerDay) + hour);
         PartyKind[] feeding = [.. Catalog.Kinds.Where(kind => kind.FeedsAt(biome, hour, season))];
         if (PartyRules.Choose(feeding, biome, draws.NextDouble()) is not { } kind) return;
-        Vector3 forward = player.AimForward;
-        Vector2? spot = PartyRules.Place(Catalog, here, player.WorldEyePosition, forward, player.FieldOfViewDegrees, draws.NextDouble, point => GroundOf(point), point => Suits(kind, point));
-        if (spot is { } found) Launch(kind, found);
+        var placed = PartyRules.Place(Catalog, kind, here, player.WorldEyePosition, player.AimForward, player.FieldOfViewDegrees, draws.NextDouble, GroundOf, point => Suits(kind, point));
+        if (placed is { } found) Launch(kind, found.Spot, found.Birds);
     }
 
     /// <summary>Open dry ground: a glade under a thin canopy.</summary>
@@ -228,13 +227,13 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         return terrain.Recipe.Forest.Canopy(point.X, point.Y, terrain.Recipe.Map.Sample(point.X, point.Y)) <= kind.MostCanopy;
     }
 
-    private void Launch(PartyKind kind, Vector2 spot)
+    private void Launch(PartyKind kind, Vector2 spot, PartyBird[] birds)
     {
-        Body[] bodies = [.. PartyRules.Scatter(kind, spot, draws.NextDouble).Select(bird =>
+        Body[] bodies = [.. birds.Select(bird =>
         {
             int slot = slots!.Take();
             Body body = new(slot, ProductIds.PartyAppearanceBase + (ulong)slot, bird);
-            body.FromGround = body.ToGround = GroundOf(bird.At);
+            body.FromGround = bird.Ground;
             Dress(body, kind.Mesh.Ground);
             return body;
         })];
@@ -263,7 +262,7 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         if (bird.Flying is { } flying)
         {
             bird.Flying = flying + seconds;
-            if (PartyRules.Size(Vector2.Distance(PartyRules.Burst(bird, party.Kind).Ground, here), Catalog) <= 0) Leave(body);
+            if (PartyRules.Size(Vector3.Distance(PartyRules.Burst(bird, party.Kind).Position, player.WorldPosition), Catalog) <= 0) Leave(body);
             return;
         }
 
@@ -271,7 +270,7 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         {
             bird.FlushIn = wait - seconds;
             if (bird.FlushIn > 0) return;
-            bird.Launch = new Vector3(bird.At.X, body.ToGround, bird.At.Y);
+            bird.Launch = PartyRules.Standing(bird);
             bird.Flying = 0;
             Dress(body, party.Kind.Mesh.Air);
             return;
@@ -282,7 +281,7 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         if (!wasHopping && bird.HopLeft > 0)
         {
             body.FromGround = GroundOf(bird.HopFrom);
-            body.ToGround = GroundOf(bird.HopTo);
+            bird.Ground = GroundOf(bird.HopTo);
         }
     }
 
@@ -293,17 +292,11 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         body.Gone = true;
     }
 
-    /// <summary>A party goes once it has stayed its time or been left behind, but never while a bird of it could be seen on the ground.</summary>
-    private bool Leaves(Party party, Vector2 here)
-    {
-        if (party.StayLeft > 0 && Vector2.Distance(party.Spot, here) < Catalog.GoneMetres) return false;
-        return !party.Bodies.Any(body => !body.Gone && Seen(Point(body)));
-    }
-
     private bool Seen(Vector3 point) => PartyRules.InView(point, player.WorldEyePosition, player.AimForward, player.FieldOfViewDegrees, Catalog.ViewMarginDegrees);
 
-    private static Vector3 Point(Body body) =>
-        body.Bird.Flying is null ? new Vector3(body.Bird.At.X, body.ToGround, body.Bird.At.Y) : body.Bird.Launch;
+    /// <summary>Where a bird is now, on the ground or in the air.</summary>
+    private static Vector3 Now(Party party, Body body) =>
+        body.Bird.Flying is null ? PartyRules.Standing(body.Bird) : PartyRules.Burst(body.Bird, party.Kind).Position;
 
     private void Pose(Party party, Body body, Vector2 here, List<AppearanceFact> into)
     {
@@ -316,7 +309,7 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         if (bird.Flying is not null)
         {
             BirdPose pose = PartyRules.Burst(bird, party.Kind);
-            float size = PartyRules.Size(Vector2.Distance(pose.Ground, here), Catalog);
+            float size = PartyRules.Size(Vector3.Distance(pose.Position, player.WorldPosition), Catalog);
             position = pose.Position;
             facing = pose.Yaw;
             scale = mesh.AirScale * MathF.Max(size, SmallestSize);
@@ -326,7 +319,7 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         else
         {
             float share = bird.HopLeft > 0 ? (float)(1 - (bird.HopLeft / party.Kind.Gait.HopSeconds)) : 1;
-            float ground = float.Lerp(body.FromGround, body.ToGround, share);
+            float ground = float.Lerp(body.FromGround, bird.Ground, share);
             position = new Vector3(bird.At.X, ground + (float)(PartyRules.HopHeight(bird, party.Kind) + GroundHeadroom), bird.At.Y);
             facing = (float)bird.Facing;
             scale = mesh.GroundScale;
