@@ -1,10 +1,13 @@
 {
- "about": "Who keeps each service (#9895). A town draws one person per service from its list by its stable identity. Portraits are placeholders until #10000 decides how portraits are made; a person without one shows no portrait.",
+ "about": "Who keeps each service (#9895). A town draws one person per service from its list by its stable identity. A portrait is a path (a still) or {rest, talk}: animated PNG loops at one texel per pixel, the talking loop shown while a new line is said (#10027, made with the parts-rig route in art/people/README.md). A person without one shows no portrait.",
  "people": {
   "inn": [
    {
     "name": "Mara",
-    "portrait": "towns/portraits/host.png"
+    "portrait": {
+     "rest": "towns/portraits/mara-rest.png",
+     "talk": "towns/portraits/mara-talk.png"
+    }
    },
    {
     "name": "Hollis"
@@ -21,7 +24,11 @@
     "name": "Tamsin"
    },
    {
-    "name": "Orrin"
+    "name": "Orrin",
+    "portrait": {
+     "rest": "towns/portraits/orrin-rest.png",
+     "talk": "towns/portraits/orrin-talk.png"
+    }
    },
    {
     "name": "Sela"

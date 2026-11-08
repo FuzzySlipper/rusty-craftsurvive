@@ -12,11 +12,6 @@
       ]
     },
     {
-      "file": "content/game/towns/portraits/host.png",
-      "prompt": "A square RPG dialogue portrait for Wandering Year, a warm fantasy trekking game with early-modern tools and practical clothing. Bust portrait of a kindly, capable innkeeper around fifty-five with a natural weathered face, grey-streaked brown hair tied loosely back, a simple cream work shirt and a subdued teal shawl. An unforced slight smile and attentive gaze toward the viewer: someone offering shelter and food after a wet trek. Believable anatomy, quiet dignity, no glamour styling, no fantasy armor or jewelry clutter. Plain warm-dark backdrop suitable for a dialogue panel, with no visible frame, no UI, no text, no objects in the foreground.\nStyle: tight pre-digital commercial fantasy illustration, tangible painted volumes and precise contours, broad matte colors, restrained fine drawing around eyes and folds, little surface microdetail. Beloved old-paperback warmth, mellow ochre skin light against softly desaturated teal fabric; warm diffuse illumination. A carefully painted character portrait that sits comfortably beside textured 3D game scenery. No anime, cute caricature, impasto, thick black outlines, photographic skin pores or synthetic glossy skin.",
-      "reference_images": []
-    },
-    {
       "file": "content/game/towns/kit/textures/plaster.png",
       "prompt": "Create one square, seamlessly tileable albedo texture for an economical 3D fantasy building: warm pale ochre lime plaster, matte and gently timeworn. Broad quiet color areas with very restrained mottling, a few soft irregular trowel marks and occasional tiny lighter worn patches. The overall color should stay around warm sand / muted honey, not orange. Direct flat orthographic surface scan, absolutely even diffuse lighting, no cast shadows, no ambient-occlusion border, no perspective, no objects, no border, no text. Restrained painted game-texture character, physically tangible but no photographic pores or high-frequency grit. This is a reusable wall material for a welcoming early-modern inn. Texture variation must be subtle enough to repeat across a wall without looking like a painted picture.",
       "reference_images": []

@@ -35,9 +35,10 @@ const STYLE = `
 .town-door small { display:block;font:.78rem/1.35 system-ui,sans-serif;color:#cfc6b2; }
 .town-dialogue { position:absolute;left:0;right:0;bottom:0;padding:5rem 2rem 1.6rem;pointer-events:none;
   background:linear-gradient(to top,rgb(9 12 11 / 94%) 0%,rgb(9 12 11 / 88%) 58%,transparent); }
-.town-dialogue-inner { margin:0 auto;max-width:62rem;display:grid;grid-template-columns:8.5rem minmax(0,1fr);gap:1.8rem;align-items:start;pointer-events:auto; }
+.town-dialogue-inner { --portrait:381px;margin:0 auto;max-width:72rem;display:grid;grid-template-columns:var(--portrait) minmax(0,1fr);gap:2rem;align-items:end;pointer-events:auto; }
 .town-dialogue-inner.no-portrait { grid-template-columns:minmax(0,1fr); }
-.town-portrait { width:8.5rem;aspect-ratio:1;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px #e3c48a99,0 8px 24px #000a; }
+/* Portraits are pixel art 127 texels square (#10027), shown at a whole number of screen pixels per texel. */
+.town-portrait { width:var(--portrait);aspect-ratio:1;image-rendering:pixelated;border:4px solid #e3c48a;box-shadow:0 10px 30px #000b; }
 .town-speaker { display:flex;align-items:baseline;gap:.9rem;flex-wrap:wrap; }
 .town-speaker h2 { margin:0;font-size:1.35rem;font-weight:normal; }
 .town-speaker span { font:600 .7rem/1.4 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#e3c48a; }
@@ -63,7 +64,8 @@ const STYLE = `
 .town-doorstep button { padding:.35rem .95rem !important;border-radius:999px !important;background:#e3c48a !important;color:#1b1a15 !important;
   font:600 .85rem/1.3 system-ui,sans-serif !important; }
 .town-doorstep kbd { font:600 .72rem/1 system-ui,sans-serif;padding:.15rem .35rem;border-radius:4px;background:#1b1a1533;margin-left:.35rem; }
-@media (max-width:820px) { .town-dialogue-inner{grid-template-columns:5rem minmax(0,1fr);gap:1rem}.town-portrait{width:5rem}.town-heading h1{font-size:1.6rem} }
+@media (max-height:900px), (max-width:1280px) { .town-dialogue-inner{--portrait:254px} }
+@media (max-width:820px) { .town-dialogue-inner{--portrait:127px;gap:1rem}.town-heading h1{font-size:1.6rem} }
 `;
 
 /**

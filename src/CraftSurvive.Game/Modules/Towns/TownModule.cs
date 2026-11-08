@@ -23,6 +23,8 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
     private const double SpatialVoxelMetres = 1, CameraDelay = 0;
     private const uint SpatialChunkSize = 16, SelectionGroup = 1;
     private const double DefaultAspect = 16d / 9;
+    // A keeper's talking loop plays for about the time the line takes to say, then the portrait rests (#10027).
+    private const double SpokenCharactersPerSecond = 15, ShortestTalkSeconds = 1.2, LongestTalkSeconds = 6;
 
     private readonly IEngineContext engine;
     private readonly TownContent content;
@@ -41,6 +43,8 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
     private double far;
     private double aspect = DefaultAspect;
     private double cameraSeconds;
+    private string spoken = "";
+    private double talking;
     private ulong visit;
     private ulong hover;
     private string focused = "";
@@ -246,6 +250,7 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
         closeness += (close - closeness) * (1 - MathF.Exp(-CloseResponsePerSecond * step));
         if (MathF.Abs(close - closeness) < SettleThreshold) closeness = close;
         cameraSeconds += step;
+        talking = Math.Max(0, talking - step);
         engine.CameraView.UpdateCameraSample(new(camera, Descriptor(), cameraSeconds, CameraDelay, CameraInterpolation.Latest, 1));
         hover = Selected is null ? Interactions.Update().Selected?.Id ?? 0 : 0;
         Publish();
@@ -323,6 +328,23 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
         if (surface.Reported && surface.CssWidth > 0 && surface.CssHeight > 0) aspect = surface.CssWidth / surface.CssHeight;
     }
 
+    /// <summary>How long a keeper's talking loop plays for a line: about the time it takes to say.</summary>
+    internal static double TalkSeconds(string line) =>
+        Math.Clamp(line.Length / SpokenCharactersPerSecond, ShortestTalkSeconds, LongestTalkSeconds);
+
+    /// <summary>The conversation with the keeper's portrait: the talking loop while a new line is being said, else the resting one.</summary>
+    private TownServiceUiFacts Converse(TownServiceUiFacts said, TownPortrait? portrait)
+    {
+        if (said.Text != spoken)
+        {
+            spoken = said.Text;
+            talking = TalkSeconds(said.Text);
+        }
+
+        string? path = talking > 0 && portrait?.Talk is string talk ? talk : portrait?.Rest;
+        return said with { Portrait = Portrait(path)?.Url() ?? "" };
+    }
+
     private UiImage? Portrait(string? path)
     {
         if (path is null) return null;
@@ -347,7 +369,13 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
                     $"{place.Service}|{place.Name}|{content.Services[place.Service].Summary}|{projected.NormalizedPoint.X:F5}|{projected.NormalizedPoint.Y:F5}|{(projected.InClip ? 1 : 0)}");
             }));
             if (Selected is PlacedService selected && services is not null)
-                service = services.Describe(selected.Service, conditions, Portrait(site.Keepers[selected.Service].Portrait)?.Url() ?? "", Blocked);
+                service = Converse(services.Describe(selected.Service, conditions, Blocked), site.Keepers[selected.Service].Portrait);
+        }
+
+        if (service is null)
+        {
+            spoken = "";
+            talking = 0;
         }
 
         string hovered = focused.Length > 0 ? focused : presence?.Services.FirstOrDefault(s => s.Id == hover)?.Service ?? "";
@@ -369,7 +397,7 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
         $"open={Open};visit={visit};town={site?.Key ?? "none"};recipe={site?.Recipe ?? "none"};selected={Selected?.Service ?? "none"};" +
         $"hover={presence?.Services.FirstOrDefault(s => s.Id == hover)?.Service ?? "none"};motion={Motion};offset={offset.X:F5},{offset.Y:F5};" +
-        $"closeness={closeness:F3};wet={conditions.Wet};night={conditions.Night};prompt={(prompt.Length > 0 ? prompt : "none")};" +
+        $"closeness={closeness:F3};portrait={(lastFacts?.Service is null ? "none" : talking > 0 ? "talk" : "rest")};wet={conditions.Wet};night={conditions.Night};prompt={(prompt.Length > 0 ? prompt : "none")};" +
         $"{audio?.Readout ?? "voices=0;presence=0"}");
 
     public void Dispose()

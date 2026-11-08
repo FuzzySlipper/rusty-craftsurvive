@@ -63,5 +63,5 @@ node scripts/generate-town-audio.mjs
 
 ## Portraits
 
-`content/game/towns/portraits/host.png` is a provisional placeholder. How portraits are
-made is decided by its own task; `people.json` names which keeper uses which portrait.
+Keepers' portraits are made as described in `art/people/README.md`; `people.json` names
+which keeper uses which portrait.

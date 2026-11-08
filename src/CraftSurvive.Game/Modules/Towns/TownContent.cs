@@ -50,8 +50,14 @@ internal sealed record ServiceChoice(string Key, string Action, string[] When, T
 internal sealed record ServiceDefinition(string Key, IReadOnlyDictionary<SettlementKind, string[]> Names, string Summary, string Role,
     TownLine[] Welcome, ServiceChoice[] Choices);
 
-/// <summary>Someone who keeps a service; the portrait is a content path, or none.</summary>
-internal sealed record TownPerson(string Name, string? Portrait);
+/// <summary>
+/// Someone who keeps a service, with a portrait or none. A portrait is a resting image (a still, or a loop the browser
+/// plays) and, optionally, a loop shown while they speak (#10027).
+/// </summary>
+internal sealed record TownPerson(string Name, TownPortrait? Portrait);
+
+/// <summary>A keeper's portrait: content paths to its resting image and, when it has one, its talking loop.</summary>
+internal sealed record TownPortrait(string Rest, string? Talk);
 
 /// <summary>
 /// The town content (#9895): the kit, the layouts, the services and their people, and the timber
@@ -80,7 +86,7 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
         using JsonDocument people = JsonDocument.Parse(content.ReadText(PeoplePath));
         Dictionary<string, TownPerson[]> keepers = people.RootElement.GetProperty("people").EnumerateObject().ToDictionary(
             service => service.Name, service => service.Value.EnumerateArray().Select(person => new TownPerson(
-                person.GetProperty("name").GetString()!, Optional(person, "portrait"))).ToArray());
+                person.GetProperty("name").GetString()!, ReadPortrait(person))).ToArray());
         using JsonDocument palettes = JsonDocument.Parse(content.ReadText(PalettesPath));
         Dictionary<string, IReadOnlyDictionary<string, Color>> treatments = palettes.RootElement.GetProperty("palettes").EnumerateObject()
             .ToDictionary(palette => palette.Name, palette => (IReadOnlyDictionary<string, Color>)palette.Value.EnumerateObject()
@@ -182,6 +188,15 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
 
     private static TownView View(JsonElement view) =>
         new(Vector(view.GetProperty("eye")), Vector(view.GetProperty("focus")), view.GetProperty("fieldOfView").GetDouble());
+
+    /// <summary>A portrait is a path (a still), an object with a <c>rest</c> image and an optional <c>talk</c> loop, or absent.</summary>
+    private static TownPortrait? ReadPortrait(JsonElement person)
+    {
+        if (!person.TryGetProperty("portrait", out JsonElement portrait)) return null;
+        return portrait.ValueKind == JsonValueKind.String
+            ? new(portrait.GetString()!, null)
+            : new(portrait.GetProperty("rest").GetString()!, Optional(portrait, "talk"));
+    }
 
     private static string? Optional(JsonElement element, string name) =>
         element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;

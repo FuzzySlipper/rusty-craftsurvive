@@ -71,7 +71,8 @@ internal sealed class TownServices(TownContent content, TownSite site)
         if (acted is { Done: true }) spent.Add((service, choice.Key));
     }
 
-    internal TownServiceUiFacts Describe(string service, TownConditions conditions, string portrait, Func<ServiceChoice, string?> blocked)
+    /// <summary>The conversation at a service, without its portrait, which the town shows by who is speaking and when.</summary>
+    internal TownServiceUiFacts Describe(string service, TownConditions conditions, Func<ServiceChoice, string?> blocked)
     {
         ServiceDefinition definition = content.Services[service];
         TownPerson keeper = site.Keepers[service];
@@ -86,7 +87,7 @@ internal sealed class TownServices(TownContent content, TownSite site)
         }
 
         string speech = reply.Length > 0 ? reply : Fill(Pick(definition.Welcome, conditions), service, null);
-        return new(keeper.Name, definition.Role, speech, portrait, choices.ToString(), outcome, content.Hint);
+        return new(keeper.Name, definition.Role, speech, "", choices.ToString(), outcome, content.Hint);
     }
 
     /// <summary>The first line whose conditions hold; the last line is the fallback.</summary>

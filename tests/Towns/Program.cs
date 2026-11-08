@@ -13,6 +13,7 @@ using Rusty.Engine.Testing;
 const double Step = 1d / 60;
 const float Tolerance = .001f;
 const double PadHeight = 10;
+byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
 string directory = Path.Combine(AppContext.BaseDirectory, "Content");
 Dictionary<string, ReadOnlyMemory<byte>> files = Directory.GetFiles(directory, "*", SearchOption.AllDirectories)
@@ -51,6 +52,23 @@ Check.Section("town content is complete and every reference resolves", () =>
         "every building has an entrance and a hanging sign");
     Check.Equal(towns.Kit.Count + towns.Kit.Values.Count(piece => piece.Sign is not null), files.Keys.Count(file => file.EndsWith(".glb", StringComparison.Ordinal)),
         "the kit stages exactly its own pieces; nothing from the old composed stage remains");
+});
+
+Check.Section("keepers' portraits are staged loops the dialogue can show (#10027)", () =>
+{
+    TownPortrait[] portraits = [.. towns.People.Values.SelectMany(people => people).Select(person => person.Portrait).OfType<TownPortrait>()];
+    Check.That(portraits.Length >= 2, "the innkeeper and a provisioner have portraits");
+    foreach (TownPortrait portrait in portraits)
+        foreach (string path in new[] { portrait.Rest }.Concat(portrait.Talk is string talk ? [talk] : []))
+        {
+            string staged = path[TownContent.Root.Length..];
+            Check.That(path.StartsWith(TownContent.Root, StringComparison.Ordinal) && files.TryGetValue("towns/" + staged, out ReadOnlyMemory<byte> png)
+                && png.Span[..8].SequenceEqual(Png), $"{path} is a staged PNG");
+        }
+
+    Check.That(Math.Abs(TownModule.TalkSeconds("Yes.") - 1.2) < 1e-9 && Math.Abs(TownModule.TalkSeconds(new string('a', 400)) - 6) < 1e-9,
+        "a short line still moves the mouth, and a long one stops before the reader is done");
+    Check.That(Math.Abs(TownModule.TalkSeconds(new string('a', 45)) - 3) < 1e-9, "a line talks for about the time it takes to say");
 });
 
 Check.Section("layouts stand on their pad, land side, with the arrival view outside the bubble", () =>
@@ -143,17 +161,17 @@ Check.Section("services come from data and answer to the visit's conditions", ()
     TownServices portInn = new(towns, port);
     TownConditions wetNight = new(true, true, true), dryDay = new(false, false, false), portDay = new(false, false, true);
     portInn.Record("inn", portInn.Offered("inn", "news", wetNight)!, wetNight, null);
-    Check.That(portInn.Describe("inn", wetNight, "", _ => null).Text.Contains("quay", StringComparison.Ordinal), "a wet night at a port hears the harbour's news, not the ferry's");
+    Check.That(portInn.Describe("inn", wetNight, _ => null).Text.Contains("quay", StringComparison.Ordinal), "a wet night at a port hears the harbour's news, not the ferry's");
     TownServices landingInn = new(towns, landing);
     landingInn.Record("inn", landingInn.Offered("inn", "news", dryDay)!, dryDay, null);
-    Check.That(landingInn.Describe("inn", dryDay, "", _ => null).Text.Contains("ferry", StringComparison.Ordinal), "a river town talks of its ferry");
+    Check.That(landingInn.Describe("inn", dryDay, _ => null).Text.Contains("ferry", StringComparison.Ordinal), "a river town talks of its ferry");
     Check.That(portInn.Offered("inn", "room", wetNight) is not null && portInn.Offered("inn", "room", portDay) is null, "a room for the night is offered at night");
     Check.That(portInn.Offered("inn", "fireside", portDay) is not null && portInn.Offered("inn", "fireside", wetNight) is null, "by day the inn offers a rest by the fire");
     ServiceChoice meal = portInn.Offered("inn", "meal", portDay)!;
     Check.Equal("", portInn.Unavailable("inn", meal, _ => null), "a meal is available");
     portInn.Record("inn", meal, portDay, new(true, "Food 20% → 60%"));
     Check.Equal(meal.Spent, portInn.Unavailable("inn", meal, _ => null), "a meal taken is spent for the visit");
-    TownServiceUiFacts facts = portInn.Describe("inn", portDay, "", _ => null);
+    TownServiceUiFacts facts = portInn.Describe("inn", portDay, _ => null);
     Check.That(facts.Outcome == "Food 20% → 60%" && facts.Speaker == port.Keepers["inn"].Name, "the outcome and the keeper are published");
     Check.That(facts.Choices.Split(';').All(row => row.Split('|').Length == 6), "every choice row carries its six fields");
     Check.That(!facts.Text.Contains('{') && !facts.Choices.Contains('{'), "every placeholder is filled");
