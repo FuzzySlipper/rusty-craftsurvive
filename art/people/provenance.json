@@ -1,5 +1,5 @@
 {
- "about": "How the town keepers' portrait loops were made (#10027). The route is described in README.md here.",
+ "about": "How the town keepers' figures and portrait busts were made (#10027). The route is described in README.md here.",
  "models": {
   "pixel": "Krea 2 turbo fp8 (krea2_turbo_fp8_scaled), no LoRA, Patch's RTX 5090 ComfyUI",
   "edits": "Qwen-Image 2.1 int8 edit, 25 steps, cfg 1, euler, with a crop and soft compositing mask"
@@ -7,8 +7,8 @@
  "portraits": [
   {
    "files": [
-    "content/game/towns/portraits/mara-rest.png",
-    "content/game/towns/portraits/mara-talk.png"
+    "content/game/towns/people/mara/door",
+    "content/game/towns/people/mara/portrait"
    ],
    "figure": {
     "prompt": "A sturdy, broad middle-aged innkeeper woman with dark hair pinned up in a bun, a rolled-sleeve cream linen blouse, a long faded red wool skirt and a long soft-teal apron, a ring of iron keys hanging at her waist. Full length, the whole figure visible with room around it, standing facing the viewer with her body turned very slightly to one side, weight even, feet a little apart with both shoes visible below the hem of her skirt. Her arms hang relaxed and slightly away from her body, with a clear gap of background between each arm and her waist, hands open and empty. On a plain flat warm grey background with no floor, scenery or cast shadow. Soft light from the upper left. She is the only person in the picture. Natural adult proportions, about seven and a half heads tall, with hands and feet in natural scale. Detailed mid-1990s PC role-playing-game pixel art of a character: every pixel square, crisp and visible, hand placed. A rich VGA 256-colour palette with many subtle hues within each material, smooth hand-placed shading ramps with warm lights and cool shadows, dark coloured single-pixel outlines only where forms meet, no dithering noise and no anti-aliased blur. Natural colours true to each material.",
@@ -27,8 +27,8 @@
   },
   {
    "files": [
-    "content/game/towns/portraits/orrin-rest.png",
-    "content/game/towns/portraits/orrin-talk.png"
+    "content/game/towns/people/orrin/door",
+    "content/game/towns/people/orrin/portrait"
    ],
    "figure": {
     "prompt": "A lean older provisioner with rounded shoulders with a short grey beard, thinning grey hair and small round wire spectacles, a soft-teal waistcoat over a cream linen shirt with rolled sleeves, ochre knee breeches, grey wool stockings and worn brown buckled shoes. Full length, the whole figure visible with room around it, standing facing the viewer with his body turned very slightly to one side, weight even, feet a little apart with both legs and shoes fully visible. He arms hang relaxed and slightly away from his body, with a clear gap of background between each arm and his waist, hands open and empty. He stands upright with straight legs and knees, not crouching. On a plain flat warm grey background with no floor, scenery or cast shadow. Soft light from the upper left. He is the only person in the picture. Natural adult proportions, about seven and a half heads tall, with hands and feet in natural scale. Detailed mid-1990s PC role-playing-game pixel art of a character: every pixel square, crisp and visible, hand placed. A rich VGA 256-colour palette with many subtle hues within each material, smooth hand-placed shading ramps with warm lights and cool shadows, dark coloured single-pixel outlines only where forms meet, no dithering noise and no anti-aliased blur. Natural colours true to each material.",

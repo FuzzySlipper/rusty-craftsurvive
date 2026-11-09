@@ -647,6 +647,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         terrain.AfterAppearanceSnapshot();
         chemistry.AfterAppearanceSnapshot();
         townPresence?.AfterAppearanceSnapshot();
+        town.AfterAppearanceSnapshot();
         styleTest.AfterAppearanceSnapshot();
         creatureStyle.AfterAppearanceSnapshot();
         if (mapOpen) mapView?.AfterAppearanceSnapshot();

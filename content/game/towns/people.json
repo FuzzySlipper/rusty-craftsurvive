@@ -1,12 +1,19 @@
 {
- "about": "Who keeps each service (#9895). A town draws one person per service from its list by its stable identity. A portrait is a path (a still) or {rest, talk}: animated PNG loops at one texel per pixel, the talking loop shown while a new line is said (#10027, made with the parts-rig route in art/people/README.md). A person without one shows no portrait. A figure is the keeper standing at their door in the town view: a rig-c parts rig the Engine poses at runtime, its looping clip, metres per rig unit and texel (rig units per texel); the kit piece's keeper spot is where they stand.",
+ "about": "Who keeps each service (#9895). A town draws one person per service from its list by its stable identity. A portrait is the keeper's bust in the dialogue: a rig-c parts rig the Engine poses live in the dialogue frame's window (#10027, made with the parts-rig route in art/people/README.md), its resting clip and the clip it plays while a new line is said, its texel (rig units a texel) and frame [x, y, side]: the square of the rig's plane the window shows, in rig units, whole texels from its origin. A person without one shows no portrait. A figure is the keeper standing at their door in the town view: a rig-c parts rig the Engine poses at runtime, its looping clip, metres per rig unit and texel (rig units per texel); the kit piece's keeper spot is where they stand.",
  "people": {
   "inn": [
    {
     "name": "Mara",
     "portrait": {
-     "rest": "towns/portraits/mara-rest.png",
-     "talk": "towns/portraits/mara-talk.png"
+     "rig": "towns/people/mara/portrait/skeleton.model.json",
+     "rest": "idle",
+     "talk": "talk",
+     "texel": 8,
+     "frame": [
+      -504,
+      0,
+      1016
+     ]
     },
     "figure": {
      "rig": "towns/people/mara/door/skeleton.model.json",
@@ -32,8 +39,15 @@
    {
     "name": "Orrin",
     "portrait": {
-     "rest": "towns/portraits/orrin-rest.png",
-     "talk": "towns/portraits/orrin-talk.png"
+     "rig": "towns/people/orrin/portrait/skeleton.model.json",
+     "rest": "rest",
+     "talk": "talk",
+     "texel": 8,
+     "frame": [
+      -504,
+      0,
+      1016
+     ]
     },
     "figure": {
      "rig": "towns/people/orrin/door/skeleton.model.json",

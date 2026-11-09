@@ -92,7 +92,7 @@ public sealed partial class CraftSurviveProduct
     private bool InTownBubble(double x, double z) => townSites.Any(site => site.Holds(x, z));
 
     /// <summary>The standing town's draw facts; none from a separate space.</summary>
-    private AppearanceFact[] TownFacts() => player.InSeparateSpace || townPresence is null ? [] : townPresence.Facts;
+    private AppearanceFact[] TownFacts() => player.InSeparateSpace || townPresence is null ? [] : [.. townPresence.Facts, .. town.PortraitFacts];
 
     /// <summary>
     /// The town the traveller may enter now: walking, where they stand; with the map open, where the

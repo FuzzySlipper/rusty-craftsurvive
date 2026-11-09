@@ -51,13 +51,15 @@ internal sealed record ServiceDefinition(string Key, IReadOnlyDictionary<Settlem
     TownLine[] Welcome, ServiceChoice[] Choices);
 
 /// <summary>
-/// Someone who keeps a service, with a portrait or none. A portrait is a resting image (a still, or a loop the browser
-/// plays) and, optionally, a loop shown while they speak (#10027).
+/// Someone who keeps a service, with a portrait or none, and a figure at their door or none (#10027).
 /// </summary>
 internal sealed record TownPerson(string Name, TownPortrait? Portrait, TownFigure? Figure = null);
 
-/// <summary>A keeper's portrait: content paths to its resting image and, when it has one, its talking loop.</summary>
-internal sealed record TownPortrait(string Rest, string? Talk);
+/// <summary>
+/// A keeper's portrait: a rig-c bust the Engine poses live in the dialogue's frame (#10027), its resting and talking
+/// clips, its texel in rig units, and the square of its plane the frame shows (lower-left corner and side, rig units).
+/// </summary>
+internal sealed record TownPortrait(string Rig, string Rest, string Talk, float TexelUnits, Vector2 FrameMinimum, float FrameUnits);
 
 /// <summary>
 /// A keeper standing at their door (#10027): a rig-c parts rig the Engine poses at runtime, its looping clip, its size
@@ -130,6 +132,8 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
         foreach (TownPerson person in People.Values.SelectMany(keepers => keepers))
             if (person.Figure is { } figure && (figure.MetresPerUnit <= 0 || figure.TexelUnits < 0))
                 throw new InvalidDataException($"Town keeper '{person.Name}' has a door figure without a positive size.");
+            else if (person.Portrait is { } portrait && (portrait.TexelUnits <= 0 || portrait.FrameUnits <= 0))
+                throw new InvalidDataException($"Town keeper '{person.Name}' has a portrait without a positive texel and frame.");
     }
 
     private static Dictionary<string, KitPiece> ReadKit(ProductContent content)
@@ -200,13 +204,13 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
     private static TownView View(JsonElement view) =>
         new(Vector(view.GetProperty("eye")), Vector(view.GetProperty("focus")), view.GetProperty("fieldOfView").GetDouble());
 
-    /// <summary>A portrait is a path (a still), an object with a <c>rest</c> image and an optional <c>talk</c> loop, or absent.</summary>
+    /// <summary>A portrait is an object naming its rig, rest and talk clips, texel and frame <c>[x, y, side]</c>, or absent.</summary>
     private static TownPortrait? ReadPortrait(JsonElement person)
     {
         if (!person.TryGetProperty("portrait", out JsonElement portrait)) return null;
-        return portrait.ValueKind == JsonValueKind.String
-            ? new(portrait.GetString()!, null)
-            : new(portrait.GetProperty("rest").GetString()!, Optional(portrait, "talk"));
+        JsonElement frame = portrait.GetProperty("frame");
+        return new(portrait.GetProperty("rig").GetString()!, portrait.GetProperty("rest").GetString()!, portrait.GetProperty("talk").GetString()!,
+            Number(portrait, "texel"), Point(frame), frame[2].GetSingle());
     }
 
     /// <summary>A door figure is an object naming its rig, clip, metres per rig unit and texel, or absent.</summary>

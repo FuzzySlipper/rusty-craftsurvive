@@ -166,6 +166,9 @@ internal static class ProductIds
     /// <summary>The composed town study: drawing, selectable services and foreground blockers.</summary>
     internal const ulong TownAppearanceBase = 0x9_0000UL;
 
+    /// <summary>The keeper's bust in the town dialogue (#10027), placed in the portrait frame's window.</summary>
+    internal const ulong TownPortraitId = 0x9_3000UL;
+
     internal const ulong TownServiceBase = 0x9_1000UL;
     internal const ulong TownBlockerBase = 0x9_2000UL;
     internal const ulong TownLightBase = 0x500UL;

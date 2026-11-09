@@ -1,4 +1,4 @@
-import type { RustyApplicationUiIntentsPort, RustyApplicationUiPort, RustyApplicationUiProjectionView } from '@rusty-engine/product-ui';
+import type { RustyApplicationUiIntentsPort, RustyApplicationUiPort, RustyApplicationUiProjectionView, RustyApplicationUiViewportPort } from '@rusty-engine/product-ui';
 import { button, element, isolateEvents } from './dom.js';
 import { number, projectionValues, text } from './hud.js';
 import { layers, open as openLayer } from './layers.js';
@@ -33,17 +33,21 @@ const STYLE = `
   backdrop-filter:blur(6px);box-shadow:0 0 0 1px #e3c48a33,0 6px 20px #0007;transition:background .15s,box-shadow .15s; }
 .town-door[data-highlight=true],.town-door:hover { background:rgb(28 36 31 / 90%) !important;box-shadow:0 0 0 1px #e3c48acc,0 6px 22px #000a; }
 .town-door small { display:block;font:.78rem/1.35 system-ui,sans-serif;color:#cfc6b2; }
-.town-dialogue { position:absolute;left:0;right:0;bottom:0;padding:5rem 2rem 1.6rem;pointer-events:none;
-  background:linear-gradient(to top,rgb(9 12 11 / 70%) 0%,transparent); }
-/* One boxed panel holds the portrait and the words. --portrait is the image itself; its frame adds --frame each side. */
-.town-dialogue-inner { --portrait:381px;--frame:5px;margin:0 auto;max-width:72rem;display:grid;
+.town-dialogue { position:absolute;left:0;right:0;bottom:0;padding:5rem 2rem 1.6rem;pointer-events:none; }
+/* One boxed panel holds the portrait and the words. --portrait is the portrait's window; its frame adds --frame each side.
+   The Engine draws the keeper's bust in the canvas under the window (#10027), so nothing here covers it: the panel's
+   fill is the frame's outer shadow, clipped to the panel, which leaves the window clear. */
+.town-dialogue-inner { --portrait:381px;--frame:5px;--fill:rgb(12 16 14 / 92%);margin:0 auto;max-width:72rem;display:grid;
   grid-template-columns:calc(var(--portrait) + 2 * var(--frame)) minmax(0,1fr);gap:2rem;align-items:start;pointer-events:auto;
-  padding:1.4rem 1.8rem 1.2rem;background:rgb(12 16 14 / 92%);border:1px solid #e3c48a66;
-  box-shadow:0 0 0 4px rgb(12 16 14 / 92%),0 0 0 5px #e3c48a33,0 14px 40px #000c; }
-.town-dialogue-inner.no-portrait { grid-template-columns:minmax(0,1fr); }
-/* Portraits are pixel art 127 texels square (#10027), shown at a whole number of screen pixels per texel. */
-.town-portrait { box-sizing:content-box;width:var(--portrait);height:var(--portrait);image-rendering:pixelated;
-  padding:3px;background:#0b0e0d;border:2px solid #e3c48a; }
+  padding:1.4rem 1.8rem 1.2rem;overflow:hidden;border:1px solid #625840;
+  box-shadow:0 0 0 4px var(--fill),0 0 0 5px #e3c48a33,0 14px 40px #000c; }
+.town-dialogue-inner.no-portrait { grid-template-columns:minmax(0,1fr);background:var(--fill); }
+/* Busts are pixel art 127 texels square, drawn at a whole number of screen pixels per texel. */
+.town-portrait { position:relative;box-sizing:content-box;width:var(--portrait);height:var(--portrait);padding:3px;border:2px solid #e3c48a;
+  box-shadow:inset 0 0 0 3px #0b0e0d,0 0 0 200vmax var(--fill); }
+.town-portrait-window { position:absolute;inset:3px; }
+/* Positioned, and after the frame, so the frame's fill paints under the words. */
+.town-words { position:relative; }
 .town-speaker { display:flex;align-items:baseline;gap:.9rem;flex-wrap:wrap; }
 .town-speaker h2 { margin:0;font-size:1.35rem;font-weight:normal; }
 .town-speaker span { font:600 .7rem/1.4 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#e3c48a; }
@@ -79,7 +83,7 @@ const STYLE = `
  * choices for C# to decide.
  */
 export function mountTown(host: Element, ui: RustyApplicationUiPort, intents: RustyApplicationUiIntentsPort | undefined,
-  projection: RustyApplicationUiProjectionView | undefined): () => void {
+  projection: RustyApplicationUiProjectionView | undefined, viewport: RustyApplicationUiViewportPort | undefined): () => void {
   const facts = () => projectionValues(projection?.current() ?? null);
   const claim = (action: string, destination = ''): void => {
     const values = facts();
@@ -110,8 +114,11 @@ export function mountTown(host: Element, ui: RustyApplicationUiPort, intents: Ru
 
   const dialogue = interactive('section', 'town-dialogue'); dialogue.setAttribute('role', 'dialog');
   const inner = element('div'); inner.className = 'town-dialogue-inner';
-  const portrait = element('img'); portrait.className = 'town-portrait';
-  const words = element('div');
+  // The keeper's bust is the Engine's, drawn in the window, which is anchored under the name the projection gives.
+  const portrait = element('div'); portrait.className = 'town-portrait'; portrait.setAttribute('role', 'img');
+  const portraitWindow = element('div'); portraitWindow.className = 'town-portrait-window'; portrait.append(portraitWindow);
+  let anchored = '', unanchor = (): void => {};
+  const words = element('div'); words.className = 'town-words';
   const speaker = element('div'); speaker.className = 'town-speaker';
   const speakerName = element('h2'), speakerRole = element('span'), place = element('span'); place.className = 'town-place';
   speaker.append(speakerName, speakerRole, place);
@@ -184,10 +191,13 @@ export function mountTown(host: Element, ui: RustyApplicationUiPort, intents: Ru
     speakerRole.textContent = text(values, 'townRole') ?? '';
     place.textContent = text(values, 'townSelectedName') ?? '';
     dialogue.setAttribute('aria-label', place.textContent);
-    const url = text(values, 'townPortrait') ?? '';
-    portrait.hidden = url === ''; inner.classList.toggle('no-portrait', url === '');
-    if (url !== '' && portrait.getAttribute('src') !== url) portrait.src = url;
-    portrait.alt = speakerName.textContent;
+    const anchor = text(values, 'townPortrait') ?? '';
+    portrait.hidden = anchor === ''; inner.classList.toggle('no-portrait', anchor === '');
+    if (anchor !== anchored) {
+      unanchor(); anchored = anchor;
+      unanchor = anchor === '' || viewport === undefined ? () => {} : viewport.anchor(anchor, portraitWindow);
+    }
+    portrait.setAttribute('aria-label', speakerName.textContent);
     const said = text(values, 'townSpeech') ?? '';
     if (speech.textContent !== said) speech.textContent = said;
     const did = text(values, 'townOutcome') ?? '';
@@ -252,5 +262,5 @@ export function mountTown(host: Element, ui: RustyApplicationUiPort, intents: Ru
   window.addEventListener('keydown', onKey, true);
   render();
   const unsubscribe = projection?.subscribe(render);
-  return () => { unsubscribe?.(); window.removeEventListener('keydown', onKey, true); openLayer('town', false); root.remove(); };
+  return () => { unsubscribe?.(); unanchor(); window.removeEventListener('keydown', onKey, true); openLayer('town', false); root.remove(); };
 }

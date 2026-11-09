@@ -110,7 +110,10 @@ internal readonly record struct GameMenuUiFacts(bool Paused, bool QuitAvailable)
 internal readonly record struct TownUiFacts(bool Open, string Title, string Subtitle, string Selected, string SelectedName,
     string Hover, bool Motion, string Anchors, string Visit, TownServiceUiFacts? Service, string Prompt);
 
-/// <summary>A service conversation: who speaks, what is said, the choices (key|label|detail|enabled|reason|kind) and what the last one did.</summary>
+/// <summary>
+/// A service conversation: who speaks, what is said, the name the UI anchors its portrait window under (empty when the
+/// keeper has no portrait), the choices (key|label|detail|enabled|reason|kind) and what the last one did.
+/// </summary>
 internal readonly record struct TownServiceUiFacts(string Speaker, string Role, string Text, string Portrait,
     string Choices, string Outcome, string Hint);
 

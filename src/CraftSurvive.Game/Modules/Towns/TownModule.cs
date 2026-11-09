@@ -23,14 +23,14 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
     private const double SpatialVoxelMetres = 1, CameraDelay = 0;
     private const uint SpatialChunkSize = 16, SelectionGroup = 1;
     private const double DefaultAspect = 16d / 9;
-    // A keeper's talking loop plays for about the time the line takes to say, then the portrait rests (#10027).
+    // A keeper's bust talks for about the time the line takes to say, then rests (#10027).
     private const double SpokenCharactersPerSecond = 15, ShortestTalkSeconds = 1.2, LongestTalkSeconds = 6;
 
     private readonly IEngineContext engine;
     private readonly TownContent content;
     private readonly Action<TownUiFacts> publish;
     private TownPresence? presence;
-    private readonly Dictionary<string, UiImage> portraits = [];
+    private readonly TownPortraitView portrait;
     private TownServices? services;
     private TownAudio? audio;
     private Camera? camera;
@@ -58,6 +58,7 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
         this.engine = engine;
         this.content = content;
         this.publish = publish;
+        portrait = new(engine);
         Interactions = new(this);
     }
 
@@ -71,6 +72,12 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
     internal Vector2 CameraOffset => offset;
     internal float OutdoorGain => 1 - (audio?.Presence ?? 0);
     internal int AudioVoices => audio?.Voices ?? 0;
+
+    /// <summary>The speaking keeper's bust, drawn in the dialogue's portrait frame; none outside a conversation.</summary>
+    internal AppearanceFact[] PortraitFacts => portrait.Facts;
+
+    /// <summary>Starts or withdraws the bust's clip once a snapshot has published it, or not.</summary>
+    internal void AfterAppearanceSnapshot() => portrait.AfterAppearanceSnapshot();
 
     /// <summary>The product's live reasons a service choice cannot be taken (a full pack), for the menu.</summary>
     internal Func<ServiceChoice, string?> Blocked { get; set; } = _ => null;
@@ -328,12 +335,15 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
         if (surface.Reported && surface.CssWidth > 0 && surface.CssHeight > 0) aspect = surface.CssWidth / surface.CssHeight;
     }
 
-    /// <summary>How long a keeper's talking loop plays for a line: about the time it takes to say.</summary>
+    /// <summary>How long a keeper's bust talks for a line: about the time it takes to say.</summary>
     internal static double TalkSeconds(string line) =>
         Math.Clamp(line.Length / SpokenCharactersPerSecond, ShortestTalkSeconds, LongestTalkSeconds);
 
-    /// <summary>The conversation with the keeper's portrait: the talking loop while a new line is being said, else the resting one.</summary>
-    private TownServiceUiFacts Converse(TownServiceUiFacts said, TownPortrait? portrait)
+    /// <summary>
+    /// The conversation with the keeper's bust: it talks while a new line is being said, else rests. The UI is told the
+    /// anchor to give the frame's window, or none when the keeper has no portrait.
+    /// </summary>
+    private TownServiceUiFacts Converse(TownServiceUiFacts said, TownPortrait? keeper)
     {
         if (said.Text != spoken)
         {
@@ -341,18 +351,8 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
             talking = TalkSeconds(said.Text);
         }
 
-        string? path = talking > 0 && portrait?.Talk is string talk ? talk : portrait?.Rest;
-        return said with { Portrait = Portrait(path)?.Url() ?? "" };
-    }
-
-    private UiImage? Portrait(string? path)
-    {
-        if (path is null) return null;
-        if (portraits.TryGetValue(path, out UiImage? image)) return image;
-        using ContentReference source = engine.Content.OpenReference(new(path));
-        image = engine.Ui.OpenImage(new(source));
-        portraits[path] = image;
-        return image;
+        portrait.Show(keeper, talking > 0);
+        return said with { Portrait = keeper is null ? "" : TownPortraitView.Anchor };
     }
 
     private void Publish()
@@ -376,6 +376,7 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
         {
             spoken = "";
             talking = 0;
+            portrait.Show(null, false);
         }
 
         string hovered = focused.Length > 0 ? focused : presence?.Services.FirstOrDefault(s => s.Id == hover)?.Service ?? "";
@@ -397,7 +398,7 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
         $"open={Open};visit={visit};town={site?.Key ?? "none"};recipe={site?.Recipe ?? "none"};selected={Selected?.Service ?? "none"};" +
         $"hover={presence?.Services.FirstOrDefault(s => s.Id == hover)?.Service ?? "none"};motion={Motion};offset={offset.X:F5},{offset.Y:F5};" +
-        $"closeness={closeness:F3};portrait={(lastFacts?.Service is null ? "none" : talking > 0 ? "talk" : "rest")};wet={conditions.Wet};night={conditions.Night};prompt={(prompt.Length > 0 ? prompt : "none")};" +
+        $"closeness={closeness:F3};portrait={(lastFacts?.Service is null ? "none" : talking > 0 ? "talk" : "rest")};bust={portrait.Readout};wet={conditions.Wet};night={conditions.Night};prompt={(prompt.Length > 0 ? prompt : "none")};" +
         $"{audio?.Readout ?? "voices=0;presence=0"}");
 
     public void Dispose()
@@ -405,7 +406,6 @@ internal sealed class TownModule : IWorldInteractionScene, IDisposable
         Leave();
         audio?.Dispose();
         audio = null;
-        foreach (UiImage image in portraits.Values) image.Dispose();
-        portraits.Clear();
+        portrait.Dispose();
     }
 }

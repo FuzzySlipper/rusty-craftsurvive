@@ -30,7 +30,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   const disposeOverlay = mountOverlay(gameUi, context.projection);
   const disposeLoading = mountLoading(gameUi, context.projection);
   const disposeScreens = mountScreens(gameUi, context.intents, context.projection);
-  const disposeTown = mountTown(root, context.ui, context.intents, context.projection);
+  const disposeTown = mountTown(root, context.ui, context.intents, context.projection, context.viewport);
   const disposeRing = mountCastingRing(root, context.intents, context.projection);
   // After the screens, town and ring, so their own Escape takes precedence.
   const menu = mountMenu(root, context.input, context.intents, context.projection, () => { if (!developer.isOpen()) void developer.toggle(); });

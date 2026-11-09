@@ -54,21 +54,24 @@ Check.Section("town content is complete and every reference resolves", () =>
         "the kit stages exactly its own pieces; nothing from the old composed stage remains");
 });
 
-Check.Section("keepers' portraits are staged loops the dialogue can show (#10027)", () =>
+Check.Section("keepers' busts are parts rigs the Engine poses in the dialogue frame (#10027)", () =>
 {
     TownPortrait[] portraits = [.. towns.People.Values.SelectMany(people => people).Select(person => person.Portrait).OfType<TownPortrait>()];
     Check.That(portraits.Length >= 2, "the innkeeper and a provisioner have portraits");
     foreach (TownPortrait portrait in portraits)
-        foreach (string path in new[] { portrait.Rest }.Concat(portrait.Talk is string talk ? [talk] : []))
-        {
-            string staged = path[TownContent.Root.Length..];
-            Check.That(path.StartsWith(TownContent.Root, StringComparison.Ordinal) && files.TryGetValue("towns/" + staged, out ReadOnlyMemory<byte> png)
-                && png.Span[..8].SequenceEqual(Png), $"{path} is a staged PNG");
-        }
+    {
+        JsonElement root = StagedRig(portrait.Rig, [portrait.Rest, portrait.Talk]);
+        // The frame is a square of whole texels from the rig's origin, so its edges fall on the texel grid the Engine draws.
+        Check.That(new[] { portrait.FrameMinimum.X, portrait.FrameMinimum.Y, portrait.FrameUnits }.All(units => units % portrait.TexelUnits == 0),
+            $"{portrait.Rig}'s frame lies on whole texels");
+        Check.That(portrait.FrameUnits / portrait.TexelUnits == 127, $"{portrait.Rig}'s frame is 127 texels, 3 screen pixels a texel in the 381-pixel window");
+        Check.That(root.GetProperty("slots")[0].GetProperty("name").GetString() == "ground", $"{portrait.Rig} draws its ground first, under the window");
+    }
 
     Check.That(Math.Abs(TownModule.TalkSeconds("Yes.") - 1.2) < 1e-9 && Math.Abs(TownModule.TalkSeconds(new string('a', 400)) - 6) < 1e-9,
         "a short line still moves the mouth, and a long one stops before the reader is done");
     Check.That(Math.Abs(TownModule.TalkSeconds(new string('a', 45)) - 3) < 1e-9, "a line talks for about the time it takes to say");
+    Check.That(!files.Keys.Any(file => file.StartsWith("towns/portraits/", StringComparison.Ordinal)), "no baked portrait loops are staged");
 });
 
 Check.Section("keepers stand at their doors as parts rigs the Engine poses (#10027)", () =>
@@ -76,18 +79,7 @@ Check.Section("keepers stand at their doors as parts rigs the Engine poses (#100
     TownFigure[] figures = [.. towns.People.Values.SelectMany(people => people).Select(person => person.Figure).OfType<TownFigure>()];
     Check.That(figures.Length >= 2, "the innkeeper and a provisioner stand at their doors");
     foreach (TownFigure figure in figures)
-    {
-        Check.That(files.TryGetValue(figure.Rig, out ReadOnlyMemory<byte> model), $"{figure.Rig} is staged");
-        using JsonDocument document = JsonDocument.Parse(model);
-        JsonElement root = document.RootElement;
-        Check.That(root.GetProperty("spec").GetString() == "rigc-compiled/3", $"{figure.Rig} is a rig-c model the Engine reads");
-        Check.That(root.GetProperty("animations").EnumerateArray().Any(clip => clip.GetProperty("name").GetString() == figure.Clip),
-            $"{figure.Rig} has its clip '{figure.Clip}'");
-        string folder = figure.Rig[..(figure.Rig.LastIndexOf('/') + 1)];
-        foreach (JsonElement image in root.GetProperty("images").EnumerateArray())
-            Check.That(files.TryGetValue(folder + image.GetProperty("page").GetString(), out ReadOnlyMemory<byte> page) && page.Span[..8].SequenceEqual(Png),
-                $"{figure.Rig} page {image.GetProperty("page").GetString()} is a staged PNG beside it");
-    }
+        StagedRig(figure.Rig, [figure.Clip]);
 
     foreach (string service in towns.Services.Keys)
         Check.That(towns.Layouts.SelectMany(layout => layout.Pieces).Where(piece => piece.Service == service)
@@ -316,4 +308,26 @@ static string[] ImageUris(ReadOnlySpan<byte> glb)
     return document.RootElement.TryGetProperty("images", out JsonElement images)
         ? [.. images.EnumerateArray().Select(image => image.GetProperty("uri").GetString()!)]
         : [];
+}
+
+// A staged rig-c model the Engine reads, with these clips, its pages staged PNGs beside it.
+JsonElement StagedRig(string rig, string[] clips)
+{
+    Check.That(files.TryGetValue(rig, out ReadOnlyMemory<byte> model), $"{rig} is staged");
+    JsonElement root = JsonDocument.Parse(model).RootElement;
+    Check.That(root.GetProperty("spec").GetString() == "rigc-compiled/3", $"{rig} is a rig-c model the Engine reads");
+    foreach (string clip in clips)
+        Check.That(root.GetProperty("animations").EnumerateArray().Any(entry => entry.GetProperty("name").GetString() == clip), $"{rig} has its clip '{clip}'");
+    string folder = rig[..(rig.LastIndexOf('/') + 1)];
+    // The Engine finds each region on a page, read from the file beside the model under the page's name.
+    foreach (JsonElement named in root.GetProperty("pages").EnumerateArray())
+        Check.That(files.TryGetValue(folder + named.GetProperty("name").GetString(), out ReadOnlyMemory<byte> page) && page.Span[..8].SequenceEqual(Png),
+            $"{rig} page {named.GetProperty("name").GetString()} is a staged PNG beside it");
+    string[] regions = [.. root.GetProperty("pages").EnumerateArray().SelectMany(named => named.GetProperty("regions").EnumerateArray())
+        .Select(region => region.GetProperty("name").GetString()!)];
+    foreach (JsonProperty slot in root.GetProperty("skins")[0].GetProperty("attachments").EnumerateObject())
+        foreach (JsonProperty attachment in slot.Value.EnumerateObject())
+            if (attachment.Value.GetProperty("kind").GetString() == "region")
+                Check.That(regions.Contains(attachment.Name), $"{rig} region {attachment.Name} is on a page");
+    return root;
 }
