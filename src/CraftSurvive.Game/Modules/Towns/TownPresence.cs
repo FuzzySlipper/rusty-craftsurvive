@@ -28,7 +28,11 @@ internal sealed class TownPresence : IDisposable
     private const int CourtyardSteps = 8;
     private const string PavingTexture = TownContent.Root + "kit/textures/masonry.png";
     private const string SmokeSprite = "textures/fire-smoke.png";
-    private const ulong SignOffset = 0x200, GroundOffset = 0x300, FernOffset = 0x340;
+    private const ulong SignOffset = 0x200, GroundOffset = 0x300, FernOffset = 0x340, FigureOffset = 0xF00;
+    // Keepers at their doors (#10027) are parts rigs posed by the Engine: pixel art, upright and turned to the eye. They
+    // are lit by the scene on a flat normal: a synthetic dome spans each piece's own frame, so every part would shade apart.
+    private const float FigureAlphaCutoff = .5f, FigureNormalStrength = 0;
+    private const int FigureRenderOrder = 0;
     private const float SmokeRate = 2, SmokeLifeMin = 3.5f, SmokeLifeMax = 5.5f, SmokeSoftness = .5f;
     private const uint SmokeParticles = 24;
     private const ulong ScatterSalt = 0x9E3779B97F4A7C15UL;
@@ -44,11 +48,14 @@ internal sealed class TownPresence : IDisposable
 
     private sealed record Sign(ulong Id, Appearance Look, (double X, double Y, double Z) Pivot, Vector3 Axis, Quaternion Turn);
 
+    private sealed record Figure(ulong Id, Appearance Look, string Clip, (double X, double Y, double Z) At);
+
     private sealed class Placed(TownSite site)
     {
         internal TownSite Site { get; } = site;
         internal List<Placement> Pieces { get; } = [];
         internal List<Sign> Signs { get; } = [];
+        internal List<Figure> Figures { get; } = [];
         internal List<(double X, double Y, double Z)> Lamps { get; } = [];
         internal List<(double X, double Y, double Z)> Chimneys { get; } = [];
         internal List<PlacedService> Services { get; } = [];
@@ -66,6 +73,9 @@ internal sealed class TownPresence : IDisposable
     private readonly Dictionary<string, RenderResource> sources = [];
     private readonly Dictionary<(string Mesh, string Palette), Appearance> looks = [];
     private readonly Dictionary<string, Appearance> props = [];
+    private readonly Dictionary<string, PartsRig> rigs = [];
+    private readonly Dictionary<TownFigure, Appearance> figureLooks = [];
+    private Figure[] drawnFigures = [], playingFigures = [];
     private readonly List<MeshResource> propMeshes = [];
     private readonly PropMaterials propMaterials;
     private Material? paving;
@@ -136,6 +146,9 @@ internal sealed class TownPresence : IDisposable
             foreach (Sign sign in placed.Signs)
                 facts.Add(new(sign.Id, false, 0, new(Local(sign.Pivot), Quaternion.CreateFromAxisAngle(sign.Axis, swing) * sign.Turn, Vector3.One),
                     sign.Look, true, RenderLayer.Scene));
+            foreach (Figure figure in placed.Figures)
+                facts.Add(new(figure.Id, false, 0, new(Local(figure.At), Quaternion.Identity, Vector3.One), figure.Look, true, RenderLayer.Scene));
+            drawnFigures = [.. placed.Figures];
             for (int i = 0; i < placed.Ground.Count; i++)
                 facts.Add(new(ProductIds.TownAppearanceBase + GroundOffset + (ulong)i, false, 0,
                     new(Local(placed.Ground[i].Origin), Quaternion.Identity, Vector3.One), placed.Ground[i].Look, true, RenderLayer.Scene, ShadowCasting.None));
@@ -178,6 +191,9 @@ internal sealed class TownPresence : IDisposable
                 var box = Box(origin, turn, piece.SelectionCentre, piece.SelectionSize);
                 town.Services.Add(new(ProductIds.TownServiceBase + (ulong)town.Services.Count, service, site.ServiceNames[service],
                     Offset(origin, turn, entrance), box.Min, box.Max, close));
+                if (piece.Keeper is Vector3 spot && site.Keepers[service].Figure is TownFigure figure)
+                    town.Figures.Add(new(ProductIds.TownAppearanceBase + FigureOffset + (ulong)town.Figures.Count, FigureLook(figure),
+                        figure.Clip, Offset(origin, turn, spot)));
             }
         }
 
@@ -353,6 +369,25 @@ internal sealed class TownPresence : IDisposable
         return (mixed >> 11) / (double)(1UL << 53);
     }
 
+    /// <summary>A keeper's door figure: their rig, loaded once, drawn upright on its texel grid and lit by the scene.</summary>
+    private Appearance FigureLook(TownFigure figure)
+    {
+        if (figureLooks.TryGetValue(figure, out Appearance? look)) return look;
+        if (!rigs.TryGetValue(figure.Rig, out PartsRig? rig))
+        {
+            rig = engine.PartsRigs.Load(new PartsRigLoadRequest(figure.Rig, TextureFilter.Nearest)).Rig;
+            rigs[figure.Rig] = rig;
+        }
+
+        SpriteMaterialDescriptor lit = new(SpriteLightingMode.Synthetic, default, default, FigureNormalStrength, 0,
+            SpriteAlphaMode.Mask, FigureAlphaCutoff, SpriteShadowPolicy.None);
+        look = engine.PartsRigs.CreateAppearance(new PartsRigAppearanceRequest(new PartsRigView[] { new(rig, 0, false) },
+            figure.MetresPerUnit, SpriteSizeMode.World, BillboardMode.Cylindrical, FigureRenderOrder, SpriteDepthPolicy.Default,
+            White, lit, figure.TexelUnits));
+        figureLooks[figure] = look;
+        return look;
+    }
+
     private Appearance Prop(string path)
     {
         if (props.TryGetValue(path, out Appearance? look)) return look;
@@ -428,6 +463,13 @@ internal sealed class TownPresence : IDisposable
     /// <summary>Disposes what a released town drew, once a snapshot without it has been published.</summary>
     internal void AfterAppearanceSnapshot()
     {
+        // A figure starts its clip once it is published; one withdrawn (the map, a released town) or shown anew under its
+        // id (another town's keeper) starts again.
+        foreach (Figure figure in drawnFigures.Except(playingFigures))
+            engine.PartsRigs.Play(new PartsRigPlayRequest(figure.Id, figure.Clip));
+        playingFigures = drawnFigures;
+        drawnFigures = [];
+
         foreach ((MeshResource mesh, Appearance look) in retiring)
         {
             look.Dispose();
@@ -448,6 +490,10 @@ internal sealed class TownPresence : IDisposable
         looks.Clear();
         foreach (Appearance look in props.Values) look.Dispose();
         props.Clear();
+        foreach (Appearance look in figureLooks.Values) look.Dispose();
+        figureLooks.Clear();
+        foreach (PartsRig rig in rigs.Values) rig.Dispose();
+        rigs.Clear();
         foreach (MeshResource mesh in propMeshes) mesh.Dispose();
         propMeshes.Clear();
         foreach (RenderResource source in sources.Values) source.Dispose();

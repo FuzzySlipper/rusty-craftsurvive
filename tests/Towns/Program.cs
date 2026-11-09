@@ -71,6 +71,29 @@ Check.Section("keepers' portraits are staged loops the dialogue can show (#10027
     Check.That(Math.Abs(TownModule.TalkSeconds(new string('a', 45)) - 3) < 1e-9, "a line talks for about the time it takes to say");
 });
 
+Check.Section("keepers stand at their doors as parts rigs the Engine poses (#10027)", () =>
+{
+    TownFigure[] figures = [.. towns.People.Values.SelectMany(people => people).Select(person => person.Figure).OfType<TownFigure>()];
+    Check.That(figures.Length >= 2, "the innkeeper and a provisioner stand at their doors");
+    foreach (TownFigure figure in figures)
+    {
+        Check.That(files.TryGetValue(figure.Rig, out ReadOnlyMemory<byte> model), $"{figure.Rig} is staged");
+        using JsonDocument document = JsonDocument.Parse(model);
+        JsonElement root = document.RootElement;
+        Check.That(root.GetProperty("spec").GetString() == "rigc-compiled/3", $"{figure.Rig} is a rig-c model the Engine reads");
+        Check.That(root.GetProperty("animations").EnumerateArray().Any(clip => clip.GetProperty("name").GetString() == figure.Clip),
+            $"{figure.Rig} has its clip '{figure.Clip}'");
+        string folder = figure.Rig[..(figure.Rig.LastIndexOf('/') + 1)];
+        foreach (JsonElement image in root.GetProperty("images").EnumerateArray())
+            Check.That(files.TryGetValue(folder + image.GetProperty("page").GetString(), out ReadOnlyMemory<byte> page) && page.Span[..8].SequenceEqual(Png),
+                $"{figure.Rig} page {image.GetProperty("page").GetString()} is a staged PNG beside it");
+    }
+
+    foreach (string service in towns.Services.Keys)
+        Check.That(towns.Layouts.SelectMany(layout => layout.Pieces).Where(piece => piece.Service == service)
+            .All(piece => towns.Kit[piece.Piece].Keeper is not null), $"every {service} building has a spot for its keeper");
+});
+
 Check.Section("layouts stand on their pad, land side, with the arrival view outside the bubble", () =>
 {
     foreach (TownLayout layout in towns.Layouts)

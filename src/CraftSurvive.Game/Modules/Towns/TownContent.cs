@@ -14,7 +14,7 @@ internal sealed record KitSign(string Mesh, string[] Materials, Vector3 Pivot, V
 /// </summary>
 internal sealed record KitPiece(string Key, string Kind, string Mesh, string[] Materials, Vector3 Min, Vector3 Max,
     Vector3[] Lamps, Vector3[] Chimneys, Vector3? Entrance = null, Vector3 SelectionCentre = default, Vector3 SelectionSize = default,
-    KitSign? Sign = null);
+    KitSign? Sign = null, Vector3? Keeper = null);
 
 /// <summary>A composed camera: where the eye stands and looks, in a town's frame, and its vertical field of view.</summary>
 internal sealed record TownView(Vector3 Eye, Vector3 Focus, double FieldOfView);
@@ -54,10 +54,16 @@ internal sealed record ServiceDefinition(string Key, IReadOnlyDictionary<Settlem
 /// Someone who keeps a service, with a portrait or none. A portrait is a resting image (a still, or a loop the browser
 /// plays) and, optionally, a loop shown while they speak (#10027).
 /// </summary>
-internal sealed record TownPerson(string Name, TownPortrait? Portrait);
+internal sealed record TownPerson(string Name, TownPortrait? Portrait, TownFigure? Figure = null);
 
 /// <summary>A keeper's portrait: content paths to its resting image and, when it has one, its talking loop.</summary>
 internal sealed record TownPortrait(string Rest, string? Talk);
+
+/// <summary>
+/// A keeper standing at their door (#10027): a rig-c parts rig the Engine poses at runtime, its looping clip, its size
+/// (metres per rig unit) and its pixel-art texel (rig units per texel, 0 to draw it smooth).
+/// </summary>
+internal sealed record TownFigure(string Rig, string Clip, float MetresPerUnit, float TexelUnits);
 
 /// <summary>
 /// The town content (#9895): the kit, the layouts, the services and their people, and the timber
@@ -86,7 +92,7 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
         using JsonDocument people = JsonDocument.Parse(content.ReadText(PeoplePath));
         Dictionary<string, TownPerson[]> keepers = people.RootElement.GetProperty("people").EnumerateObject().ToDictionary(
             service => service.Name, service => service.Value.EnumerateArray().Select(person => new TownPerson(
-                person.GetProperty("name").GetString()!, ReadPortrait(person))).ToArray());
+                person.GetProperty("name").GetString()!, ReadPortrait(person), ReadFigure(person))).ToArray());
         using JsonDocument palettes = JsonDocument.Parse(content.ReadText(PalettesPath));
         Dictionary<string, IReadOnlyDictionary<string, Color>> treatments = palettes.RootElement.GetProperty("palettes").EnumerateObject()
             .ToDictionary(palette => palette.Name, palette => (IReadOnlyDictionary<string, Color>)palette.Value.EnumerateObject()
@@ -120,6 +126,10 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
         foreach (string service in Services.Keys)
             if (!People.TryGetValue(service, out TownPerson[]? keepers) || keepers.Length == 0)
                 throw new InvalidDataException($"Town service '{service}' has nobody to keep it.");
+
+        foreach (TownPerson person in People.Values.SelectMany(keepers => keepers))
+            if (person.Figure is { } figure && (figure.MetresPerUnit <= 0 || figure.TexelUnits < 0))
+                throw new InvalidDataException($"Town keeper '{person.Name}' has a door figure without a positive size.");
     }
 
     private static Dictionary<string, KitPiece> ReadKit(ProductContent content)
@@ -143,6 +153,7 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
                 };
             }
 
+            if (piece.TryGetProperty("keeper", out JsonElement keeper)) read = read with { Keeper = Vector(keeper) };
             if (piece.TryGetProperty("sign", out JsonElement sign))
                 read = read with
                 {
@@ -197,6 +208,11 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
             ? new(portrait.GetString()!, null)
             : new(portrait.GetProperty("rest").GetString()!, Optional(portrait, "talk"));
     }
+
+    /// <summary>A door figure is an object naming its rig, clip, metres per rig unit and texel, or absent.</summary>
+    private static TownFigure? ReadFigure(JsonElement person) => person.TryGetProperty("figure", out JsonElement figure)
+        ? new(figure.GetProperty("rig").GetString()!, figure.GetProperty("clip").GetString()!, Number(figure, "metresPerUnit"), Number(figure, "texel"))
+        : null;
 
     private static string? Optional(JsonElement element, string name) =>
         element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;

@@ -1,8 +1,9 @@
 # People
 
 The town's people are detailed pixel art in the manner of 1990s PC role-playing games (atlas Towns page, "How
-people are shown"). Each person is generated once and rigged as 2D parts; the rig plays a few loops, which are
-baked to images the game shows. Den #10027 holds the decisions and the evidence.
+people are shown"). Each person is generated once and rigged as 2D parts with rig-c. The Engine poses door figures
+at runtime (its parts rigs, `IEngineContext.PartsRigs`); portraits are still baked to images until the Engine can
+place a rig in a screen rectangle. Den #10027 holds the decisions and the evidence.
 
 ## The route
 
@@ -19,11 +20,17 @@ baked to images the game shows. Den #10027 holds the decisions and the evidence.
 4. **Motion.** Door figures: an idle clip from Pika H3 FL2VA started and ended on the rig's own frame, read with
    RTMW and retargeted onto the rig. Portraits: breathing and sway, a blink, and the mouth sets switched in a speech
    rhythm.
-5. **Pixels.** Rendered on the painting's grid at 8 frames a second, then snapped back onto its texel grid with one
-   palette, holding a texel while its colour barely changes so the face does not shimmer.
+5. **Pixels (baked portraits).** Rendered on the painting's grid at 8 frames a second, then snapped back onto its
+   texel grid with one palette, holding a texel while its colour barely changes so the face does not shimmer.
 
 ## In the game
 
 Portraits are `content/game/towns/portraits/<name>-rest.png` and `<name>-talk.png`: animated PNGs, one texel per
 pixel, 4 s loops at 8 fps. `people.json` names them; the dialogue shows the talking loop while a new line is said
 and the resting loop otherwise, scaled by whole screen pixels per texel.
+
+Door figures are rig-c builds copied into `content/game/towns/people/<name>/door/`: `skeleton.model.json`
+(`rigc-compiled/3`) with each page it names beside it under its own file name. A keeper's `figure` in `people.json`
+names the model, the looping clip, metres per rig unit and the texel (rig units per texel, for the Engine's texel snap);
+a kit piece's `keeper` spot is where they stand. The Engine draws them upright, turned to the eye, sampled nearest and
+lit by the scene on a flat normal: a synthetic dome would span each part's own page and shade every part apart.
