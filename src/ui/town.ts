@@ -34,11 +34,16 @@ const STYLE = `
 .town-door[data-highlight=true],.town-door:hover { background:rgb(28 36 31 / 90%) !important;box-shadow:0 0 0 1px #e3c48acc,0 6px 22px #000a; }
 .town-door small { display:block;font:.78rem/1.35 system-ui,sans-serif;color:#cfc6b2; }
 .town-dialogue { position:absolute;left:0;right:0;bottom:0;padding:5rem 2rem 1.6rem;pointer-events:none;
-  background:linear-gradient(to top,rgb(9 12 11 / 94%) 0%,rgb(9 12 11 / 88%) 58%,transparent); }
-.town-dialogue-inner { --portrait:381px;margin:0 auto;max-width:72rem;display:grid;grid-template-columns:var(--portrait) minmax(0,1fr);gap:2rem;align-items:end;pointer-events:auto; }
+  background:linear-gradient(to top,rgb(9 12 11 / 70%) 0%,transparent); }
+/* One boxed panel holds the portrait and the words. --portrait is the image itself; its frame adds --frame each side. */
+.town-dialogue-inner { --portrait:381px;--frame:5px;margin:0 auto;max-width:72rem;display:grid;
+  grid-template-columns:calc(var(--portrait) + 2 * var(--frame)) minmax(0,1fr);gap:2rem;align-items:start;pointer-events:auto;
+  padding:1.4rem 1.8rem 1.2rem;background:rgb(12 16 14 / 92%);border:1px solid #e3c48a66;
+  box-shadow:0 0 0 4px rgb(12 16 14 / 92%),0 0 0 5px #e3c48a33,0 14px 40px #000c; }
 .town-dialogue-inner.no-portrait { grid-template-columns:minmax(0,1fr); }
 /* Portraits are pixel art 127 texels square (#10027), shown at a whole number of screen pixels per texel. */
-.town-portrait { width:var(--portrait);aspect-ratio:1;image-rendering:pixelated;border:4px solid #e3c48a;box-shadow:0 10px 30px #000b; }
+.town-portrait { box-sizing:content-box;width:var(--portrait);height:var(--portrait);image-rendering:pixelated;
+  padding:3px;background:#0b0e0d;border:2px solid #e3c48a; }
 .town-speaker { display:flex;align-items:baseline;gap:.9rem;flex-wrap:wrap; }
 .town-speaker h2 { margin:0;font-size:1.35rem;font-weight:normal; }
 .town-speaker span { font:600 .7rem/1.4 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#e3c48a; }
@@ -65,7 +70,7 @@ const STYLE = `
   font:600 .85rem/1.3 system-ui,sans-serif !important; }
 .town-doorstep kbd { font:600 .72rem/1 system-ui,sans-serif;padding:.15rem .35rem;border-radius:4px;background:#1b1a1533;margin-left:.35rem; }
 @media (max-height:900px), (max-width:1280px) { .town-dialogue-inner{--portrait:254px} }
-@media (max-width:820px) { .town-dialogue-inner{--portrait:127px;gap:1rem}.town-heading h1{font-size:1.6rem} }
+@media (max-width:820px) { .town-dialogue-inner{--portrait:127px;gap:1rem;padding:1rem}.town-heading h1{font-size:1.6rem} }
 `;
 
 /**
