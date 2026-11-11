@@ -8,7 +8,9 @@ load paths. A build passing is not evidence about the live lane. CI's `product` 
 automated live check: it serves the product, checks it keeps updating with a matching generator
 fingerprint, and walks the player a short way on input with the client below. Every step of that
 walk draws a software-rendered frame, so CI walks 12 steps at a 1 m bar and the longer default is for
-a machine with a GPU.
+a machine with a GPU. `scripts/check-product.sh` runs that job locally from a clean checkout of a
+commit on llvmpipe alone; `--managed --propose` adds the engine-pair workflow's pair update and
+managed lanes, without committing the pin.
 
 The live substrate proof that established the Engine constraints this product builds on left
 with the authoring lane; its record is Den `history/live-substrate-proof`.
