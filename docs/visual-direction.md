@@ -203,10 +203,11 @@ high-country refuge, with establishing views, closer views and interface
 studies. Use them for mood, spatial composition and hospitality. Their names,
 UI copy and fine details are illustrative.
 
-The [character set](style-references/characters/README.md) holds the approved human character
-look: painted surfaces on simple, smooth-shaded forms, with storybook proportions. It includes its
-style sheet and exact prompts. Valheim, the method reference above, has no characters facing the
-camera, so for people this set governs.
+People follow the Wandering Year atlas Towns page ("How people are shown"): detailed 1990s PC-RPG
+pixel art with faithful proportions, generated per person, rigged as 2D parts and posed live by the
+Engine. Portraits keep crisp texels; door figures are drawn smooth and pixelated in screen space
+with a soft palette. The production route is [`art/people/README.md`](../art/people/README.md). The
+October storybook character set is history (Den `history/character-storybook-set-2026-10`).
 
 Mood references, not visual styles:
 

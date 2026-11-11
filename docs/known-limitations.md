@@ -142,7 +142,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     - A boat's water legs are not held at a town's edge.
     - Bare-earth slopes carry no field stones, because bare earth is a town yard's ground.
     - Towns have no far silhouette or night lights beyond 700 m.
-    - Keepers' portraits are placeholders.
+    - Only the inn's and the provisioner's keepers have a portrait and a figure at their door.
   - Climate is rank-normalised, so every world contains dry and wet country; latitude spans
     the whole map whatever its size. Local terrain still uses three blended relief families
     and three surface treatments (soil, sand, snow), so several biomes share a look;

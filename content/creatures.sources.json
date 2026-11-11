@@ -7,21 +7,21 @@
    "sha256": "ff96ccb29fe7cc21aa9a501d4f70927c268a29eb21090dd9feedda5892972183",
    "tool": "GPT image via ~/.claude/skills/codex-image-gen",
    "prompt": "art/creatures/sloth/concept/spec-a.txt",
-   "reference": "docs/style-references/characters/blend-lineup.png"
+   "reference": "docs/style-references/characters/blend-lineup.png (retired 2026-11-11; in git at ef2a140)"
   },
   {
    "image": "art/creatures/sloth/concept/option-b.png",
    "sha256": "358ceadda261f191be8bac2bdcbd84a9f9be499de46f3bd2de979d5826fc6488",
    "tool": "GPT image via ~/.claude/skills/codex-image-gen",
    "prompt": "art/creatures/sloth/concept/spec-b.txt",
-   "reference": "docs/style-references/characters/blend-lineup.png"
+   "reference": "docs/style-references/characters/blend-lineup.png (retired 2026-11-11; in git at ef2a140)"
   },
   {
    "image": "art/creatures/sloth/concept/option-c.png",
    "sha256": "73a2df54cc4ec14d6483fb5af8a4c1b8b24b941052588eec8c02f765cf429e97",
    "tool": "GPT image via ~/.claude/skills/codex-image-gen",
    "prompt": "art/creatures/sloth/concept/spec-c.txt",
-   "reference": "docs/style-references/characters/blend-lineup.png"
+   "reference": "docs/style-references/characters/blend-lineup.png (retired 2026-11-11; in git at ef2a140)"
   }
  ],
  "items": [
