@@ -390,7 +390,7 @@ internal sealed class TownPresence : IDisposable
         look = engine.PartsRigs.CreateAppearance(new PartsRigAppearanceRequest(new PartsRigView[] { new(rig, 0, false) },
             figure.MetresPerUnit, SpriteSizeMode.World, BillboardMode.Cylindrical, FigureRenderOrder, SpriteDepthPolicy.Default,
             White, lit, TexelSnap: 0, FigureDome: false, PixelGrid: figure.PixelGrid, PixelCoverage: FigureBlockCoverage,
-            Palette: default, PoseRate: figure.PoseRate));
+            Palette: figure.Palette, PoseRate: figure.PoseRate));
         figureLooks[figure] = look;
         return look;
     }

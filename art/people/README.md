@@ -44,4 +44,8 @@ names the model, the looping clip, metres per rig unit, the pixel grid (screen p
 a figure about 320 pixels tall in the inn's close view) and the pose rate (8 poses a second, as the baked figures
 played, so fewer blocks change a frame); a kit piece's `keeper` spot is where they stand. The Engine draws them
 upright, turned to the eye, sampled linearly with mipmaps and lit by the scene on a flat normal, then cuts them into
-blocks, each the average of the figure under it, drawn where she covers half of it.
+blocks, each the average of the figure under it, drawn where she covers half of it. A figure may also name a palette
+file; `palette.py` designs one from the figure's pages: per material a ramp from near black to near white, each shade a
+fixed ratio lighter, and with `--lit` the ramps again under lamp and moon light. Tried on Mara and Orrin and left off:
+up close the lit palette keeps the lamp's warmth and reads as cleaner pixel art, but lamp-lit faces in the town view
+at night collapse to pale blocks (docs/evidence/human-look/screen-pixel/palette).

@@ -63,10 +63,10 @@ internal sealed record TownPortrait(string Rig, string Rest, string Talk, float 
 
 /// <summary>
 /// A keeper standing at their door (#10027): a rig-c parts rig the Engine poses at runtime, its looping clip, its size
-/// (metres per rig unit), the screen pixels a block of the grid the Engine cuts its smooth draw into, and the poses a
-/// second its clip steps at.
+/// (metres per rig unit), the screen pixels a block of the grid the Engine cuts its smooth draw into, the poses a
+/// second its clip steps at, and the colours each block takes the nearest of once lit (none keeps the blocks' own).
 /// </summary>
-internal sealed record TownFigure(string Rig, string Clip, float MetresPerUnit, uint PixelGrid, float PoseRate);
+internal sealed record TownFigure(string Rig, string Clip, float MetresPerUnit, uint PixelGrid, float PoseRate, Color[] Palette);
 
 /// <summary>
 /// The town content (#9895): the kit, the layouts, the services and their people, and the timber
@@ -82,6 +82,9 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
     private const string PeoplePath = Root + "people.json", PalettesPath = Root + "palettes.json";
     /// <summary>The largest block the Engine cuts a parts rig's screen-pixel grid into (rusty-engine #10716).</summary>
     private const uint MaximumPixelGrid = 16;
+    /// <summary>The most colours a parts rig's palette names (rusty-engine #10716).</summary>
+    private const int MaximumPaletteColours = 256;
+    private const int HexDigits = 16;
     private static readonly string[] LayoutPaths = [Root + "layouts/port.json", Root + "layouts/landing.json"];
 
     internal static TownContent Read(ProductContent content)
@@ -97,7 +100,7 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
         using JsonDocument people = JsonDocument.Parse(content.ReadText(PeoplePath));
         Dictionary<string, TownPerson[]> keepers = people.RootElement.GetProperty("people").EnumerateObject().ToDictionary(
             service => service.Name, service => service.Value.EnumerateArray().Select(person => new TownPerson(
-                person.GetProperty("name").GetString()!, ReadPortrait(person), ReadFigure(person))).ToArray());
+                person.GetProperty("name").GetString()!, ReadPortrait(person), ReadFigure(content, person))).ToArray());
         using JsonDocument palettes = JsonDocument.Parse(content.ReadText(PalettesPath));
         Dictionary<string, IReadOnlyDictionary<string, Color>> treatments = palettes.RootElement.GetProperty("palettes").EnumerateObject()
             .ToDictionary(palette => palette.Name, palette => (IReadOnlyDictionary<string, Color>)palette.Value.EnumerateObject()
@@ -135,6 +138,8 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
         foreach (TownPerson person in People.Values.SelectMany(keepers => keepers))
             if (person.Figure is { } figure && (figure.MetresPerUnit <= 0 || figure.PixelGrid is 0 or > MaximumPixelGrid || figure.PoseRate < 0))
                 throw new InvalidDataException($"Town keeper '{person.Name}' has a door figure without a positive size, a pixel grid of 1 to {MaximumPixelGrid} or a pose rate.");
+            else if (person.Figure is { } paletted && paletted.Palette.Length > MaximumPaletteColours)
+                throw new InvalidDataException($"Town keeper '{person.Name}' has a door palette of more than {MaximumPaletteColours} colours.");
             else if (person.Portrait is { } portrait && (portrait.TexelUnits <= 0 || portrait.FrameUnits <= 0))
                 throw new InvalidDataException($"Town keeper '{person.Name}' has a portrait without a positive texel and frame.");
     }
@@ -216,11 +221,21 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
             Number(portrait, "texel"), Point(frame), frame[2].GetSingle());
     }
 
-    /// <summary>A door figure is an object naming its rig, clip, metres per rig unit, pixel grid and pose rate, or absent.</summary>
-    private static TownFigure? ReadFigure(JsonElement person) => person.TryGetProperty("figure", out JsonElement figure)
+    /// <summary>A door figure is an object naming its rig, clip, metres per rig unit, pixel grid, pose rate and, optionally,
+    /// a palette file of sRGB hex colours, or absent.</summary>
+    private static TownFigure? ReadFigure(ProductContent content, JsonElement person) => person.TryGetProperty("figure", out JsonElement figure)
         ? new(figure.GetProperty("rig").GetString()!, figure.GetProperty("clip").GetString()!, Number(figure, "metresPerUnit"),
-            figure.GetProperty("pixelGrid").GetUInt32(), Number(figure, "poseRate"))
+            figure.GetProperty("pixelGrid").GetUInt32(), Number(figure, "poseRate"),
+            Optional(figure, "palette") is string palette ? ReadPalette(content, palette) : [])
         : null;
+
+    /// <summary>A figure's palette: a file whose "colours" are sRGB hex strings ("#rrggbb").</summary>
+    private static Color[] ReadPalette(ProductContent content, string path)
+    {
+        using JsonDocument palette = JsonDocument.Parse(content.ReadText(path));
+        return [.. palette.RootElement.GetProperty("colours").EnumerateArray()
+            .Select(colour => Color.FromSrgbHex(Convert.ToInt32(colour.GetString()!.TrimStart('#'), HexDigits)))];
+    }
 
     private static string? Optional(JsonElement element, string name) =>
         element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
