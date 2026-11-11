@@ -2,7 +2,7 @@
   <PropertyGroup>
     <!-- The one Engine SDK/runtime pair pin. `rusty install` installs it;
          only `rusty update` changes it. -->
-    <RustyEnginePackageVersion>0.1.0-dev.74f4285c28f0</RustyEnginePackageVersion>
+    <RustyEnginePackageVersion>0.1.0-dev.d103c071a9f8</RustyEnginePackageVersion>
     <!-- The product `rusty dev` and `rusty build` run when no project is named. -->
     <RustyEngineProject>src/CraftSurvive.Game/CraftSurvive.Game.csproj</RustyEngineProject>
     <!-- Every restore, plain dotnet included, takes exactly the pinned SDK from
