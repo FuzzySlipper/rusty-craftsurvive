@@ -16,6 +16,10 @@ internal sealed class TownPortraitView(IEngineContext engine) : IDisposable
 
     private const float AlphaCutoff = .5f, ClipCrossfadeSeconds = .12f;
     private const int RenderOrder = 0;
+    /// <summary>A placed bust keeps its texel snap (whole screen pixels a texel) and no screen-pixel grid; its clips are
+    /// already stepped, so it poses at every call. The Engine leaves a block coverage unread without a grid.</summary>
+    private const uint NoPixelGrid = 0;
+    private const float UnreadCoverage = .5f, EveryCall = 0;
     // Where the bust stands while no page reports the window (a snapshot or offline render): the dialogue's 3x window
     // on a 1920 x 1080 view, in CSS pixels from its lower left.
     private const float FallbackLeft = 409, FallbackBottom = 87, FallbackSide = 381, FallbackWidth = 1920, FallbackHeight = 1080;
@@ -73,7 +77,8 @@ internal sealed class TownPortraitView(IEngineContext engine) : IDisposable
         SpriteMaterialDescriptor unlit = new(SpriteLightingMode.Unlit, default, default, 0, 0, SpriteAlphaMode.Mask, AlphaCutoff, SpriteShadowPolicy.None);
         // Placed in the viewport, its scale, size and billboard modes are not read.
         look = engine.PartsRigs.CreateAppearance(new PartsRigAppearanceRequest(new PartsRigView[] { new(rig, 0, false) },
-            1, SpriteSizeMode.World, BillboardMode.None, RenderOrder, SpriteDepthPolicy.Default, White, unlit, portrait.TexelUnits));
+            1, SpriteSizeMode.World, BillboardMode.None, RenderOrder, SpriteDepthPolicy.Default, White, unlit, portrait.TexelUnits,
+            FigureDome: false, PixelGrid: NoPixelGrid, PixelCoverage: UnreadCoverage, Palette: default, PoseRate: EveryCall));
         engine.PartsRigs.SetViewport(new PartsRigViewportRequest(look,
             new Vector2(FallbackLeft / FallbackWidth, FallbackBottom / FallbackHeight), new Vector2(FallbackSide / FallbackWidth, FallbackSide / FallbackHeight),
             Centred, SpriteViewportFit.Contain, portrait.FrameMinimum, new Vector2(portrait.FrameUnits)));

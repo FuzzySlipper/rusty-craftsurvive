@@ -31,7 +31,9 @@ internal sealed class TownPresence : IDisposable
     private const ulong SignOffset = 0x200, GroundOffset = 0x300, FernOffset = 0x340, FigureOffset = 0xF00;
     // Keepers at their doors (#10027) are parts rigs posed by the Engine: pixel art, upright and turned to the eye. They
     // are lit by the scene on a flat normal: a synthetic dome spans each piece's own frame, so every part would shade apart.
-    private const float FigureAlphaCutoff = .5f, FigureNormalStrength = 0;
+    /// <summary>A figure's pieces are solid where their alpha passes one half; a block of its screen-pixel grid draws where
+    /// the figure covers one half of it, a hard pixel-art edge.</summary>
+    private const float FigureAlphaCutoff = .5f, FigureNormalStrength = 0, FigureBlockCoverage = .5f;
     private const int FigureRenderOrder = 0;
     private const float SmokeRate = 2, SmokeLifeMin = 3.5f, SmokeLifeMax = 5.5f, SmokeSoftness = .5f;
     private const uint SmokeParticles = 24;
@@ -369,13 +371,17 @@ internal sealed class TownPresence : IDisposable
         return (mixed >> 11) / (double)(1UL << 53);
     }
 
-    /// <summary>A keeper's door figure: their rig, loaded once, drawn upright on its texel grid and lit by the scene.</summary>
+    /// <summary>
+    /// A keeper's door figure: their rig, loaded once, drawn upright, smooth and lit by the scene, then cut by the Engine
+    /// into blocks of whole screen pixels on one grid anchored at the rig's origin (rusty-engine #10716), so every part
+    /// shares one pixel grid whatever its bone does, at any distance; its clip posed at the figure's pose rate.
+    /// </summary>
     private Appearance FigureLook(TownFigure figure)
     {
         if (figureLooks.TryGetValue(figure, out Appearance? look)) return look;
         if (!rigs.TryGetValue(figure.Rig, out PartsRig? rig))
         {
-            rig = engine.PartsRigs.Load(new PartsRigLoadRequest(figure.Rig, TextureFilter.Nearest)).Rig;
+            rig = engine.PartsRigs.Load(new PartsRigLoadRequest(figure.Rig, TextureFilter.Linear)).Rig;
             rigs[figure.Rig] = rig;
         }
 
@@ -383,7 +389,8 @@ internal sealed class TownPresence : IDisposable
             SpriteAlphaMode.Mask, FigureAlphaCutoff, SpriteShadowPolicy.None);
         look = engine.PartsRigs.CreateAppearance(new PartsRigAppearanceRequest(new PartsRigView[] { new(rig, 0, false) },
             figure.MetresPerUnit, SpriteSizeMode.World, BillboardMode.Cylindrical, FigureRenderOrder, SpriteDepthPolicy.Default,
-            White, lit, figure.TexelUnits));
+            White, lit, TexelSnap: 0, FigureDome: false, PixelGrid: figure.PixelGrid, PixelCoverage: FigureBlockCoverage,
+            Palette: default, PoseRate: figure.PoseRate));
         figureLooks[figure] = look;
         return look;
     }

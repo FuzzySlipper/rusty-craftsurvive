@@ -20,9 +20,12 @@ is baked. Den #10027 holds the decisions and the evidence.
 4. **Motion.** Door figures: an idle clip from Pika H3 FL2VA started and ended on the rig's own frame, read with
    RTMW and retargeted onto the rig. Portraits: breathing and sway, a blink, and the mouth sets switched in a speech
    rhythm.
-5. **Pixels.** The Engine samples the pages nearest on the rig's texel grid (its texel snap), so a rig is drawn as
-   whole texels. Krea's 1024 portrait grid is 8 px from the painting's edges, which is the rig's origin, so the bust's
-   texels are the painting's.
+5. **Pixels.** Busts: the Engine samples the pages nearest on the rig's texel grid (its texel snap), so a bust is
+   drawn as whole texels. Krea's 1024 portrait grid is 8 px from the painting's edges, which is the rig's origin, so
+   the bust's texels are the painting's. Door figures: a texel grid lives in each part's space and turns and scales
+   with its bone, and in the town view a texel is smaller than a screen pixel, so snapped figures read as noise.
+   They are drawn smooth instead and the Engine cuts the lit figure into blocks of whole screen pixels on one grid
+   anchored at its feet, the same at every distance.
 
 ## In the game
 
@@ -37,6 +40,8 @@ largest whole number of screen pixels a texel (3 in the 381-pixel window).
 
 Door figures are rig-c builds copied into `content/game/towns/people/<name>/door/`: `skeleton.model.json`
 (`rigc-compiled/3`) with each page it names beside it under its own file name. A keeper's `figure` in `people.json`
-names the model, the looping clip, metres per rig unit and the texel (rig units per texel, for the Engine's texel snap);
-a kit piece's `keeper` spot is where they stand. The Engine draws them upright, turned to the eye, sampled nearest and
-lit by the scene on a flat normal: a synthetic dome would span each part's own page and shade every part apart.
+names the model, the looping clip, metres per rig unit, the pixel grid (screen pixels a block: 2; 3 is too coarse for
+a figure about 320 pixels tall in the inn's close view) and the pose rate (8 poses a second, as the baked figures
+played, so fewer blocks change a frame); a kit piece's `keeper` spot is where they stand. The Engine draws them
+upright, turned to the eye, sampled linearly with mipmaps and lit by the scene on a flat normal, then cuts them into
+blocks, each the average of the figure under it, drawn where she covers half of it.

@@ -63,9 +63,10 @@ internal sealed record TownPortrait(string Rig, string Rest, string Talk, float 
 
 /// <summary>
 /// A keeper standing at their door (#10027): a rig-c parts rig the Engine poses at runtime, its looping clip, its size
-/// (metres per rig unit) and its pixel-art texel (rig units per texel, 0 to draw it smooth).
+/// (metres per rig unit), the screen pixels a block of the grid the Engine cuts its smooth draw into, and the poses a
+/// second its clip steps at.
 /// </summary>
-internal sealed record TownFigure(string Rig, string Clip, float MetresPerUnit, float TexelUnits);
+internal sealed record TownFigure(string Rig, string Clip, float MetresPerUnit, uint PixelGrid, float PoseRate);
 
 /// <summary>
 /// The town content (#9895): the kit, the layouts, the services and their people, and the timber
@@ -79,6 +80,8 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
     internal const string Root = "towns/";
     private const string KitPath = Root + "kit.json", ServicesPath = Root + "services.json";
     private const string PeoplePath = Root + "people.json", PalettesPath = Root + "palettes.json";
+    /// <summary>The largest block the Engine cuts a parts rig's screen-pixel grid into (rusty-engine #10716).</summary>
+    private const uint MaximumPixelGrid = 16;
     private static readonly string[] LayoutPaths = [Root + "layouts/port.json", Root + "layouts/landing.json"];
 
     internal static TownContent Read(ProductContent content)
@@ -130,8 +133,8 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
                 throw new InvalidDataException($"Town service '{service}' has nobody to keep it.");
 
         foreach (TownPerson person in People.Values.SelectMany(keepers => keepers))
-            if (person.Figure is { } figure && (figure.MetresPerUnit <= 0 || figure.TexelUnits < 0))
-                throw new InvalidDataException($"Town keeper '{person.Name}' has a door figure without a positive size.");
+            if (person.Figure is { } figure && (figure.MetresPerUnit <= 0 || figure.PixelGrid is 0 or > MaximumPixelGrid || figure.PoseRate < 0))
+                throw new InvalidDataException($"Town keeper '{person.Name}' has a door figure without a positive size, a pixel grid of 1 to {MaximumPixelGrid} or a pose rate.");
             else if (person.Portrait is { } portrait && (portrait.TexelUnits <= 0 || portrait.FrameUnits <= 0))
                 throw new InvalidDataException($"Town keeper '{person.Name}' has a portrait without a positive texel and frame.");
     }
@@ -213,9 +216,10 @@ internal sealed record TownContent(IReadOnlyDictionary<string, KitPiece> Kit, To
             Number(portrait, "texel"), Point(frame), frame[2].GetSingle());
     }
 
-    /// <summary>A door figure is an object naming its rig, clip, metres per rig unit and texel, or absent.</summary>
+    /// <summary>A door figure is an object naming its rig, clip, metres per rig unit, pixel grid and pose rate, or absent.</summary>
     private static TownFigure? ReadFigure(JsonElement person) => person.TryGetProperty("figure", out JsonElement figure)
-        ? new(figure.GetProperty("rig").GetString()!, figure.GetProperty("clip").GetString()!, Number(figure, "metresPerUnit"), Number(figure, "texel"))
+        ? new(figure.GetProperty("rig").GetString()!, figure.GetProperty("clip").GetString()!, Number(figure, "metresPerUnit"),
+            figure.GetProperty("pixelGrid").GetUInt32(), Number(figure, "poseRate"))
         : null;
 
     private static string? Optional(JsonElement element, string name) =>

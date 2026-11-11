@@ -76,10 +76,22 @@ Check.Section("keepers' busts are parts rigs the Engine poses in the dialogue fr
 
 Check.Section("keepers stand at their doors as parts rigs the Engine poses (#10027)", () =>
 {
+    const double StepTolerance = 1e-3;
     TownFigure[] figures = [.. towns.People.Values.SelectMany(people => people).Select(person => person.Figure).OfType<TownFigure>()];
     Check.That(figures.Length >= 2, "the innkeeper and a provisioner stand at their doors");
     foreach (TownFigure figure in figures)
-        StagedRig(figure.Rig, [figure.Clip]);
+    {
+        JsonElement root = StagedRig(figure.Rig, [figure.Clip]);
+        // Drawn smooth and cut into 2-pixel screen blocks (rusty-engine #10716): 3 was too coarse for a figure about
+        // 320 pixels tall in the inn's close view (docs/evidence/human-look/screen-pixel).
+        Check.That(figure.PixelGrid == 2, $"{figure.Rig} draws on a 2-pixel screen grid");
+        double seconds = root.GetProperty("animations").EnumerateArray()
+            .First(clip => clip.GetProperty("name").GetString() == figure.Clip).GetProperty("duration").GetDouble();
+        double steps = seconds * figure.PoseRate;
+        // The exported duration carries float noise (8.000005 s), well under a thousandth of a step.
+        Check.That(figure.PoseRate > 0 && Math.Abs(steps - Math.Round(steps)) < StepTolerance,
+            $"{figure.Rig}'s {figure.Clip} steps a whole number of poses round its loop, so the wrap holds a pose like the rest");
+    }
 
     foreach (string service in towns.Services.Keys)
         Check.That(towns.Layouts.SelectMany(layout => layout.Pieces).Where(piece => piece.Service == service)
