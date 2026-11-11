@@ -3,7 +3,10 @@
 The town's people are detailed pixel art in the manner of 1990s PC role-playing games (atlas Towns page, "How
 people are shown"). Each person is generated once and rigged as 2D parts with rig-c. The Engine poses both rigs at
 runtime (its parts rigs, `IEngineContext.PartsRigs`): the figure at their door and the bust in the dialogue. Nothing
-is baked. Den #10027 holds the decisions and the evidence.
+is baked. Den #10027 holds the decisions. The evidence, and the scripts that made Mara and Orrin (generation,
+parts, idle, bust and packaging: `rig/`, `rig/idle/`, `rig/provbust/`, `runtime/package*.py`), are archived at
+`/data/rusty-craftsurvive-old/docs/evidence/human-look/`; bring the scripts into this folder when the next person is made
+(#10742).
 
 ## The route
 
@@ -49,4 +52,4 @@ file; `palette.py` designs one from the figure's pages: per material a ramp from
 fixed ratio lighter, and with `--lit` the ramps again under lamp and moon light. Mara and Orrin use 6 materials of
 12 shades, lit (`palette.py <door> palette.json 6 12 --lit`): it keeps some stepped light on the cloth with little
 flicker. Ten materials of 8 shades was too noisy (the bright blocks flickered, lamp-lit faces at night went to pale
-blocks) and 5 of 16 was close to no palette (docs/evidence/human-look/screen-pixel/palette).
+blocks) and 5 of 16 was close to no palette (/data/rusty-craftsurvive-old/docs/evidence/human-look/screen-pixel/palette).

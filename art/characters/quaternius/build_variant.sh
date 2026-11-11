@@ -13,7 +13,7 @@ NAME=$1 RECIPE=$2 BODY=$3 PROMPT=$4
 ROOT=/home/agent/dev/rusty-craftsurvive
 AP=/home/agent/dev/asset-pipeline
 Q=${SCRATCH:-/tmp/quat-build}
-EV=$ROOT/docs/evidence/quaternius-10029/paint
+EV=${EV:-/data/rusty-craftsurvive-old/docs/evidence/quaternius-10029/paint}   # the archived #10029 paint evidence
 W=$EV/$NAME
 C=$ROOT/content/game/characters/quaternius
 QS=$ROOT/art/characters/quaternius

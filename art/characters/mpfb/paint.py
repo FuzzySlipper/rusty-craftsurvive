@@ -6,7 +6,7 @@ body it lies (rasterised from MakeHuman's UV layout), so a costume is a list of 
 terms ("torso above the waist", "sleeve to mid-forearm"). It fits every character unchanged,
 because they all share the topology and the layout.
 
-The style follows docs/evidence/character-directions/style-sheet-draft.md:
+The style follows /data/rusty-craftsurvive-old/docs/evidence/character-directions/style-sheet-draft.md:
 - broad colour patches laid as overlapping strokes along the fabric's fall;
 - darker strokes at folds (elbows, knees, waist, armpits);
 - painted edges where colours meet;

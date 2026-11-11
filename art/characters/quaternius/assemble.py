@@ -1,4 +1,5 @@
-"""Assembles a Quaternius character from the CC0 packs in local/ (owner-provided, ignored by git).
+"""Assembles a Quaternius character from the CC0 packs Patch provided, archived at
+/data/rusty-craftsurvive-old/local/ (copy them back to local/, which git ignores, to rebuild).
 
 usage: blender -b --python art/characters/quaternius/assemble.py -- <recipe.json> <out.blend> [preview-dir]
 

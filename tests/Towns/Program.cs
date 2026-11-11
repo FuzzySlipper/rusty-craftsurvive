@@ -83,7 +83,7 @@ Check.Section("keepers stand at their doors as parts rigs the Engine poses (#100
     {
         JsonElement root = StagedRig(figure.Rig, [figure.Clip]);
         // Drawn smooth and cut into 2-pixel screen blocks (rusty-engine #10716): 3 was too coarse for a figure about
-        // 320 pixels tall in the inn's close view (docs/evidence/human-look/screen-pixel).
+        // 320 pixels tall in the inn's close view (/data/rusty-craftsurvive-old/docs/evidence/human-look/screen-pixel).
         Check.That(figure.PixelGrid == 2, $"{figure.Rig} draws on a 2-pixel screen grid");
         Check.That(figure.Palette.Length > 0, $"{figure.Rig} names the palette its blocks take");
         double seconds = root.GetProperty("animations").EnumerateArray()
