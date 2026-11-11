@@ -2,7 +2,8 @@ name: engine-pair
 
 # Keeps the product on the newest published Engine pair. The pin advances
 # only after the product builds, passes its managed checks and serves on the
-# proposed pair; a pair that breaks the product opens (or updates) an issue
+# proposed pair (scripts/check-product.sh --managed on the pin committed
+# locally); a pair that breaks the product opens (or updates) an issue
 # instead, and main keeps its pin.
 
 on:
@@ -23,7 +24,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PROJECT: src/CraftSurvive.Game/CraftSurvive.Game.csproj
   FAILURE_LABEL: engine-pair-update
   RUSTY_INSTALLER: https://raw.githubusercontent.com/FuzzySlipper/rusty-engine/32e7f99efd3a4ee6d20e094975c1547b88d6539a/scripts/install-rusty.sh
 
@@ -34,9 +34,6 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
-        with:
-          # The chemistry kernel (#10293) is the rusty-chemistry submodule.
-          submodules: true
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -44,8 +41,6 @@ jobs:
         with:
           node-version: 24
       - run: npm install --global pnpm@10.15.0
-      - name: Install UI dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Install the software Vulkan driver the runtime renderer draws with
         # mesa-vulkan-drivers supplies llvmpipe (lavapipe); the runner has no GPU.
@@ -68,37 +63,9 @@ jobs:
           echo "to=$to" >> "$GITHUB_OUTPUT"
           if [[ "$from" == "$to" ]]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
 
-      - name: Build the product on the proposed pair
-        if: steps.propose.outputs.changed == 'true'
-        run: |
-          set -o pipefail
-          { dotnet build src/CraftSurvive.Game -c Release && rusty build --project "$PROJECT"; } 2>&1 | tee build.log
-
-      - name: Run the managed checks on the proposed pair
-        if: steps.propose.outputs.changed == 'true'
-        run: |
-          set -o pipefail
-          {
-            # Every lane: a pin commit starts no verify run, so this is all it gets until the next push.
-            for check in tests/*/*.csproj; do
-              dotnet run --project "$check" -c Release
-            done
-            dotnet build authoring/tools/MapLab -c Release
-          } 2>&1 | tee checks.log
-
-      - name: Serve the product on the proposed pair
+      - name: Commit the proposed pin here
         if: steps.propose.outputs.changed == 'true'
         env:
-          WGPU_BACKEND: vulkan
-        run: |
-          set -o pipefail
-          scripts/ci-serve-product.sh "$PROJECT" 8787 2>&1 | tee dev.log
-
-      - name: Advance the pin
-        if: steps.propose.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          FROM: ${{ steps.propose.outputs.from }}
           TO: ${{ steps.propose.outputs.to }}
         run: |
           git config user.name "github-actions[bot]"
@@ -111,6 +78,22 @@ jobs:
             sed -n '/^What changed/,/^Next:/p' update.log | sed '$d'
           } > message.txt
           git commit -q -F message.txt Directory.Build.props
+
+      - name: Check the product on the proposed pair
+        # Every lane: a pin commit starts no verify run, so this is all it gets until the next push.
+        if: steps.propose.outputs.changed == 'true'
+        env:
+          CHECK_PRODUCT_DIR: ${{ runner.temp }}/check-product
+        run: |
+          set -o pipefail
+          scripts/check-product.sh --managed 2>&1 | tee check.log
+
+      - name: Advance the pin
+        if: steps.propose.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TO: ${{ steps.propose.outputs.to }}
+        run: |
           # main moves during a run, so a rejected push is not a broken pair: rebase and try again.
           # A conflict means someone else moved the pin; the next run proposes from there.
           pushed=false
@@ -147,7 +130,7 @@ jobs:
             echo '```'
             sed -n '/^What changed/,/^Next:/p' update.log | sed '$d'
             echo '```'
-            for log in build.log checks.log dev.log; do
+            for log in check.log; do
               [[ -s "$log" ]] || continue
               echo "### Last lines of $log"
               echo '```'

@@ -124,6 +124,9 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
   `CraftSurvive.Game`, and the `tests/` lanes the change touches. Run
   `rusty build --project ... --aot` (the SDK's `VerifyRustyEngineAot`) only when a
   task explicitly requires fidelity/release evidence.
+- CI is `scripts/check-product.sh --managed` (verify workflow, on den-k8's
+  self-hosted runner); run it locally to reproduce a CI failure or to check a
+  commit before pushing.
 - Preserve unrelated work. In particular, `content/animations/` and
   `content/voxels/` are user-owned assets in the working checkout: never
   modify, stage, or clean them.

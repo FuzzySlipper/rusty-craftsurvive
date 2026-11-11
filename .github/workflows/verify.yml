@@ -16,65 +16,20 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PROJECT: src/CraftSurvive.Game/CraftSurvive.Game.csproj
   # The bootstrap script is taken from a fixed Engine commit; it installs the
   # `rusty` of the exact pair pinned in Directory.Build.props.
   RUSTY_INSTALLER: https://raw.githubusercontent.com/FuzzySlipper/rusty-engine/32e7f99efd3a4ee6d20e094975c1547b88d6539a/scripts/install-rusty.sh
 
 jobs:
-  managed-checks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # The chemistry kernel (#10293) is the rusty-chemistry submodule.
-          submodules: true
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-      - name: Install rusty and the product's pinned Engine pair
-        run: |
-          pin=$(sed -n 's|.*<RustyEnginePackageVersion>\([^<]*\)</RustyEnginePackageVersion>.*|\1|p' Directory.Build.props)
-          curl -fsSL "$RUSTY_INSTALLER" | bash -s -- --version "$pin"
-          ~/.local/bin/rusty install
-      - name: Check terrain materials and residency cache
-        run: dotnet run --project tests/TerrainResidency -c Release
-      - name: Check the chemistry adapter's rules and grass fire on the product's pack (#10293)
-        run: dotnet run --project tests/Chemistry -c Release
-      - name: Engine canary - the gameplay substrate the product will build on (links no product code)
-        run: dotnet run --project tests/SubstrateProof -c Release
-      - name: Check generated world-map persistence and new-world isolation
-        run: dotnet run --project tests/WorldMap -c Release
-      - name: Build the MapLab generation tool (#9814)
-        run: dotnet build authoring/tools/MapLab -c Release
-      - name: Check the RPG rules
-        run: dotnet run --project tests/RpgCore -c Release
-      - name: Check wildlife's kinds, herd behaviour, region seeding and population ledger (#10567)
-        run: dotnet run --project tests/Wildlife -c Release
-      - name: Check the player's body recovers from deep overlaps instead of stopping the game
-        run: dotnet run --project tests/PlayerBody -c Release
-      - name: Streamed terrain surfaces against the Engine
-        run: dotnet run --project tests/TerrainSurface -c Release
-      - name: Check point-of-interest placement
-        run: dotnet run --project tests/DiscoveryCore -c Release
-      - name: Check the save manifest, codecs and restore rule
-        run: dotnet run --project tests/SaveCore -c Release
-      - name: Check a bank of dungeon seeds can be walked as their flow intends
-        run: dotnet run --project tests/DungeonBank -c Release
-      - name: Check town content, layouts and arrival views
-        run: dotnet run --project tests/Towns -c Release
-
-  product:
-    # den-k8's self-hosted runner: Ubuntu 26.04 and Mesa's llvmpipe like ubuntu-latest, with the den NAS
-    # mounted at /mnt/den-nas-backup. Its jobs queue while den-k8 is down.
+  check:
+    # The whole check is scripts/check-product.sh, the same command a machine on the den runs by hand:
+    # the product build, the texture audit, the DOM companion, every managed lane, and the product
+    # served and walked on llvmpipe. den-k8's self-hosted runner: Ubuntu 26.04 and Mesa's llvmpipe like
+    # ubuntu-latest, with the den NAS mounted at /mnt/den-nas-backup. Its jobs queue while den-k8 is down.
     runs-on: [self-hosted, den-llvmpipe]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-        with:
-          # The chemistry kernel (#10293) is the rusty-chemistry submodule.
-          submodules: true
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -82,50 +37,22 @@ jobs:
         with:
           node-version: 24
       - run: npm install --global pnpm@10.15.0
-      - name: Install UI dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Install rusty and the product's pinned Engine pair
+      - name: Install rusty for the product's pinned Engine pair
         run: |
           pin=$(sed -n 's|.*<RustyEnginePackageVersion>\([^<]*\)</RustyEnginePackageVersion>.*|\1|p' Directory.Build.props)
           curl -fsSL "$RUSTY_INSTALLER" | bash -s -- --version "$pin"
-          ~/.local/bin/rusty install
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install the software Vulkan driver the runtime renderer draws with
         # mesa-vulkan-drivers supplies llvmpipe (lavapipe); the runner has no GPU.
         run: sudo apt-get update && sudo apt-get install --yes mesa-vulkan-drivers libvulkan1
-      - name: Build the product in Release
-        run: dotnet build src/CraftSurvive.Game -c Release
-      - name: Build and stage the product through rusty
-        run: rusty build --project "$PROJECT"
-      - name: Audit the terrain textures
-        run: pnpm run audit:textures
-      - name: Serve the product and run one update
+      - name: Check the product (scripts/check-product.sh --managed)
         env:
-          WGPU_BACKEND: vulkan
-        run: scripts/ci-serve-product.sh "$PROJECT" 8787
-
-  product-ui:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
+          CHECK_PRODUCT_DIR: ${{ runner.temp }}/check-product
+        run: scripts/check-product.sh --managed
+      - name: Keep the failed check's logs
+        if: failure()
+        uses: actions/upload-artifact@v4
         with:
-          # check:ui restores the product project, which needs the chemistry kernel (#10293) submodule.
-          submodules: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - run: npm install --global pnpm@10.15.0
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-      - name: Install UI dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-      # The UI compiles against the pinned pair's product-UI declarations, which the SDK ships.
-      - name: Install rusty and the product's pinned Engine pair
-        run: |
-          pin=$(sed -n 's|.*<RustyEnginePackageVersion>\([^<]*\)</RustyEnginePackageVersion>.*|\1|p' Directory.Build.props)
-          curl -fsSL "$RUSTY_INSTALLER" | bash -s -- --version "$pin"
-          ~/.local/bin/rusty install
-      - name: Check the DOM companion
-        run: pnpm run check:ui
+          name: check-product-logs
+          path: ${{ runner.temp }}/check-product/*/logs
+          if-no-files-found: ignore

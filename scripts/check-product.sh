@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-# Runs GitHub CI's `product` job on this machine, from a clean checkout of one commit:
-# the Release build, `rusty build`, the texture audit, and scripts/ci-serve-product.sh
-# rendering on llvmpipe (Mesa's software Vulkan driver), as the GPU-less runner does.
+# The product's CI check, here or on CI's runner, from a clean checkout of one commit: the Release
+# build, `rusty build`, the texture audit, the DOM companion's type check, and
+# scripts/ci-serve-product.sh rendering on llvmpipe (Mesa's software Vulkan driver), as a GPU-less
+# runner does. The verify workflow runs it with --managed on every push; the engine-pair workflow runs
+# it on its locally committed pin before pushing that commit.
 #
 #   scripts/check-product.sh [--ref <commit>] [--managed] [--propose [<version>]] [--keep]
 #
 #   --ref       the commit to check (default HEAD); uncommitted work is never included
-#   --managed   also run every tests/ lane and build MapLab, as the engine-pair workflow does
+#   --managed   also run every tests/ lane and build MapLab
 #   --propose   first move the checkout's pin with `rusty update` (to <version>, else the newest
-#               published pair), as the engine-pair workflow does; the pin is never committed here
+#               published pair), to try a pair before the engine-pair workflow does; the pin is never
+#               committed here
 #   --keep      keep the temporary checkout and its logs
 #
 # LP_NUM_THREADS (default 4, a GitHub runner's vCPU count) bounds llvmpipe's threads, since the
 # machine running this is usually shared. The host is stopped on exit whatever happens.
-# Temporary checkouts go under CHECK_PRODUCT_DIR (default ~/.cache/craftsurvive-check-product).
+# Temporary checkouts go under CHECK_PRODUCT_DIR (default ~/.cache/craftsurvive-check-product); a
+# failed run keeps its checkout and logs there.
 set -euo pipefail
 
 ref=HEAD
@@ -30,7 +34,7 @@ while (($#)); do
             if [[ ${2:-} && $2 != --* ]]; then propose_version=$2; shift; fi
             shift ;;
         --keep) keep=true; shift ;;
-        -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -128,6 +132,7 @@ step ui-dependencies pnpm install --frozen-lockfile --ignore-scripts
 step release-build dotnet build src/CraftSurvive.Game -c Release
 step rusty-build rusty build --project "$PROJECT"
 step audit-textures pnpm run audit:textures
+step check-ui pnpm run check:ui
 if [[ $managed == true ]]; then
     step managed-checks managed_checks
 fi

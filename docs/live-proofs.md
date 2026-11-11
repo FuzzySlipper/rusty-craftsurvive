@@ -4,13 +4,18 @@ Two lanes prove different things. The **managed lanes** (`tests/`) run in CI and
 rules and SDK values; the focused collision lanes use the Engine's packaged
 headless test host. The **live lane** runs the real product against the
 installed runtime pack and is the only lane that can prove host-bound mechanisms, rendering and
-load paths. A build passing is not evidence about the live lane. CI's `product` job is the one
-automated live check: it serves the product, checks it keeps updating with a matching generator
+load paths. A build passing is not evidence about the live lane.
+
+CI is `scripts/check-product.sh`: the verify workflow runs `scripts/check-product.sh --managed` on
+den-k8's self-hosted runner, and anyone can run the same command on a den machine. From a clean
+checkout of one commit it builds and stages the product, audits the terrain textures, type-checks the
+DOM companion, runs every managed lane (with `--managed`), and makes the one automated live check:
+it serves the product on llvmpipe alone, checks it keeps updating with a matching generator
 fingerprint, and walks the player a short way on input with the client below. Every step of that
-walk draws a software-rendered frame, so CI walks 12 steps at a 1 m bar and the longer default is for
-a machine with a GPU. `scripts/check-product.sh` runs that job locally from a clean checkout of a
-commit on llvmpipe alone; `--managed --propose` adds the engine-pair workflow's pair update and
-managed lanes, without committing the pin.
+walk draws a software-rendered frame, so the check walks 12 steps at a 1 m bar and the longer
+default is for a machine with a GPU. The engine-pair workflow runs the same check on its proposed
+pin, committed locally, before it pushes that commit; `--propose` tries a pair the same way by hand,
+without committing the pin.
 
 The live substrate proof that established the Engine constraints this product builds on left
 with the authoring lane; its record is Den `history/live-substrate-proof`.

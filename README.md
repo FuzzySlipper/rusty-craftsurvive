@@ -104,7 +104,8 @@ plain `dotnet run` of the focused checks resolves exactly the pinned SDK.
 
 The pin also advances automatically. The `engine-pair` workflow
 (`.github/workflows/engine-pair.yml`) runs every six hours. Each run builds,
-checks and serves the product on the newest published pair. If all three pass,
+checks and serves the product on the newest published pair, with the same
+`scripts/check-product.sh --managed` that CI runs on every push. If all three pass,
 it commits the new pin to `main` as `github-actions[bot]`. If any fails, it
 opens an `engine-pair-update` issue and leaves the pin. After pulling such a
 commit, run `rusty install` before building.

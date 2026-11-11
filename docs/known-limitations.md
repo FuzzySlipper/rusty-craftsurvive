@@ -1009,8 +1009,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 
 ## Lane, process and Engine gaps
 
-- CI's managed lanes do not launch the runtime; the `product` job serves it, checks it keeps
-  updating with a matching generator fingerprint, and walks the player on input.
+- The managed lanes do not launch the runtime; CI's check (`scripts/check-product.sh`) serves it,
+  checks it keeps updating with a matching generator fingerprint, and walks the player on input.
 - A product fault, or an exception from product `Dispose`, prints one line to the host's stderr;
   the full record is in a `--diagnostics-log` file, and `craft.runtime` reports `state=Faulted`.
 - **The world runs while nobody watches.** The clock, hunger and creatures advance on Engine step
