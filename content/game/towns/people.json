@@ -17,6 +17,7 @@
     },
     "figure": {
      "rig": "towns/people/mara/door/skeleton.model.json",
+     "palette": "towns/people/mara/door/palette.json",
      "clip": "idle_video",
      "metresPerUnit": 0.001744,
      "pixelGrid": 2,
@@ -52,6 +53,7 @@
     },
     "figure": {
      "rig": "towns/people/orrin/door/skeleton.model.json",
+     "palette": "towns/people/orrin/door/palette.json",
      "clip": "idle_video",
      "metresPerUnit": 0.001744,
      "pixelGrid": 2,

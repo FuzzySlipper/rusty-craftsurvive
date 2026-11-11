@@ -46,6 +46,7 @@ played, so fewer blocks change a frame); a kit piece's `keeper` spot is where th
 upright, turned to the eye, sampled linearly with mipmaps and lit by the scene on a flat normal, then cuts them into
 blocks, each the average of the figure under it, drawn where she covers half of it. A figure may also name a palette
 file; `palette.py` designs one from the figure's pages: per material a ramp from near black to near white, each shade a
-fixed ratio lighter, and with `--lit` the ramps again under lamp and moon light. Tried on Mara and Orrin and left off:
-up close the lit palette keeps the lamp's warmth and reads as cleaner pixel art, but lamp-lit faces in the town view
-at night collapse to pale blocks (docs/evidence/human-look/screen-pixel/palette).
+fixed ratio lighter, and with `--lit` the ramps again under lamp and moon light. Mara and Orrin use 6 materials of
+12 shades, lit (`palette.py <door> palette.json 6 12 --lit`): it keeps some stepped light on the cloth with little
+flicker. Ten materials of 8 shades was too noisy (the bright blocks flickered, lamp-lit faces at night went to pale
+blocks) and 5 of 16 was close to no palette (docs/evidence/human-look/screen-pixel/palette).
