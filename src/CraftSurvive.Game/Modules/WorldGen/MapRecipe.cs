@@ -2,7 +2,7 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>
 /// The tuning of a map's generation (#9814): what shapes the land, as data, so it can be tried and
-/// compared without editing code (tools/MapLab). The defaults are the generator's own: a world made
+/// compared without editing code (authoring/tools/MapLab). The defaults are the generator's own: a world made
 /// with <see cref="Default"/> is the world its seed and size have always made, so its fingerprint
 /// and saves are unchanged. A recipe is not saved; a world's saved geography is.
 /// </summary>

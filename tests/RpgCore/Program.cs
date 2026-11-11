@@ -756,7 +756,7 @@ Check.That(Enum.GetValues<Cue>().All(cue => SoundCatalog.Cues.TryGetValue(cue, o
 string audioDirectory = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "content", "game");
 Check.That(SoundCatalog.Cues.Values.SelectMany(sound => sound.Clips).Concat(SoundCatalog.Beds.Values)
         .All(clip => File.Exists(Path.Combine(audioDirectory, SoundCatalog.ContentPath(clip)))),
-    "every clip the catalog names must have been generated (node scripts/generate-sounds.mjs)");
+    "every clip the catalog names must have been generated (node authoring/tools/generators/generate-sounds.mjs)");
 
 Check.That(new[] { BlockId.Grass, BlockId.Dirt, BlockId.Stone, BlockId.Cobblestone, BlockId.Brick, BlockId.Log, BlockId.Planks, BlockId.Bedrock }
         .All(id => BlockRegistry.Get(id).Climbable)

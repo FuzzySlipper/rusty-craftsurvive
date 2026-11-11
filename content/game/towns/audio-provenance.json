@@ -7,7 +7,7 @@
       "seconds": 24,
       "sampleRate": 24000,
       "channels": 1,
-      "source": "scripts/generate-town-audio.mjs",
+      "source": "authoring/tools/generators/generate-town-audio.mjs",
       "seed": 9892,
       "authorship": "Original procedural composition/foley for this project; no external samples or borrowed melody."
     },
@@ -16,7 +16,7 @@
       "seconds": 28,
       "sampleRate": 24000,
       "channels": 1,
-      "source": "scripts/generate-town-audio.mjs",
+      "source": "authoring/tools/generators/generate-town-audio.mjs",
       "seed": 9892,
       "authorship": "Original procedural composition/foley for this project; no external samples or borrowed melody."
     },
@@ -25,7 +25,7 @@
       "seconds": 32,
       "sampleRate": 24000,
       "channels": 1,
-      "source": "scripts/generate-town-audio.mjs",
+      "source": "authoring/tools/generators/generate-town-audio.mjs",
       "seed": 9892,
       "authorship": "Original procedural composition/foley for this project; no external samples or borrowed melody."
     },
@@ -34,7 +34,7 @@
       "seconds": 42.35295833333333,
       "sampleRate": 24000,
       "channels": 1,
-      "source": "scripts/generate-town-audio.mjs",
+      "source": "authoring/tools/generators/generate-town-audio.mjs",
       "seed": 9892,
       "authorship": "Original procedural composition/foley for this project; no external samples or borrowed melody."
     }

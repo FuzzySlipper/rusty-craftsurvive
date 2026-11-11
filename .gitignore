@@ -5,14 +5,20 @@
 **/Generated/
 **/generated/
 /node_modules/
-/live-evidence/
 /.runtime/
 /.idea/
 /.vscode/
-local/
 docs/evidence/
 *.log
 .codex/
-maplab-out/
 *Thumbs.db
 __pycache__/
+# Raw and working asset files (concepts, references, generated sources, downloaded packs): kept out of git and
+# backed up to the den NAS by authoring/tools/assets-sync.sh. Their text (prompts, specs, provenance, READMEs) stays in
+# git beside them. MapLab's output is regenerable and not kept.
+/authoring/assets/**
+!/authoring/assets/**/
+!/authoring/assets/**/*.txt
+!/authoring/assets/**/*.json
+!/authoring/assets/**/*.md
+/authoring/assets/maplab-out/

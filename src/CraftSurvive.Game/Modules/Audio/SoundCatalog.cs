@@ -27,7 +27,7 @@ internal enum AmbienceBed
 internal readonly record struct Surroundings(bool Underground, bool Submerged, double Daylight);
 
 /// <summary>
-/// The game's sounds by name: which generated clip (<c>scripts/generate-sounds.mjs</c>) each cue
+/// The game's sounds by name: which generated clip (<c>authoring/tools/generators/generate-sounds.mjs</c>) each cue
 /// plays, on which bus and how loud, and how loud each ambience bed is for where the player is.
 /// </summary>
 internal static class SoundCatalog

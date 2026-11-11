@@ -88,6 +88,10 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
   that boundary is useful.
 - The SDK generates all composition and staging artifacts below ignored `obj/`.
   They are not source, configuration, or an extension point.
+- `authoring/` makes content and is never staged: `authoring/tools/` (tracked) holds the generators, the art
+  pipelines per area and MapLab; `authoring/assets/` (ignored) holds raw and working asset files, with only their
+  text (prompts, specs, provenance) in git. Back new or changed assets up with `authoring/tools/assets-sync.sh push`;
+  a fresh checkout gets them with `pull`. Finished runtime files go to `content/game/`, which stays in git.
 - `src/ui/main.ts` compiles into the staged product UI. The Engine host owns
   canvas, rendering, input delivery, and runtime integration.
 - `.den-serve.json` and `.den-playwright.json` both start the packaged

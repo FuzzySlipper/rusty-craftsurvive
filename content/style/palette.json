@@ -1,5 +1,5 @@
 {
-  "purpose": "CraftSurvive content palette (#9664). Ramps run dark to light. Generated textures and meshes are pulled toward these by scripts/stylise-texture.py and scripts/stylise-mesh.py.",
+  "purpose": "CraftSurvive content palette (#9664). Ramps run dark to light. Generated textures and meshes are pulled toward these by authoring/tools/generators/stylise-texture.py and authoring/tools/generators/stylise-mesh.py.",
   "sources": "Earth, sandstone, stone, distance, snow, teal and cloth are clustered from docs/style-references/paperback-sanctum; meadow, foliage, sage, autumn, bark and water are authored to sit beside them (warm, slightly lifted greens in the manner of the visual direction's Valheim reference).",
   "ramps": {
     "meadow":    ["#2f4a22", "#4a6b2c", "#6c8a36", "#93a84a", "#c2c06a"],

@@ -1,5 +1,5 @@
 {
- "about": "Door figure palette (#10027): 6 materials of the figure's own pages, 12 shades each, each ramp also under lamp and moon light, made by art/people/palette.py (mara/door 6 12 --lit). sRGB hex; each block of the figure's screen-pixel grid takes the nearest once lit.",
+ "about": "Door figure palette (#10027): 6 materials of the figure's own pages, 12 shades each, each ramp also under lamp and moon light, made by authoring/tools/people/palette.py (mara/door 6 12 --lit). sRGB hex; each block of the figure's screen-pixel grid takes the nearest once lit.",
  "colours": [
   "#050604",
   "#080b07",

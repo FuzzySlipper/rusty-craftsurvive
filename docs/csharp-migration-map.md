@@ -157,7 +157,7 @@ catchment into m³/s (600 mm a year of runoff per unit of rain), and hydraulic g
 width 4.5·Q^0.5 and depth 0.35·Q^0.4 metres, at least a stream's size. A spatial bucket index keeps
 local river queries bounded. The frontier peninsula's interior tilts west (its eastern upland and
 western lowland areas), so its great river reaches a calm west-coast mouth for the start's sea port;
-`tools/MapLab --rivers` measures that over many seeds.
+`authoring/tools/MapLab --rivers` measures that over many seeds.
 
 The walked drainage (`MapDrainage`, 250 m) is also kept as data, `WaterNetwork`: reaches with
 their mean and bankfull flow, the bank height, width, depth, Manning velocity, storage time,
@@ -166,7 +166,7 @@ confluences, the heads of navigation from the sea and the floodplain. `Settlemen
 designed continent's sea port (the largest calm mouth on the playable peninsula) and its river
 towns on it - confluences and heads of navigation, up the port's own river first, 25 km apart and
 off the floodplain - and the design reserves only the mountain hold at the neck. They are known
-places from the start; `tools/MapLab --towns` measures both over many seeds.
+places from the start; `authoring/tools/MapLab --towns` measures both over many seeds.
 
 `RiverStage` routes that network's water through time (#9878). Fronts' precipitation falls on 4 km
 cells as snow or rain by the season's air (`Seasons`: a swing about each place's climate over the
@@ -180,7 +180,7 @@ off the update, then carries it: it steps it off the update each game hour (the 
 it too, and a ford's state waits for it to be within hours of the clock), saves its stores under
 `water/stage` (`RiverStageStore`) every six game hours and when the world closes, restores them when
 the world opens, and publishes a read-only view that the water owner, the far field and the travel
-events read. `tools/MapLab --stage` charts a year.
+events read. `authoring/tools/MapLab --stage` charts a year.
 
 `MapBiomes` classifies samples into sea, ice field, tundra, boreal forest, cold
 steppe, temperate forest, grassland, shrubland, desert, rainforest and alpine

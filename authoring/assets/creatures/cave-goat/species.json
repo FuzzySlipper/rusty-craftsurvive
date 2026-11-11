@@ -1,0 +1,226 @@
+{
+  "id": "cave-goat",
+  "family": "ungulate",
+  "about": "Myotragus, the cave goat: a stocky, short-legged goat about 1.25 m long, fitted to the Tripo body (authoring/assets/creatures/cave-goat/mesh). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.28,
+      0
+    ],
+    "hips": [
+      0,
+      -0.37,
+      0.5
+    ],
+    "spine": [
+      0,
+      -0.12,
+      0.5
+    ],
+    "chest": [
+      0,
+      0.12,
+      0.49
+    ],
+    "neck": [
+      0,
+      0.24,
+      0.5
+    ],
+    "neck2": [
+      0,
+      0.31,
+      0.52
+    ],
+    "head": [
+      0,
+      0.39,
+      0.55
+    ],
+    "nose": [
+      0,
+      0.6,
+      0.44
+    ],
+    "jaw": [
+      0,
+      0.41,
+      0.47
+    ],
+    "jaw_tip": [
+      0,
+      0.58,
+      0.41
+    ],
+    "tail0": [
+      0,
+      -0.53,
+      0.5
+    ],
+    "tail1": [
+      0,
+      -0.56,
+      0.44
+    ],
+    "tail2": [
+      0,
+      -0.57,
+      0.38
+    ],
+    "tail3": [
+      0,
+      -0.575,
+      0.31
+    ],
+    "hip_socket": [
+      0.1,
+      -0.42,
+      0.42
+    ],
+    "stifle": [
+      0.11,
+      -0.36,
+      0.29
+    ],
+    "hock": [
+      0.1,
+      -0.5,
+      0.19
+    ],
+    "fetlock": [
+      0.09,
+      -0.49,
+      0.05
+    ],
+    "toe": [
+      0.09,
+      -0.44,
+      0.015
+    ],
+    "shoulder": [
+      0.11,
+      0.19,
+      0.4
+    ],
+    "elbow": [
+      0.11,
+      0.17,
+      0.28
+    ],
+    "carpus": [
+      0.1,
+      0.17,
+      0.16
+    ],
+    "ffetlock": [
+      0.09,
+      0.17,
+      0.05
+    ],
+    "ftoe": [
+      0.09,
+      0.22,
+      0.015
+    ],
+    "eye": [
+      0.1,
+      0.5,
+      0.54
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 0.9,
+      "stride": 0.9,
+      "duty": 0.62,
+      "liftHind": 0.06,
+      "liftFore": 0.07,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.012,
+      "swayDegrees": 2.0,
+      "nodDegrees": 3.0
+    },
+    "run": {
+      "seconds": 0.36,
+      "stride": 1.44,
+      "duty": 0.3,
+      "liftHind": 0.11,
+      "liftFore": 0.12,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.1,
+        "fore.L": 0.5,
+        "fore.R": 0.6
+      },
+      "bob": 0.03,
+      "swayDegrees": 1.5,
+      "nodDegrees": 5.0,
+      "spineFlex": 7.0,
+      "tailLift": -14.0
+    },
+    "idle": {
+      "seconds": 4.0
+    },
+    "graze": {
+      "seconds": 5.0,
+      "reachDegrees": 32.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "bolt": {
+      "seconds": 1.0
+    },
+    "die": {
+      "seconds": 2.0
+    },
+    "ledge-hop": {
+      "seconds": 0.9,
+      "metres": 0.42
+    }
+  },
+  "proxy": {
+    "about": "The stand-in body built from metaball capsules along the bones, until the concept mesh replaces it.",
+    "radii": {
+      "hips": 0.26,
+      "spine": 0.27,
+      "chest": 0.27,
+      "neck": 0.13,
+      "neck2": 0.11,
+      "head": 0.09,
+      "jaw": 0.05,
+      "tail1": 0.05,
+      "tail2": 0.04,
+      "tail3": 0.03,
+      "thigh": 0.13,
+      "shin": 0.08,
+      "cannon": 0.04,
+      "hoof": 0.05,
+      "upperarm": 0.11,
+      "forearm": 0.07,
+      "fcannon": 0.04,
+      "fhoof": 0.05
+    },
+    "resolution": 0.03,
+    "triangles": 4000,
+    "palette": {
+      "coat": "#a88b62",
+      "belly": "#d8c8a4",
+      "legs": "#6f5a3e",
+      "claw": "#2c241c",
+      "eye": "#17110d"
+    }
+  }
+}

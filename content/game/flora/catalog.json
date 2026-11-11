@@ -1,5 +1,5 @@
 {
- "purpose": "The flora catalog (#10032): every tree, plant and piece of deadwood the world grows, as data. scripts/generate-flora.py builds each species' seeded variants (and far variants for trees), bark and foliage textures from content/style/palette.json; the game reads the species, their meshes and their ecology from here.",
+ "purpose": "The flora catalog (#10032): every tree, plant and piece of deadwood the world grows, as data. authoring/tools/generators/generate-flora.py builds each species' seeded variants (and far variants for trees), bark and foliage textures from content/style/palette.json; the game reads the species, their meshes and their ecology from here.",
  "barks": {
   "oak": {
    "pattern": "fissured",

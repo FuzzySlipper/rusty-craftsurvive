@@ -47,7 +47,7 @@ jobs:
       - name: Check generated world-map persistence and new-world isolation
         run: dotnet run --project tests/WorldMap -c Release
       - name: Build the MapLab generation tool (#9814)
-        run: dotnet build tools/MapLab -c Release
+        run: dotnet build authoring/tools/MapLab -c Release
       - name: Check the RPG rules
         run: dotnet run --project tests/RpgCore -c Release
       - name: Check wildlife's kinds, herd behaviour, region seeding and population ledger (#10567)

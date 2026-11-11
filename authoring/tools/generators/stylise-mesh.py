@@ -1,0 +1,479 @@
+"""Stylise a generated GLB into a CraftSurvive prop mesh (#9664). Blender, run headless.
+
+Local generators (asset-pipeline TRELLIS.2, Tripo) return dense, softly realistic textured meshes.
+This makes a game prop with economical colour. By default the colour is per triangle (below);
+with --texture-ref the prop is textured instead (see the end).
+Per-triangle colour is the legacy look: one flat colour per facet reads as a different game beside
+the painted ground (docs/visual-direction.md), so natural props use --texture-ref.
+
+1. join the meshes, stand the model on its base at the origin and scale it to --height metres;
+2. decimate to about --faces triangles (collapse);
+3. colour each triangle from the base-colour texture (mean of its corners and centroid), or the
+   material colour when untextured;
+4. split triangles into parts by role: with --foliage, a triangle whose colour is green enough
+   (hue in --leaf-hue, saturation above --leaf-saturation, judged before any saturation change)
+   is "leaves", everything else "bark"; then each part's saturation is set (--saturation for leaves
+   and solid parts, --bark-saturation for bark);
+   without it every triangle is "solid", and --role gives every triangle one role (a whole bush
+   as fluttering leaves);
+5. per part, pull colours toward palette ramps (content/style/palette.json) in Lab and group them
+   into --colors colours (k-means, fixed seed), for flat faceted colour fields;
+6. per vertex wind weight in colour alpha (the Engine's flutter scales by it): bark and solid 0;
+   leaves by --wind-weight: "height" (default) rises from --leaf-root-weight at the ground to 1 at
+   the part's highest point, so a rooted plant holds at its root and moves at its tips; "radial"
+   rises from the trunk axis to the canopy's edge, for crowns whose lowest leaves are outermost;
+7. normals by --shading: "flat" (default) gives each triangle's corners its face normal; "smooth"
+   keeps the model's interpolated corner normals. (The Engine's FlatShading material faces a part
+   whatever its normals; smooth normals matter for materials without it.)
+
+Output is the product prop-mesh JSON that CraftSurvive's PropMesh reads (Y up, metres, unshared
+triangles, RGBA vertex colours):
+    {"name", "height", "bounds": {"min", "max"}, "parts": [{"role", "positions", "normals", "colors", "indices"}]}
+With --static-mesh PATH the same geometry is also written as an Engine StaticMeshAsset (asset id
+mesh/prop-NAME, one group and material slot per part, material ids material/prop-NAME-ROLE,
+visual-only collision) for Graphics.CreateStaticMeshFromContent.
+A preview PNG (front, three-quarter, top) is rendered next to it unless --no-preview.
+
+    blender -b --python authoring/tools/generators/stylise-mesh.py -- SOURCE.glb OUT.prop-mesh.json --height 9 \
+        --faces 2500 --foliage --pull-leaves foliage --pull-bark bark --colors 6
+
+--texture-ref PATH makes the prop textured. The prop is one part (--role, default "solid") with a
+"uvs" array (v counted down from the top, as glTF and PropMesh do), white vertex colours carrying the
+wind weight in alpha, and smooth normals unless --shading flat; "textures": {role: PATH} names the
+installed image (a content path such as textures/scatter/stones.png) for PropMesh. No colour is
+sampled, pulled or grouped; that is the texture's job. The UVs are one of:
+  - by default Smart-UV-projected into a few large charts and scaled to one tile of a tileable
+    texture per --tile-metres of surface (the tile repeats), so a graded tile you made elsewhere
+    (authoring/tools/generators/stylise-texture.py --tile) wraps the shape and only the shape comes from the model;
+  - with --keep-uv TEXTURE.png the model's own UVs, and its single base-colour image written to
+    TEXTURE.png ungraded (run authoring/tools/generators/stylise-texture.py on it, then install it).
+Preview the prop with authoring/tools/generators/preview-prop-mesh.py once its texture is installed.
+
+    blender -b --python authoring/tools/generators/stylise-mesh.py -- SOURCE.glb OUT.prop-mesh.json --height 0.6 \
+        --faces 1500 --texture-ref textures/scatter/stones.png --tile-metres 1.2
+"""
+import argparse
+import colorsys
+import json
+import math
+import sys
+from pathlib import Path
+
+import bpy
+import bmesh
+from mathutils import Vector
+
+PALETTE = Path(__file__).resolve().parents[3] / "content" / "style" / "palette.json"
+KMEANS_SEED = 9664
+KMEANS_ITERATIONS = 20
+DEFAULT_TILE_METRES = 1.2
+SMART_UV_ANGLE = 80
+PREVIEW_SIZE = 512
+DECIMALS = 4
+
+
+def arguments():
+    argv = sys.argv[sys.argv.index("--") + 1:]
+    parser = argparse.ArgumentParser(prog="stylise-mesh.py")
+    parser.add_argument("source")
+    parser.add_argument("output")
+    parser.add_argument("--height", type=float, required=True, help="model height in metres")
+    parser.add_argument("--faces", type=int, default=2500)
+    parser.add_argument("--foliage", action="store_true", help="split leaves from bark by colour")
+    parser.add_argument("--role", choices=("solid", "leaves", "bark"), default=None,
+                        help="give every triangle this role instead (a whole small plant as leaves)")
+    parser.add_argument("--leaf-hue", default="55-170", help="leaf hue range in degrees")
+    parser.add_argument("--leaf-saturation", type=float, default=0.18)
+    parser.add_argument("--leaf-root-weight", type=float, default=0.0)
+    parser.add_argument("--wind-weight", choices=("height", "radial"), default="height")
+    parser.add_argument("--shading", choices=("flat", "smooth"), default=None,
+                        help="default flat; smooth with --texture-ref")
+    parser.add_argument("--texture-ref", default=None,
+                        help="content path of the texture the prop names; textures the prop instead of colouring triangles")
+    parser.add_argument("--tile-metres", type=float, default=DEFAULT_TILE_METRES,
+                        help="metres of surface per repeat of the tile (with --texture-ref)")
+    parser.add_argument("--keep-uv", default=None, metavar="TEXTURE_PNG",
+                        help="with --texture-ref: keep the model's UVs and write its base-colour image here")
+    parser.add_argument("--static-mesh", default=None, help="also write an Engine StaticMeshAsset JSON here")
+    parser.add_argument("--pull-leaves", default="foliage")
+    parser.add_argument("--pull-bark", default="bark")
+    parser.add_argument("--pull-solid", default="")
+    parser.add_argument("--pull-strength", type=float, default=0.6)
+    parser.add_argument("--colors", type=int, default=6, help="colours per part (0 = keep)")
+    parser.add_argument("--saturation", type=float, default=1.0, help="leaf (or solid) saturation")
+    parser.add_argument("--bark-saturation", type=float, default=None, help="bark saturation (default: --saturation)")
+    parser.add_argument("--brightness", type=float, default=1.0)
+    parser.add_argument("--yaw", type=float, default=0.0, help="turn about the vertical axis, degrees")
+    parser.add_argument("--no-preview", action="store_true")
+    args = parser.parse_args(argv)
+    if args.keep_uv and not args.texture_ref:
+        parser.error("--keep-uv needs --texture-ref")
+    if args.texture_ref and (args.foliage or args.static_mesh):
+        parser.error("--texture-ref makes one part and no static mesh: drop --foliage and --static-mesh")
+    args.shading = args.shading or ("smooth" if args.texture_ref else "flat")
+    return args
+
+
+def hex_rgb(value):
+    value = value.lstrip("#")
+    return [int(value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+
+
+def srgb_to_linear(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def lab(rgb):
+    r, g, b = (srgb_to_linear(c) for c in rgb)
+    x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047
+    y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883
+    f = [t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116 for t in (x, y, z)]
+    return (116 * f[1] - 16, 500 * (f[0] - f[1]), 200 * (f[1] - f[2]))
+
+
+def distance2(a, b):
+    return sum((p - q) ** 2 for p, q in zip(a, b))
+
+
+def pull(colours, ramps, strength):
+    if not ramps or strength <= 0:
+        return colours
+    palette = [hex_rgb(c) for c in ramps]
+    palette_lab = [lab(c) for c in palette]
+    out = []
+    for colour in colours:
+        target = palette[min(range(len(palette)), key=lambda i: distance2(lab(colour), palette_lab[i]))]
+        out.append([c + (t - c) * strength for c, t in zip(colour, target)])
+    return out
+
+
+def group(colours, k):
+    """Deterministic k-means over face colours; returns the grouped colour per face."""
+    if k <= 0 or len(colours) <= k:
+        return colours
+    # Farthest-point seeding from a fixed start keeps it deterministic without a random generator.
+    centres = [colours[KMEANS_SEED % len(colours)]]
+    while len(centres) < k:
+        centres.append(max(colours, key=lambda c: min(distance2(c, m) for m in centres)))
+    labels = [0] * len(colours)
+    for _ in range(KMEANS_ITERATIONS):
+        labels = [min(range(k), key=lambda j: distance2(c, centres[j])) for c in colours]
+        for j in range(k):
+            members = [c for c, l in zip(colours, labels) if l == j]
+            if members:
+                centres[j] = [sum(m[i] for m in members) / len(members) for i in range(3)]
+    return [centres[l] for l in labels]
+
+
+def saturate(rgb, amount):
+    grey = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+    return [min(1.0, max(0.0, grey + (c - grey) * amount)) for c in rgb]
+
+
+def base_image(material):
+    if material is None or not material.use_nodes:
+        return None
+    for node in material.node_tree.nodes:
+        if node.type == "BSDF_PRINCIPLED":
+            links = node.inputs["Base Color"].links
+            if links and links[0].from_node.type == "TEX_IMAGE":
+                return links[0].from_node.image
+    return None
+
+
+def load(args):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=args.source)
+    meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in meshes:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = meshes[0]
+    if len(meshes) > 1:
+        bpy.ops.object.join()
+    model = bpy.context.view_layer.objects.active
+    for o in list(bpy.context.scene.objects):
+        if o is not model:
+            bpy.data.objects.remove(o, do_unlink=True)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    corners = [model.matrix_world @ Vector(c) for c in model.bound_box]
+    low = Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
+    high = Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
+    model.location -= Vector(((low.x + high.x) / 2, (low.y + high.y) / 2, low.z))
+    bpy.ops.object.transform_apply(location=True)
+    model.rotation_euler = (0, 0, math.radians(args.yaw))
+    model.scale = (args.height / (high.z - low.z),) * 3
+    bpy.ops.object.transform_apply(rotation=True, scale=True)
+    triangles = sum(len(p.vertices) - 2 for p in model.data.polygons)
+    if triangles > args.faces:
+        modifier = model.modifiers.new("decimate", "DECIMATE")
+        modifier.decimate_type = "COLLAPSE"
+        modifier.ratio = args.faces / triangles
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+    return model
+
+
+def faces(model, args):
+    images = {}
+    for index, slot in enumerate(model.material_slots):
+        image = None if args.texture_ref else base_image(slot.material)
+        if image is not None:
+            images[index] = (image.size[0], image.size[1], list(image.pixels[:]))
+    mesh = model.data
+    mesh.calc_loop_triangles()
+    corner_normals = mesh.corner_normals
+    uv = mesh.uv_layers.active.data if mesh.uv_layers.active else None
+
+    def sample(slot, u, v):
+        width, height, pixels = images[slot]
+        x = min(width - 1, max(0, int((u % 1.0) * width)))
+        y = min(height - 1, max(0, int((v % 1.0) * height)))
+        i = (y * width + x) * 4
+        return pixels[i:i + 3]
+
+    result = []
+    for triangle in mesh.loop_triangles:
+        slot = triangle.material_index
+        material = model.material_slots[slot].material if model.material_slots else None
+        if args.texture_ref:
+            # The texture carries the colour; the triangle keeps its corners' UVs (glTF's v, counted down).
+            if uv is None:
+                raise SystemExit("--texture-ref needs a model with UVs")
+            corner_uvs = [(uv[loop].uv[0], 1 - uv[loop].uv[1]) for loop in triangle.loops]
+            normals = ([corner_normals[loop].vector.copy() for loop in triangle.loops] if args.shading == "smooth"
+                       else [triangle.normal.copy()] * 3)
+            result.append({"corners": [mesh.vertices[v].co.copy() for v in triangle.vertices],
+                           "normals": normals, "uvs": corner_uvs, "rgb": [1.0, 1.0, 1.0]})
+            continue
+        if uv is not None and slot in images:
+            uvs = [uv[loop].uv for loop in triangle.loops]
+            points = uvs + [sum((Vector(p) for p in uvs), Vector((0, 0))) / 3]
+            samples = [sample(slot, p[0], p[1]) for p in points]
+            # glTF textures are sRGB; Blender's pixels are already the stored values.
+            rgb = [sum(s[i] for s in samples) / len(samples) for i in range(3)]
+        else:
+            rgb = list(material.diffuse_color[:3]) if material else [0.6, 0.6, 0.6]
+        rgb = [min(1.0, c * args.brightness) for c in rgb]
+        corners = [mesh.vertices[v].co.copy() for v in triangle.vertices]
+        if args.shading == "smooth":
+            normals = [corner_normals[loop].vector.copy() for loop in triangle.loops]
+        else:
+            normals = [triangle.normal.copy()] * 3
+        result.append({"corners": corners, "normals": normals, "rgb": rgb})
+    return result
+
+
+def classify(face, args):
+    if args.role:
+        return args.role
+    if not args.foliage:
+        return "solid"
+    low, high = (float(v) for v in args.leaf_hue.split("-"))
+    h, s, v = colorsys.rgb_to_hsv(*face["rgb"])
+    return "leaves" if low <= h * 360 <= high and s >= args.leaf_saturation else "bark"
+
+
+def build(model, args):
+    ramps = json.loads(PALETTE.read_text())["ramps"]
+    pulls = {"leaves": args.pull_leaves, "bark": args.pull_bark, "solid": args.pull_solid}
+    all_faces = faces(model, args)
+    by_role = {}
+    for face in all_faces:
+        by_role.setdefault(classify(face, args), []).append(face)
+    radius = max((math.hypot(c.x, c.y) for f in all_faces for c in f["corners"]), default=1.0) or 1.0
+    parts = []
+    low = [math.inf] * 3
+    high = [-math.inf] * 3
+    for role in ("bark", "leaves", "solid"):
+        members = by_role.get(role)
+        if not members:
+            continue
+        names = [n for n in pulls[role].split(",") if n]
+        palette = [c for n in names for c in ramps[n]]
+        amount = args.bark_saturation if role == "bark" and args.bark_saturation is not None else args.saturation
+        if args.texture_ref:
+            colours = [f["rgb"] for f in members]
+        else:
+            colours = group(pull([saturate(f["rgb"], amount) for f in members], palette, args.pull_strength), args.colors)
+        positions, normals, colors, indices, uvs = [], [], [], [], []
+        top = max((c.z for f in members for c in f["corners"]), default=1.0) or 1.0
+        for face, rgb in zip(members, colours):
+            for corner, n, uv in zip(face["corners"], face["normals"], face.get("uvs") or [None] * 3):
+                # Blender Z up to Engine Y up.
+                p = (corner.x, corner.z, -corner.y)
+                for axis in range(3):
+                    low[axis] = min(low[axis], p[axis])
+                    high[axis] = max(high[axis], p[axis])
+                weight = 0.0
+                if role == "leaves":
+                    rise = (math.hypot(corner.x, corner.y) / radius if args.wind_weight == "radial"
+                            else max(0.0, corner.z) / top)
+                    weight = args.leaf_root_weight + (1 - args.leaf_root_weight) * min(1.0, rise)
+                indices.append(len(positions) // 3)
+                positions.extend(round(c, DECIMALS) for c in p)
+                normals.extend(round(c, DECIMALS) for c in (n.x, n.z, -n.y))
+                colors.extend([round(c, DECIMALS) for c in rgb] + [round(weight, DECIMALS)])
+                if uv is not None:
+                    uvs.extend(round(c, DECIMALS) for c in uv)
+        part = {"role": role, "positions": positions, "normals": normals, "colors": colors, "indices": indices}
+        if args.texture_ref:
+            part = {"role": role, "positions": positions, "normals": normals, "uvs": uvs, "colors": colors, "indices": indices}
+        parts.append(part)
+    asset = {"name": Path(args.output).name.split(".")[0], "height": args.height,
+             "bounds": {"min": [round(v, DECIMALS) for v in low], "max": [round(v, DECIMALS) for v in high]},
+             "parts": parts}
+    if args.texture_ref:
+        asset["textures"] = {part["role"]: args.texture_ref for part in parts}
+    return asset
+
+
+def unwrap(model, tile_metres):
+    """Smart-UV-project the model into a few large charts, scaled to one tile per tile_metres of surface."""
+    bpy.ops.object.select_all(action="DESELECT")
+    model.select_set(True)
+    bpy.context.view_layer.objects.active = model
+    mesh = model.data
+    while mesh.uv_layers:
+        mesh.uv_layers.remove(mesh.uv_layers[0])
+    mesh.uv_layers.new(name="UVMap")
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=math.radians(SMART_UV_ANGLE), island_margin=0.0, scale_to_bounds=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    mesh.calc_loop_triangles()
+    uv = mesh.uv_layers.active.data
+    surface = uv_area = 0.0
+    for triangle in mesh.loop_triangles:
+        a, b, c = (uv[loop].uv for loop in triangle.loops)
+        uv_area += abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2
+        surface += triangle.area
+    scale = math.sqrt(surface / uv_area) / tile_metres
+    for corner in uv:
+        corner.uv = (corner.uv[0] * scale, corner.uv[1] * scale)
+
+
+def export_texture(model, path):
+    """The model's one base-colour image, as it came, for authoring/tools/generators/stylise-texture.py to grade."""
+    images = {base_image(slot.material) for slot in model.material_slots} - {None}
+    if len(images) != 1:
+        raise SystemExit(f"--keep-uv needs exactly one base-colour image on the model, found {len(images)}")
+    image = images.pop()
+    image.filepath_raw = str(path)
+    image.file_format = "PNG"
+    image.save()
+
+
+def static_mesh(asset):
+    """The prop as an Engine StaticMeshAsset: one group and material slot per part."""
+    positions, normals, colors, indices, groups, slots = [], [], [], [], [], []
+    for slot, part in enumerate(asset["parts"]):
+        first = len(positions) // 3
+        start = len(indices)
+        positions.extend(part["positions"])
+        normals.extend(part["normals"])
+        colors.extend(part["colors"])
+        indices.extend(first + i for i in part["indices"])
+        groups.append({"materialSlot": slot, "start": start, "count": len(indices) - start})
+        slots.append({"slot": slot, "material": f"material/prop-{asset['name']}-{part['role']}"})
+    return {
+        "asset": f"mesh/prop-{asset['name']}",
+        "payload": {
+            "layout": {
+                "vertexCount": len(positions) // 3,
+                "indexCount": len(indices),
+                "indexWidth": "u32",
+                "attributes": [
+                    {"name": "position", "components": 3, "kind": "f32"},
+                    {"name": "normal", "components": 3, "kind": "f32"},
+                    {"name": "color", "components": 4, "kind": "f32"},
+                ],
+            },
+            "groups": groups,
+            "bounds": asset["bounds"],
+            "source": {"kind": "inline", "positions": positions, "normals": normals, "colors": colors, "indices": indices},
+            "provenance": "staticAsset",
+        },
+        "materialSlots": slots,
+        "collision": {"kind": "visualOnly"},
+    }
+
+
+def preview(asset, path):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    mesh = bpy.data.meshes.new("preview")
+    verts, polys, cols = [], [], []
+    for part in asset["parts"]:
+        p, c = part["positions"], part["colors"]
+        base = len(verts)
+        for i in range(0, len(p), 3):
+            verts.append((p[i], -p[i + 2], p[i + 1]))
+        for i in range(0, len(part["indices"]), 3):
+            polys.append(tuple(base + j for j in part["indices"][i:i + 3]))
+        for i in range(0, len(c), 4):
+            cols.append(c[i:i + 3] + [1.0])
+    mesh.from_pydata(verts, [], polys)
+    attribute = mesh.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+    for i, colour in enumerate(cols):
+        attribute.data[i].color = colour
+    obj = bpy.data.objects.new("preview", mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_WORKBENCH"
+    scene.display.shading.light = "STUDIO"
+    scene.display.shading.color_type = "VERTEX"
+    scene.render.resolution_x = scene.render.resolution_y = PREVIEW_SIZE
+    scene.render.film_transparent = True
+    height = asset["height"]
+    camera_data = bpy.data.cameras.new("camera")
+    camera_data.type = "ORTHO"
+    camera_data.ortho_scale = max(height, max(asset["bounds"]["max"][0] - asset["bounds"]["min"][0],
+                                               asset["bounds"]["max"][2] - asset["bounds"]["min"][2])) * 1.15
+    camera = bpy.data.objects.new("camera", camera_data)
+    scene.collection.objects.link(camera)
+    scene.camera = camera
+    frames = []
+    for name, angle, pitch in (("front", 0, 0), ("three-quarter", 45, 20), ("top", 0, 89)):
+        yaw, tilt = math.radians(angle), math.radians(pitch)
+        distance = height * 4
+        target = Vector((0, 0, height / 2))
+        camera.location = target + Vector((math.sin(yaw) * math.cos(tilt), -math.cos(yaw) * math.cos(tilt), math.sin(tilt))) * distance
+        camera.rotation_euler = (target - camera.location).to_track_quat("-Z", "Y").to_euler()
+        frame = str(path.with_name(path.stem + f"-{name}.png"))
+        scene.render.filepath = frame
+        bpy.ops.render.render(write_still=True)
+        frames.append(frame)
+    sheet = bpy.data.images.new("sheet", PREVIEW_SIZE * len(frames), PREVIEW_SIZE, alpha=True)
+    pixels = [0.0] * (PREVIEW_SIZE * len(frames) * PREVIEW_SIZE * 4)
+    for k, frame in enumerate(frames):
+        image = bpy.data.images.load(frame)
+        source = list(image.pixels[:])
+        for y in range(PREVIEW_SIZE):
+            row = (y * PREVIEW_SIZE * len(frames) + k * PREVIEW_SIZE) * 4
+            pixels[row:row + PREVIEW_SIZE * 4] = source[y * PREVIEW_SIZE * 4:(y + 1) * PREVIEW_SIZE * 4]
+        Path(frame).unlink()
+    sheet.pixels = pixels
+    sheet.filepath_raw = str(path)
+    sheet.file_format = "PNG"
+    sheet.save()
+
+
+def main():
+    args = arguments()
+    model = load(args)
+    if args.texture_ref and not args.keep_uv:
+        unwrap(model, args.tile_metres)
+    asset = build(model, args)
+    output = Path(args.output)
+    output.write_text(json.dumps(asset, separators=(",", ":")))
+    if args.keep_uv:
+        export_texture(model, args.keep_uv)
+    if args.static_mesh:
+        Path(args.static_mesh).write_text(json.dumps(static_mesh(asset), separators=(",", ":")))
+    counts = ", ".join(f"{p['role']} {len(p['indices']) // 3}" for p in asset["parts"])
+    print(f"stylise-mesh {output.name}: {counts} triangles; args: {' '.join(sys.argv[sys.argv.index('--') + 1:])}")
+    if not args.no_preview and not args.texture_ref:
+        preview(asset, output.with_suffix("").with_suffix(".preview.png"))
+
+
+main()

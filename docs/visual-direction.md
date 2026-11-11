@@ -206,7 +206,7 @@ UI copy and fine details are illustrative.
 People follow the Wandering Year atlas Towns page ("How people are shown"): detailed 1990s PC-RPG
 pixel art with faithful proportions, generated per person, rigged as 2D parts and posed live by the
 Engine. Portraits keep crisp texels; door figures are drawn smooth and pixelated in screen space
-with a soft palette. The production route is [`art/people/README.md`](../art/people/README.md). The
+with a soft palette. The production route is [`authoring/tools/people/README.md`](../authoring/tools/people/README.md). The
 October storybook character set is history (Den `history/character-storybook-set-2026-10`).
 
 Mood references, not visual styles:

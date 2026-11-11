@@ -1,5 +1,5 @@
 {
- "note": "Character framework check (#10028): built by art/characters/mpfb/build_cast.py; a test aid. Entries q-* are the Quaternius test (#10029), built by art/characters/quaternius/build_variant.sh.",
+ "note": "Character framework check (#10028): built by authoring/tools/characters/mpfb/build_cast.py; a test aid. Entries q-* are the Quaternius test (#10029), built by authoring/tools/characters/quaternius/build_variant.sh.",
  "characters": [
   {
    "name": "innkeeper",

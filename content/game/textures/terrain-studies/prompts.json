@@ -1,11 +1,11 @@
 {
-  "generator": "Z-Image with ComfyUI-Universal-Seamless-Tiles on den-m5 (asset-pipeline tools/materials/tileable_gen.py --tiling seamless --size 1024), then scripts/stylise-texture.py (content pass #9666); the 2026 GPT studies they replace are in git history",
+  "generator": "Z-Image with ComfyUI-Universal-Seamless-Tiles on den-m5 (asset-pipeline tools/materials/tileable_gen.py --tiling seamless --size 1024), then authoring/tools/generators/stylise-texture.py (content pass #9666); the 2026 GPT studies they replace are in git history",
   "materials": [
     {
       "name": "sage-ground",
       "seed": 2,
       "prompt": "Meadow ground: short lush grass in warm mid green and yellow-green tones, soft clumps and tufts, a few small patches of earthy brown soil, occasional tiny pale wildflower specks. Seamless tileable square ground texture for a stylized fantasy survival game, seen straight down from above, flat orthographic, fills the whole frame edge to edge, continues evenly off all four edges with no focal point. Hand-painted painterly texture in the manner of Valheim and classic 2000s games: broad soft colour patches, readable medium-sized shapes, economical brush marks, no photographic micro-detail, soft even lighting, no cast shadows, no highlights, no objects, no text.",
-      "source": "content/terrain-studies/source/sage-ground.png",
+      "source": "authoring/assets/terrain-studies/source/sage-ground.png",
       "sourceSha256": "1aedfc3621d3ee61d5eb3cc4169b1a5c70f2ee183a57fe0aac0d333aa935979b",
       "stylise": "stylise-texture <asset-pipeline>/outputs/craftsurvive-content-pass/ground/meadow-s2.png <asset-pipeline>/outputs/craftsurvive-content-pass/ground/styled/sage-ground.png --size 512 --paint 2 --colors 24 --group-strength 0.5 --tile --saturation 0.7 --brightness 0.85 --pull meadow,earth --pull-strength 0.5"
     },
@@ -13,7 +13,7 @@
       "name": "ochre-rock",
       "seed": 4,
       "prompt": "Natural weathered rock surface like a canyon cliff face or bare bedrock: large continuous flat planes and broad angular facets of solid stone, subtle horizontal strata bands, a few long thin cracks, warm ochre, dusty terracotta and warm grey with pale clay dust. Not individual stones, not cobbles, not pebbles, not paving, no gaps between stones. Seamless tileable square ground texture for a stylized fantasy survival game, seen straight down from above, flat orthographic, fills the whole frame edge to edge, continues evenly off all four edges with no focal point. Hand-painted painterly texture in the manner of Valheim and classic 2000s games: broad soft colour patches, readable medium-sized shapes, economical brush marks, no photographic micro-detail, soft even lighting, no cast shadows, no highlights, no objects, no text.",
-      "source": "content/terrain-studies/source/ochre-rock.png",
+      "source": "authoring/assets/terrain-studies/source/ochre-rock.png",
       "sourceSha256": "e596a8cdc3b9b42ef845770ec7c646828a6bec6139ac14aa2dc189fd6996793f",
       "stylise": "stylise-texture <asset-pipeline>/outputs/craftsurvive-content-pass/ground/rock2-s4.png <asset-pipeline>/outputs/craftsurvive-content-pass/ground/styled/ochre-rock.png --size 512 --paint 2 --colors 24 --group-strength 0.5 --tile --saturation 0.7 --pull sandstone,stone --pull-strength 0.45"
     },
@@ -21,7 +21,7 @@
       "name": "dune-sand",
       "seed": 1,
       "prompt": "Sand ground: fine warm sand with gentle soft wind ripples, pale ochre and light golden beige with subtle warmer and cooler patches. Seamless tileable square ground texture for a stylized fantasy survival game, seen straight down from above, flat orthographic, fills the whole frame edge to edge, continues evenly off all four edges with no focal point. Hand-painted painterly texture in the manner of Valheim and classic 2000s games: broad soft colour patches, readable medium-sized shapes, economical brush marks, no photographic micro-detail, soft even lighting, no cast shadows, no highlights, no objects, no text.",
-      "source": "content/terrain-studies/source/dune-sand.png",
+      "source": "authoring/assets/terrain-studies/source/dune-sand.png",
       "sourceSha256": "72a828b1fe1555d1fdd975661ad3312f0f11093367be570ad009e1e48c581514",
       "stylise": "stylise-texture <asset-pipeline>/outputs/craftsurvive-content-pass/ground/sand-s1.png <asset-pipeline>/outputs/craftsurvive-content-pass/ground/styled/dune-sand.png --size 512 --paint 2 --colors 20 --group-strength 0.5 --tile --saturation 0.8 --contrast 0.8 --pull sandstone,autumn --pull-strength 0.4"
     },
@@ -29,13 +29,13 @@
       "name": "frost-stone",
       "seed": 1,
       "prompt": "Snowy ground: windswept snow, soft drifts in warm white with pale blue-violet shadows, a few patches of small grey stones and frozen gravel showing through. Seamless tileable square ground texture for a stylized fantasy survival game, seen straight down from above, flat orthographic, fills the whole frame edge to edge, continues evenly off all four edges with no focal point. Hand-painted painterly texture in the manner of Valheim and classic 2000s games: broad soft colour patches, readable medium-sized shapes, economical brush marks, no photographic micro-detail, soft even lighting, no cast shadows, no highlights, no objects, no text.",
-      "source": "content/terrain-studies/source/frost-stone.png",
+      "source": "authoring/assets/terrain-studies/source/frost-stone.png",
       "sourceSha256": "048fc38e67285d386b87c6b71aaf9abf40b809dcdfcb74335dfa5076f08b5079",
       "stylise": "stylise-texture <asset-pipeline>/outputs/craftsurvive-content-pass/ground/snow-s1.png <asset-pipeline>/outputs/craftsurvive-content-pass/ground/styled/frost-stone.png --size 512 --paint 3 --colors 16 --group-strength 0.5 --tile --saturation 0.6 --contrast 0.7 --brightness 1.05 --pull snow,stone --pull-strength 0.4"
     },
     {
       "name": "dry-meadow",
-      "derivation": "python3 scripts/make-dry-meadow.py: sage-ground recoloured toward straw (#10041), same brushwork, scale and seamless edges",
+      "derivation": "python3 authoring/tools/generators/make-dry-meadow.py: sage-ground recoloured toward straw (#10041), same brushwork, scale and seamless edges",
       "source": "sage-ground"
     },
     {

@@ -31,9 +31,10 @@ src/
   CraftSurvive.Game/          checked C# product domains and SDK metadata
   ui/                         DOM-only companion source
 content/game/                 the content the product loads (staged whole)
-content/                      authoring sources and preserved assets (not staged)
+content/                      content provenance (*.sources.json), the shared palette, preserved assets (not staged)
+authoring/                    making content: tools/ (tracked) and assets/ (ignored, NAS-backed); see authoring/README.md
 tests/                        managed check lanes and their shared harness (not product projects)
-scripts/                      UI build and checks, the texture audit, the live-lane client
+scripts/                      UI build and checks, the texture audit, the live-lane client, CI serving
 docs/                         current ownership, limitations and live proofs
 Directory.Build.props         the one Engine SDK/runtime pair pin
 ```
@@ -63,7 +64,7 @@ Towns stand beside their water on a designed continent. Walking up to one holds 
 its edge and offers entry (Enter); a map journey to a town ends at its arrival view. In a
 town, click a building or use the door list for a conversation and its services, and
 **Leave town** to walk on. Kit sources and rebuild steps are in
-[art/towns](art/towns/README.md).
+[authoring/tools/towns](authoring/tools/towns/README.md).
 
 ## Develop or use the Den service
 

@@ -62,7 +62,7 @@
         128,
         0
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "gravel",
@@ -72,7 +72,7 @@
         192,
         0
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "cobblestone",
@@ -82,7 +82,7 @@
         128,
         64
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "brick",
@@ -92,7 +92,7 @@
         192,
         64
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "log",
@@ -102,7 +102,7 @@
         0,
         128
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "planks",
@@ -112,7 +112,7 @@
         64,
         128
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "tree-core",
@@ -132,7 +132,7 @@
         192,
         128
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "glass",
@@ -142,7 +142,7 @@
         0,
         192
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "lamp",
@@ -152,7 +152,7 @@
         64,
         192
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "bedrock",
@@ -162,7 +162,7 @@
         128,
         192
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "snow",
@@ -172,7 +172,7 @@
         192,
         192
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "dry-grass",
@@ -182,7 +182,7 @@
         0,
         256
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "washed-rock",
@@ -192,7 +192,7 @@
         64,
         256
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "patinated-rock",
@@ -202,7 +202,7 @@
         128,
         256
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "flowstone",
@@ -212,7 +212,7 @@
         192,
         256
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "rubble",
@@ -222,7 +222,7 @@
         0,
         320
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "mossy-rock",
@@ -232,7 +232,7 @@
         64,
         320
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "slimy-rock",
@@ -242,7 +242,7 @@
         128,
         320
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "moonmilk",
@@ -252,7 +252,7 @@
         192,
         320
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     },
     {
       "id": "burnt-ground",
@@ -262,7 +262,7 @@
         0,
         384
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
     }
   ]
 }

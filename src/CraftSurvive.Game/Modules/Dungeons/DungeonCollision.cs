@@ -25,7 +25,7 @@ internal static class DungeonCollision
     /// <summary>Faces meeting at more than this angle keep a hard edge; gentler ones shade smoothly.</summary>
     private const float RockCreaseDegrees = 50f;
 
-    /// <summary>The sculpted rock's texture, authored by scripts/generate-cave-rock.mjs.</summary>
+    /// <summary>The sculpted rock's texture, authored by authoring/tools/generators/generate-cave-rock.mjs.</summary>
     internal const string RockTextureContentPath = "textures/cave-rock.png";
 
     private const float RockRoughness = 0.92f;

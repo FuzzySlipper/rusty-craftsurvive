@@ -36,7 +36,7 @@ internal sealed record BurstStyle(
 /// </summary>
 internal static class Bursts
 {
-    /// <summary>The smoke's sprite: a soft white puff, authored by scripts/generate-dust-puff.mjs.</summary>
+    /// <summary>The smoke's sprite: a soft white puff, authored by authoring/tools/generators/generate-dust-puff.mjs.</summary>
     internal const string PuffContentPath = "textures/dust-puff.png";
 
     /// <summary>The widest seed an emission admits: the Engine requires it to fit 53 bits.</summary>

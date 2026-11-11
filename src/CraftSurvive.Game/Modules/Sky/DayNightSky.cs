@@ -23,8 +23,8 @@ internal sealed class DayNightSky : IDisposable
 
     /// <summary>
     /// Each base panorama, and its horizon in linear light, which the open fog takes as the sky is
-    /// blended. Day and night: the horizon all round (printed by <c>scripts/make-sky-gradient.py</c>).
-    /// The twilights: the horizon away from the sun (printed by <c>scripts/make-twilight-sky.py</c>),
+    /// blended. Day and night: the horizon all round (printed by <c>authoring/tools/generators/make-sky-gradient.py</c>).
+    /// The twilights: the horizon away from the sun (printed by <c>authoring/tools/generators/make-twilight-sky.py</c>),
     /// because the haze toward the sun warms the fog on its side.
     /// </summary>
     private static readonly IReadOnlyDictionary<SkyPanorama, (string Path, Vector3 Horizon)> Panoramas = new Dictionary<SkyPanorama, (string, Vector3)>
@@ -262,7 +262,7 @@ internal sealed class DayNightSky : IDisposable
     private readonly Dictionary<SkyPanorama, RenderResource> panoramas = [];
 
     /// <summary>
-    /// The night sky (#9807): the star catalogue and the Milky Way (<c>scripts/make-stars.py</c>), drawn
+    /// The night sky (#9807): the star catalogue and the Milky Way (<c>authoring/tools/generators/make-stars.py</c>), drawn
     /// by the Engine's star field (rusty-engine #9867). <see cref="Stars"/> decides which show; the field
     /// turns with the sky every update.
     /// </summary>

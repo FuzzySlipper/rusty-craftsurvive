@@ -10,7 +10,7 @@ internal sealed record WildlifeRagdollBone(string Joint, string? End, float Leng
 internal sealed record WildlifeRagdollLink(int Parent, int Child, Vector3 Axis, float? Swing, float Least, float Most, float Damping);
 
 /// <summary>
-/// How an animal falls (#10621): its bones and links, as `art/creatures/ragdoll.py` measured them
+/// How an animal falls (#10621): its bones and links, as `authoring/tools/creatures/ragdoll.py` measured them
 /// from the built mesh at a scale of 1, and the bone a killing blow lands on.
 /// </summary>
 internal sealed record WildlifeRagdollRig(IReadOnlyList<WildlifeRagdollBone> Bones, IReadOnlyList<WildlifeRagdollLink> Links, int HitBone)

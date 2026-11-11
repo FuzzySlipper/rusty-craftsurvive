@@ -82,7 +82,7 @@ jobs:
             for check in tests/*/*.csproj; do
               dotnet run --project "$check" -c Release
             done
-            dotnet build tools/MapLab -c Release
+            dotnet build authoring/tools/MapLab -c Release
           } 2>&1 | tee checks.log
 
       - name: Serve the product on the proposed pair

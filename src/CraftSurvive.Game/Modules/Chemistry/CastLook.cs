@@ -22,7 +22,7 @@ namespace CraftSurvive.Game.Modules.Chemistry;
 /// </summary>
 internal sealed class CastLook : IDisposable
 {
-    // The decal atlas (textures/decals/atlas.png; scripts/generate-cast-marks.py): white marks 64 x 64 from y 192, two soft
+    // The decal atlas (textures/decals/atlas.png; authoring/tools/generators/generate-cast-marks.py): white marks 64 x 64 from y 192, two soft
     // blobs and two mottled ones, which a mark's colour tints.
     private const float AtlasTexels = 256f;
     private static readonly Vector4[] Blobs = [Region(0f, 192f, 64f), Region(64f, 192f, 64f)];

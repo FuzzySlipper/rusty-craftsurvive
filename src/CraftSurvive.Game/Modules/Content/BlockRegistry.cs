@@ -3,7 +3,7 @@ namespace CraftSurvive.Game.Modules.Content;
 /// <summary>
 /// The V1 block floor of fifteen blocks plus air (campaign #8595), and dry grass after it (#10041). Every block
 /// here owns exactly one tile in the world's single atlas, except grass, which owns a base tile and a top-face tile;
-/// a block added after the floor takes a tile in the atlas's added rows (scripts/generate-terrain-atlas.mjs).
+/// a block added after the floor takes a tile in the atlas's added rows (authoring/tools/generators/generate-terrain-atlas.mjs).
 ///
 /// The world's material slot is the block's numeric id. Append only.
 ///

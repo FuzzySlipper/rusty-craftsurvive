@@ -46,10 +46,10 @@ internal sealed class CharacterStyleTest : IDisposable
     /// associated with the same pack bytes draws in its bind pose (rusty-engine #10018).
     /// </summary>
     private const string ClipPackPath = "characters/traveller/ual-clips-{0}.glb";
-    /// <summary>The framework-check cast (#10028), written by art/characters/mpfb/build_cast.py.</summary>
+    /// <summary>The framework-check cast (#10028), written by authoring/tools/characters/mpfb/build_cast.py.</summary>
     private const string CastManifest = "characters/cast/cast.json";
     private const int CastFaceSize = 128;
-    private const string ClipPackProducer = "Quaternius Universal Animation Library (UAL1 Standard), trimmed by art/characters/make_clip_pack.py";
+    private const string ClipPackProducer = "Quaternius Universal Animation Library (UAL1 Standard), trimmed by authoring/tools/characters/make_clip_pack.py";
     private const string ClipPackLicense = "CC0-1.0";
     private const string MeshPath = "characters/traveller/traveller-{0}.glb";
     private const string FacePath = "characters/traveller/face-{0}-{1}.png";

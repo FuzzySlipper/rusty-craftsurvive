@@ -3,7 +3,7 @@
  "moss-cards": {
   "texture": "content/game/textures/places/moss-cards.png",
   "generator": "local Qwen-Image-2.1 text-to-image on the owner's RTX 5090 (asset-pipeline tools/texture-edit/qwen_edit.py --size 1024x1024)",
-  "assembly": "python3 scripts/make-grass-atlas.py content/game/textures/places/moss-cards.png <ivy-s81 flipped> <ivy-s81 flipped and mirrored> <foot-s71> <foot-s72> --cell 128 --key magenta --ramps foliage,sage,meadow (the curtain flipped so its attached edge is the cell's base; ivy-s82 and -s83 were dropped for a painted rod along their tops; the first stringy hanging-moss curtain hang-s71 was replaced at the owner's request for a denser leafier ivy mat)",
+  "assembly": "python3 authoring/tools/generators/make-grass-atlas.py content/game/textures/places/moss-cards.png <ivy-s81 flipped> <ivy-s81 flipped and mirrored> <foot-s71> <foot-s72> --cell 128 --key magenta --ramps foliage,sage,meadow (the curtain flipped so its attached edge is the cell's base; ivy-s82 and -s83 were dropped for a painted rod along their tops; the first stringy hanging-moss curtain hang-s71 was replaced at the owner's request for a denser leafier ivy mat)",
   "cells": [
    {
     "cell": 0,
@@ -40,7 +40,7 @@
  "moss-mats": {
   "texture": "content/game/textures/places/moss-mats.png",
   "generator": "local Qwen-Image-2.1 text-to-image on the owner's RTX 5090 (asset-pipeline tools/texture-edit/qwen_edit.py --size 1024x1024)",
-  "assembly": "python3 scripts/make-grass-atlas.py content/game/textures/places/moss-mats.png mat-s91 mat-s92 mat-s93 mat-s94 --cell 64 --key magenta --ramps foliage,sage,meadow --centre (top-down patches, centred, proportions kept; 64 px cells for patches about 0.45 to 0.85 m wide, near the crunch rule)",
+  "assembly": "python3 authoring/tools/generators/make-grass-atlas.py content/game/textures/places/moss-mats.png mat-s91 mat-s92 mat-s93 mat-s94 --cell 64 --key magenta --ramps foliage,sage,meadow --centre (top-down patches, centred, proportions kept; 64 px cells for patches about 0.45 to 0.85 m wide, near the crunch rule)",
   "cells": [
    {
     "cell": 0,
@@ -78,12 +78,12 @@
   "prompt": "A dense wall of ivy seen straight on: overlapping chunky ivy leaves packed edge to edge covering the whole frame, dark green and olive leaves with a few bright yellow-green leaves catching the light and small dark gaps of shadow between leaves. Seamless tileable square texture for a stylized fantasy survival game, flat orthographic, fills the whole frame edge to edge, continues evenly off all four edges with no focal point. Hand-painted painterly texture in the manner of Valheim and classic 2000s games: broad soft colour patches, readable medium-sized leaf shapes, economical brush marks, no photographic micro-detail, soft even lighting, no cast shadows, no stone, no sky, no text.",
   "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/moss-10044/ivy-tile-s32.png",
   "sha256": "973a5c1477f03e5685f2b975fa3c2ebbda5e7c8d7a5071d6a1345c23e5c103d7",
-  "stylise": "python3 scripts/stylise-texture.py <source> content/game/textures/places/ivy-blanket.png --size 128 --paint 1 --pull foliage,sage --pull-strength 0.25 --saturation 0.85 --brightness 0.9 --tile (one tile per 2 m on the blanket: 64 texels per metre, so a leaf is several texels)",
+  "stylise": "python3 authoring/tools/generators/stylise-texture.py <source> content/game/textures/places/ivy-blanket.png --size 128 --paint 1 --pull foliage,sage --pull-strength 0.25 --saturation 0.85 --brightness 0.9 --tile (one tile per 2 m on the blanket: 64 texels per metre, so a leaf is several texels)",
   "rejected": "seed 31: brighter, a stamped repeat of the same yellow leaf"
  },
  "icicles": {
   "texture": "content/game/textures/places/icicles.png",
   "generator": "procedural pixel art, no source images",
-  "assembly": "python3 scripts/generate-icicles.py content/game/textures/places/icicles.png (2x2 atlas of 64 px fringes at 64 texels a metre; seeded, so it repeats exactly)"
+  "assembly": "python3 authoring/tools/generators/generate-icicles.py content/game/textures/places/icicles.png (2x2 atlas of 64 px fringes at 64 texels a metre; seeded, so it repeats exactly)"
  }
 }

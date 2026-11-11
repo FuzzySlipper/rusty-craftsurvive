@@ -21,9 +21,9 @@ internal sealed class PlaceMossCards : IDisposable
     internal const string AtlasPath = "textures/places/moss-cards.png";
     /// <summary>Flat moss mats seen from above (make-grass-atlas.py --centre): a 2x2 atlas of patches.</summary>
     internal const string MatsPath = "textures/places/moss-mats.png";
-    /// <summary>The mats lightened to match the moss painted into the stone (scripts/make-moss-tile.py), for the tufts on it.</summary>
+    /// <summary>The mats lightened to match the moss painted into the stone (authoring/tools/generators/make-moss-tile.py), for the tufts on it.</summary>
     private const string TuftsPath = "textures/places/moss-tufts.png";
-    /// <summary>Icicle fringes (#10068, scripts/generate-icicles.py): a 2x2 atlas, the top row's icicles shorter than the bottom's.</summary>
+    /// <summary>Icicle fringes (#10068, authoring/tools/generators/generate-icicles.py): a 2x2 atlas, the top row's icicles shorter than the bottom's.</summary>
     private const string IciclesPath = "textures/places/icicles.png";
     /// <summary>
     /// Icicles hang from this share of the lips once the snow shown on the places is this deep (metres); the longer fringes

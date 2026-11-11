@@ -66,7 +66,7 @@ internal sealed record FloraSpecies(ushort Id, string Name, FloraRole Role, doub
     string Folder, bool Fantastical, FloraEcology? Ecology);
 
 /// <summary>
-/// The flora catalog (#10032): every tree and plant the world grows. scripts/generate-flora.py builds the
+/// The flora catalog (#10032): every tree and plant the world grows. authoring/tools/generators/generate-flora.py builds the
 /// species' meshes and textures from <c>content/game/flora/catalog.json</c>; the same file ships inside the
 /// generator, because which species stands where is part of generation, as continent designs are.
 /// </summary>

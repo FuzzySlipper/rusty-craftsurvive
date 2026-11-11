@@ -1,0 +1,204 @@
+{
+ "id": "gaunt",
+ "family": "ungulate",
+ "about": "The gaunt, an invented hostile animal about 3 m at the back, fitted to the Tripo body (authoring/assets/creatures/gaunt/mesh). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+ "points": {
+  "root": [
+   0,
+   0,
+   0
+  ],
+  "root_tip": [
+   0,
+   0.5,
+   0
+  ],
+  "hips": [
+   0,
+   -1.3,
+   2.6
+  ],
+  "spine": [
+   0,
+   -0.7,
+   2.62
+  ],
+  "chest": [
+   0,
+   -0.1,
+   2.75
+  ],
+  "neck": [
+   0,
+   0.35,
+   2.6
+  ],
+  "neck2": [
+   0,
+   0.85,
+   2.62
+  ],
+  "head": [
+   0,
+   1.15,
+   2.6
+  ],
+  "nose": [
+   0,
+   1.8,
+   2.24
+  ],
+  "jaw": [
+   0,
+   1.33,
+   2.4
+  ],
+  "jaw_tip": [
+   0,
+   1.65,
+   2.04
+  ],
+  "tail0": [
+   0,
+   -1.62,
+   2.5
+  ],
+  "tail1": [
+   0,
+   -1.68,
+   2.47
+  ],
+  "tail2": [
+   0,
+   -1.74,
+   2.44
+  ],
+  "tail3": [
+   0,
+   -1.8,
+   2.4
+  ],
+  "hip_socket": [
+   0.25,
+   -1.38,
+   2.55
+  ],
+  "stifle": [
+   0.3,
+   -1.39,
+   1.95
+  ],
+  "hock": [
+   0.34,
+   -1.5,
+   1.3
+  ],
+  "fetlock": [
+   0.34,
+   -1.48,
+   0.3
+  ],
+  "toe": [
+   0.35,
+   -1.17,
+   0.04
+  ],
+  "shoulder": [
+   0.33,
+   -0.1,
+   2.62
+  ],
+  "elbow": [
+   0.37,
+   -0.21,
+   2.05
+  ],
+  "carpus": [
+   0.34,
+   -0.15,
+   1.3
+  ],
+  "ffetlock": [
+   0.34,
+   -0.12,
+   0.3
+  ],
+  "ftoe": [
+   0.35,
+   0.2,
+   0.04
+  ],
+  "eye": [
+   0.15,
+   1.45,
+   2.48
+  ]
+ },
+ "mouth": {
+  "hingeForward": 1.28,
+  "upper": [
+   1.75,
+   2.3
+  ],
+  "lower": [
+   1.62,
+   2.0
+  ]
+ },
+ "clips": {
+  "fps": 30,
+  "walk": {
+   "seconds": 2.0,
+   "stride": 2.8,
+   "duty": 0.7,
+   "liftHind": 0.28,
+   "liftFore": 0.34,
+   "phases": {
+    "hind.L": 0.0,
+    "fore.L": 0.25,
+    "hind.R": 0.5,
+    "fore.R": 0.75
+   },
+   "bob": 0.05,
+   "swayDegrees": 2.5,
+   "nodDegrees": 4.0
+  },
+  "run": {
+   "seconds": 0.95,
+   "stride": 5.7,
+   "duty": 0.3,
+   "liftHind": 0.5,
+   "liftFore": 0.6,
+   "phases": {
+    "hind.L": 0.0,
+    "hind.R": 0.12,
+    "fore.L": 0.5,
+    "fore.R": 0.62
+   },
+   "bob": 0.14,
+   "swayDegrees": 2.5,
+   "nodDegrees": 6.0,
+   "spineFlex": 5.0,
+   "tailLift": -6.0
+  },
+  "idle": {
+   "seconds": 4.0
+  },
+  "alert": {
+   "seconds": 3.0
+  },
+  "die": {
+   "seconds": 2.2,
+   "restShare": 0.12
+  },
+  "threat": {
+   "seconds": 2.4
+  },
+  "bite": {
+   "seconds": 1.0
+  },
+  "hurt": {
+   "seconds": 0.6
+  }
+ }
+}

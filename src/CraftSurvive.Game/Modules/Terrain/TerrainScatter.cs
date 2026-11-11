@@ -18,7 +18,7 @@ internal sealed class TerrainScatter : IDisposable
     internal const string GrassContentPath = "textures/grass-blades.png";
 
     /// <summary>
-    /// The grass clump variants: each samples one cell of the painted 2x2 atlas (scripts/make-grass-atlas.py,
+    /// The grass clump variants: each samples one cell of the painted 2x2 atlas (authoring/tools/generators/make-grass-atlas.py,
     /// content/grass.sources.json) and takes its share of the grass density; the seed-head tuft stands taller.
     /// </summary>
     private sealed record GrassVariant(uint Id, int Cell, float Share, float HeightScale);
@@ -52,7 +52,7 @@ internal sealed class TerrainScatter : IDisposable
     private static readonly Vector3 GrassTintLow = new(0.78f, 0.82f, 0.68f), GrassTintHigh = new(1.05f, 1.05f, 0.92f);
 
     /// <summary>
-    /// What else grows or lies on the ground, each a generated prop mesh (scripts/stylise-mesh.py,
+    /// What else grows or lies on the ground, each a generated prop mesh (authoring/tools/generators/stylise-mesh.py,
     /// content/scatter.sources.json) scattered on its own: flower clumps and field stones. Density is per
     /// square metre of the named ground. Shrubs and ferns are the forest's to place (PlantTiles, #10032).
     /// </summary>
@@ -84,7 +84,7 @@ internal sealed class TerrainScatter : IDisposable
     // Plants flutter by their vertex wind weight and lean a little; stones hold still.
     private const float PlantWindBend = 0.05f, PlantWindFlutter = 0.05f;
     private const float PlantRoughness = 0.85f, StoneRoughness = 0.95f;
-    /// <summary>The role of a stone prop's one part (scripts/stylise-mesh.py's default for a prop that is not foliage).</summary>
+    /// <summary>The role of a stone prop's one part (authoring/tools/generators/stylise-mesh.py's default for a prop that is not foliage).</summary>
     private const string StoneRole = "solid";
 
     // The clump: cards crossed at even angles around its origin, blades from the texture on them.

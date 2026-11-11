@@ -34,7 +34,7 @@ internal sealed class BoatStore : IPlayerCarrier, IDisposable
 
     /// <summary>Each hull as the controller collides with it: a box about its waterline origin (the models' bounds, decks flat).</summary>
     private static readonly (Vector3 Min, Vector3 Max) RaftHull = (new(-2.0f, -0.16f, -1.15f), new(2.0f, 0.18f, 1.15f));
-    /// <summary>The canoe rides with its floor at the waterline (scripts/generate-boats.py): the player stands on its floor, inside its rims.</summary>
+    /// <summary>The canoe rides with its floor at the waterline (authoring/tools/generators/generate-boats.py): the player stands on its floor, inside its rims.</summary>
     private static readonly (Vector3 Min, Vector3 Max) CanoeHull = (new(-2.3f, -0.05f, -0.39f), new(2.3f, 0.1f, 0.39f));
 
     private readonly IEngineContext engine;

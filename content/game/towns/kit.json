@@ -1,5 +1,5 @@
 {
-  "source": "art/towns/export_kit.py from art/towns/recipes.json; Blender Z-up converted to glTF Y-up, front facing +Z",
+  "source": "authoring/tools/towns/export_kit.py from authoring/tools/towns/recipes.json; Blender Z-up converted to glTF Y-up, front facing +Z",
   "pieces": {
     "inn": {
       "kind": "building",

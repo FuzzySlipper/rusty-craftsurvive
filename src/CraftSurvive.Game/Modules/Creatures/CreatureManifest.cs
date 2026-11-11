@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace CraftSurvive.Game.Modules.Creatures;
 
 /// <summary>
-/// One clip of a creature kind, as the build manifest (art/creatures/build_creature.py) describes it:
+/// One clip of a creature kind, as the build manifest (authoring/tools/creatures/build_creature.py) describes it:
 /// its length, whether it loops, whether all four feet stay on the ground (so IK may move them onto
 /// uneven ground), and, for a gait, the ground speed at which its planted feet do not slide.
 /// </summary>

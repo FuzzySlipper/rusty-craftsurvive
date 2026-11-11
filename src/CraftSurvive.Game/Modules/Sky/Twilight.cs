@@ -27,7 +27,7 @@ internal readonly record struct SkyBlend(SkyPanorama From, SkyPanorama To, float
 
 /// <summary>
 /// Sunrise and sunset as rules (#9805). The sun keeps one bearing all year, so each twilight is
-/// painted onto world-fixed panoramas (<c>scripts/make-twilight-sky.py</c>):
+/// painted onto world-fixed panoramas (<c>authoring/tools/generators/make-twilight-sky.py</c>):
 /// - glow: the sun on the horizon;
 /// - afterglow: the sun a few degrees under it.
 ///

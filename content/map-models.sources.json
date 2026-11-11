@@ -4,29 +4,29 @@
     {
       "model": "content/game/models/map/pine.prop-mesh.json",
       "sha256": "8b59a3561dd85dd51c0a338ed12bfb6f2c1058c5a4b0fc2ebfd7c0e4839c0700",
-      "tool": "scripts/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
-      "command": "python3 scripts/generate-flora.py pine --seed 1 --name pine --height 1.0 --far-only --folder map --no-textures",
+      "tool": "authoring/tools/generators/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 authoring/tools/generators/generate-flora.py pine --seed 1 --name pine --height 1.0 --far-only --folder map --no-textures",
       "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {
       "model": "content/game/models/map/broadleaf.prop-mesh.json",
       "sha256": "1ea90fd51f0cc9ecae0fe5403038e9ce27413466e4819c32ca6acd23992ced73",
-      "tool": "scripts/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
-      "command": "python3 scripts/generate-flora.py oak --seed 1 --name broadleaf --height 1.0 --far-only --folder map --no-textures",
+      "tool": "authoring/tools/generators/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 authoring/tools/generators/generate-flora.py oak --seed 1 --name broadleaf --height 1.0 --far-only --folder map --no-textures",
       "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {
       "model": "content/game/models/map/palm.prop-mesh.json",
       "sha256": "a5e774d5d5f3749a9f3ecfaea60630c9aa8e469913d7df421b968b4a7d17561f",
-      "tool": "scripts/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
-      "command": "python3 scripts/generate-flora.py palm --seed 1 --name palm --height 1.0 --frond-width 2.2 --folder map --no-textures",
+      "tool": "authoring/tools/generators/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 authoring/tools/generators/generate-flora.py palm --seed 1 --name palm --height 1.0 --frond-width 2.2 --folder map --no-textures",
       "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {
       "model": "content/game/models/map/deadtree.prop-mesh.json",
       "sha256": "966ffd11ea0127ec659b52ff228ac02913fd4e02f876872404ecc287e0bf5c24",
-      "tool": "scripts/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
-      "command": "python3 scripts/generate-flora.py dead --seed 1 --name deadtree --height 1.0  --folder map --no-textures",
+      "tool": "authoring/tools/generators/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 authoring/tools/generators/generate-flora.py dead --seed 1 --name deadtree --height 1.0  --folder map --no-textures",
       "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {
@@ -36,7 +36,7 @@
       "concept": "content/scatter.sources.json, stones-1 (FLUX.2 klein seed 54, then TRELLIS.2)",
       "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/mesh/stones-s54/textured_00001_.glb",
       "sourceSha256": "2845d97abfab49771c8235580b5521d2456523d8d503d6beac9b76035f1b347c",
-      "derivation": "blender -b --python scripts/stylise-mesh.py -- <source> content/game/models/map/rock.prop-mesh.json --height 1.0 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 2.333 (unit height, as the other map models; the tile is the stones' texture, repeated at the same density relative to the shape as the 0.6 m first-person stones); read by MapClutter",
+      "derivation": "blender -b --python authoring/tools/generators/stylise-mesh.py -- <source> content/game/models/map/rock.prop-mesh.json --height 1.0 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 2.333 (unit height, as the other map models; the tile is the stones' texture, repeated at the same density relative to the shape as the 0.6 m first-person stones); read by MapClutter",
       "texture": "content/game/textures/scatter/stones.png"
     },
     {
@@ -48,7 +48,7 @@
       "tripoTask": "76f77d68-3cbb-447b-a34d-72aa9d050562",
       "credits": 110.0,
       "provider": "Tripo P2-20260801, triangle topology, 1200-face target (2026-10-05). Only the shape is used; the prompt that asked for faceted flat-shaded green is superseded by the texture.",
-      "derivation": "blender -b --python scripts/stylise-mesh.py -- <source> content/game/models/map/cactus.prop-mesh.json --height 1.0 --faces 1300 --texture-ref textures/props/cactus.png --tile-metres 0.5 (Smart UV charts, smooth normals, unit height); the skin tile is drawn by scripts/generate-cactus-skin.py and graded with scripts/stylise-texture.py --size 128 --brightness 1.35 --saturation 0.75 --tile. Tripo's own atlas is a per-facet patchwork and is not used; a Z-Image skin tile was tried and abandoned when den-m5 stalled.",
+      "derivation": "blender -b --python authoring/tools/generators/stylise-mesh.py -- <source> content/game/models/map/cactus.prop-mesh.json --height 1.0 --faces 1300 --texture-ref textures/props/cactus.png --tile-metres 0.5 (Smart UV charts, smooth normals, unit height); the skin tile is drawn by authoring/tools/generators/generate-cactus-skin.py and graded with authoring/tools/generators/stylise-texture.py --size 128 --brightness 1.35 --saturation 0.75 --tile. Tripo's own atlas is a per-facet patchwork and is not used; a Z-Image skin tile was tried and abandoned when den-m5 stalled.",
       "texture": "content/game/textures/props/cactus.png",
       "textureSha256": "dd16bc2d3993de1454bf9aa4a065d4569d9e53fed69f09dfe38e0a0964797982"
     },
@@ -60,7 +60,7 @@
       "credits": 110.0,
       "provider": "Tripo P2-20260801, triangle topology, 1500-face target",
       "prompt": "A single low-poly stylized wooden cargo sled for an expedition survival game: two long curved wooden runners turned up at the front, a slatted wooden deck, a canvas-covered bundle of supplies lashed on with rope, a short tow rope at the front, faceted flat-shaded, no ground base, no background, centered, game asset",
-      "derivation": "blender -b --python scripts/stylise-mesh.py -- <source> content/game/models/sled.prop-mesh.json --height 0.857 --faces 1600 --texture-ref textures/props/sled.png --keep-uv <raw.png> (Tripo's UVs and all 1,502 triangles kept, smooth normals, metres: 2.4 m long), then scripts/stylise-texture.py <raw.png> content/game/textures/props/sled.png --size 512 --paint 1 --pull bark,sandstone,earth,stone,cloth --pull-strength 0.25 --saturation 0.85 --brightness 1.1 --sharpen 0.2, then reduced to 128 px, about 35 texels/m (asset-pipeline legacy/experiments/stele-place-study/pixel_reduce.py <512 px> sled.png --factor 4 --erode 1 --line-contrast 2 --colors 24 --luminance 0.44: area means without the line rule, which caught Tripo's small charts' borders; #9831 crunch rule); first-person sled (#9473, #9831), read by SledStore",
+      "derivation": "blender -b --python authoring/tools/generators/stylise-mesh.py -- <source> content/game/models/sled.prop-mesh.json --height 0.857 --faces 1600 --texture-ref textures/props/sled.png --keep-uv <raw.png> (Tripo's UVs and all 1,502 triangles kept, smooth normals, metres: 2.4 m long), then authoring/tools/generators/stylise-texture.py <raw.png> content/game/textures/props/sled.png --size 512 --paint 1 --pull bark,sandstone,earth,stone,cloth --pull-strength 0.25 --saturation 0.85 --brightness 1.1 --sharpen 0.2, then reduced to 128 px, about 35 texels/m (asset-pipeline legacy/experiments/stele-place-study/pixel_reduce.py <512 px> sled.png --factor 4 --erode 1 --line-contrast 2 --colors 24 --luminance 0.44: area means without the line rule, which caught Tripo's small charts' borders; #9831 crunch rule); first-person sled (#9473, #9831), read by SledStore",
       "sha256": "721ccba2a94c84c61198ad90acfbe7aa88296ee85130b789f4161c10b462772f",
       "sourceSha256": "ca28b4e946d49a7553f21f98209c886baa88e42d21a343ec0decd5280ba6cb75",
       "promptNote": "The prompt is kept as it was sent to Tripo. The model's surface is Tripo's own baked texture (2048 px), graded for the game, not faceted colour.",

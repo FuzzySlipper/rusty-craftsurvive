@@ -12,10 +12,10 @@ internal sealed record GroundTextureSet(string Root, IReadOnlyList<string> Layer
 {
     internal static GroundTextureSet Walking { get; } = new("textures/terrain-studies/", TerrainLayers.Names, "ground");
 
-    /// <summary>The building study's maps (#9684, scripts/generate-construction-textures.py): timber, stone and roof.</summary>
+    /// <summary>The building study's maps (#9684, authoring/tools/generators/generate-construction-textures.py): timber, stone and roof.</summary>
     internal static GroundTextureSet Construction { get; } = new("textures/construction/", ["planks", "timber", "masonry", "shingles"], "construction");
 
-    /// <summary>The cave's ground materials (#10095, scripts/generate-cave-materials.py), in their terrain layers' order.</summary>
+    /// <summary>The cave's ground materials (#10095, authoring/tools/generators/generate-cave-materials.py), in their terrain layers' order.</summary>
     internal static GroundTextureSet Cave { get; } = new("textures/cave-materials/", Dungeons.CaveMaterials.Names, "cave");
 }
 

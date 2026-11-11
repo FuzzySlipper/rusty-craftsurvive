@@ -1,5 +1,5 @@
 {
- "purpose": "Ground clutter (#9668, #10032): flower clumps and field stones scattered by TerrainScatter on the voxels and the vegetation tiles, and the flora catalog's shrubs, ferns, woodland flowers and deadwood (fallen logs, stumps and large fallen trunks), placed by PlantTiles where their ecology suits. The field stones and flower clumps are textured (#9831); shrubs and ferns are built by scripts/generate-flora.py from content/game/flora/catalog.json.",
+ "purpose": "Ground clutter (#9668, #10032): flower clumps and field stones scattered by TerrainScatter on the voxels and the vegetation tiles, and the flora catalog's shrubs, ferns, woodland flowers and deadwood (fallen logs, stumps and large fallen trunks), placed by PlantTiles where their ecology suits. The field stones and flower clumps are textured (#9831); shrubs and ferns are built by authoring/tools/generators/generate-flora.py from content/game/flora/catalog.json.",
  "generated": "2026-10-07",
  "workingDirectory": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter",
  "rejected": "fern seed 31 came out as a small palm",
@@ -7,15 +7,15 @@
   {
    "model": "content/game/models/scatter/flowers-1.prop-mesh.json",
    "sha256": "d919d6cf5f0ff275b0fdfdbe402d51e82e23c8932c20d5db6b038af57633d293",
-   "tool": "scripts/generate-flora.py (crossed upright cards of painted clump sprites, #9831)",
-   "command": "python3 scripts/generate-flora.py flowers --seed 1 --name flowers-1 --cells 0,1",
+   "tool": "authoring/tools/generators/generate-flora.py (crossed upright cards of painted clump sprites, #9831)",
+   "command": "python3 authoring/tools/generators/generate-flora.py flowers --seed 1 --name flowers-1 --cells 0,1",
    "texture": "content/game/textures/trees/flowers-leaves.png"
   },
   {
    "model": "content/game/models/scatter/flowers-2.prop-mesh.json",
    "sha256": "9b6cd9ad1f360741239c98ce0b8eebf084ca9c68e1cfd8e47d7284257e1695d9",
-   "tool": "scripts/generate-flora.py (crossed upright cards of painted clump sprites, #9831)",
-   "command": "python3 scripts/generate-flora.py flowers --seed 2 --name flowers-2 --cells 2,3",
+   "tool": "authoring/tools/generators/generate-flora.py (crossed upright cards of painted clump sprites, #9831)",
+   "command": "python3 authoring/tools/generators/generate-flora.py flowers --seed 2 --name flowers-2 --cells 2,3",
    "texture": "content/game/textures/trees/flowers-leaves.png"
   },
   {
@@ -35,7 +35,7 @@
     "prompt_id": "413476a1-3a58-4fc2-811b-cccd0b9a6922",
     "wall_seconds": 200.6
    },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 1.4 (smart-UV charts, smooth normals; the generator's own patchwork atlas is not used). Repainted for the crunch rule (#9831, 2026-10-17): a tiled crack texture through many small charts read as a censor mosaic once its texels were large, so the stone has its own atlas at 128 texels/m (asset-pipeline legacy/experiments/stele-place-study/prepare_base.py), its views repainted by Qwen after the stones-s54 concept (calm grey, one or two bold cracks, a little lichen; asset-pipeline legacy/experiments/stele-place-study/paint_stones.py), the painted light and shade divided back out (flatten_shading.py), projected (tools/texture-edit/view_paint.py), and reduced to 32 texels/m by area means without a palette (pixel_reduce.py --factor 4 --colors 0 --line-contrast 9 --luminance 0.65): a palette stair-stepped the soft variation into camouflage on a stone only twenty texels across",
+   "derivation": "blender -b --python authoring/tools/generators/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 1.4 (smart-UV charts, smooth normals; the generator's own patchwork atlas is not used). Repainted for the crunch rule (#9831, 2026-10-17): a tiled crack texture through many small charts read as a censor mosaic once its texels were large, so the stone has its own atlas at 128 texels/m (asset-pipeline legacy/experiments/stele-place-study/prepare_base.py), its views repainted by Qwen after the stones-s54 concept (calm grey, one or two bold cracks, a little lichen; asset-pipeline legacy/experiments/stele-place-study/paint_stones.py), the painted light and shade divided back out (flatten_shading.py), projected (tools/texture-edit/view_paint.py), and reduced to 32 texels/m by area means without a palette (pixel_reduce.py --factor 4 --colors 0 --line-contrast 9 --luminance 0.65): a palette stair-stepped the soft variation into camouflage on a stone only twenty texels across",
    "texture": "content/game/textures/scatter/stones-1.png"
   },
   {
@@ -55,219 +55,219 @@
     "prompt_id": "b011e093-ab8f-4f8d-ba5f-42ea92725b4a",
     "wall_seconds": 205.3
    },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 1.4 (smart-UV charts, smooth normals; the generator's own patchwork atlas is not used). Repainted for the crunch rule (#9831, 2026-10-17): a tiled crack texture through many small charts read as a censor mosaic once its texels were large, so the stone has its own atlas at 128 texels/m (asset-pipeline legacy/experiments/stele-place-study/prepare_base.py), its views repainted by Qwen after the stones-s54 concept (calm grey, one or two bold cracks, a little lichen; asset-pipeline legacy/experiments/stele-place-study/paint_stones.py), the painted light and shade divided back out (flatten_shading.py), projected (tools/texture-edit/view_paint.py), and reduced to 32 texels/m by area means without a palette (pixel_reduce.py --factor 4 --colors 0 --line-contrast 9 --luminance 0.65): a palette stair-stepped the soft variation into camouflage on a stone only twenty texels across",
+   "derivation": "blender -b --python authoring/tools/generators/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 1.4 (smart-UV charts, smooth normals; the generator's own patchwork atlas is not used). Repainted for the crunch rule (#9831, 2026-10-17): a tiled crack texture through many small charts read as a censor mosaic once its texels were large, so the stone has its own atlas at 128 texels/m (asset-pipeline legacy/experiments/stele-place-study/prepare_base.py), its views repainted by Qwen after the stones-s54 concept (calm grey, one or two bold cracks, a little lichen; asset-pipeline legacy/experiments/stele-place-study/paint_stones.py), the painted light and shade divided back out (flatten_shading.py), projected (tools/texture-edit/view_paint.py), and reduced to 32 texels/m by area means without a palette (pixel_reduce.py --factor 4 --colors 0 --line-contrast 9 --luminance 0.65): a palette stair-stepped the soft variation into camouflage on a stone only twenty texels across",
    "texture": "content/game/textures/scatter/stones-2.png"
   },
   {
    "model": "content/game/models/scatter/bush-1.prop-mesh.json",
    "sha256": "33caa4fc76b1aa16f64569e42d9e2d72b66a614a325e76b90492b00f4acfd85e",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py bush"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py bush"
   },
   {
    "model": "content/game/models/scatter/bush-2.prop-mesh.json",
    "sha256": "75b4a4cbeed350f34172082fa2cbc361ab8076c6de77f518fbca1e3cda2fa596",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py bush"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py bush"
   },
   {
    "model": "content/game/models/scatter/fern-1.prop-mesh.json",
    "sha256": "5dade46e6710b26d06600b9fc08c654bf292fbfcbb7db5982f918f280cfd9476",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py fern"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py fern"
   },
   {
    "model": "content/game/models/scatter/broom-1.prop-mesh.json",
    "sha256": "2dac26dee3623a54e3e7c576e708315d25005379c7de44a7ef3c836d336486bf",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py broom"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py broom"
   },
   {
    "model": "content/game/models/scatter/broom-2.prop-mesh.json",
    "sha256": "3c6c7a617bc9f97cf93c653d4b6ac924f3c3b8dbf1837b037c7bdfbc26ff235e",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py broom"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py broom"
   },
   {
    "model": "content/game/models/scatter/gorse-1.prop-mesh.json",
    "sha256": "26e42cb1c6f908a6ecaad03baff37cb99fc12bb4b4a3ece438eff3bfbde1a78b",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py gorse"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py gorse"
   },
   {
    "model": "content/game/models/scatter/gorse-2.prop-mesh.json",
    "sha256": "bb1b648833be5c48096c7cfc4f0f994548011d6bee5d13ef5351217199a1b9d4",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py gorse"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py gorse"
   },
   {
    "model": "content/game/models/scatter/heather-1.prop-mesh.json",
    "sha256": "d0c754a05fa0b2c1f374df7bba9b2711ed138e8e140d4dcd3cec901df5354980",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py heather"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py heather"
   },
   {
    "model": "content/game/models/scatter/heather-2.prop-mesh.json",
    "sha256": "7642f2d3692b9be688e69a099e37006b4886779ded5d81ec642febe52b7c8e73",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py heather"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py heather"
   },
   {
    "model": "content/game/models/scatter/rosemary-1.prop-mesh.json",
    "sha256": "6f3ac7fcaba4bed8f1710dcf408fa1ce887673d66c9fd3c9d269cce76657082a",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py rosemary"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py rosemary"
   },
   {
    "model": "content/game/models/scatter/rosemary-2.prop-mesh.json",
    "sha256": "9f11b2b9f093d27553d7f6f2b926e2d65e48f141b957855bdece7d5278ce529e",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py rosemary"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py rosemary"
   },
   {
    "model": "content/game/models/scatter/holly-1.prop-mesh.json",
    "sha256": "414a7ea65c46e97d9d1e3bdfcd3b1d2501c897837e3e8a356e7e129e099d4efd",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py holly"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py holly"
   },
   {
    "model": "content/game/models/scatter/holly-2.prop-mesh.json",
    "sha256": "403be85ae382dfd153afaa3a2b4b38b58de0f8e2ddc790509bb2c28925105713",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py holly"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py holly"
   },
   {
    "model": "content/game/models/scatter/hazel-1.prop-mesh.json",
    "sha256": "c9cc00d64c99a74b29c37380773a455f9dc11fb89c2bb930659f03c72cb55399",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py hazel"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py hazel"
   },
   {
    "model": "content/game/models/scatter/hazel-2.prop-mesh.json",
    "sha256": "a683e01f481a007d54059a94da3686a810e082aa37ebde95c3c4de6ce44e0f43",
-   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
-   "command": "python3 scripts/generate-flora.py hazel"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 authoring/tools/generators/generate-flora.py hazel"
   },
   {
    "model": "content/game/models/scatter/woodland-flowers-1.prop-mesh.json",
    "sha256": "af98fa863a65af639e2a24eab3fa14d496942109b508201ee3e8412ce0a2cb89",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py woodland-flowers"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py woodland-flowers"
   },
   {
    "model": "content/game/models/scatter/woodland-flowers-2.prop-mesh.json",
    "sha256": "dab7df6143edc0baa2ccebff9038a1f35fd200354dbc570c0ca82d200583ee00",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py woodland-flowers"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py woodland-flowers"
   },
   {
    "model": "content/game/models/scatter/woodland-flowers-3.prop-mesh.json",
    "sha256": "3a3005a8f2e81544ffd7781f285ad8996264950b8f66c41f7b2bb4831fef6aa0",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py woodland-flowers"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py woodland-flowers"
   },
   {
    "model": "content/game/models/scatter/log-1.prop-mesh.json",
    "sha256": "9ac5e5209bdcda1d9efa917537b7c1608ea871c2d1f39c37a381df6eb2188734",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py log"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py log"
   },
   {
    "model": "content/game/models/scatter/log-2.prop-mesh.json",
    "sha256": "839ce3356ee40a5337da8b32a26b1ee6a53279854a0f64328283a1d53bbb2599",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py log"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py log"
   },
   {
    "model": "content/game/models/scatter/log-3.prop-mesh.json",
    "sha256": "f83680b0037d294a4437316bef71546939e81f64ccee79a6279c9083c2345cdc",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py log"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py log"
   },
   {
    "model": "content/game/models/scatter/stump-1.prop-mesh.json",
    "sha256": "cd14cc23d3bf29ccb6d09430af48f1648ed3bd80a664a61e484426969ba7362f",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py stump"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py stump"
   },
   {
    "model": "content/game/models/scatter/stump-2.prop-mesh.json",
    "sha256": "b24088354b223918c77850eb85ba9663504ac9d9aeac77ff462b6e79401293ba",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py stump"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py stump"
   },
   {
    "model": "content/game/models/scatter/fallen-trunk-1.prop-mesh.json",
    "sha256": "de36a28f8ab06529e541f5959c26bf5dcd10b1ff9966b594da02be6648bdc2e0",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py fallen-trunk"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py fallen-trunk"
   },
   {
    "model": "content/game/models/scatter/fallen-trunk-2.prop-mesh.json",
    "sha256": "76db8e351715477a651b36b40b2a1a0ab346bab200c4b0d4610ef2a1ff78244d",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py fallen-trunk"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py fallen-trunk"
   },
   {
    "model": "content/game/models/scatter/fallen-trunk-3.prop-mesh.json",
    "sha256": "e64aa15e1221ad11256a78e29fc93d128a22a72706ec4efbfcf0554edd7c4b70",
-   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
-   "command": "python3 scripts/generate-flora.py fallen-trunk"
+   "tool": "authoring/tools/generators/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 authoring/tools/generators/generate-flora.py fallen-trunk"
   },
   {
    "model": "content/game/models/scatter/scree-rock-1.prop-mesh.json",
    "sha256": "33d5b1a6ef0220bf17e6a7f251a6c795fdb249045a55a528846b6e8945a06c03",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   },
   {
    "model": "content/game/models/scatter/scree-rock-2.prop-mesh.json",
    "sha256": "6cea8d49a3962a7934abbf2308d30c8ed71467695f77b7fabd4c7baec2bc1622",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   },
   {
    "model": "content/game/models/scatter/scree-rock-3.prop-mesh.json",
    "sha256": "c6fe76a51351e18aec1b2048800249406489f8cbc3fe6664089a6c51ada45bba",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   },
   {
    "model": "content/game/models/scatter/scree-rock-4.prop-mesh.json",
    "sha256": "15b39f90606377dd8a676375729d0ee6eeee7abc4ddb0ce39ab56421056096fa",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   },
   {
    "model": "content/game/models/scatter/boulder-1.prop-mesh.json",
    "sha256": "adea814e426df53b32d2f09b7ff73379388cca23829f7c85a9cd72ec06ce9a26",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   },
   {
    "model": "content/game/models/scatter/boulder-2.prop-mesh.json",
    "sha256": "98fb093274c6be4467d9e8e19265483164197bd06c6c5a3a51d57ecb1110c877",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   },
   {
    "model": "content/game/models/scatter/boulder-3.prop-mesh.json",
    "sha256": "19c4dff6631a92617d4b2a4c05b4c98f12d1cae657c5f62aaa3ec7865fdd573d",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   },
   {
    "model": "content/game/models/scatter/boulder-4.prop-mesh.json",
    "sha256": "e062421243953a34de83aac17968b041058e093c86af21ec63c3e98988b203f9",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   },
   {
    "model": "content/game/models/scatter/outcrop-1.prop-mesh.json",
    "sha256": "0f8775107fc904c487b7722609da578751e9700c95270517bb40024685a64c06",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   },
   {
    "model": "content/game/models/scatter/outcrop-2.prop-mesh.json",
    "sha256": "8de1b4fa9cfed3a494ef3790e3761dc99a3649d9451c6ee75d44490a6019339b",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   },
   {
    "model": "content/game/models/scatter/outcrop-3.prop-mesh.json",
    "sha256": "52ecfe24bd95d599e31c60cbc61e62d76233b0283ce10e9aa7a312df2680924f",
-   "tool": "scripts/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
+   "tool": "authoring/tools/generators/make-frozen-rocks.py (#10629): seeded spheres cut by planes"
   }
  ],
  "textures": [
@@ -287,7 +287,7 @@
    "sha256": "b9f07cc74b74a2247259a4278cc34eda1aecfd946891177ae96d93fc90eb037c",
    "purpose": "The flower card atlas: four painted clump sprites keyed out of a flat magenta ground and packed 2x2; cells 0 and 1 (yellow and white) are flowers-1, cells 2 and 3 (blue cornflowers) flowers-2.",
    "generator": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py --raw-prompt --framing object 1024x1024 (den-nimo), outputs/craftsurvive-content-pass/props-9831/flowers/gen.sh",
-   "derivation": "python3 scripts/make-grass-atlas.py content/game/textures/trees/flowers-leaves.png <cell 0> <cell 1> <cell 2> <cell 3> --key magenta --ramps foliage,meadow,sky,snow,autumn --pull-strength 0.15 (cell 256)",
+   "derivation": "python3 authoring/tools/generators/make-grass-atlas.py content/game/textures/trees/flowers-leaves.png <cell 0> <cell 1> <cell 2> <cell 3> --key magenta --ramps foliage,meadow,sky,snow,autumn --pull-strength 0.15 (cell 256)",
    "rejected": "White would key out of a white ground, so the ground is magenta, keyed by hue (lavender petals survive a key by colour distance). Other methods tried side by side and dropped: a procedural clump (mesh stems, painted blades and blossom cards drawn from the palette; lollipop daisies on near-black stems) and the TRELLIS flower mesh retextured with its own UVs (still green shards).",
    "cells": [
     {
@@ -323,7 +323,7 @@
   {
    "texture": "content/game/textures/scatter/frozen-rock.png",
    "sha256": "3908c893ba81f1858f3835e290ba7089c21aed56ffa74a4cbb45435d9e4cf087",
-   "purpose": "The rocks of frozen ground: content/game/textures/scatter/stones.png reduced to 128 texels, its green taken out and dimmed (scripts/make-frozen-rocks.py)."
+   "purpose": "The rocks of frozen ground: content/game/textures/scatter/stones.png reduced to 128 texels, its green taken out and dimmed (authoring/tools/generators/make-frozen-rocks.py)."
   }
  ]
 }

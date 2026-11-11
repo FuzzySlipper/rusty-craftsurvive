@@ -2,30 +2,30 @@
  "purpose": "Character framework check (#10028): eight townsfolk built from shared parts on MakeHuman's fixed topology, fitted to UAL1's rig or a frame derived from it. A test aid placed by craft.style.* debug commands, not shipped content.",
  "generated": "2026-10-15",
  "bodies": {
-  "tool": "MPFB 2.0.18 (makehumancommunity/mpfb2 3af0cd5a2ffba072e93a34e5f6f494fdc4813ddf; base mesh, targets, game_engine rig weights CC0; addon code GPLv3, used as a tool only) in Blender 5.2.2 via art/characters/mpfb/dump_body.py",
-  "recipes": "art/characters/mpfb/recipes/*.json"
+  "tool": "MPFB 2.0.18 (makehumancommunity/mpfb2 3af0cd5a2ffba072e93a34e5f6f494fdc4813ddf; base mesh, targets, game_engine rig weights CC0; addon code GPLv3, used as a tool only) in Blender 5.2.2 via authoring/tools/characters/mpfb/dump_body.py",
+  "recipes": "authoring/tools/characters/mpfb/recipes/*.json"
  },
  "rig": {
   "source": "content/animations/UAL1_Standard.glb",
   "sha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997",
   "license": "CC0-1.0 (Quaternius)",
-  "frames": "art/characters/frame.py with art/characters/frames/*.json (leg segments scaled, clip translations scaled to match, inverse binds recomputed)"
+  "frames": "authoring/tools/characters/frame.py with authoring/tools/characters/frames/*.json (leg segments scaled, clip translations scaled to match, inverse binds recomputed)"
  },
  "faces": {
   "tool": "GPT image via ~/.claude/skills/codex-image-gen",
   "sheets": [
-   "art/characters/mpfb/faces/faces-a.png",
-   "art/characters/mpfb/faces/faces-b.png",
-   "art/characters/mpfb/faces/innkeeper-expressions.png"
+   "authoring/assets/characters/mpfb/faces/faces-a.png",
+   "authoring/assets/characters/mpfb/faces/faces-b.png",
+   "authoring/assets/characters/mpfb/faces/innkeeper-expressions.png"
   ],
-  "prompts": "art/characters/mpfb/faces/spec-*.txt",
-  "layout": "art/characters/mpfb/face_layout.json (reference art/characters/mpfb/faces/face-reference-1024.png)"
+  "prompts": "authoring/assets/characters/mpfb/faces/spec-*.txt",
+  "layout": "authoring/tools/characters/mpfb/face_layout.json (reference authoring/assets/characters/mpfb/faces/face-reference-1024.png)"
  },
  "costumes": {
-  "tool": "art/characters/mpfb/paint.py (procedural strokes on the canonical body, seeded by costume name)",
-  "definitions": "art/characters/mpfb/cast.json"
+  "tool": "authoring/tools/characters/mpfb/paint.py (procedural strokes on the canonical body, seeded by costume name)",
+  "definitions": "authoring/tools/characters/mpfb/cast.json"
  },
- "builder": "art/characters/mpfb/build_cast.py",
+ "builder": "authoring/tools/characters/mpfb/build_cast.py",
  "items": [
   {
    "file": "content/game/characters/cast/cast.json",

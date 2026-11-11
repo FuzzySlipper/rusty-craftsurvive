@@ -22,7 +22,7 @@ internal sealed record CreatureStyleKind(
 
 /// <summary>
 /// The creature style test (#10568), a test aid rather than wildlife: places a creature kind built by
-/// art/creatures, plays its clips, walks it round a circle at its clips' own speed, pitches it to the
+/// authoring/tools/creatures, plays its clips, walks it round a circle at its clips' own speed, pitches it to the
 /// ground and plants its feet with two-bone IK. Live-debug commands drive it, for captures.
 ///
 /// Two drivers: an Engine graph with a trigger per clip (the path wildlife will take), or direct

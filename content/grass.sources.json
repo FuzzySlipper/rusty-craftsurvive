@@ -3,7 +3,7 @@
   "texture": "content/game/textures/grass-blades.png",
   "sha256": "7598e2f84a54d0133e40b18bfcd2f3cc1378d4b27b044e4301d857238fd5e819",
   "generator": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py --raw-prompt 1024x1024 (den-nimo), outputs/craftsurvive-content-pass/grass/generate.sh",
-  "derivation": "python3 scripts/make-grass-atlas.py content/game/textures/grass-blades.png <cell 0> <cell 1> <cell 2> <cell 3> (cell 256)",
+  "derivation": "python3 authoring/tools/generators/make-grass-atlas.py content/game/textures/grass-blades.png <cell 0> <cell 1> <cell 2> <cell 3> (cell 256)",
   "rejected": "dry-s42 and flowered-s42 were usable alternatives; lush-s42 kept as the second plain clump",
   "cells": [
     {

@@ -1,5 +1,5 @@
 {
-  "purpose": "Creature style test (#10568): the kinds craft.creature.* places. Built by art/creatures/build_creature.py; a test aid, not wildlife.",
+  "purpose": "Creature style test (#10568): the kinds craft.creature.* places. Built by authoring/tools/creatures/build_creature.py; a test aid, not wildlife.",
   "kinds": [
     {
       "name": "sloth",

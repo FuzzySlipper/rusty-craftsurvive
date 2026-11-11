@@ -12,7 +12,7 @@ namespace CraftSurvive.Game.Modules.Travel;
 /// <param name="Portages">Whether the party can carry it round rapids and falls.</param>
 /// <param name="CarriesSled">Whether the sled rides on it; a canoe leaves the sled at the landing.</param>
 /// <param name="BuildHours">Daylight hours of work to make one at a river bank.</param>
-/// <param name="ModelPath">Its prop mesh (scripts/generate-boats.py), waterline at its origin.</param>
+/// <param name="ModelPath">Its prop mesh (authoring/tools/generators/generate-boats.py), waterline at its origin.</param>
 /// <param name="WaveLimit">The highest waves (significant height, metres) it crosses open water in (#9902); past it the party is windbound.</param>
 internal sealed record BoatSpec(BoatKind Kind, string Name, double Paddle, bool Upstream, bool Portages, bool CarriesSled, double BuildHours, string ModelPath,
     double WaveLimit);

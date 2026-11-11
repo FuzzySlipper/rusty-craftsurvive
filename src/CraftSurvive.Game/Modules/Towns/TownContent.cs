@@ -9,7 +9,7 @@ namespace CraftSurvive.Game.Modules.Towns;
 internal sealed record KitSign(string Mesh, string[] Materials, Vector3 Pivot, Vector3 Axis);
 
 /// <summary>
-/// One placeable piece of the town kit (art/towns/export_kit.py), in its own frame: glTF Y-up, front
+/// One placeable piece of the town kit (authoring/tools/towns/export_kit.py), in its own frame: glTF Y-up, front
 /// facing +Z. A building also has an entrance, a selection box and a sign.
 /// </summary>
 internal sealed record KitPiece(string Key, string Kind, string Mesh, string[] Materials, Vector3 Min, Vector3 Max,

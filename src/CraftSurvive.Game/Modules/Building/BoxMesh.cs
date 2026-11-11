@@ -9,7 +9,7 @@ namespace CraftSurvive.Game.Modules.Building;
 /// </summary>
 internal static class BoxMesh
 {
-    /// <summary>Metres one construction map covers (scripts/generate-construction-textures.py).</summary>
+    /// <summary>Metres one construction map covers (authoring/tools/generators/generate-construction-textures.py).</summary>
     internal const float MetresPerTile = 2f;
 
     internal static void Add(PieceBox box, List<Vector3> positions, List<Vector3> normals, List<Vector2> uvs, List<uint> indices)
