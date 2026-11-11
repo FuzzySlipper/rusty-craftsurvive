@@ -29,7 +29,8 @@ env:
 
 jobs:
   propose:
-    runs-on: ubuntu-latest
+    # den-k8's self-hosted runner, as verify's product job.
+    runs-on: [self-hosted, den-llvmpipe]
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +48,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Install the software Vulkan driver the runtime renderer draws with
-        # mesa-vulkan-drivers supplies llvmpipe (lavapipe); runners have no GPU.
+        # mesa-vulkan-drivers supplies llvmpipe (lavapipe); the runner has no GPU.
         run: sudo apt-get update && sudo apt-get install --yes mesa-vulkan-drivers libvulkan1
 
       - name: Get rusty

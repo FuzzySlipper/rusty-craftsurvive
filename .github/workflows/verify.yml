@@ -66,7 +66,9 @@ jobs:
         run: dotnet run --project tests/Towns -c Release
 
   product:
-    runs-on: ubuntu-latest
+    # den-k8's self-hosted runner: Ubuntu 26.04 and Mesa's llvmpipe like ubuntu-latest, with the den NAS
+    # mounted at /mnt/den-nas-backup. Its jobs queue while den-k8 is down.
+    runs-on: [self-hosted, den-llvmpipe]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -89,7 +91,7 @@ jobs:
           ~/.local/bin/rusty install
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install the software Vulkan driver the runtime renderer draws with
-        # mesa-vulkan-drivers supplies llvmpipe (lavapipe); runners have no GPU.
+        # mesa-vulkan-drivers supplies llvmpipe (lavapipe); the runner has no GPU.
         run: sudo apt-get update && sudo apt-get install --yes mesa-vulkan-drivers libvulkan1
       - name: Build the product in Release
         run: dotnet build src/CraftSurvive.Game -c Release
