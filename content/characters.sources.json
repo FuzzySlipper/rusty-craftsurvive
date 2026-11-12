@@ -6,7 +6,7 @@
   "sha256": "4bad4b77fbb99f31d646d6b2d7cd58cd4838e29d5b6b164fe3d1799f8f8a4510",
   "tool": "GPT image via ~/.claude/skills/codex-image-gen (gpt-6-sol)",
   "prompt": "authoring/assets/characters/traveller/concept/spec-01.txt",
-  "reference": "docs/style-references/town/04-inn-dialogue.png"
+  "reference": "den-wiki sources/wandering-years/style-town-04-inn-dialogue-2026-11-12 (formerly docs/style-references/town/04-inn-dialogue.png)"
  },
  "mesh": {
   "tool": "Tripo P2 (P2-20260801), triangle topology, 10000 faces, standard texture, v1.0 biped rig spec=tripo, via asset-pipeline tools/tripo/tripo.py",

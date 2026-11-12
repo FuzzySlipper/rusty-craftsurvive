@@ -6,7 +6,7 @@ usage: python3 authoring/tools/characters/reuv.py <payload.npz> <basecolor.png> 
 Needs the `xatlas` Python package (pip install xatlas, in a scratch virtual environment).
 
 A generated atlas is cut into hundreds of small islands; reduced to the crunch rule's 32 texels
-per metre (docs/visual-direction.md) it averages to colour noise. xatlas charts the welded body
+per metre (den-wiki wandering-years/visual-direction) it averages to colour noise. xatlas charts the welded body
 into larger islands and packs them at the target density, one texel of padding apart. The
 generated texture is then sampled through the original UVs at an oversampled resolution and box
 reduced, so each texel is the mean colour of the surface it covers, and padding is dilated so

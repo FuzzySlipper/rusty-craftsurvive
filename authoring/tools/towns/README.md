@@ -2,9 +2,9 @@
 
 The editable source of the town kit: Blender scripts that build the buildings, landmarks
 and quayside pieces from recipes, and the exporter that writes them as runtime content.
-The design source is the
-[Towns page of the Wandering Year atlas](https://github.com/FuzzySlipper/docs/blob/main/wandering-year/pages/towns-and-explorers.md);
-the [approved mood references](../../docs/style-references/town/README.md) guide the art.
+The design source is
+[Towns and fellow explorers](https://wiki.dragonden.stream/wiki/wandering-years/towns-and-explorers) on den-wiki;
+the approved town references on [Visual direction](https://wiki.dragonden.stream/wiki/wandering-years/visual-direction) guide the art.
 
 ## Contents
 

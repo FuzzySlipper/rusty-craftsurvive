@@ -1,8 +1,8 @@
 # Creature sources
 
 The editable source of the wildlife character workflow (Den #10568, campaign #10566). Design and
-roster: the atlas page [Wildlife & the Old Beasts](https://github.com/FuzzySlipper/docs/blob/main/wandering-year/pages/wildlife.md).
-Provenance is in [`content/creatures.sources.json`](../../content/creatures.sources.json).
+roster: the den-wiki page [Wildlife](https://wiki.dragonden.stream/wiki/wandering-years/wildlife).
+Provenance is in [`content/creatures.sources.json`](../../../content/creatures.sources.json).
 
 ## Why the clips are generated
 
@@ -64,8 +64,8 @@ python3 -I authoring/tools/creatures/montage.py <frames dir> sheet.png
 
 ## A real body: the sloth (#10568)
 
-Patch's look for animals (2026-11-03, atlas wildlife page): faithful proportions, smooth clips,
-and a painted coat drawn as 3D pixel art. The route the sloth took:
+The look for animals is on the den-wiki [Wildlife](https://wiki.dragonden.stream/wiki/wandering-years/wildlife) page.
+The route the sloth took:
 
 1. **Reference sheet** (`sloth/mesh/reference.png`, its spec beside it), a GPT image of the left
    side, front and back on one sheet:
@@ -163,12 +163,6 @@ What the sloth proved and what each new family needs (#10570).
     small, and that is correct.
   - **Order:** Tripo's front view is the face; its left view is the head-left profile.
 
-Measured on the sloth in the live lane (RX 9070 XT, headless, pair ddbedd6365d6):
-- **Driving cost:** about 0.2 ms per animal per update to play, place and plant (nine sloths: mean
-  1.8 ms, worst 5.4 ms). Turning foot planting off barely changes it, so the cost is in playback
-  and the two ground casts per placement.
-- **Drawing cost:** within the stream's ±3 ms noise for one sloth, and roughly 2–3 ms for nine.
-
 Herds (#10569) play clips through direct playback rather than a graph, so one-shot clips hold
 and rates follow ground speed. To give a kind a body in game, add a `mesh` block to its entry in
 `content/game/wildlife/kinds.json`, naming the build, its manifest and the clip for each role.
@@ -186,9 +180,8 @@ appearance's material factors, so it costs no texture and each animal keeps its 
 wakes again. If a kind needs real pattern differences, the next step is a coat shader reading that
 same tint as data, as `kit-stone.wgsl` does; product shaders on skinned meshes are untested.
 
-Measured with planting budgeted to the nearest eight: about 2.5 ms an update for 24 sloths
-awake near the player. Planting every animal in a crowd cost about ten times that and tripled
-render time, so keep the budget unless the Engine changes.
+Keep foot planting budgeted to the nearest animals unless the Engine changes: planting every animal in a
+crowd costs about ten times as much. The measurements are Den `technical/creature-animation-costs`.
 
 ## Birds in the air
 

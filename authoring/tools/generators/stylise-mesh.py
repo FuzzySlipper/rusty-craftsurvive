@@ -4,7 +4,7 @@ Local generators (asset-pipeline TRELLIS.2, Tripo) return dense, softly realisti
 This makes a game prop with economical colour. By default the colour is per triangle (below);
 with --texture-ref the prop is textured instead (see the end).
 Per-triangle colour is the legacy look: one flat colour per facet reads as a different game beside
-the painted ground (docs/visual-direction.md), so natural props use --texture-ref.
+the painted ground (den-wiki wandering-years/visual-direction), so natural props use --texture-ref.
 
 1. join the meshes, stand the model on its base at the origin and scale it to --height metres;
 2. decimate to about --faces triangles (collapse);

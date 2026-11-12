@@ -1,10 +1,9 @@
 # Rusty CraftSurvive
 
-An exploration and scavenging adventure through beautiful, dangerous wilderness
-and buried dungeons. Bring salvage and magically trapped people home to build
-an inhabited base whose residents and services support further expeditions.
-See [the gameplay direction](docs/survival-direction.md) and
-[visual direction](docs/visual-direction.md) for the design targets.
+The game product for Wandering Years. Its design, including the visual
+direction, is on den-wiki: [Wandering Years](https://wiki.dragonden.stream/wiki/wandering-years). Questions still being
+decided are on the crew board `wandering-years`; tasks and technical documents
+are in Den project `rusty-craftsurvive`.
 
 Rusty CraftSurvive is a C# game product developed with the installed
 `Rusty.Engine` SDK and paired runtime pack. The ordinary development and Den
@@ -34,8 +33,8 @@ content/game/                 the content the product loads (staged whole)
 content/                      content provenance (*.sources.json), the shared palette, preserved assets (not staged)
 authoring/                    making content: tools/ (tracked) and assets/ (ignored, NAS-backed); see authoring/README.md
 tests/                        managed check lanes and their shared harness (not product projects)
-scripts/                      UI build and checks, the texture audit, the live-lane client, CI serving
-docs/                         current ownership, limitations and live proofs
+scripts/                      CI's check, UI checks, the texture audit, the live-lane client; see scripts/README.md
+docs/evidence/                live task evidence while a task runs (ignored by git)
 Directory.Build.props         the one Engine SDK/runtime pair pin
 ```
 
@@ -150,9 +149,8 @@ location.
 - `Modules/Debugging`: debug-command adapters over the owners, and the Engine's playtest commands.
 - `src/ui`: a HUD over the product's projection and an action bar that claims its intent.
 
-This is a bounded survival slice, not a claim of complete survival gameplay. See
-[`docs/known-limitations.md`](docs/known-limitations.md) for its limits and
-[`docs/csharp-migration-map.md`](docs/csharp-migration-map.md) for who owns what.
+This is a bounded slice, not a claim of complete gameplay. Its limits are Den
+`known-limitations`; who owns what is Den `product-map`.
 
 ## The world
 
@@ -169,8 +167,7 @@ Overland travel remains a design question. The generator lives in
 
 ## Working on the product
 
-Read [`AGENTS.md`](AGENTS.md) and
-[`docs/csharp-migration-map.md`](docs/csharp-migration-map.md) before changing
+Read [`AGENTS.md`](AGENTS.md) and Den `product-map` before changing
 the product/Engine boundary. Use the generated safe `Rusty.Engine` API in
 ordinary product code. Do not add downstream Rust, handwritten P/Invoke,
 unsafe game code, a second renderer or loop, UI-owned gameplay state, or a
@@ -193,7 +190,7 @@ Each lane reports every failed check, not just the first. `tests/SubstrateProof`
 canary: it links no product code. `tests/PlayerBody`, `tests/TerrainSurface`, and
 `tests/DungeonBank` run product code against
 the Engine's own services headless, through `EngineTestHost`. Against a running host, `scripts/live.mjs` walks the player,
-checks discovery and runs debug commands; see [`docs/live-proofs.md`](docs/live-proofs.md).
+checks discovery and runs debug commands; see [`scripts/README.md`](scripts/README.md).
 
 Run NativeAOT verification only when the task needs fidelity/release evidence:
 

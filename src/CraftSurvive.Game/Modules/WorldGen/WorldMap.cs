@@ -55,7 +55,7 @@ internal sealed class WorldMap
     // The arrival area stays quiet and dry enough to stand in.
     private const double ReserveRadius = 140;
     private const double ReserveFade = 120;
-    // A regional world's arrival is wet lowland (the design atlas: a mild sea port in wet lowlands, #10041): near it the
+    // A regional world's arrival is wet lowland (the design, den-wiki World and setting: a mild sea port in wet lowlands, #10041): near it the
     // land is at least this moist, easing back to the map's own climate across the fade, so dry country lies farther out.
     private const double ArrivalMoisture = 0.5;
     private const double ArrivalWetRadius = 600;

@@ -6,7 +6,7 @@ The sheet's cells are neutral, blink (top row), talk, smile (bottom row), each t
 whole front projection. Blink and talk take only their changed band (eyes, mouth) over the
 neutral cell with a feathered mask, so swapping never shifts the rest of the face; smile keeps
 its whole cell (cheeks and eyes change too). Each texture is box-reduced to every size: the face
-is denser than the body on purpose (docs/visual-direction.md texture crunch), and the sizes let
+is denser than the body on purpose (den-wiki wandering-years/visual-direction texture crunch), and the sizes let
 the in-game test compare face densities.
 """
 import sys

@@ -2133,7 +2133,7 @@ internal static class KarstCave
     }
 
     /// <summary>
-    /// For the underground ecology study (#10096; owner, 2026-10-21, the atlas's abyssal seabed in air): how many vent
+    /// For the underground ecology study (#10096; Patch, 2026-10-21, the design's abyssal seabed in air): how many vent
     /// orchards the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
     internal static int StudyVentOrchards { get; set; }

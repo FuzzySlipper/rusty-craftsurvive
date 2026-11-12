@@ -2,7 +2,7 @@
 
 How CraftSurvive builds its page on Rusty Engine. It applies the Engine's game-UI
 green path and the conventions rusty-dagger chose
-([`docs/game-ui.md`](https://github.com/FuzzySlipper/rusty-dagger/blob/main/docs/game-ui.md)),
+(den-wiki [Rusty Dagger: Game UI](https://wiki.dragonden.stream/wiki/rusty-dagger/game-ui)),
 fitted to this product. The Engine documents own the Engine rules; this file cites them:
 
 - [Game UI and diagnostic UI](https://github.com/FuzzySlipper/rusty-engine/blob/main/docs/csharp-product-style.md#game-ui-and-diagnostic-ui)

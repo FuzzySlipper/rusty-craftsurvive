@@ -3,7 +3,7 @@ using CraftSurvive.Game.Modules.Content;
 
 namespace CraftSurvive.Game.Modules.Dungeons;
 
-/// <summary>A piece of the dungeon kit (#10089; the ancients' language, docs/style-references/ancients).</summary>
+/// <summary>A piece of the dungeon kit (#10089; the ancients' language, den-wiki wandering-years/visual-direction).</summary>
 internal enum KitPiece
 {
     Floor,

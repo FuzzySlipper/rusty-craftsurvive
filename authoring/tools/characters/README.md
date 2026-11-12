@@ -3,8 +3,8 @@
 The editable source of the character style test (Den #10014): one human traveller fitted onto
 the generic humanoid rig of Quaternius's CC0 Universal Animation Library
 (`content/animations/UAL1_Standard.glb`, user-owned and read only), with a texture-swap face.
-Provenance is in [`content/characters.sources.json`](../../content/characters.sources.json). The
-visual rule is [`docs/visual-direction.md`](../../docs/visual-direction.md).
+Provenance is in [`content/characters.sources.json`](../../../content/characters.sources.json). The
+visual rule is the wiki's [visual direction](https://wiki.dragonden.stream/wiki/wandering-years/visual-direction).
 
 ## Why the rig is UAL's own
 

@@ -1,5 +1,5 @@
 {
-  "$comment": "Wildlife kinds (#10567, #10570): the first and second waves of the atlas's old beasts (wandering-year/pages/wildlife.md). Distances are metres, speeds metres a second, times seconds unless named days or hours. Habitat weights scale a kind's density by the share of a region's ground in each MapBiome.",
+  "$comment": "Wildlife kinds (#10567, #10570): the first and second waves of old beasts on den-wiki (wandering-years/wildlife). Distances are metres, speeds metres a second, times seconds unless named days or hours. Habitat weights scale a kind's density by the share of a region's ground in each MapBiome.",
   "sizeClasses": {
     "small": { "radius": 0.3, "height": 0.8 },
     "human": { "radius": 0.35, "height": 1.8 },

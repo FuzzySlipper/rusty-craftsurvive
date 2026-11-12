@@ -2,19 +2,19 @@
 
 ## Direction and ownership
 
-**Game design lives in its own repository, the design bible:** the Wandering
-Year design atlas in [FuzzySlipper/docs](https://github.com/FuzzySlipper/docs),
-cloned at `../docs/`. Start at `../docs/wandering-year/readme.md`. It holds the
-current state and plans of the design, not its history. Consult it for larger
-design references before design-shaping work.
+**Game design lives on den-wiki** under
+[Wandering Years](https://wiki.dragonden.stream/wiki/wandering-years)
+(`wiki/wandering-years`, read and edited with the den-wiki tools: `den-wiki`
+CLI or MCP). Its pages hold the settled design and the visual direction,
+including the approved reference images. Read the relevant pages before
+design-shaping work.
 
 Design changes often, and old design lingers in task descriptions, Den documents
-and repository Markdown. Where they disagree with the atlas about game design,
-the atlas is current; raise the conflict rather than following the older text.
-Record Patch's design decisions in the atlas: pull first, keep its Direction,
-Proposal and Open labels, and push. `docs/visual-direction.md` holds the approved
-visual references; `docs/survival-direction.md` is an older design assessment,
-which the atlas supersedes for game design.
+and code comments. Where they disagree with the wiki about game design, the wiki
+is current; raise the conflict rather than following the older text. A design
+question still being decided is a thread on the crew board `wandering-years`
+(`crew-claude board`); once Patch settles it, the decision goes onto the wiki
+page, edited in place, and the thread settles into it.
 
 Standing technical direction: the overworld terrain target is smooth, stylized
 dual contouring. Grid-based building is an independent usability choice. World
@@ -137,16 +137,25 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
   do not add migration or compatibility work solely to preserve development worlds.
   Existing art is provisional; the approved visual references guide replacement.
 
-- **Den holds state.** Tasks, campaign slices, decisions, board discussion, and
-  history live in Den project `rusty-craftsurvive`. If a repository document and
-  a task disagree, the task wins.
-- **The design atlas holds game design** (`../docs/wandering-year/`; see Direction
-  and ownership). Den and this repository do not keep evolving copies of design:
-  link to the atlas page instead, and treat older design text elsewhere as history.
-- **The repository holds durable references only**: start at
-  [`docs/index.md`](docs/index.md), which maps the six live documents
-  (`survival-direction.md`, `visual-direction.md`, `csharp-migration-map.md`,
-  `known-limitations.md`, `game-ui.md`, `live-proofs.md`) and the root `README.md`.
+- **Where documentation lives:**
+  - **den-wiki** (`wiki/wandering-years`): settled game design and visual
+    direction, edited in place.
+  - **Crew board `wandering-years`:** anything still being refined or decided.
+  - **Den** (project `rusty-craftsurvive`): tasks, which schedule the work;
+    technical documents, such as `product-map` (who owns what, the
+    product/Engine boundary) and `known-limitations` (what the product does not
+    do, and the limits a change respects); evidence; and history under
+    `history/` slugs. If a repository document and a task disagree, the task
+    wins.
+  - **The repository:** only narrow technical notes beside the code or tool
+    they describe, such as `README.md`, this file, `scripts/README.md` (CI and
+    the live lane), `src/ui/README.md` (the page's surfaces and input) and the
+    READMEs under `authoring/`. Do not add design, inventory, findings or
+    history documents here.
+- Markdown written to iterate through work in progress is fine while the work
+  is live. Tidying up is part of finishing: settled design goes to the wiki,
+  technical results to Den, open questions to the board, and the working notes
+  are deleted, not left in the tree.
 - Do not record volatile state in a document: current Engine pair, run results,
   task status, "the current X", or dated observations belong in Den, not in the
   working tree.

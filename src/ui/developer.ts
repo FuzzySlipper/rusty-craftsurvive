@@ -17,7 +17,7 @@ const BADGE = 'Diagnostic UI · not part of the game';
 const HOST_CLASS = 'craft-developer';
 
 /**
- * Developer tools: the Engine's developer shell docked beside play (rusty-dagger's model, `docs/game-ui.md`
+ * Developer tools: the Engine's developer shell docked beside play (rusty-dagger's model, den-wiki `wiki/rusty-dagger/game-ui`
  * "Diagnostic UI"). It holds the product's own diagnostic panels - every published fact with the building
  * and study shortcuts, and the development magic compiler (#10529) - and, when the host runs with
  * --live-debug, the Engine's console, scene, view and metrics. It lives outside every game surface, is

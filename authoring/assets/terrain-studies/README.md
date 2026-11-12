@@ -4,11 +4,11 @@ These four source PNGs were generated for the content pass (#9666) with Z-Image 
 seamless tiling on den-m5 (asset-pipeline `tools/materials/tileable_gen.py --tiling seamless
 --size 1024`), from painterly top-down ground prompts. Exact prompts, seeds, source hashes and
 the stylise command for each map are retained in
-[`prompts.json`](../game/textures/terrain-studies/prompts.json). They replace the earlier GPT
+[`prompts.json`](../../../content/game/textures/terrain-studies/prompts.json). They replace the earlier GPT
 studies (see git history).
 
 `source/` contains the unmodified generator outputs. Runtime copies in
-[`content/game/textures/terrain-studies`](../game/textures/terrain-studies/)
+[`content/game/textures/terrain-studies`](../../../content/game/textures/terrain-studies/)
 are made by `authoring/tools/generators/stylise-texture.py --tile` (512 px, painterly grouping, a pull toward the
 palette ramps in `content/style/palette.json`), written as 8-bit RGBA PNG for Engine admission.
 
@@ -52,8 +52,8 @@ noise lattice is three metres, allowing the one-metre grid to sample its slopes.
 
 These banks are tuning parameters for authored studies. The geographic anchor
 is a seam for a future generated world map, not a claim that drainage, erosion,
-or a regional map generator is implemented. See the generation direction in
-[`survival-direction.md`](../../docs/survival-direction.md).
+or a regional map generator is implemented. The world's design is on den-wiki,
+[World and setting](https://wiki.dragonden.stream/wiki/wandering-years/world-and-setting).
 
 ## Loaded studies
 

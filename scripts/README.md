@@ -1,4 +1,14 @@
-# Live proofs and evidence lanes
+# Scripts
+
+| Script | What it is for |
+| --- | --- |
+| `check-product.sh` | CI's check, here or on CI's runner (below) |
+| `ci-serve-product.sh` | Serves the product and walks it a short way; used by `check-product.sh` |
+| `live.mjs` | The live-lane client for a running host (below) |
+| `check-ui.mjs`, `ui-tsc.mjs` | `pnpm run check:ui`: type-checks the DOM companion against the pinned pair |
+| `check-terrain-atlas.mjs` | `pnpm run audit:textures`: audits the terrain texture atlas |
+
+## Live proofs and evidence lanes
 
 Two lanes prove different things. The **managed lanes** (`tests/`) run in CI and cover product
 rules and SDK values; the focused collision lanes use the Engine's packaged
@@ -19,10 +29,10 @@ without committing the pin.
 
 The live substrate proof that established the Engine constraints this product builds on left
 with the authoring lane; its record is Den `history/live-substrate-proof`.
-The [product map](csharp-migration-map.md) and [limitations](known-limitations.md)
+The product map and the known limitations (Den `product-map` and `known-limitations`)
 describe the implementation contracts that a new proof must exercise.
 
-## Operational traps
+### Operational traps
 
 - **An unwatched stream pauses the entire product.** The product reads Engine
   `Watching` once per update and holds Engine gameplay time when false. Clock,
@@ -208,4 +218,4 @@ playtest stop SESSION
 ```
 
 A page-driven check must click the world before sending keys (see above). Retained captures
-belong under [evidence](evidence/); each names the pair and machine it was taken on in Den.
+go under `docs/evidence/<task>/` while the task is live; each names the pair and machine it was taken on in Den.
