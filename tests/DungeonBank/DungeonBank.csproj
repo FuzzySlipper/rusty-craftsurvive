@@ -36,6 +36,10 @@
     <Compile Include="$(ProductModules)Dungeons/DungeonRoutes.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonCandidates.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/CaveGenerator.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/CaveStore.cs;$(ProductModules)Dungeons/CaveWaterGeometry.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)WorldGen/CaveInterior.cs" LinkBase="Product/WorldGen" />
+    <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)WorldGen/GridMath.cs" LinkBase="Product/WorldGen" />
     <Compile Include="$(ProductModules)Dungeons/DungeonSurfaces.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Player/PlayerBody.cs" LinkBase="Product/Player" />

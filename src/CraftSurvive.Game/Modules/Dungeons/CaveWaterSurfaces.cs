@@ -62,25 +62,20 @@ internal sealed class CaveWaterSurfaces : IDisposable
     {
         foreach (WaterZone zone in zones.Where(z => z.Kind is WaterZoneKind.Lake or WaterZoneKind.Pool && z.SurfaceColumns.Count > 0))
         {
-            // Built off the update when the cave was generated (#10889), or here.
-            Geometry built = Shaped.TryGetValue(zone, out Geometry? prepared) ? prepared : Build(zone, CaveWaterShore.Columns(zone, shape), shape);
+            // Built off the update when the cave was generated (#10889) or kept with a stored cave (#10888), or here.
+            CaveWaterGeometry built = CaveWaterGeometry.Of(zone) ?? Build(zone, CaveWaterShore.Columns(zone, shape), shape);
             Material look = zone.Luminous ? Luminous() : Material();
             yield return new MeshResourceCreateRequest(built.Positions, built.Normals, built.Uvs, built.Colours, built.Indices,
                 new[] { new MeshGroup(0, 0, (uint)built.Indices.Length) }, new[] { new MeshMaterialBinding(0, look) });
         }
     }
 
-    private sealed record Geometry(Vector3[] Positions, Vector3[] Normals, Vector2[] Uvs, Color[] Colours, uint[] Indices);
-
-    // The surfaces built ahead for a cave's lakes and pools, kept with each zone while it lives.
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<WaterZone, Geometry> Shaped = new();
-
     /// <summary>Builds a cave's lakes' and pools' surfaces off the update (#10889): the shore read from the cave's shape is the costly part.</summary>
     internal static void Prepare(IReadOnlyList<WaterZone> zones, Func<Vector3, float>? shape)
     {
         foreach (WaterZone zone in zones.Where(z => z.Kind is WaterZoneKind.Lake or WaterZoneKind.Pool && z.SurfaceColumns.Count > 0))
         {
-            Shaped.AddOrUpdate(zone, Build(zone, CaveWaterShore.Columns(zone, shape), shape));
+            CaveWaterGeometry.Keep(zone, Build(zone, CaveWaterShore.Columns(zone, shape), shape));
         }
     }
 
@@ -107,7 +102,7 @@ internal sealed class CaveWaterSurfaces : IDisposable
     }
 
     /// <summary>The surface as one grid over the columns, its corners shared and faded by the water's depth under them, with an underside facing down.</summary>
-    private static Geometry Build(WaterZone zone, HashSet<(int X, int Z)> columns, Func<Vector3, float>? shape)
+    private static CaveWaterGeometry Build(WaterZone zone, HashSet<(int X, int Z)> columns, Func<Vector3, float>? shape)
     {
         List<Vector3> positions = [];
         List<Vector3> normals = [];
@@ -140,7 +135,7 @@ internal sealed class CaveWaterSurfaces : IDisposable
             indices.AddRange([a, b, c, a, c, d]);
         }
 
-        return new Geometry(positions.ToArray(), normals.ToArray(), positions.Select(p => new Vector2(p.X, p.Z)).ToArray(), colours.ToArray(), indices.ToArray());
+        return new CaveWaterGeometry(positions.ToArray(), normals.ToArray(), positions.Select(p => new Vector2(p.X, p.Z)).ToArray(), colours.ToArray(), indices.ToArray());
     }
 
     /// <summary>How much of the water shows at a point of its surface (layout metres): eased in over its depth there.</summary>

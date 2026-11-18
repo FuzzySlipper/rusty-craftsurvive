@@ -31,8 +31,10 @@ internal sealed class CaveGenerator
     private sealed class Job
     {
         internal required string Key { get; init; }
-        internal required Task<object> Work { get; init; }
         internal required long Asked { get; init; }
+
+        /// <summary>The generation, set as it is scheduled; the job itself exists before, so the work can never find it missing (R10888-3).</summary>
+        internal Task<object> Work { get; set; } = Task.FromResult<object>(new object());
         internal long Started { get; set; }
         internal long Finished { get; set; }
     }
@@ -56,12 +58,13 @@ internal sealed class CaveGenerator
             return;
         }
 
-        long asked = Stopwatch.GetTimestamp();
-        Job? job = null;
+        // The job is made before its work is scheduled: a continuation on a completed tail may run at once, on a worker,
+        // before this thread goes on, and it writes to the job (R10888-3).
+        Job job = new() { Key = key, Asked = Stopwatch.GetTimestamp() };
         // One at a time, in the order asked: each generation follows the last on the capped scheduler.
         Task<object> work = tail.ContinueWith(_ =>
         {
-            job!.Started = Stopwatch.GetTimestamp();
+            job.Started = Stopwatch.GetTimestamp();
             try
             {
                 return (object)generate();
@@ -71,7 +74,7 @@ internal sealed class CaveGenerator
                 job.Finished = Stopwatch.GetTimestamp();
             }
         }, CancellationToken.None, TaskContinuationOptions.DenyChildAttach, Background);
-        job = new Job { Key = key, Work = work, Asked = asked };
+        job.Work = work;
         tail = work;
         generated++;
         jobs[key] = job;

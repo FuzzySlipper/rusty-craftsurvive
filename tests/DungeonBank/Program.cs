@@ -1098,6 +1098,95 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     }
 }
 
+// A cave kept by the store is the cave generated (#10888 R10888-2): an underground karst cave's voxels, chunks and dressing
+// encoded and decoded again come back the same, a lake's finished surface with them, and bytes of another format are a miss.
+{
+    KarstCave.Settings under = KarstCave.Next with { Underground = true, WayIn = new System.Numerics.Vector2(12.5f, 48.5f) };
+    DungeonCandidate made = DungeonCandidates.Generate(DungeonApproach.Karst, 0x10888_2UL, 0, 1d, null, CaveSetting.Temperate, under);
+    DungeonVolume v = made.AllVoxels.Volume;
+    ushort[] materials = new ushort[v.SizeX * v.SizeY * v.SizeZ];
+    float[] densities = new float[materials.Length];
+    for (int z = 0; z < v.SizeZ; z++) for (int y = 0; y < v.SizeY; y++) for (int x = 0; x < v.SizeX; x++)
+    {
+        int at = (((z * v.SizeY) + y) * v.SizeX) + x;
+        materials[at] = (ushort)v.At(x, y, z);
+        densities[at] = made.AllVoxels.Densities?.At(x, y, z) ?? 0.5f;
+    }
+
+    HashSet<CraftSurvive.Game.Modules.Terrain.TerrainChunkAddress> shell = [new(1, -2, 3), new(4, 5, -6)];
+    foreach (WaterZone zone in made.Layout.WaterZones.Take(1))
+    {
+        CaveWaterGeometry.Keep(zone, new CaveWaterGeometry([System.Numerics.Vector3.One], [System.Numerics.Vector3.UnitY], [System.Numerics.Vector2.One],
+            [new Rusty.Engine.Color(1f, 1f, 1f, 0.5f)], [0u, 0u, 0u]));
+    }
+
+    UndergroundCave cave = new(made.Layout, new CraftSurvive.Game.Modules.WorldGen.CaveInterior(v.SizeX, v.SizeY, v.SizeZ, materials, densities), shell);
+    var coding = System.Diagnostics.Stopwatch.StartNew();
+    byte[] bytes = CaveCodec.Encode(cave);
+    double encodeMs = coding.Elapsed.TotalMilliseconds;
+    coding.Restart();
+    UndergroundCave? back = CaveCodec.Decode(bytes);
+    double decodeMs = coding.Elapsed.TotalMilliseconds;
+    DungeonLayout a = made.Layout;
+    bool same = back is not null
+        && back.Interior.Materials.SequenceEqual(materials) && back.Interior.Densities.SequenceEqual(densities)
+        && back.Shell.SetEquals(shell)
+        && back.Layout.Name == a.Name && back.Layout.Arrival == a.Arrival && back.Layout.Lights.SequenceEqual(a.Lights)
+        && back.Layout.Ecology.SequenceEqual(a.Ecology) && back.Layout.Kit.SequenceEqual(a.Kit) && back.Layout.Overgrowth.SequenceEqual(a.Overgrowth)
+        && back.Layout.MossCards.SequenceEqual(a.MossCards) && back.Layout.Forest.SequenceEqual(a.Forest) && back.Layout.Drips.SequenceEqual(a.Drips)
+        && back.Layout.Relics.SequenceEqual(a.Relics) && back.Layout.MainRoute.SequenceEqual(a.MainRoute) && back.Layout.Waterfalls.SequenceEqual(a.Waterfalls)
+        && back.Layout.Communities.SequenceEqual(a.Communities) && back.Layout.WaterZones.Count == a.WaterZones.Count
+        && back.Layout.WaterZones.Zip(a.WaterZones).All(p => p.First.Kind == p.Second.Kind && p.First.Surface == p.Second.Surface
+            && p.First.Cells.SetEquals(p.Second.Cells) && p.First.SurfaceColumns.SequenceEqual(p.Second.SurfaceColumns)
+            && p.First.Mouths.SequenceEqual(p.Second.Mouths) && p.First.Path.SequenceEqual(p.Second.Path) && p.First.Luminous == p.Second.Luminous)
+        && back.Layout.WaterZones.Take(1).All(z => CaveWaterGeometry.Of(z) is { Indices.Length: 3 });
+    Console.WriteLine($"stored cave: {bytes.Length / 1048576.0:F2} MB, encoded in {encodeMs:F0} ms, decoded in {decodeMs:F0} ms; {(same ? "the same cave" : "DIFFERENT")} ({a.Ecology.Count} growths, {a.Kit.Count} kit, {a.Overgrowth.Count} overgrowth, {a.WaterZones.Count} water zones)");
+    Check.That(same, "a stored cave must decode to the cave that was stored");
+    byte[] other = (byte[])bytes.Clone();
+    Check.That(CaveCodec.Decode(other.AsSpan(0, other.Length / 2)) is null && CaveCodec.Decode([1, 2, 3]) is null, "a stored record that does not decode must be a miss");
+}
+
+// A request whose work runs at once still finds its job (R10888-3): many quick requests on an idle generator, each scheduled
+// on a completed tail where the worker may start before the asking thread goes on, all finish without a fault.
+{
+    CaveGenerator quick = new();
+    const int Requests = 400;
+    int failures = 0;
+    for (int i = 0; i < Requests; i++)
+    {
+        int n = i;
+        quick.Request($"quick-{n}", () => new object[] { n });
+        // Each on a tail already finished: wait for it before the next is asked.
+        var spin = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            while (quick.Finished<object[]>($"quick-{n}") is null && spin.Elapsed.TotalSeconds < 10)
+            {
+                Thread.SpinWait(50);
+            }
+        }
+        catch (Exception)
+        {
+            failures++;
+        }
+    }
+
+    for (int i = Requests - CaveGenerator.Kept; i < Requests; i++)
+    {
+        try
+        {
+            failures += quick.Finished<object[]>($"quick-{i}") is null ? 1 : 0;
+        }
+        catch (Exception)
+        {
+            failures++;
+        }
+    }
+
+    Console.WriteLine($"immediate generations: {Requests} asked, {failures} of the last {CaveGenerator.Kept} missing or failed; {quick.Readout()}");
+    Check.That(failures == 0 && quick.Readout().Contains("failed=0", StringComparison.Ordinal), "a generation that runs at once must find its job (R10888-3)");
+}
+
 // The trunk measure's own cases (R10304-2): an upright scale-1 VentGiant trunk at the origin (radius 1.1, height 10) is
 // crossed by a route at 1 m up, which its midpoint alone measured 4 m clear of, and is clear of the same route 3 m aside.
 {

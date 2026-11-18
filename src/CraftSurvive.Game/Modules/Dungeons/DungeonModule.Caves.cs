@@ -9,12 +9,6 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Dungeons;
 
 /// <summary>
-/// A cave under the world, generated and ready to be read into the walking session's chunks (#10889): the generator's
-/// candidate (its layout dresses it), its voxels in its own frame and the walking session's chunks that hold its air.
-/// </summary>
-internal sealed record UndergroundCave(DungeonCandidate Candidate, CaveInterior Interior, HashSet<TerrainChunkAddress> Shell);
-
-/// <summary>
 /// The caves under the world's cave mouths (#10889; Patch, 2026-11-18: caves share the terrain's systems rather than keep
 /// their own copies). A cave mouth's tendril is the overworld generator's; its cave is generated in the background when
 /// the player comes near (#10888), then read into the walking session's own chunks under the hill, where the terrain's
@@ -42,6 +36,9 @@ internal sealed partial class DungeonModule
         internal required string Key { get; init; }
         internal required ulong Seed { get; init; }
         internal UndergroundCave? Ready { get; set; }
+
+        /// <summary>Whether it was read from the store rather than generated.</summary>
+        internal bool FromStore { get; init; }
     }
 
     private readonly Dictionary<(long X, long Z), UnderCave> underCaves = [];
@@ -106,24 +103,27 @@ internal sealed partial class DungeonModule
     {
         ulong seed = seedOverride ?? DungeonSeed(terrain.SaveIdentity.Seed, cave.Site);
         CaveSetting setting = studySetting ?? terrain.CaveSettingUnder(cave.Site.X, cave.Site.Z);
-        KarstCave.Settings settings = KarstCave.Next with
-        {
-            ChunksX = CavePlacement.BoxChunksX,
-            ChunksY = CavePlacement.BoxChunksY,
-            ChunksZ = CavePlacement.BoxChunksZ,
-            Underground = true,
-            WayIn = CavePlacement.WayIn,
-        };
+        KarstCave.Settings settings = UndergroundSettings();
         string key = string.Create(CultureInfo.InvariantCulture, $"under-{seed:x}-{settings.Key}-{setting.Key}");
         ProductContent content = terrain.Content;
+        // A cave this world generated before is read from the store (#10888 R10888-2) and decoded off the update; one it
+        // never did is generated, prepared and encoded there, and stored once admitted.
+        byte[]? stored = Generator.Asked(key) ? null : CaveStore.Read(key);
+        bool fromStore = stored is not null;
         Generator.Request(key, () =>
         {
+            if (stored is not null && CaveCodec.Decode(stored) is UndergroundCave kept)
+            {
+                CaveDressing.Preload(content, kept.Layout);
+                return kept;
+            }
+
             UndergroundCave ready = Prepare(DungeonCandidates.Generate(DungeonApproach.Karst, seed, 0, 1d, null, setting, settings), cave);
             // Its kit's and overgrowth's models are read here too, so dressing it later only makes meshes on the update.
-            CaveDressing.Preload(content, ready.Candidate.Layout);
-            return ready;
+            CaveDressing.Preload(content, ready.Layout);
+            return ready with { Encoded = CaveCodec.Encode(ready) };
         });
-        UnderCave asked = new() { Cave = cave, Key = key, Seed = seed };
+        UnderCave asked = new() { Cave = cave, Key = key, Seed = seed, FromStore = fromStore };
         underCaves[cave.Key] = asked;
         lastCave = string.Create(CultureInfo.InvariantCulture, $"asked for the cave under the mouth at {cave.Site.X},{cave.Site.Z}");
         return asked;
@@ -167,7 +167,9 @@ internal sealed partial class DungeonModule
         }
 
         interior = new CaveInterior(volume.SizeX, volume.SizeY, volume.SizeZ, materials, densities);
-        return new UndergroundCave(candidate, interior, TerrainCaves.Beside(open));
+        // What dressing it reads: the layout without the voxels it was generated in.
+        DungeonLayout dressing = candidate.Layout with { Volume = new DungeonVolume(1, 1, 1, BlockId.Air), Rock = null, Densities = null, KitDrawn = null, Moisture = null };
+        return new UndergroundCave(dressing, interior, TerrainCaves.Beside(open));
     }
 
     /// <summary>Reads the caves the background has finished into the walking session.</summary>
@@ -194,14 +196,38 @@ internal sealed partial class DungeonModule
 
             if (cave.Ready is UndergroundCave ready)
             {
-                terrain.AdmitCave(cave.Cave, ready.Interior, ready.Shell);
-                cavesAdmitted++;
-                (double generateMs, double queuedMs) = Generator.Timing(cave.Key) ?? (0d, 0d);
-                lastCave = string.Create(CultureInfo.InvariantCulture,
-                    $"admitted the cave under the mouth at {cave.Cave.Site.X},{cave.Cave.Site.Z}: generate=background {generateMs:F0}ms (queued {queuedMs:F0}ms), {ready.Shell.Count} chunks with air or beside it");
+                Admit(cave, ready);
             }
         }
     }
+
+    /// <summary>Reads a ready cave into the walking session, storing a freshly generated one for the world.</summary>
+    private void Admit(UnderCave cave, UndergroundCave ready)
+    {
+        if (ready.Encoded is byte[] encoded)
+        {
+            CaveStore.Write(cave.Key, encoded);
+            cave.Ready = ready with { Encoded = null };
+            cavesGenerated++;
+        }
+        else
+        {
+            cavesRead++;
+        }
+
+        terrain.AdmitCave(cave.Cave, ready.Interior, ready.Shell);
+        cavesAdmitted++;
+        (double generateMs, double queuedMs) = Generator.Timing(cave.Key) ?? (0d, 0d);
+        lastCave = string.Create(CultureInfo.InvariantCulture,
+            $"admitted the cave under the mouth at {cave.Cave.Site.X},{cave.Cave.Site.Z}: {(cave.FromStore ? $"generate=stored (decoded {generateMs:F0}ms)" : $"generate=background {generateMs:F0}ms")} (queued {queuedMs:F0}ms), {ready.Shell.Count} chunks with air or beside it");
+    }
+
+    private long cavesGenerated, cavesRead;
+
+    /// <summary>The caves this world generated, kept through the Engine's persistence (#10888 R10888-2).</summary>
+    private CaveStore CaveStore => caveStore ??= new CaveStore(engine, terrain.SaveIdentity.Seed, TerrainGeneratorContract.CurrentVersion);
+
+    private CaveStore? caveStore;
 
     /// <summary>Lets caves far from the player go (their rock comes back); a cave kept by the generator comes back at once.</summary>
     private void ReleaseFarCaves()
@@ -255,7 +281,7 @@ internal sealed partial class DungeonModule
             return;
         }
 
-        DungeonLayout layout = ready.Candidate.Layout;
+        DungeonLayout layout = ready.Layout;
         // Built a part an update (DressingAdvance), so dressing a cave never takes one update's whole frame.
         caveDressing = new CaveDressing(engine, terrain, layout, kitDrawn: true, kitLook, kitPaint, StoneShader);
         dressedCave = nearest;
@@ -341,8 +367,8 @@ internal sealed partial class DungeonModule
             {
                 caveLitAt = place;
                 dressing.PlaceDrips(place);
-                GrowthLights(ready.Candidate.Layout.Ecology, LocalPoint(cave.Cave));
-                RelicLights(ready.Candidate.Layout.Relics, LocalPoint(cave.Cave));
+                GrowthLights(ready.Layout.Ecology, LocalPoint(cave.Cave));
+                RelicLights(ready.Layout.Relics, LocalPoint(cave.Cave));
             }
         }
 
@@ -408,7 +434,7 @@ internal sealed partial class DungeonModule
 
     /// <summary>The caves under the world: those asked for and admitted, the one dressed, and how deep the player is.</summary>
     internal string CavesReadout() => string.Create(CultureInfo.InvariantCulture,
-        $"caves asked={underCaves.Count} ready={underCaves.Values.Count(c => c.Ready is not null)} admitted={cavesAdmitted} released={cavesReleased} dressed={(dressedCave is UnderCave d ? $"{d.Cave.Site.X},{d.Cave.Site.Z}" : "none")} skyShare={sky.CaveShare:F2} lantern={lanternLit} {terrain.CavesReadout()} {Generator.Readout()} last={lastCave}");
+        $"caves asked={underCaves.Count} ready={underCaves.Values.Count(c => c.Ready is not null)} admitted={cavesAdmitted} (generated {cavesGenerated}, from the store {cavesRead}) released={cavesReleased} {CaveStore.Readout()} dressed={(dressedCave is UnderCave d ? $"{d.Cave.Site.X},{d.Cave.Site.Z}" : "none")} skyShare={sky.CaveShare:F2} lantern={lanternLit} {terrain.CavesReadout()} {Generator.Readout()} last={lastCave}");
 
     /// <summary>
     /// For captures and checks: the nearest cave mouth with a cave under it (within a search reach), its tendril's path and
@@ -428,7 +454,7 @@ internal sealed partial class DungeonModule
 
             UnderCave under = underCaves.TryGetValue(cave.Key, out UnderCave? known) ? known : Ask(cave);
             IReadOnlyList<Vector3> route = under.Ready is UndergroundCave ready
-                ? [.. ready.Candidate.Layout.MainRoute.Select(cave.ToWorld)]
+                ? [.. ready.Layout.MainRoute.Select(cave.ToWorld)]
                 : [];
             return (cave, route);
         }
@@ -452,11 +478,12 @@ internal sealed partial class DungeonModule
             }
 
             UnderCave under = underCaves.TryGetValue(cave.Key, out UnderCave? known) ? known : Ask(cave);
-            under.Ready ??= Generator.Wait(under.Key, () => Prepare(DungeonCandidates.Generate(DungeonApproach.Karst, under.Seed, 0), cave));
+            // Asked for above (from the store, or generated); waited for here.
+            UndergroundCave ready = under.Ready ?? Generator.Wait<UndergroundCave>(under.Key, () => throw new InvalidOperationException("the cave was asked for"));
             if (!terrain.Caves.IsAdmitted(cave))
             {
-                terrain.AdmitCave(cave, under.Ready.Interior, under.Ready.Shell);
-                cavesAdmitted++;
+                under.Ready = ready;
+                Admit(under, ready);
             }
 
             return true;
@@ -515,7 +542,7 @@ internal sealed partial class DungeonModule
             if (cave.Ready is UndergroundCave ready)
             {
                 // From the way in, along the main route as far as it goes.
-                way.AddRange(ready.Candidate.Layout.MainRoute.Select(p => cave.Cave.ToWorld(p + new Vector3(0f, WalkAboveFloor, 0f))));
+                way.AddRange(ready.Layout.MainRoute.Select(p => cave.Cave.ToWorld(p + new Vector3(0f, WalkAboveFloor, 0f))));
             }
 
             walkWay = way;
@@ -580,12 +607,79 @@ internal sealed partial class DungeonModule
 
     private RenderResource? stoneShader;
 
+    // The generation probe (#10888 R10888-1): a cave generated afresh in the background while the player stands, not admitted.
+    private int freshRuns;
+    private string? freshKey;
+    private long freshAsked;
+
+    /// <summary>
+    /// Assisted, for frame-time proof (#10888): generates the nearest cave mouth's cave afresh in the background - generated,
+    /// prepared and encoded as a first visit does, never from the store or the kept caves - and does not admit it, so the
+    /// updates measured meanwhile show the generator's cost alone. "readout" says whether it is done and how long it took.
+    /// </summary>
+    internal string CaveGenerate(string action)
+    {
+        if (action == "readout")
+        {
+            if (freshKey is null)
+            {
+                return "no fresh generation asked for";
+            }
+
+            bool done = Generator.Finished<UndergroundCave>(freshKey) is not null;
+            (double generateMs, double queuedMs) = Generator.Timing(freshKey) ?? (0d, 0d);
+            return string.Create(CultureInfo.InvariantCulture,
+                $"fresh {freshKey}: {(done ? $"done in {generateMs:F0} ms after {queuedMs:F0} ms queued" : $"generating for {System.Diagnostics.Stopwatch.GetElapsedTime(freshAsked).TotalMilliseconds:F0} ms")}; {Generator.Readout()}");
+        }
+
+        if (player.InSeparateSpace || NearestPlacement(3000d) is not CavePlacement cave)
+        {
+            return "no cave mouth with a cave under it within 3000 m";
+        }
+
+        ulong seed = seedOverride ?? DungeonSeed(terrain.SaveIdentity.Seed, cave.Site);
+        CaveSetting setting = studySetting ?? terrain.CaveSettingUnder(cave.Site.X, cave.Site.Z);
+        KarstCave.Settings settings = UndergroundSettings();
+        ProductContent content = terrain.Content;
+        freshKey = string.Create(CultureInfo.InvariantCulture, $"fresh-{++freshRuns}-{seed:x}-{settings.Key}-{setting.Key}");
+        freshAsked = System.Diagnostics.Stopwatch.GetTimestamp();
+        Generator.Request(freshKey, () =>
+        {
+            UndergroundCave ready = Prepare(DungeonCandidates.Generate(DungeonApproach.Karst, seed, 0, 1d, null, setting, settings), cave);
+            CaveDressing.Preload(content, ready.Layout);
+            return ready with { Encoded = CaveCodec.Encode(ready) };
+        });
+        return string.Create(CultureInfo.InvariantCulture, $"generating the cave under the mouth at {cave.Site.X},{cave.Site.Z} afresh as {freshKey}, on {CaveGenerator.Workers} workers");
+    }
+
+    /// <summary>The box and switches a cave under the world is generated with: the placement's box, its way in, nothing open to a sky.</summary>
+    private static KarstCave.Settings UndergroundSettings() => KarstCave.Next with
+    {
+        ChunksX = CavePlacement.BoxChunksX,
+        ChunksY = CavePlacement.BoxChunksY,
+        ChunksZ = CavePlacement.BoxChunksZ,
+        Underground = true,
+        WayIn = CavePlacement.WayIn,
+    };
+
+    /// <summary>The nearest cave mouth with a cave under it, within a reach.</summary>
+    private CavePlacement? NearestPlacement(double reach)
+    {
+        Vector3 feet = player.WorldFeetPosition;
+        List<PoiSite> sites = [];
+        terrain.Recipe.Placement.CollectSitesNear((long)Math.Floor(feet.X), (long)Math.Floor(feet.Z), (long)Math.Ceiling(reach), sites);
+        return sites.Where(s => s.Kind == PoiKind.CaveMouth).OrderBy(s => Math.Abs(s.X - feet.X) + Math.Abs(s.Z - feet.Z))
+            .Select(terrain.Recipe.Caves.For).FirstOrDefault(c => c is not null);
+    }
+
     private void DisposeCaves()
     {
         Undress();
         retiringDressing?.Dispose();
         retiringDressing = null;
         underCaves.Clear();
+        caveStore?.Dispose();
+        caveStore = null;
     }
 
     /// <summary>Releases the shared shader after every dressing drawn through it is gone.</summary>

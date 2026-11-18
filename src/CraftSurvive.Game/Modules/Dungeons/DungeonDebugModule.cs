@@ -22,6 +22,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.cave.walk", Description = "Assisted, for captures (#10889): moves the player this many metres on along the chosen cave's way in - down its tendril, then its main route once the cave is ready - facing the way on; negative walks back out.")]
     public string CaveWalk(float metres) => dungeons.CaveWalk(metres);
 
+    [DebugCommand("craft.cave.generate", Description = "Assisted, for frame-time proof (#10888): generates the nearest cave mouth's cave afresh in the background (generated, prepared and encoded as a first visit, never from the store) without admitting it, so the updates measured meanwhile show the generator's cost; readout says when it is done.")]
+    public string CaveGenerate(string action = "") => dungeons.CaveGenerate(action);
+
     [DebugCommand("craft.dungeon.readout", Description = "Reads where the player stands with dungeons: state, loading progress and cost, the nearby entrance.")]
     public string Readout() => dungeons.Readout();
 
