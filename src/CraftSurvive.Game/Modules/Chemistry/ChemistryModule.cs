@@ -159,19 +159,29 @@ internal sealed class ChemistryModule : IProductModule
         Follow,
         Write,
         Reload,
+        Look,
+        Overlay,
     }
 
     private readonly double[] worstPart = new double[Enum.GetValues<UpdatePart>().Length];
 
+    private readonly double[] lastPart = new double[Enum.GetValues<UpdatePart>().Length];
+
     private void Part(UpdatePart part, ref long mark)
     {
         long now = Stopwatch.GetTimestamp();
-        worstPart[(int)part] = Math.Max(worstPart[(int)part] * WorstUpdateKept, Stopwatch.GetElapsedTime(mark, now).TotalMilliseconds);
+        lastPart[(int)part] = Stopwatch.GetElapsedTime(mark, now).TotalMilliseconds;
+        worstPart[(int)part] = Math.Max(worstPart[(int)part] * WorstUpdateKept, lastPart[(int)part]);
         mark = now;
     }
 
+    /// <summary>Where the last update's time went (#10907), its parts of half a millisecond or more.</summary>
+    internal string LastTiming => string.Join(" ", Enum.GetValues<UpdatePart>().Where(part => lastPart[(int)part] >= 0.5d)
+        .Select(part => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{part}={lastPart[(int)part]:F1}")).Concat(lastLoads.Count > 0 ? [$"loads[{string.Join(",", lastLoads)}]"] : []));
+
     private void UpdateOnThread(ProductStep step)
     {
+        Array.Clear(lastPart);
         if (away())
         {
             // A dungeon or study is its own space: the field waits, and its fire is not drawn there.
@@ -183,11 +193,13 @@ internal sealed class ChemistryModule : IProductModule
             return;
         }
 
+        long looking = Stopwatch.GetTimestamp();
         look.Tick(step.ElapsedSeconds);
         castLook.Tick(step.ElapsedSeconds);
 
         Vector3 player = playerWorld();
         scars.Update(step.ElapsedSeconds, weather.Hours, player);
+        Part(UpdatePart.Look, ref looking);
         owed += step.ElapsedSeconds;
         sinceAmbient += step.ElapsedSeconds;
         sinceWrite += step.ElapsedSeconds;
@@ -216,6 +228,7 @@ internal sealed class ChemistryModule : IProductModule
         Part(UpdatePart.Write, ref mark);
         // No step runs here, so the overlay may read the field.
         overlay.Refresh(field);
+        Part(UpdatePart.Overlay, ref mark);
 
         // Time beyond the steps one hand-off may run is dropped, not owed.
         int steps = Math.Min((int)(owed / settings.Field.StepSeconds), settings.Field.StepsPerUpdate);
@@ -483,8 +496,11 @@ internal sealed class ChemistryModule : IProductModule
     /// Loads the chunks around the player, and beside a fire out to the burning reach, a few at a time; lets go of
     /// those left behind.
     /// </summary>
+    private readonly List<string> lastLoads = [];
+
     private void Follow(Vector3 player)
     {
+        lastLoads.Clear();
         (int columnX, int columnZ) = FieldWindow.ColumnOf(player);
         List<Cell> wanted = FieldWindow.Around(columnX, columnZ, settings.Field.ReachChunks, settings.Field.BurningReachChunks, burningColumns,
             Band);
@@ -507,7 +523,10 @@ internal sealed class ChemistryModule : IProductModule
 
             if (!field.IsLoaded(chunk))
             {
-                Load(chunk);
+                long loading = Stopwatch.GetTimestamp();
+                bool whole = Load(chunk);
+                lastLoads.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                    $"{(whole ? "whole" : "cells")}={Stopwatch.GetElapsedTime(loading).TotalMilliseconds:F1}"));
                 loads++;
             }
         }
@@ -537,7 +556,7 @@ internal sealed class ChemistryModule : IProductModule
     /// from the terrain's own chunk when it holds one (a chemistry chunk is a terrain chunk), else cell by cell; a
     /// column's water is read only if it has open air to fill (#10407).
     /// </summary>
-    private void Load(Cell origin)
+    private bool Load(Cell origin)
     {
         const int Size = ChemistryField.ChunkSize;
         bool whole = terrain.TryReadChunkMaterials(
@@ -574,6 +593,8 @@ internal sealed class ChemistryModule : IProductModule
                 field.MarkOpenColumn(origin.X + x, origin.Z + z);
             }
         }
+
+        return whole;
     }
 
     /// <summary>

@@ -124,7 +124,14 @@ internal sealed class WeatherField
     /// Every front alive at a time whose centre could lie within <paramref name="aroundMetres"/> of a place
     /// plus its own radius - what the map shows near the party, or what may cover the place.
     /// </summary>
-    internal IEnumerable<WeatherFront> Alive(double x, double z, double hours, double aroundMetres)
+    internal IEnumerable<WeatherFront> Alive(double x, double z, double hours, double aroundMetres) =>
+        AliveByRows(x, z, hours, aroundMetres).OfType<WeatherFront>();
+
+    /// <summary>
+    /// <see cref="Alive"/> a row at a time (#10907): the fronts, and a null after each row of spawn cells looked over, so a
+    /// listing far out can stop between rows and go on in a later update.
+    /// </summary>
+    internal IEnumerable<WeatherFront?> AliveByRows(double x, double z, double hours, double aroundMetres)
     {
         for (int kindIndex = 0; kindIndex < Kinds.Count; kindIndex++)
         {
@@ -145,6 +152,8 @@ internal sealed class WeatherField
                         double reachOf = front.RadiusMetres + aroundMetres;
                         if (((centre.X - x) * (centre.X - x)) + ((centre.Y - z) * (centre.Y - z)) <= reachOf * reachOf) yield return front;
                     }
+
+                    yield return null;
                 }
             }
         }

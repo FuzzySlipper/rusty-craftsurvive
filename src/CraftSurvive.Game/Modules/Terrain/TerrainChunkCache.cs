@@ -278,6 +278,12 @@ internal sealed class TerrainChunkCache : IDisposable
     }
 
     /// <summary>Writes one generated chunk, evicting the oldest when the cache is full.</summary>
+    /// <summary>Where the last write's time went (#10907): encoding, deleting what the index let go, the save, the index.</summary>
+    internal string LastWriteTiming { get; private set; } = "";
+
+    /// <summary>The last write's time in the Engine's persistence (#10907): the deletes, the save and the index's.</summary>
+    internal double LastWriteEngineMs { get; private set; }
+
     internal void Write(TerrainChunkAddress address, ReadOnlySpan<ushort> materials)
     {
         if (Failure is not null)
@@ -285,21 +291,33 @@ internal sealed class TerrainChunkCache : IDisposable
             return;
         }
 
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
         string key = TerrainChunkCacheKey.For(contract, identity, address);
         byte[] payload = TerrainChunkCachePayload.Encode(materials);
+        long encoded = System.Diagnostics.Stopwatch.GetTimestamp(), deleted = encoded, saved = encoded;
+        int deletes = 0;
+        bool indexed = false;
         Store(() =>
         {
             foreach (string evicted in index.Add(key))
             {
                 Delete(evicted);
+                deletes++;
             }
 
+            deleted = System.Diagnostics.Stopwatch.GetTimestamp();
             engine.Persistence.Save(new PersistenceSaveRequest(store, key, PersistenceRevisionGuard.Any, 0, payload));
+            saved = System.Diagnostics.Stopwatch.GetTimestamp();
             if (++unsavedWrites >= IndexSaveInterval)
             {
                 SaveIndex();
+                indexed = true;
             }
         });
+        long done = System.Diagnostics.Stopwatch.GetTimestamp();
+        LastWriteEngineMs = System.Diagnostics.Stopwatch.GetElapsedTime(encoded, done).TotalMilliseconds;
+        LastWriteTiming = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $" encode={System.Diagnostics.Stopwatch.GetElapsedTime(started, encoded).TotalMilliseconds:F1} delete={System.Diagnostics.Stopwatch.GetElapsedTime(encoded, deleted).TotalMilliseconds:F1}x{deletes} save={System.Diagnostics.Stopwatch.GetElapsedTime(deleted, saved).TotalMilliseconds:F1}{(indexed ? $" index={System.Diagnostics.Stopwatch.GetElapsedTime(saved, done).TotalMilliseconds:F1}" : "")}");
     }
 
     public void Dispose()

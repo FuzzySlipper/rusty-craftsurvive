@@ -103,20 +103,46 @@ internal sealed class TerrainResidencyStreamer(
         return result;
     }
 
-    private long tCache, tPlan, tGenerate, tApply;
+    private long tCache, tPlan, tGenerate, tApply, engineTicks;
+
+    /// <summary>The time the last synchronize spent in Engine services (#10907): the residency hand-off, readback and the cache's store.</summary>
+    internal double LastEngineMs { get; private set; }
+
+    /// <summary>Times an Engine call into the synchronize's Engine share.</summary>
+    private T Engine<T>(Func<T> call)
+    {
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            return call();
+        }
+        finally
+        {
+            engineTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
+        }
+    }
     private int generatedNow;
 
     private static double Ms(long from, long to) => System.Diagnostics.Stopwatch.GetElapsedTime(from, to).TotalMilliseconds;
 
     private bool SynchronizeTimed(SpatialSession session, TerrainChunkAddress center, long t0)
     {
-        DrainCacheWrite();
-        tCache = System.Diagnostics.Stopwatch.GetTimestamp();
+        tCache = t0;
         generatedNow = 0;
+        engineTicks = 0;
         bool done = SynchronizeInner(session, center);
         long end = System.Diagnostics.Stopwatch.GetTimestamp();
+        // An evicted chunk is written only in a quiet update (#10907): none generated and the step short.
+        lastCacheWrite = "";
+        if (generatedNow == 0 && Ms(t0, end) < TerrainConstants.ResidencyCacheWriteQuietMs)
+        {
+            DrainCacheWrite();
+        }
+
+        long written = System.Diagnostics.Stopwatch.GetTimestamp();
+        LastEngineMs = System.Diagnostics.Stopwatch.GetElapsedTime(0, engineTicks).TotalMilliseconds + (lastCacheWrite.Length > 0 ? cache.LastWriteEngineMs : 0d);
         LastTiming = string.Create(CultureInfo.InvariantCulture,
-            $"cacheWrite={Ms(t0, tCache):F1} plan={Ms(tCache, tPlan):F1}{(Ms(tCache, tPlan) >= 5 ? $"[{policy.LastPlanTiming}]" : "")} generate={Ms(tPlan, tGenerate):F1}x{generatedNow} apply={Ms(tGenerate, tApply == 0 ? end : tApply):F1} readback={Ms(tApply == 0 ? end : tApply, end):F1}");
+            $"plan={Ms(tCache, tPlan):F1}{(Ms(tCache, tPlan) >= 5 ? $"[{policy.LastPlanTiming}]" : "")} generate={Ms(tPlan, tGenerate):F1}x{generatedNow} apply={Ms(tGenerate, tApply == 0 ? end : tApply):F1} readback={Ms(tApply == 0 ? end : tApply, end):F1} cacheWrite={Ms(end, written):F1}{(lastCacheWrite.Length > 0 ? $"({lastCacheWrite}{cache.LastWriteTiming})" : "")}");
         tApply = 0;
         return done;
     }
@@ -126,7 +152,7 @@ internal sealed class TerrainResidencyStreamer(
 
         // Deferred chunks handed over earlier are drawn once the scene's meshes reach their revision.
         bool installed = false;
-        if (deferredUndrawn > 0 && engine.Voxel.ReadScene(new VoxelSceneReadRequest(session)).MeshRevision >= deferredUndrawn)
+        if (deferredUndrawn > 0 && Engine(() => engine.Voxel.ReadScene(new VoxelSceneReadRequest(session))).MeshRevision >= deferredUndrawn)
         {
             deferredUndrawn = 0;
             installed = true;
@@ -221,8 +247,9 @@ internal sealed class TerrainResidencyStreamer(
         // never follows this update's deferred hand-off.
         if (urgent.Operations.Count > 0)
         {
-            engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty,
-                session, urgent.Operations.ToArray(), urgent.Materials.ToArray(), urgent.Densities.ToArray()));
+            VoxelResidencyTransaction transaction = new(ReadOnlyMemory<uint>.Empty,
+                session, urgent.Operations.ToArray(), urgent.Materials.ToArray(), urgent.Densities.ToArray());
+            Engine(() => engine.Voxel.ApplyResidency(transaction));
             urgentBatches++;
             // Every deferred hand-off before it is installed now too.
             deferredUndrawn = 0;
@@ -231,8 +258,9 @@ internal sealed class TerrainResidencyStreamer(
 
         if (deferred.Operations.Count > 0)
         {
-            VoxelResidencyReceipt receipt = engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty,
-                session, deferred.Operations.ToArray(), deferred.Materials.ToArray(), deferred.Densities.ToArray(), true));
+            VoxelResidencyTransaction transaction = new(ReadOnlyMemory<uint>.Empty,
+                session, deferred.Operations.ToArray(), deferred.Materials.ToArray(), deferred.Densities.ToArray(), true);
+            VoxelResidencyReceipt receipt = Engine(() => engine.Voxel.ApplyResidency(transaction));
             deferredUndrawn = Math.Max(deferredUndrawn, receipt.AcceptedRevision);
             deferredBatches++;
         }
@@ -248,7 +276,7 @@ internal sealed class TerrainResidencyStreamer(
     {
         foreach (TerrainChunkAddress address in addresses.Distinct())
         {
-            VoxelChunkReadout readout = engine.Voxel.ReadChunk(new VoxelChunkReadRequest(session, ToEngine(address)));
+            VoxelChunkReadout readout = Engine(() => engine.Voxel.ReadChunk(new VoxelChunkReadRequest(session, ToEngine(address))));
             if (readout.Present)
             {
                 resident[address] = readout;
@@ -268,10 +296,12 @@ internal sealed class TerrainResidencyStreamer(
     }
 
     /// <summary>
-    /// Writes at most one evicted chunk to the cache per update. A write is regeneration plus a
-    /// store, so it stays off the path of a chunk becoming visible. The cache holds what the
-    /// generator produces, never the player's edits.
+    /// Writes at most one evicted chunk to the cache per update, and only in a quiet one (#10907). A write is the Engine's
+    /// store, so it stays off the path of a chunk becoming visible. The cache holds what the generator produces, never the
+    /// player's edits.
     /// </summary>
+    private string lastCacheWrite = "";
+
     private void DrainCacheWrite()
     {
         if (!pendingCacheWrites.TryDequeue(out TerrainChunkAddress address))
@@ -286,6 +316,7 @@ internal sealed class TerrainResidencyStreamer(
         }
 
         // The materials it was admitted with are what the generator produced; a chunk admitted before they were kept is generated again.
+        lastCacheWrite = kept && !overlay.TouchesChunk(address) ? "kept" : "regenerated";
         cache.Write(address, kept && !overlay.TouchesChunk(address) ? materials.Span : generator.Generate(address, new TerrainOverlaySnapshot(seed, [])).Materials.Span);
     }
 

@@ -190,17 +190,45 @@ internal sealed class HorizonBackdrop : IProductModule
         // drawn but held where the player left it (R10889-2): they are going down, not across.
         if (inWorld && !held())
         {
+            long began = System.Diagnostics.Stopwatch.GetTimestamp();
             FollowSink(at);
+            long sunk = System.Diagnostics.Stopwatch.GetTimestamp();
             FollowRegions(at);
+            long regioned = System.Diagnostics.Stopwatch.GetTimestamp();
+            long committedBefore = streamer?.Committed ?? 0;
             streamer?.Update();
+            long streamed = System.Diagnostics.Stopwatch.GetTimestamp();
+            LastTiming = string.Create(CultureInfo.InvariantCulture,
+                $"horizon(sink={Ms(began, sunk):F1} regions={Ms(sunk, regioned):F1} stream={Ms(regioned, streamed):F1}x{(streamer?.Committed ?? 0) - committedBefore})");
+            LastEngineMs = Ms(regioned, streamed);
+        }
+        else
+        {
+            LastTiming = "";
+            LastEngineMs = 0d;
         }
 
+        long linking = System.Diagnostics.Stopwatch.GetTimestamp();
         Link(view);
         shownChanged?.Invoke(shown);
+        long weathering = System.Diagnostics.Stopwatch.GetTimestamp();
         Weather?.Update(shown);
+        long bodies = System.Diagnostics.Stopwatch.GetTimestamp();
         Weather?.UpdateBodies(Scale, shown);
+        long marking = System.Diagnostics.Stopwatch.GetTimestamp();
         Landmarks?.Update(Scale, shown, reachMetres, GroundMetres);
+        long done = System.Diagnostics.Stopwatch.GetTimestamp();
+        LastTiming += string.Create(CultureInfo.InvariantCulture,
+            $" horizonRest(link={Ms(linking, weathering):F1} weather={Ms(weathering, bodies):F1} bodies={Ms(bodies, marking):F1} landmarks={Ms(marking, done):F1}{Landmarks?.LastTiming})");
     }
+
+    private static double Ms(long from, long to) => System.Diagnostics.Stopwatch.GetElapsedTime(from, to).TotalMilliseconds;
+
+    /// <summary>Where this update's follow went (#10907): the sink, the region tiles, and the streamer's commits.</summary>
+    internal string LastTiming { get; private set; } = "";
+
+    /// <summary>The time this update's follow spent in the Engine's heightfield: the streamer's commits and requests (#10907).</summary>
+    internal double LastEngineMs { get; private set; }
 
     /// <summary>Makes the heightfield once the first-person camera exists, following it; again if the camera changes.</summary>
     private void Build(Camera? view)

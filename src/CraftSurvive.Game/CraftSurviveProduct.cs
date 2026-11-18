@@ -208,7 +208,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         inventory = new InventoryModule(context.Engine, store, terrain.SaveIdentity, player, discovery, survival, ui, cues);
         dungeons = new DungeonModule(context.Engine, terrain, player, conditions, sky, ui);
         player.PrepareUnderground = at => dungeons.PrepareCaveAt(at);
-        walkingUpdates.Detail = () => terrain.SyncTiming;
+        walkingUpdates.EngineShare = () => terrain.EngineMs + (horizon?.LastEngineMs ?? 0d);
+        walkingUpdates.Detail = () => string.Join(" ", new[] { terrain.SyncTiming, horizon?.LastTiming ?? "", chemistry is null ? "" : $"chemistry({chemistry.LastTiming})" }.Where(part => part.Length > 0));
         actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, dungeons, ui, cues, frame);
         feedback = new FeedbackModule(cues, new SoundPlayer(context.Engine), new BurstEmitter(context.Engine, () => terrain.AtlasSprite),
             () => new Surroundings(player.InSeparateSpace, player.HeadSubmerged, WorldClock.Daylight(conditions.Time.DayFraction)),
@@ -477,6 +478,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
         ProductStep step = ProductStep.From(update.Facts);
         walkingUpdates.Begin();
+        terrain.ClearEngineTime();
 
         // The waves move on first (#9902), so the boat and a swimmer ride, and the water draws, one sea this update.
         WeatherLook wind = sky.Look;

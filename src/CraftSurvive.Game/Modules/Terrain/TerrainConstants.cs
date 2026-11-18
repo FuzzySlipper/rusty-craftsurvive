@@ -41,6 +41,13 @@ internal static class TerrainConstants
 
     /// <summary>The least time an update spends working out ahead what the next residency plans will ask (#10889).</summary>
     internal const double ResidencyWarmMinimumMs = 1d;
+
+    /// <summary>
+    /// An evicted chunk is written to the chunk cache only in an update whose residency step generated nothing and took less
+    /// than this (#10907): the write is the Engine's persistence on the update thread, some milliseconds with the cache's index,
+    /// so it waits for a quiet update rather than adding to a streaming one.
+    /// </summary>
+    internal const double ResidencyCacheWriteQuietMs = 4d;
     /// <summary>
     /// Residency keeps each column's surface band rather than its full height, so the cap is
     /// sized for steep ground: about five banded chunks per column across the retained ring,

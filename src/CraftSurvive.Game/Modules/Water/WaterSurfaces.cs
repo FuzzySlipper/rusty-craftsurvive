@@ -27,11 +27,14 @@ internal sealed class WaterSurfaces : IDisposable
     internal const int TileMetres = NearWaterSquare.TileMetres, Step = WaterWaveSettings.MeshSpacingMetres;
     private const int Cells = TileMetres / Step;
 
-    /// <summary>Tiles built per update, so a walk into new water never stalls an update.</summary>
-    private const int BuildsPerUpdate = 3;
+    /// <summary>
+    /// The update's time for sampling the near water (#10907): a tile is its whole lattice of the water's samples, some 30 ms of
+    /// the recipe's ground, so it is sampled a few rows an update within this, nearest tile first, and drawn once it is whole.
+    /// </summary>
+    private const double SampleBudgetMs = 2d;
 
-    /// <summary>Tiles sampled again per update after the stage moved on; only a changed one is rebuilt.</summary>
-    private const int RefreshesPerUpdate = 4;
+    /// <summary>While the player's own tile or one beside it is missing (a start, a teleport), an update may give it this much.</summary>
+    private const double UrgentSampleBudgetMs = 24d;
 
     /// <summary>The ice's look: a pale, cold blue (linear), matte, opaque; the far field's ice is the same (#9878).</summary>
     internal static readonly Color IceColour = new(0.62f, 0.72f, 0.8f, 1);
@@ -55,6 +58,8 @@ internal sealed class WaterSurfaces : IDisposable
     /// <summary>Whether narrow streams are drawn as ribbons (#10191), or by the lattice alone for a comparison.</summary>
     private bool ribbons = true;
     private readonly SeaState sea = new();
+    /// <summary>The tile being sampled, a few rows an update (#10907); null while none is.</summary>
+    private TileSampling? sampling;
     private int built, retired, refreshed;
     /// <summary>Dry shore corners last built lower than their water (into their own ground), over the tiles built so far.</summary>
     private long sunkCorners;
@@ -182,35 +187,71 @@ internal sealed class WaterSurfaces : IDisposable
             sampled.Remove(key);
         }
 
-        IEnumerable<(long X, long Z)> missing = Enumerable.Range(-radius, (2 * radius) + 1)
+        if (sampling is not null && !Inside(sampling.Key)) sampling = null;
+        (long X, long Z)[] missing = [.. Enumerable.Range(-radius, (2 * radius) + 1)
             .SelectMany(dz => Enumerable.Range(-radius, (2 * radius) + 1).Select(dx => (X: cx + dx, Z: cz + dz)))
-            .Where(key => !tiles.ContainsKey(key))
-            .OrderBy(key => Distance(key, centre.X, centre.Z)).ThenBy(key => key.X).ThenBy(key => key.Z)
-            .Take(BuildsPerUpdate);
-        (long X, long Z)[] building = missing.ToArray();
-        foreach ((long X, long Z) key in building) Place(key, Sample(key));
-        if (building.Length > 0) return;
-
-        // Nothing new to build: sample again the nearest tiles the stage has moved on under.
-        IEnumerable<(long X, long Z)> stale = sampled.Where(pair => pair.Value.Staged && pair.Value.Revision != revision).Select(pair => pair.Key)
-            .OrderBy(key => Distance(key, centre.X, centre.Z)).ThenBy(key => key.X).ThenBy(key => key.Z)
-            .Take(RefreshesPerUpdate);
-        foreach ((long X, long Z) key in stale.ToArray())
+            .Where(key => !tiles.ContainsKey(key) && sampling?.Key != key)
+            .OrderBy(key => Distance(key, centre.X, centre.Z)).ThenBy(key => key.X).ThenBy(key => key.Z)];
+        // A tile under or beside the player missing is a start or a teleport: it is sampled at once. Walking on, the
+        // tiles that come in are the square's far edge, sampled a few rows an update while the player crosses the tile.
+        bool urgent = missing.Any(key => Math.Max(Math.Abs(key.X - cx), Math.Abs(key.Z - cz)) <= 1)
+            || (sampling is { Refresh: false } now && Math.Max(Math.Abs(now.Key.X - cx), Math.Abs(now.Key.Z - cz)) <= 1);
+        double budget = urgent ? UrgentSampleBudgetMs : SampleBudgetMs;
+        long started = System.Diagnostics.Stopwatch.GetTimestamp(), finishing = 0;
+        int rows = 0, placed = 0, missingAt = 0;
+        double Spent() => System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        while (true)
         {
-            TileSamples samples = Sample(key);
-            if (samples.Signature == sampled[key].Signature && samples.Flow.AsSpan().SequenceEqual(sampled[key].Flow))
-            { sampled[key] = sampled[key] with { Revision = revision }; continue; }
-            if (tiles[key] is Tile old) Retire(old);
-            Place(key, samples);
-            refreshed++;
+            if (sampling is null)
+            {
+                if (missingAt < missing.Length) sampling = new(missing[missingAt++], revision, false);
+                // Nothing new to sample: sample again the nearest tile the stage has moved on under.
+                else if (sampled.Where(pair => pair.Value.Staged && pair.Value.Revision != revision).Select(pair => pair.Key)
+                    .OrderBy(key => Distance(key, centre.X, centre.Z)).ThenBy(key => key.X).ThenBy(key => key.Z)
+                    .Cast<(long X, long Z)?>().FirstOrDefault() is { } stale) sampling = new(stale, revision, true);
+                else break;
+            }
+
+            // At least a row an update, so a tile always comes in; then rows while the budget lasts.
+            do
+            {
+                SampleRow(sampling);
+                rows++;
+            }
+            while (sampling.Rows < Side && Spent() < budget);
+            if (sampling.Rows < Side) break;
+            long finished = System.Diagnostics.Stopwatch.GetTimestamp();
+            TileSamples samples = Finish(sampling);
+            (long X, long Z) key = sampling.Key;
+            if (!sampling.Refresh) Place(key, samples, sampling.Revision);
+            else if (samples.Signature == sampled[key].Signature && samples.Flow.AsSpan().SequenceEqual(sampled[key].Flow))
+                sampled[key] = sampled[key] with { Revision = sampling.Revision };
+            else
+            {
+                if (tiles[key] is Tile old) Retire(old);
+                Place(key, samples, sampling.Revision);
+                refreshed++;
+            }
+
+            finishing += System.Diagnostics.Stopwatch.GetTimestamp() - finished;
+            placed++;
+            sampling = null;
+            if (Spent() >= budget) break;
         }
+
+        LastTiming = rows == 0 ? "" : string.Create(CultureInfo.InvariantCulture,
+            $"rows={rows} tiles={placed} finish={System.Diagnostics.Stopwatch.GetElapsedTime(0, finishing).TotalMilliseconds:F1}{(urgent ? " urgent" : "")}");
     }
 
-    private void Place((long X, long Z) key, TileSamples samples)
+    /// <summary>Where this update's follow went (#10907): sampling and building new tiles.</summary>
+    internal string LastTiming { get; private set; } = "";
+
+    private void Place((long X, long Z) key, TileSamples samples, long sampledAt)
     {
         Tile? tile = Build(key, samples);
         tiles[key] = tile;
-        sampled[key] = (samples.Signature, samples.Staged, revision, samples.Flow);
+        // A tile sampled while the stage moved on is still stale (it began at the earlier revision) and is sampled again.
+        sampled[key] = (samples.Signature, samples.Staged, sampledAt, samples.Flow);
         if (tile is { IceTriangles.Length: > 0 }) IceRevision++;
     }
 
@@ -238,6 +279,7 @@ internal sealed class WaterSurfaces : IDisposable
         tiles.Clear();
         sampled.Clear();
         streams.Clear();
+        sampling = null;
     }
 
     public void Dispose()
@@ -275,18 +317,42 @@ internal sealed class WaterSurfaces : IDisposable
 
     private const int Side = Cells + 1;
 
-    private TileSamples Sample((long X, long Z) key)
+    /// <summary>A tile being sampled (#10907): its rows so far, and the stage revision it began at.</summary>
+    private sealed class TileSampling((long X, long Z) key, long revision, bool refresh)
     {
+        internal (long X, long Z) Key { get; } = key;
+
+        internal long Revision { get; } = revision;
+
+        /// <summary>Whether the tile is drawn already and sampled again because the stage moved on.</summary>
+        internal bool Refresh { get; } = refresh;
+
+        internal WaterSample[] Samples { get; } = new WaterSample[Side * Side];
+
+        internal int Rows { get; set; }
+    }
+
+    /// <summary>Samples the water along a tile's next row.</summary>
+    private void SampleRow(TileSampling tile)
+    {
+        long x0 = tile.Key.X * TileMetres, z = (tile.Key.Z * TileMetres) + (tile.Rows * Step);
+        for (int i = 0; i < Side; i++) tile.Samples[(tile.Rows * Side) + i] = model.Sample(x0 + (i * Step), z);
+        tile.Rows++;
+    }
+
+    /// <summary>A whole tile's samples as drawn: its flow, its narrow streams, and its signature.</summary>
+    private TileSamples Finish(TileSampling tile)
+    {
+        (long X, long Z) key = tile.Key;
         long x0 = key.X * TileMetres, z0 = key.Z * TileMetres;
-        WaterSample[] samples = new WaterSample[Side * Side];
+        WaterSample[] samples = tile.Samples;
         Vector2[] flow = new Vector2[samples.Length];
         bool anyWet = false, staged = false;
         ulong signature = 14695981039346656037UL;
         for (int j = 0; j < Side; j++)
         for (int i = 0; i < Side; i++)
         {
-            WaterSample sample = model.Sample(x0 + (i * Step), z0 + (j * Step));
-            samples[(j * Side) + i] = sample;
+            WaterSample sample = samples[(j * Side) + i];
             flow[(j * Side) + i] = sample.Ice ? Vector2.Zero : new((float)sample.CurrentX, (float)sample.CurrentZ);
             anyWet |= sample.Wet;
             // A river or lake moves with the stage; so may a floodplain's dry ground (#9880), below.

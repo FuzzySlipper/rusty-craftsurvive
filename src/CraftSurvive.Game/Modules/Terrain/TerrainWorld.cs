@@ -480,9 +480,12 @@ internal sealed class TerrainWorld : IDisposable
 
         bool changed = streamer.Synchronize(Session, centerVoxel.Chunk);
         SyncMark($"stream({streamer.LastTiming})");
+        EngineMs += streamer.LastEngineMs;
         if (changed)
         {
+            long refreshing = System.Diagnostics.Stopwatch.GetTimestamp();
             presentation.Refresh();
+            EngineMs += System.Diagnostics.Stopwatch.GetElapsedTime(refreshing).TotalMilliseconds;
             ui.Publish();
             SyncMark("refresh");
         }
@@ -523,7 +526,7 @@ internal sealed class TerrainWorld : IDisposable
                 waterSurfaces.Follow((centerVoxel.X + 0.5, centerVoxel.Z + 0.5), NearEdgeMetres);
             }
 
-            SyncMark("water");
+            SyncMark($"water({waterSurfaces.LastTiming})");
         }
 
         // The ice is part of the walking collision (#9878): compose again when it changes, or when the origin moved under it.
@@ -543,6 +546,14 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     private readonly List<string> syncPhases = [];
+
+    /// <summary>
+    /// The time this update's synchronizes spent in Engine services (#10907): the residency's hand-off, readback and cache store,
+    /// and the scene presentation's refresh. Cleared as an update begins.
+    /// </summary>
+    internal double EngineMs { get; private set; }
+
+    internal void ClearEngineTime() => EngineMs = 0d;
 
     /// <summary>Where the last synchronize's time went, its phases of half a millisecond or more (#10889 R10889-2).</summary>
     internal string SyncTiming { get; private set; } = "";
@@ -980,6 +991,14 @@ internal sealed class TerrainWorld : IDisposable
     {
         if (!policy.TryProduced(address, overlayStore.Overlay.Revision, out TerrainChunk? chunk))
         {
+            // A chunk the generator leaves empty (the open air over the ground) is air throughout unless an edit reaches it
+            // (#10907): read a cell at a time it would ask the recipe for its columns' ground thousands of times.
+            if (!overlayStore.Overlay.TouchesChunk(address) && !recipe.ChunkHasContent(address))
+            {
+                materials[..TerrainConstants.ChunkVolume].Fill(TerrainConstants.EmptyMaterial);
+                return true;
+            }
+
             return false;
         }
 

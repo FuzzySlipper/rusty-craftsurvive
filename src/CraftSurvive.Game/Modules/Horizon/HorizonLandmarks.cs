@@ -126,18 +126,26 @@ internal sealed class HorizonLandmarks : IDisposable
     /// <param name="scale">Metres per backdrop unit.</param>
     /// <param name="reach">The far field's reach in metres: past it a place stands in the backdrop.</param>
     /// <param name="backdropGround">The backdrop's drawn ground height at a world point (x, z).</param>
+    /// <summary>Where the last update's time went (#10907).</summary>
+    internal string LastTiming { get; private set; } = "";
+
     internal void Update(double scale, bool shown, double reach, Func<double, double, double> backdropGround)
     {
+        LastTiming = "";
         scaleMetres = scale;
         placed.Clear();
         if (shown)
         {
+            long listing = System.Diagnostics.Stopwatch.GetTimestamp();
             if (++sinceListed >= ListEveryUpdates)
             {
                 listed = places();
                 sinceListed = 0;
                 refusedSinceListed = false;
             }
+
+            LastTiming = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"[list={System.Diagnostics.Stopwatch.GetElapsedTime(listing).TotalMilliseconds:F1} of {listed.Count}]");
 
             Vector3 at = playerWorld();
             Vector2 here = new(at.X, at.Z);

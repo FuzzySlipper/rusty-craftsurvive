@@ -36,6 +36,11 @@ internal sealed class HorizonWeather : IDisposable
     private const int MaximumRegions = 32;
     /// <summary>The fronts are listed again after the clock has moved this many game hours or the player this far.</summary>
     private const double RefreshHours = 0.05, RefreshMetres = 200;
+    /// <summary>
+    /// The update's time for listing the fronts (#10907): a listing looks over every spawn cell and slot within reach, some
+    /// 50 ms, so it goes on a little each update and the clouds and curtains follow once it is done.
+    /// </summary>
+    private const double ListBudgetMs = 2d;
     /// <summary>A sheet's columns across and the share of its width over which its ends fade out.</summary>
     private const int Columns = 48;
     private const int StrengthSteps = 3;
@@ -93,6 +98,11 @@ internal sealed class HorizonWeather : IDisposable
     private double listedHours = double.NegativeInfinity;
     private Vector2 listedAt;
     private int listedRevision = -1;
+    /// <summary>The listing under way, a little each update (#10907), with the fronts near enough so far and the hour it lists at.</summary>
+    private IEnumerator<WeatherFront?>? listing;
+    private readonly List<(WeatherFront Front, double Strength, double Distance)> listingNear = [];
+    private double listingHours;
+    private Vector2 listingAt;
     private int regionCount;
     /// <summary>Moves on each time the fronts are listed again: the cloud bodies follow only then.</summary>
     private int listVersion, bodiesVersion = -1;
@@ -121,6 +131,7 @@ internal sealed class HorizonWeather : IDisposable
         bool stale = Math.Abs(now - listedHours) >= RefreshHours || Vector2.Distance(here, listedAt) >= RefreshMetres || listedRevision != field.Revision;
         if (!shown)
         {
+            StopListing();
             if (regionCount > 0 || outside.Count > 0)
             {
                 outside.Clear();
@@ -132,20 +143,40 @@ internal sealed class HorizonWeather : IDisposable
             return;
         }
 
-        if (!stale) return;
-        listedHours = now;
-        listedAt = here;
-        listedRevision = field.Revision;
-        outside.Clear();
-        List<(WeatherFront Front, double Strength, double Distance)> near = [];
-        foreach (WeatherFront front in field.Alive(here.X, here.Y, now, RangeMetres))
+        if (listing is null)
         {
-            double strength = front.Strength(now);
-            double distance = Vector2.Distance(front.Centre(now), here);
-            if (strength <= 0 || distance - front.RadiusMetres > RangeMetres) continue;
-            near.Add((front, strength, distance));
+            if (!stale) return;
+            listedHours = now;
+            listedAt = here;
+            listedRevision = field.Revision;
+            listingHours = now;
+            listingAt = here;
+            listingNear.Clear();
+            listing = field.AliveByRows(here.X, here.Y, now, RangeMetres).GetEnumerator();
         }
 
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        while (true)
+        {
+            if (!listing.MoveNext())
+            {
+                break;
+            }
+
+            if (listing.Current is WeatherFront front)
+            {
+                double strength = front.Strength(listingHours);
+                double distance = Vector2.Distance(front.Centre(listingHours), listingAt);
+                if (strength > 0 && distance - front.RadiusMetres <= RangeMetres) listingNear.Add((front, strength, distance));
+            }
+
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds >= ListBudgetMs) return;
+        }
+
+        StopListing();
+        now = listingHours;
+        outside.Clear();
+        List<(WeatherFront Front, double Strength, double Distance)> near = [.. listingNear];
         near.Sort((a, b) => a.Distance.CompareTo(b.Distance));
         List<CloudRegionRequest> clouds = [];
         uint id = 1;
@@ -164,6 +195,12 @@ internal sealed class HorizonWeather : IDisposable
         regions(clouds);
         regionCount = clouds.Count;
         listVersion++;
+    }
+
+    private void StopListing()
+    {
+        listing?.Dispose();
+        listing = null;
     }
 
     internal int Shown => outside.Count;
@@ -359,6 +396,7 @@ internal sealed class HorizonWeather : IDisposable
 
     public void Dispose()
     {
+        StopListing();
         foreach ((PresentationEmitter emitter, int _) in bodies.Values) emitter.Dispose();
         bodies.Clear();
         puff?.Dispose();
