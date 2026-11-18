@@ -55,7 +55,8 @@ internal sealed class TerrainWorld : IDisposable
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         frame.Rebased += OnRebased;
         map ??= WorldMapGenerator.Generate(configuration);
-        recipe = configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), map);
+        drawsUsed = new EngineTerrainDraws(engine.Random);
+        recipe = configuration.CreateRecipe(drawsUsed, map);
 
         // The fingerprint comes from a fresh recipe, so nothing the live one memoises can hide a
         // change in the generator or in the Engine's keyed draws underneath it.
@@ -65,6 +66,7 @@ internal sealed class TerrainWorld : IDisposable
         CacheIdentity = TerrainGenerationFingerprint.CacheIdentity(GenerationFingerprint, TerrainGeneratorSource.Stamp);
         chunkCache = new TerrainChunkCache(engine, recipe.Contract, CacheIdentity);
         TerrainChunkGenerator generator = new(recipe, chunkCache);
+        chunkGenerator = generator;
         policy = new TerrainResidencyPolicy(recipe, generator);
         SaveIdentity = new SaveIdentity(recipe.Contract.Version, recipe.Contract.Seed);
         overlayStore = new TerrainOverlayStore(engine, store, SaveIdentity, GeneratedAt);
@@ -392,7 +394,7 @@ internal sealed class TerrainWorld : IDisposable
             farField = new FarField(engine, content, recipe, () => Session, Water) { RadiusChunks = viewDistanceChunks, NearEdgeMetres = NearEdgeMetres };
             vegetationTiles = new VegetationTiles(engine, recipe, session, () => overlayStore.Overlay, lastCentre);
             vegetationTiles.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
-            treeTiles = new TreeTiles(engine, recipe, session, trees, MaterialAt, IsEdited, lastCentre);
+            treeTiles = new TreeTiles(engine, recipe, session, trees, MaterialAt, IsEdited, lastCentre) { DrawClock = () => (drawsUsed.DrawTicks, drawsUsed.Draws) };
             treeTiles.Grow(treeReachMetres);
             plantTiles = new PlantTiles(engine, content, recipe, session, trees.NearMeshes, presentation.ShadeGrass, () => overlayStore.Overlay, lastCentre);
             ui.Publish();
@@ -430,6 +432,7 @@ internal sealed class TerrainWorld : IDisposable
             overlayStore.Flush();
         }
 
+        streamer.Stop();
         streamer.Clear();
         vegetationTiles?.Dispose();
         vegetationTiles = null;
@@ -478,6 +481,8 @@ internal sealed class TerrainWorld : IDisposable
             ShowFarReaches();
         }
 
+        stillUpdates = centerVoxel == lastCentre ? stillUpdates + 1 : 0;
+        streamer.PlayerStill = stillUpdates >= TerrainConstants.ResidencyCacheWriteRestUpdates;
         bool changed = streamer.Synchronize(Session, centerVoxel.Chunk);
         SyncMark($"stream({streamer.LastTiming})");
         EngineMs += streamer.LastEngineMs;
@@ -516,7 +521,10 @@ internal sealed class TerrainWorld : IDisposable
             {
                 far.Follow(centerVoxel.X, centerVoxel.Z);
                 SyncMark("farFollow");
+                long advancing = System.Diagnostics.Stopwatch.GetTimestamp();
                 far.Advance();
+                // The far field's tiles are committed to the Engine's heightfield, which meshes them on this thread (#10907).
+                EngineMs += System.Diagnostics.Stopwatch.GetElapsedTime(advancing).TotalMilliseconds;
                 SyncMark("farAdvance");
                 // The near water squares to the far field's sunk zone, which leaves its water out there.
                 waterSurfaces.Follow(far.SinkCentre, far.SinkOuter);
@@ -546,6 +554,14 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     private readonly List<string> syncPhases = [];
+    private readonly TerrainChunkGenerator chunkGenerator;
+    private readonly EngineTerrainDraws drawsUsed;
+
+    /// <summary>The lowest and highest ground over a chunk column, from its generated columns' samples (#10907).</summary>
+    internal (long Low, long High) SurfaceBand(long chunkX, long chunkZ) => chunkGenerator.SurfaceBand(chunkX, chunkZ);
+
+    /// <summary>Updates the player's feet have stayed in one voxel, for the residency's cache writes (#10907).</summary>
+    private int stillUpdates;
 
     /// <summary>
     /// The time this update's synchronizes spent in Engine services (#10907): the residency's hand-off, readback and cache store,

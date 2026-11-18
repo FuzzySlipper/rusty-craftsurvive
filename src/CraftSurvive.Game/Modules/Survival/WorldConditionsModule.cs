@@ -16,6 +16,9 @@ internal sealed class WorldConditionsModule : IProductModule
     /// <summary>Five seconds at 60 Hz, as the player's continuation saves.</summary>
     internal const long SaveIntervalSteps = 300;
 
+    /// <summary>The save falls this many steps before the player's continuation's, a third of the interval from survival's (#10907).</summary>
+    internal const long SaveOffsetSteps = 200;
+
     private const int MinutesPerDay = 24 * 60;
 
     /// <summary>The difficulties a player can choose, by name, in order.</summary>
@@ -62,7 +65,7 @@ internal sealed class WorldConditionsModule : IProductModule
         Show();
         if (lastSaveStep == long.MinValue)
         {
-            lastSaveStep = step.Step;
+            lastSaveStep = step.Step - SaveOffsetSteps;
         }
         else if (step.Step - lastSaveStep >= SaveIntervalSteps)
         {

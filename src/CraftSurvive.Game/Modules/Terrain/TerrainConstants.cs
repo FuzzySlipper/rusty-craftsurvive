@@ -48,6 +48,22 @@ internal static class TerrainConstants
     /// so it waits for a quiet update rather than adding to a streaming one.
     /// </summary>
     internal const double ResidencyCacheWriteQuietMs = 4d;
+
+    /// <summary>
+    /// An evicted chunk is written to the chunk cache only once this many updates have passed with no chunk admitted and the
+    /// player's feet in one voxel (#10907): the player stands, not streaming. A write is the Engine's persistence, 3 to 12 ms an 8 KB chunk on the update thread, and
+    /// with chunks generated on workers the cache serves mostly the update thread's own generation, at a start or a teleport.
+    /// </summary>
+    internal const int ResidencyCacheWriteRestUpdates = 30;
+
+    /// <summary>Evicted chunks waiting for their cache write at most (#10907); a longer walk lets the oldest go unwritten.</summary>
+    internal const int MaximumPendingCacheWrites = 512;
+
+    /// <summary>
+    /// How long one update may spend handing chunks to the workers (#10907): making each one's keyed draws ahead, a fraction of
+    /// a millisecond for a new column, nothing for one whose decisions are kept.
+    /// </summary>
+    internal const double ResidencyAskBudgetMs = 2d;
     /// <summary>
     /// Residency keeps each column's surface band rather than its full height, so the cap is
     /// sized for steep ground: about five banded chunks per column across the retained ring,

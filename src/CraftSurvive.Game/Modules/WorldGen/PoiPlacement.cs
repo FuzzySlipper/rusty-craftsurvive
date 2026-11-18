@@ -66,7 +66,8 @@ internal sealed class PoiPlacement
     private readonly ITerrainDraws draws;
     private readonly ITerrainColumns columns;
     private readonly long radius;
-    private readonly Dictionary<(long X, long Z), PoiSite?> cells = [];
+    /// <summary>Each anchor cell's decision, read by the chunk workers too (#10907).</summary>
+    private readonly SharedCache<(long X, long Z), PoiSite?> cells = new(PoiConstants.SiteCacheLimit);
 
     internal PoiPlacement(TerrainGeneratorContract contract, ITerrainDraws draws, ITerrainColumns columns, long radius)
     {
@@ -100,12 +101,7 @@ internal sealed class PoiPlacement
         }
 
         PoiSite? site = DecideSite(cellX, cellZ);
-        if (cells.Count >= PoiConstants.SiteCacheLimit)
-        {
-            cells.Clear();
-        }
-
-        cells[(cellX, cellZ)] = site;
+        cells.Set((cellX, cellZ), site);
         return site;
     }
 

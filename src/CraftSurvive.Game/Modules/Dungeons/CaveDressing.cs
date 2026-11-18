@@ -149,21 +149,21 @@ internal sealed class CaveDressing : IDisposable
         if (pendingMeshes.TryDequeue(out MeshResourceCreateRequest growth))
         {
             Add(growth);
-            Spent(building);
+            slowestGrowth = Math.Max(slowestGrowth, Spent(building));
             return false;
         }
 
         if (kit is not null && !kitBuilt)
         {
             kitBuilt = kit.Advance();
-            Spent(building);
+            slowestKit = Math.Max(slowestKit, Spent(building));
             return false;
         }
 
         if (overgrowth is not null && !overgrowthBuilt)
         {
             overgrowthBuilt = overgrowth.Advance();
-            Spent(building);
+            slowestOvergrowth = Math.Max(slowestOvergrowth, Spent(building));
             return false;
         }
 
@@ -186,13 +186,17 @@ internal sealed class CaveDressing : IDisposable
 
     /// <summary>What the dressing came to once built, and each part's time (growth, water, kit made, overgrowth made, moss and forest).</summary>
     internal string BuiltReadout => string.Create(CultureInfo.InvariantCulture,
-        $"kit={kit?.Count ?? 0} overgrowth={overgrowth?.Count ?? 0} meshes={meshes.Count} parts=[{string.Join(" ", stageTimes.Select(t => $"{t:F0}"))}]ms");
+        $"kit={kit?.Count ?? 0} overgrowth={overgrowth?.Count ?? 0} meshes={meshes.Count} parts=[{string.Join(" ", stageTimes.Select(t => $"{t:F0}"))}]ms slowest growth={slowestGrowth:F0} kit={slowestKit:F0} overgrowth={slowestOvergrowth:F0}ms");
 
-    private void Spent(long from)
+    // The slowest update of each part built a piece at a time (#10907): a growth's mesh, a kit piece kind, an overgrowth kind.
+    private double slowestGrowth, slowestKit, slowestOvergrowth;
+
+    private double Spent(long from)
     {
         double ms = Stopwatch.GetElapsedTime(from).TotalMilliseconds;
         BuildMilliseconds += ms;
         SlowestStageMilliseconds = Math.Max(SlowestStageMilliseconds, ms);
+        return ms;
     }
 
     /// <summary>Whether every part is built.</summary>
@@ -314,7 +318,7 @@ internal sealed class CaveDressing : IDisposable
 
     private void Add(MeshResourceCreateRequest request)
     {
-        MeshResource mesh = engine.Graphics.CreateMeshResource(request);
+        MeshResource mesh = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(request));
         meshes.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
     }
 

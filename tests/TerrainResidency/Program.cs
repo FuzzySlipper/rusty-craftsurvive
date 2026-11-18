@@ -46,6 +46,7 @@ Check.Section("overlay", OverlayChecks.Run);
 Check.Section("chunk cache", ChunkCacheChecks.Run);
 Check.Section("view distance window", ResidencyChecks.ViewDistanceMovesTheWindow);
 Check.Section("generation", GenerationChecks.Run);
+Check.Section("chunks generated on workers", WorkerChecks.Run);
 Check.Section("forests", ForestChecks.Run);
 Check.Section("vegetation ground", VegetationGroundChecks.Run);
 Check.Section("continuous density", DensityChecks.Run);

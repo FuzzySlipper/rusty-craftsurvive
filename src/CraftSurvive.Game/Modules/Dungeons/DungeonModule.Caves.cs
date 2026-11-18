@@ -72,12 +72,26 @@ internal sealed partial class DungeonModule
             nextCaveSearchStep = step.Step + EntranceSearchIntervalSteps;
         }
 
+        long began = System.Diagnostics.Stopwatch.GetTimestamp();
         AdmitFinishedCaves();
+        long admitted = System.Diagnostics.Stopwatch.GetTimestamp();
         DressNearestCave();
+        long dressed = System.Diagnostics.Stopwatch.GetTimestamp();
         AdvanceDressing();
+        long advanced = System.Diagnostics.Stopwatch.GetTimestamp();
         LightCave();
         Steer();
+        long done = System.Diagnostics.Stopwatch.GetTimestamp();
+        static double Ms(long from, long to) => System.Diagnostics.Stopwatch.GetElapsedTime(from, to).TotalMilliseconds;
+        CaveTiming = Ms(began, done) < 1d ? "" : string.Create(CultureInfo.InvariantCulture,
+            $"caves(admit={Ms(began, admitted):F1}{admitTiming} dress={Ms(admitted, dressed):F1} advance={Ms(dressed, advanced):F1} light={Ms(advanced, done):F1})");
+        admitTiming = "";
     }
+
+    /// <summary>Where this update's cave follow went (#10907): admission (its store write and the terrain's), dressing, lights.</summary>
+    internal string CaveTiming { get; private set; } = "";
+
+    private string admitTiming = "";
 
     /// <summary>The cave mouths within reach of the player whose caves have not been asked for are asked for, nearest first.</summary>
     private void AskForCaves()
@@ -227,6 +241,7 @@ internal sealed partial class DungeonModule
     /// <summary>Reads a ready cave into the walking session, storing a freshly generated one for the world.</summary>
     private void Admit(UnderCave cave, UndergroundCave ready)
     {
+        long storing = System.Diagnostics.Stopwatch.GetTimestamp();
         if (ready.Encoded is byte[] encoded)
         {
             CaveStore.Write(cave.Key, encoded);
@@ -238,8 +253,11 @@ internal sealed partial class DungeonModule
             cavesRead++;
         }
 
+        long admitting = System.Diagnostics.Stopwatch.GetTimestamp();
         terrain.AdmitCave(cave.Cave, ready.Interior, ready.Shell);
         cavesAdmitted++;
+        admitTiming = string.Create(CultureInfo.InvariantCulture,
+            $"[store={System.Diagnostics.Stopwatch.GetElapsedTime(storing, admitting).TotalMilliseconds:F1} terrain={System.Diagnostics.Stopwatch.GetElapsedTime(admitting).TotalMilliseconds:F1}]");
         (double generateMs, double queuedMs) = Generator.Timing(cave.Key) ?? (0d, 0d);
         lastCave = string.Create(CultureInfo.InvariantCulture,
             $"admitted the cave under the mouth at {cave.Cave.Site.X},{cave.Cave.Site.Z}: {(cave.FromStore ? $"generate=stored (decoded {generateMs:F0}ms)" : $"generate=background {generateMs:F0}ms")} (queued {queuedMs:F0}ms), {ready.Shell.Count} chunks with air or beside it");

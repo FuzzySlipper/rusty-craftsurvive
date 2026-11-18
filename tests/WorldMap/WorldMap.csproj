@@ -18,6 +18,7 @@
     <Compile Include="$(ProductModules)Terrain/TerrainGenerationGoldens.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/ProductStore.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/ProductSaveSlot.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/EngineClock.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/SaveManifest.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/SaveRestore.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/SaveEnvelope.cs" LinkBase="Product" />

@@ -33,8 +33,12 @@ internal sealed class FarField : IDisposable
     /// <summary>Cells along a tile's side: one far chunk column.</summary>
     private const uint TileCells = (uint)TerrainConstants.ChunkEdgeLength;
     private const uint GroundIndex = 0, WaterIndex = 1, IceIndex = 2, DryGroundIndex = 3;
-    /// <summary>How many sampled tiles are committed to the Engine an update.</summary>
-    private const int CommitsPerUpdate = 64;
+    /// <summary>
+    /// How many sampled tiles are committed to the Engine an update: each costs the Engine's copy and meshing on the update
+    /// thread, so 64 at once (a ring coming back after a cave, #10907) was some 25 ms; 16 still fills a fresh ring in a few
+    /// updates.
+    /// </summary>
+    private const int CommitsPerUpdate = 16;
     /// <summary>The ring's focus moves onto the player once they are this far from it.</summary>
     private const double FocusStepMetres = FarGround.CellMetres;
     /// <summary>The ground's textures repeat in metres (one heightfield unit), as on the walking ground.</summary>

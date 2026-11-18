@@ -548,7 +548,9 @@ internal sealed class ChemistryModule : IProductModule
             bands.Clear();
         }
 
-        return bands[(columnX, columnZ)] = FieldWindow.BandOf(columnX, columnZ, terrain.Recipe.SurfaceAt);
+        // From the column's samples the terrain kept when it generated the column (#10907), not the map sampled again.
+        (long low, long high) = terrain.SurfaceBand(columnX, columnZ);
+        return bands[(columnX, columnZ)] = new SurfaceBand(low, high);
     }
 
     /// <summary>

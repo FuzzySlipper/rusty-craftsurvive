@@ -16,6 +16,12 @@ internal sealed class SurvivalModule : IProductModule
     /// <summary>Five seconds at 60 Hz, as the player's continuation saves.</summary>
     internal const long SaveIntervalSteps = 300;
 
+    /// <summary>
+    /// The save falls this many steps before the player's continuation's (#10907): each save is the Engine's persistence on the
+    /// update thread, several milliseconds, so the periodic saves are spread over the interval rather than taken together.
+    /// </summary>
+    internal const long SaveOffsetSteps = 100;
+
     private readonly PlayerController player;
     private readonly WorldConditionsModule conditions;
     private readonly ProductUiPublisher ui;
@@ -94,7 +100,7 @@ internal sealed class SurvivalModule : IProductModule
         Publish();
         if (lastSaveStep == long.MinValue)
         {
-            lastSaveStep = step.Step;
+            lastSaveStep = step.Step - SaveOffsetSteps;
         }
         else if (step.Step - lastSaveStep >= SaveIntervalSteps)
         {

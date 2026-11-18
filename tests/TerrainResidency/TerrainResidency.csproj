@@ -35,6 +35,7 @@
     <!-- The recipe places points of interest, so this lane links the placement policy it
          drives; the residency checks below cover chunks that hold a structure. -->
     <Compile Include="$(ProductModules)Terrain/TerrainChunk.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainChunkPreparer.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Terrain/TerrainResidencyPolicy.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Terrain/TerrainOverlayState.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Terrain/TerrainEditPolicy.cs" LinkBase="Product/Terrain" />

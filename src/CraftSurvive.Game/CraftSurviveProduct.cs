@@ -208,8 +208,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         inventory = new InventoryModule(context.Engine, store, terrain.SaveIdentity, player, discovery, survival, ui, cues);
         dungeons = new DungeonModule(context.Engine, terrain, player, conditions, sky, ui);
         player.PrepareUnderground = at => dungeons.PrepareCaveAt(at);
-        walkingUpdates.EngineShare = () => terrain.EngineMs + (horizon?.LastEngineMs ?? 0d);
-        walkingUpdates.Detail = () => string.Join(" ", new[] { terrain.SyncTiming, horizon?.LastTiming ?? "", chemistry is null ? "" : $"chemistry({chemistry.LastTiming})" }.Where(part => part.Length > 0));
+        walkingUpdates.EngineShare = () => terrain.EngineMs + (horizon?.LastEngineMs ?? 0d)
+            + System.Diagnostics.Stopwatch.GetElapsedTime(0, EngineClock.Ticks - savesAtBegin).TotalMilliseconds;
+        walkingUpdates.Detail = () => string.Join(" ", new[] { terrain.SyncTiming, horizon?.LastTiming ?? "", chemistry is null ? "" : $"chemistry({chemistry.LastTiming})", dungeons?.CaveTiming ?? "" }.Where(part => part.Length > 0));
         actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, dungeons, ui, cues, frame);
         feedback = new FeedbackModule(cues, new SoundPlayer(context.Engine), new BurstEmitter(context.Engine, () => terrain.AtlasSprite),
             () => new Surroundings(player.InSeparateSpace, player.HeadSubmerged, WorldClock.Daylight(conditions.Time.DayFraction)),
@@ -479,6 +480,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         ProductStep step = ProductStep.From(update.Facts);
         walkingUpdates.Begin();
         terrain.ClearEngineTime();
+        savesAtBegin = EngineClock.Ticks;
 
         // The waves move on first (#9902), so the boat and a swimmer ride, and the water draws, one sea this update.
         WeatherLook wind = sky.Look;
@@ -520,6 +522,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     /// <summary>How long the walking updates take (#10889), for the readout.</summary>
     private readonly UpdateTimes walkingUpdates = new();
+
+    /// <summary>The product's time in the Engine services <see cref="EngineClock"/> counts, as this walking update began (#10907).</summary>
+    private long savesAtBegin;
 
     /// <summary>A module whose update takes this long is named in a slow update's breakdown.</summary>
     private const double SlowModuleMs = 2d;

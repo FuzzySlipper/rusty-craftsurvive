@@ -65,7 +65,18 @@ internal sealed class TerrainChunkGenerator
     /// <summary>Chunks served from the cache rather than generated, for evidence.</summary>
     internal int CacheHits { get; private set; }
 
-    internal TerrainChunk Generate(TerrainChunkAddress address, TerrainOverlaySnapshot overlay)
+    internal TerrainChunk Generate(TerrainChunkAddress address, TerrainOverlaySnapshot overlay) => Generate(address, overlay, true);
+
+    /// <summary>
+    /// A chunk generated afresh, never read from the cache (#10907): what a worker generates, since the cache is the Engine's
+    /// persistence and the update thread's alone.
+    /// </summary>
+    internal TerrainChunk GenerateUncached(TerrainChunkAddress address, TerrainOverlaySnapshot overlay) => Generate(address, overlay, false);
+
+    /// <summary>The recipe the chunks are generated from.</summary>
+    internal TerrainRecipe Recipe => recipe;
+
+    private TerrainChunk Generate(TerrainChunkAddress address, TerrainOverlaySnapshot overlay, bool useCache)
     {
         // Read-through: a chunk this world already generated comes back from the store
         // instead of being computed again. The cache is an optimisation, so a miss is
@@ -75,7 +86,7 @@ internal sealed class TerrainChunkGenerator
         ushort[]? cached = null;
         // A chunk a tendril or a cave reaches is never read from the cache (#10889): its densities are the cave's, and a
         // cave admitted since changes it.
-        if (cache is not null && !overlay.TouchesChunk(address) && Cacheable(address) && cache.TryRead(address, out ushort[] found))
+        if (useCache && cache is not null && !overlay.TouchesChunk(address) && Cacheable(address) && cache.TryRead(address, out ushort[] found))
         {
             CacheHits++;
             cached = found;
@@ -113,8 +124,11 @@ internal sealed class TerrainChunkGenerator
 
     // The map samples of the chunk columns generated last: a pure function of the column, so kept a while (#10889: going down a
     // cave the chunks of one column come in a few at a time, each asked the same samples).
+    // Read by the chunk workers too (#10907), so kept behind a lock: a column is sampled outside it, and two threads sampling the
+    // same column agree.
     private readonly Dictionary<(long X, long Z), (TerrainColumn[] Columns, double[] Heights)> columnSamples = [];
     private readonly Queue<(long X, long Z)> columnOrder = new();
+    private readonly Lock columnLock = new();
     // The surface ring a player walks in (19 x 19 columns) and a cave's (6 x 6 and its tendril), about 30 KB a column: climbing out of a
     // cave finds the ring's samples still here.
     private const int ColumnSampleLimit = 768;
@@ -122,9 +136,12 @@ internal sealed class TerrainChunkGenerator
     /// <summary>A chunk column's samples of the map, every column's ground and its continuous height.</summary>
     private (TerrainColumn[] Columns, double[] Heights) Columns(long chunkX, long chunkZ, VoxelAddress origin)
     {
-        if (columnSamples.TryGetValue((chunkX, chunkZ), out (TerrainColumn[] Columns, double[] Heights) known))
+        lock (columnLock)
         {
-            return known;
+            if (columnSamples.TryGetValue((chunkX, chunkZ), out (TerrainColumn[] Columns, double[] Heights) known))
+            {
+                return known;
+            }
         }
 
         int edge = TerrainConstants.ChunkEdgeLength;
@@ -139,14 +156,37 @@ internal sealed class TerrainChunkGenerator
             }
         }
 
-        if (columnSamples.Count >= ColumnSampleLimit && columnOrder.TryDequeue(out (long X, long Z) oldest))
+        lock (columnLock)
         {
-            columnSamples.Remove(oldest);
+            if (columnSamples.TryAdd((chunkX, chunkZ), (columns, heights)))
+            {
+                columnOrder.Enqueue((chunkX, chunkZ));
+                if (columnSamples.Count > ColumnSampleLimit && columnOrder.TryDequeue(out (long X, long Z) oldest))
+                {
+                    columnSamples.Remove(oldest);
+                }
+            }
         }
 
-        columnSamples[(chunkX, chunkZ)] = (columns, heights);
-        columnOrder.Enqueue((chunkX, chunkZ));
         return (columns, heights);
+    }
+
+    /// <summary>
+    /// The lowest and highest ground surface over a chunk column (#10907), from the column's samples, kept from its generation
+    /// (on a worker, for the chunks round the player): what the chemistry's window asks of every column it reaches, which
+    /// otherwise sampled the map again for each of the column's cells.
+    /// </summary>
+    internal (long Low, long High) SurfaceBand(long chunkX, long chunkZ)
+    {
+        (TerrainColumn[] columns, _) = Columns(chunkX, chunkZ, new TerrainChunkAddress(chunkX, 0, chunkZ).Origin);
+        long low = long.MaxValue, high = long.MinValue;
+        foreach (TerrainColumn column in columns)
+        {
+            low = Math.Min(low, column.Surface);
+            high = Math.Max(high, column.Surface);
+        }
+
+        return (low, high);
     }
 
     /// <summary>Whether a chunk may be read from and written to the chunk cache: not one a tendril or a cave reaches (#10889).</summary>

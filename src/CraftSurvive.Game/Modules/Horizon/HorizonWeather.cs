@@ -38,9 +38,9 @@ internal sealed class HorizonWeather : IDisposable
     private const double RefreshHours = 0.05, RefreshMetres = 200;
     /// <summary>
     /// The update's time for listing the fronts (#10907): a listing looks over every spawn cell and slot within reach, some
-    /// 50 ms, so it goes on a little each update and the clouds and curtains follow once it is done.
+    /// 50 ms, so it goes on a millisecond each update and the clouds and curtains follow once it is done, within a second.
     /// </summary>
-    private const double ListBudgetMs = 2d;
+    private const double ListBudgetMs = 1d;
     /// <summary>A sheet's columns across and the share of its width over which its ends fade out.</summary>
     private const int Columns = 48;
     private const int StrengthSteps = 3;

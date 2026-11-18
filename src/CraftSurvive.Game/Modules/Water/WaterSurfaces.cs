@@ -31,7 +31,7 @@ internal sealed class WaterSurfaces : IDisposable
     /// The update's time for sampling the near water (#10907): a tile is its whole lattice of the water's samples, some 30 ms of
     /// the recipe's ground, so it is sampled a few rows an update within this, nearest tile first, and drawn once it is whole.
     /// </summary>
-    private const double SampleBudgetMs = 2d;
+    private const double SampleBudgetMs = 1.5d;
 
     /// <summary>While the player's own tile or one beside it is missing (a start, a teleport), an update may give it this much.</summary>
     private const double UrgentSampleBudgetMs = 24d;

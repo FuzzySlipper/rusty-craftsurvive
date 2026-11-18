@@ -174,6 +174,46 @@ internal sealed class TerrainResidencyPolicy
             }
         }
 
+        // The player's storey is kept across the whole ring (#10907): walking up or down a hill moves it a chunk, and a whole new
+        // layer of the ring, a few hundred chunks, would be asked of the content predicate by the plan at once. The layers either
+        // side of it are worked out ahead too, nearest first.
+        if (Underground.Storey)
+        {
+            long minimumY = WorldGen.GridMath.FloorDivide(recipe.MinimumMaterialY, TerrainConstants.ChunkEdgeLength);
+            long maximumY = WorldGen.GridMath.FloorDivide(recipe.MaximumMaterialY, TerrainConstants.ChunkEdgeLength);
+            long reach = TerrainConstants.PlayerStoreyChunks + 1;
+            for (int ring = 0; ring <= surface; ring++)
+            {
+                for (long x = center.X - ring; x <= center.X + ring; x++)
+                {
+                    for (long z = center.Z - ring; z <= center.Z + ring; z++)
+                    {
+                        if (Math.Max(Math.Abs(x - center.X), Math.Abs(z - center.Z)) != ring)
+                        {
+                            continue;
+                        }
+
+                        for (long y = Math.Max(minimumY, center.Y - reach); y <= Math.Min(maximumY, center.Y + reach); y++)
+                        {
+                            TerrainChunkAddress address = new(x, y, z);
+                            if (recipe.KnowsChunkContent(address))
+                            {
+                                continue;
+                            }
+
+                            if (System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds >= budgetMs)
+                            {
+                                return warmed;
+                            }
+
+                            recipe.ChunkHasContent(address);
+                            warmed++;
+                        }
+                    }
+                }
+            }
+        }
+
         return warmed;
     }
 
@@ -285,6 +325,15 @@ internal sealed class TerrainResidencyPolicy
         return new TerrainResidencyPlan(center, requested, retained, TerrainConstants.MaximumResidencyOperationsPerTick,
             planChunks,
             window,
+            planSnapshot,
+            planRevision,
+            (address, chunk) =>
+            {
+                if (IsCurrent())
+                {
+                    cachedChunks[address] = chunk;
+                }
+            },
             address =>
             {
                 if (IsCurrent() && cachedChunks.TryGetValue(address, out TerrainChunk? shared))
@@ -369,11 +418,16 @@ internal sealed class TerrainResidencyPlan
 {
     internal TerrainResidencyPlan(TerrainChunkAddress center, TerrainChunkAddress[] requested,
         TerrainChunkAddress[] retained, int maximumOperationsPerTick, Dictionary<TerrainChunkAddress, TerrainChunk> chunks,
-        HashSet<TerrainChunkAddress> window, Func<TerrainChunkAddress, TerrainChunk> chunkSource)
+        HashSet<TerrainChunkAddress> window, TerrainOverlaySnapshot overlay, ulong overlayRevision,
+        Action<TerrainChunkAddress, TerrainChunk> publish, Func<TerrainChunkAddress, TerrainChunk> chunkSource)
     {
         Center = center;
         Requested = requested ?? throw new ArgumentNullException(nameof(requested));
         Retained = retained ?? throw new ArgumentNullException(nameof(retained));
+        retainedSet = [.. retained];
+        Overlay = overlay ?? throw new ArgumentNullException(nameof(overlay));
+        OverlayRevision = overlayRevision;
+        this.publish = publish ?? throw new ArgumentNullException(nameof(publish));
         MaximumOperationsPerTick = maximumOperationsPerTick;
         this.chunks = chunks ?? throw new ArgumentNullException(nameof(chunks));
         this.window = window ?? throw new ArgumentNullException(nameof(window));
@@ -391,6 +445,35 @@ internal sealed class TerrainResidencyPlan
     private readonly Dictionary<TerrainChunkAddress, TerrainChunk> chunks;
     private readonly HashSet<TerrainChunkAddress> window;
     private readonly Func<TerrainChunkAddress, TerrainChunk> chunkSource;
+    private readonly Action<TerrainChunkAddress, TerrainChunk> publish;
+    private readonly HashSet<TerrainChunkAddress> retainedSet;
+
+    /// <summary>Whether the plan keeps a chunk resident (#10907: a set, since residency asks it of every resident chunk an update).</summary>
+    internal bool Retains(TerrainChunkAddress address) => retainedSet.Contains(address);
+
+    /// <summary>The overlay the plan's chunks are generated with, and its revision.</summary>
+    internal TerrainOverlaySnapshot Overlay { get; }
+
+    internal ulong OverlayRevision { get; }
+
+    /// <summary>Whether the plan holds a chunk already produced.</summary>
+    internal bool Produced(TerrainChunkAddress address) => chunks.ContainsKey(address);
+
+    /// <summary>
+    /// Takes a chunk a worker generated with this plan's overlay (#10907) as the plan's own, as if it had produced it; one
+    /// outside the window is refused.
+    /// </summary>
+    internal TerrainChunk Adopt(TerrainChunkAddress address, TerrainChunk chunk)
+    {
+        if (!window.Contains(address))
+        {
+            throw new KeyNotFoundException($"Chunk {address} is outside this plan's window.");
+        }
+
+        chunks[address] = chunk;
+        publish(address, chunk);
+        return chunk;
+    }
 
     /// <summary>
     /// The chunk at an address. An address outside the plan's window is refused rather than

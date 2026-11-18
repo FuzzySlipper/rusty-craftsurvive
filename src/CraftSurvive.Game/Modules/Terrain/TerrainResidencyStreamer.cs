@@ -1,4 +1,5 @@
 using System.Globalization;
+using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Terrain;
@@ -27,6 +28,66 @@ internal sealed class TerrainResidencyStreamer(
 
     /// <summary>Resident chunks whose generation changed without an edit (a cave admitted, #10889), replaced a few an update.</summary>
     private readonly HashSet<TerrainChunkAddress> stale = [];
+
+    /// <summary>The workers generating chunks away from the player (#10907).</summary>
+    private readonly TerrainChunkPreparer preparer = new(generator);
+
+    /// <summary>Chunks a worker gave back (a draw it was not given): the update thread generates them itself.</summary>
+    private readonly HashSet<TerrainChunkAddress> generateHere = [];
+
+    /// <summary>Whether chunks away from the player are generated on workers (#10907), or all on the update thread for a comparison.</summary>
+    internal bool Workers { get; set; } = true;
+
+    /// <summary>Lets the workers go: what they are generating is dropped.</summary>
+    internal void Stop() => preparer.Dispose();
+
+    /// <summary>A chunk a worker finished, if it was generated against the world as it stands under that chunk now.</summary>
+    private TerrainChunk? FromWorker(TerrainResidencyPlan plan, TerrainChunkAddress address)
+    {
+        if (!preparer.TryTake(address, out TerrainChunkPreparer.Prepared? prepared))
+        {
+            return null;
+        }
+
+        if (prepared.Chunk is null)
+        {
+            generateHere.Add(address);
+            return null;
+        }
+
+        // An edit in the chunk since, or a cave admitted or let go under it since, and it is asked again.
+        TerrainRecipe recipe = generator.Recipe;
+        bool overlayCurrent = prepared.OverlayRevision == plan.OverlayRevision || (!prepared.Edited && !plan.Overlay.TouchesChunk(address));
+        bool cavesCurrent = prepared.CavesRevision == recipe.Caves.Revision || !recipe.Caves.Touches(address);
+        if (!overlayCurrent || !cavesCurrent || !plan.Retains(address))
+        {
+            preparer.Dropped();
+            return null;
+        }
+
+        return plan.Adopt(address, prepared.Chunk);
+    }
+
+    /// <summary>Hands a chunk to the workers, its draws made first, if there is room and the update's time for it lasts.</summary>
+    private void Ask(TerrainResidencyPlan plan, TerrainChunkAddress address, long asking)
+    {
+        if (preparer.Holds(address) || !preparer.CanQueue
+            || System.Diagnostics.Stopwatch.GetElapsedTime(asking).TotalMilliseconds >= TerrainConstants.ResidencyAskBudgetMs)
+        {
+            return;
+        }
+
+        TerrainRecipe recipe = generator.Recipe;
+        recipe.PrepareDraws(address);
+        preparer.Queue(address, plan.Overlay, plan.OverlayRevision, recipe.Caves.Revision);
+        asked++;
+    }
+
+    private long asked;
+
+    /// <summary>Whether a chunk is generated on the update thread now rather than on a worker.</summary>
+    private bool HereNow(TerrainResidencyPlan plan, TerrainChunkAddress address, TerrainChunkAddress center) =>
+        !Workers || Round(address, center) || generateHere.Contains(address) || plan.Produced(address);
     private long replacements;
 
     /// <summary>Keeps a chunk's admitted materials for its cache write, only while they are the generator's alone (no edit in it).</summary>
@@ -67,7 +128,7 @@ internal sealed class TerrainResidencyStreamer(
     internal bool IsResident(TerrainChunkAddress chunk) => resident.ContainsKey(chunk);
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"cached={cache.Count} pendingWrites={pendingCacheWrites.Count} resident={resident.Count} admissions={admissions} evictions={evictions} replaced={replacements} stale={stale.Count} batches={urgentBatches}+{deferredBatches}deferred undrawn={deferredUndrawn} staleDropped={cache.StaleDropped} cacheHits={generator.CacheHits} cacheWrites={(cache.Failure is null ? "on" : "off")}{(cache.Failure is null ? "" : $" cacheFailure=\"{cache.Failure}\"")}");
+        $"workers=[{(Workers ? "on" : "off")} asked={asked} hereAfterWorker={generateHere.Count} {preparer.Readout()}] cached={cache.Count} pendingWrites={pendingCacheWrites.Count} writesDropped={cacheWritesDropped} resident={resident.Count} admissions={admissions} evictions={evictions} replaced={replacements} stale={stale.Count} batches={urgentBatches}+{deferredBatches}deferred undrawn={deferredUndrawn} staleDropped={cache.StaleDropped} cacheHits={generator.CacheHits} cacheWrites={(cache.Failure is null ? "on" : "off")}{(cache.Failure is null ? "" : $" cacheFailure=\"{cache.Failure}\"")}");
 
     // A transaction's operations and payloads.
     private sealed class Batch
@@ -132,9 +193,10 @@ internal sealed class TerrainResidencyStreamer(
         engineTicks = 0;
         bool done = SynchronizeInner(session, center);
         long end = System.Diagnostics.Stopwatch.GetTimestamp();
-        // An evicted chunk is written only in a quiet update (#10907): none generated and the step short.
+        // An evicted chunk is written only while the player is not streaming and in a quiet update (#10907).
         lastCacheWrite = "";
-        if (generatedNow == 0 && Ms(t0, end) < TerrainConstants.ResidencyCacheWriteQuietMs)
+        updatesSinceAdmission = generatedNow > 0 ? 0 : updatesSinceAdmission + 1;
+        if (PlayerStill && updatesSinceAdmission >= TerrainConstants.ResidencyCacheWriteRestUpdates && Ms(t0, end) < TerrainConstants.ResidencyCacheWriteQuietMs)
         {
             DrainCacheWrite();
         }
@@ -160,6 +222,15 @@ internal sealed class TerrainResidencyStreamer(
 
         TerrainResidencyPlan plan = policy.PlanFor(center, overlay);
         tPlan = System.Diagnostics.Stopwatch.GetTimestamp();
+        // What the workers finished since the last update; what the player has left behind meanwhile is let go.
+        preparer.Collect();
+        preparer.Keep(address => plan.Retains(address) && (!resident.ContainsKey(address) || stale.Contains(address)));
+        if (generateHere.Count > TerrainConstants.MaximumResidentChunks)
+        {
+            generateHere.Clear();
+        }
+
+        long asking = System.Diagnostics.Stopwatch.GetTimestamp();
         tGenerate = tPlan;
         Batch urgent = new(), deferred = new();
         int Count() => urgent.Operations.Count + deferred.Operations.Count;
@@ -169,21 +240,40 @@ internal sealed class TerrainResidencyStreamer(
         bool Spent() => Count() > 0
             && System.Diagnostics.Stopwatch.GetElapsedTime(generating).TotalMilliseconds >= TerrainConstants.ResidencyGenerationBudgetMs;
 
-        // Chunks a cave changed are replaced first, nearest the player first, within the same budget (#10889).
+        // Chunks a cave changed are replaced first, nearest the player first, within the same budget (#10889); away from the
+        // player a worker generates them (#10907).
         foreach (TerrainChunkAddress address in stale.OrderBy(a => Math.Abs(a.X - center.X) + Math.Abs(a.Y - center.Y) + Math.Abs(a.Z - center.Z)).ToArray())
         {
-            if (Count() == plan.MaximumOperationsPerTick || Spent())
+            if (Count() == plan.MaximumOperationsPerTick)
             {
                 break;
             }
 
-            stale.Remove(address);
-            if (!resident.ContainsKey(address) || !plan.Retained.Contains(address))
+            if (!resident.ContainsKey(address) || !plan.Retains(address))
             {
+                stale.Remove(address);
                 continue;
             }
 
-            TerrainChunk replaced = plan.Chunk(address);
+            TerrainChunk? replaced = FromWorker(plan, address);
+            if (replaced is null)
+            {
+                if (!HereNow(plan, address, center))
+                {
+                    Ask(plan, address, asking);
+                    continue;
+                }
+
+                if (Spent())
+                {
+                    break;
+                }
+
+                replaced = plan.Chunk(address);
+            }
+
+            stale.Remove(address);
+            generateHere.Remove(address);
             AddAdmission(replaced, Round(address, center) ? urgent : deferred, VoxelResidencyOperationKind.Replace);
             Keep(address, replaced.Materials);
             replacements++;
@@ -196,12 +286,26 @@ internal sealed class TerrainResidencyStreamer(
                 continue;
             }
 
-            if (Spent())
+            // Away from the player a worker generates the chunk (#10907); round the player, after a worker gave one back, or
+            // with the workers off, the update generates it within its budget.
+            TerrainChunk? admitted = FromWorker(plan, address);
+            if (admitted is null)
             {
-                break;
+                if (!HereNow(plan, address, center))
+                {
+                    Ask(plan, address, asking);
+                    continue;
+                }
+
+                if (Spent())
+                {
+                    break;
+                }
+
+                admitted = plan.Chunk(address);
             }
 
-            TerrainChunk admitted = plan.Chunk(address);
+            generateHere.Remove(address);
             AddAdmission(admitted, Round(address, center) ? urgent : deferred);
             Keep(address, admitted.Materials);
             admissions++;
@@ -215,7 +319,7 @@ internal sealed class TerrainResidencyStreamer(
         generatedNow = Count();
         foreach (TerrainChunkAddress address in resident.Keys)
         {
-            if (plan.Retained.Contains(address) || Count() == plan.MaximumOperationsPerTick)
+            if (plan.Retains(address) || Count() == plan.MaximumOperationsPerTick)
             {
                 continue;
             }
@@ -225,6 +329,12 @@ internal sealed class TerrainResidencyStreamer(
             // read path refuses them anyway.
             if (!overlay.TouchesChunk(address) && generator.Cacheable(address) && !pendingCacheWrites.Contains(address))
             {
+                if (pendingCacheWrites.Count >= TerrainConstants.MaximumPendingCacheWrites && pendingCacheWrites.TryDequeue(out TerrainChunkAddress oldest))
+                {
+                    evictedMaterials.Remove(oldest);
+                    cacheWritesDropped++;
+                }
+
                 pendingCacheWrites.Enqueue(address);
                 if (admittedMaterials.TryGetValue(address, out ReadOnlyMemory<ushort> kept))
                 {
@@ -301,6 +411,11 @@ internal sealed class TerrainResidencyStreamer(
     /// player's edits.
     /// </summary>
     private string lastCacheWrite = "";
+    private int updatesSinceAdmission;
+
+    /// <summary>Whether the player has stood in one place a while: evicted chunks are written to the cache only then (#10907).</summary>
+    internal bool PlayerStill { get; set; } = true;
+    private long cacheWritesDropped;
 
     private void DrainCacheWrite()
     {

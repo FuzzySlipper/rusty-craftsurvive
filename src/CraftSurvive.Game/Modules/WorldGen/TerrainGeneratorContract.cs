@@ -154,11 +154,46 @@ internal interface ITerrainDraws
 /// </summary>
 internal sealed class EngineTerrainDraws(IRandomService random) : ITerrainDraws
 {
+    /// <summary>The time spent in the Engine's keyed draws so far, and how many (#10907: what a tile's tree decisions cost).</summary>
+    internal long DrawTicks { get; private set; }
+
+    internal long Draws { get; private set; }
+
     private readonly IRandomService random = random ?? throw new ArgumentNullException(nameof(random));
 
     public long Draw(string scope, string key, ulong seed, long minimum, long maximum)
     {
+        // The Engine's keyed draws are the update thread's: a chunk worker is given its draws ahead (#10907).
+        if (TerrainDrawLane.OnWorker)
+        {
+            throw new TerrainDrawOffUpdateException(scope, key);
+        }
+
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
         KeyedRngReceipt receipt = random.DrawKeyed(new KeyedRngRequest(seed, scope, key, minimum, maximum));
+        DrawTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
+        Draws++;
         return receipt.Value;
     }
 }
+
+/// <summary>Which thread may draw (#10907): a chunk worker may not, since the Engine's keyed draws are the update thread's.</summary>
+internal static class TerrainDrawLane
+{
+    [ThreadStatic]
+    private static bool onWorker;
+
+    /// <summary>Whether this thread is generating a chunk on a worker.</summary>
+    internal static bool OnWorker
+    {
+        get => onWorker;
+        set => onWorker = value;
+    }
+}
+
+/// <summary>
+/// A keyed draw asked on a chunk worker that was not made ahead on the update thread (#10907): the worker gives its chunk back
+/// and the update thread generates it itself.
+/// </summary>
+internal sealed class TerrainDrawOffUpdateException(string scope, string key)
+    : InvalidOperationException($"The keyed draw {scope}/{key} was not made ahead of the chunk worker.");

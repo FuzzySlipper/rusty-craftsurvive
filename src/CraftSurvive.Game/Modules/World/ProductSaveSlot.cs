@@ -75,12 +75,14 @@ internal sealed class ProductSaveSlot<TState>
     {
         ArrayBufferWriter<byte> payload = new();
         codec.Encode(in state, payload);
+        long saving = System.Diagnostics.Stopwatch.GetTimestamp();
         PersistenceSaveReceipt receipt = engine.Persistence.Save(new PersistenceSaveRequest(
             store.Store,
             storageKey,
             revision == 0 ? PersistenceRevisionGuard.Absent : PersistenceRevisionGuard.Exact,
             revision,
             payload.WrittenMemory));
+        EngineClock.Add(System.Diagnostics.Stopwatch.GetTimestamp() - saving);
         if (receipt.Outcome == PersistenceSaveOutcome.RevisionConflict)
         {
             LastFailure = $"{Key.Key} was changed outside this session (stored revision {receipt.Revision}, held {revision}); not overwritten";

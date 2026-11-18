@@ -15,28 +15,17 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private readonly TerrainConfiguration configuration;
     private readonly ITerrainDraws draws;
     private readonly long radius;
-    private readonly Dictionary<(long X, long Z), TreeShape?> featureCells = [];
-    private readonly Dictionary<(long X, long Z), (long Minimum, long Maximum)> columnBands = [];
-    private readonly Queue<(long X, long Z)> columnBandOrder = new();
-    private readonly Queue<TerrainChunkAddress> chunkContentOrder = new();
+    // The recipe's caches are read by the chunk workers as well as the update thread (#10907). A full one lets go of its oldest
+    // quarter, not all of it (#10889 R10889-2): clearing one whole made the next plan sample the map again for every column of
+    // the ring at once, a stall of tens of milliseconds wherever a walk went.
+    private readonly SharedCache<(long X, long Z), TreeShape?> featureCells = new(GenerationConstants.FeatureCacheLimit);
+    private readonly SharedCache<(long X, long Z), (long Minimum, long Maximum)> columnBands = new(ColumnBandCacheLimit);
 
-    /// <summary>
-    /// A full cache lets go of its oldest quarter, not all of it (#10889 R10889-2): clearing it whole made the next plan
-    /// sample the map again for every column of the ring at once, a stall of tens of milliseconds wherever a walk went.
-    /// </summary>
-    private static void Trim<TKey, TValue>(Dictionary<TKey, TValue> cache, Queue<TKey> order, int limit) where TKey : notnull
-    {
-        if (cache.Count < limit) return;
-        for (int i = 0; i < limit / 4 && order.TryDequeue(out TKey? oldest); i++)
-        {
-            cache.Remove(oldest);
-        }
-    }
     /// <summary>
     /// Whether a chunk holds generated content, remembered: the answer is a pure function of the
     /// recipe, and residency asks it of every candidate on every plan (#9578).
     /// </summary>
-    private readonly Dictionary<TerrainChunkAddress, bool> chunkContent = [];
+    private readonly SharedCache<TerrainChunkAddress, bool> chunkContent = new(ChunkContentCacheLimit);
     private const int ChunkContentCacheLimit = 65_536;
     /// <summary>Chunks kept below a column's lowest surface, so its surface always has solid footing to mesh against.</summary>
     private const long BandFootingChunks = 1;
@@ -61,6 +50,38 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     private readonly CaveUnderground caves;
 
+    /// <summary>
+    /// Makes ahead, on the update thread, every keyed draw generating a chunk asks (#10907), so a worker can generate it: the
+    /// tree cells over its column, the place and crossing anchor cells whose structures can reach it, and the cave mouths
+    /// whose ways underground can. Each decision is kept in the caches the worker reads; one let go before the worker reads it
+    /// is drawn again there, which gives the chunk back to the update thread.
+    /// </summary>
+    internal void PrepareDraws(TerrainChunkAddress chunk)
+    {
+        long edge = TerrainConstants.ChunkEdgeLength;
+        long x0 = chunk.X * edge, z0 = chunk.Z * edge, x1 = x0 + edge - 1, z1 = z0 + edge - 1;
+        long tree = TreeCellMetres;
+        for (long anchorX = GridMath.FloorDivide(x0, tree); anchorX <= GridMath.FloorDivide(x1, tree); anchorX++)
+        {
+            for (long anchorZ = GridMath.FloorDivide(z0, tree); anchorZ <= GridMath.FloorDivide(z1, tree); anchorZ++)
+            {
+                TreeAt(anchorX, anchorZ);
+            }
+        }
+
+        long place = PoiConstants.CellSize;
+        for (long anchorX = GridMath.FloorDivide(x0, place) - 1; anchorX <= GridMath.FloorDivide(x1, place) + 1; anchorX++)
+        {
+            for (long anchorZ = GridMath.FloorDivide(z0, place) - 1; anchorZ <= GridMath.FloorDivide(z1, place) + 1; anchorZ++)
+            {
+                pois.SiteAt(anchorX, anchorZ);
+                crossings.SiteAt(anchorX, anchorZ);
+            }
+        }
+
+        caves.NearChunkColumn(chunk.X, chunk.Z);
+    }
+
     /// <summary>The caves under the world (#10889): every cave mouth's tendril, and the caves generated so far, read into the chunks.</summary>
     internal CaveUnderground Caves => caves;
 
@@ -84,7 +105,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>Each tree owns one cell this many metres square (#10032: crowns touch in a closed forest).</summary>
     internal int TreeCellMetres => GenerationConstants.TreeCellSize;
     internal int TreeCacheCells => featureCells.Count;
-    internal int TreeCacheClears { get; private set; }
+    internal int TreeCacheClears => featureCells.Trims;
 
     internal WorldMap Map { get; }
 
@@ -389,9 +410,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
             ? (1, 0)
             : (GridMath.FloorDivide(lowest, edge) - BandFootingChunks,
                 GridMath.FloorDivide(highest + GenerationConstants.TerrainHeadroom, edge));
-        Trim(columnBands, columnBandOrder, ColumnBandCacheLimit);
-        columnBands[(chunkX, chunkZ)] = band;
-        columnBandOrder.Enqueue((chunkX, chunkZ));
+        columnBands.Set((chunkX, chunkZ), band);
         return band;
     }
 
@@ -413,9 +432,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
     {
         if (chunkContent.TryGetValue(address, out bool known)) return known;
         bool content = ScanChunkContent(address);
-        Trim(chunkContent, chunkContentOrder, ChunkContentCacheLimit);
-        chunkContent[address] = content;
-        chunkContentOrder.Enqueue(address);
+        chunkContent.Set(address, content);
         return content;
     }
 
@@ -791,23 +808,59 @@ internal sealed class TerrainRecipe : ITerrainColumns
         }
 
         TreeShape? shape = DecideTree(anchorX, anchorZ);
-        if (featureCells.Count >= GenerationConstants.FeatureCacheLimit)
-        {
-            featureCells.Clear();
-            TreeCacheClears++;
-        }
-
-        featureCells[(anchorX, anchorZ)] = shape;
+        featureCells.Set((anchorX, anchorZ), shape);
         return shape;
     }
 
-    private TreeShape? DecideTree(long anchorX, long anchorZ)
+    /// <summary>
+    /// The one keyed draw a tree cell's choices are hashed from: the Engine's, so made on the update thread, and handed to a
+    /// worker deciding the cell's tree (#10907).
+    /// </summary>
+    internal ulong TreeCellDraw(long anchorX, long anchorZ) =>
+        (ulong)Contract.DrawLong(draws, "tree.cell", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ), 0, GenerationConstants.TreeCellDrawMaximum);
+
+    /// <summary>
+    /// The tree one anchor cell owns, given its cell's draw (<see cref="TreeCellDraw"/>), decided afresh as
+    /// <see cref="TreeInCell"/> does but safe on a worker once the places and crossings about it are decided
+    /// (<see cref="PrepareDrawsOver"/>, #10907). A structure pass may take a planted tree's core or footing: such a tree is
+    /// marked, and whether it still stands is read through the materials on the update thread.
+    /// </summary>
+    internal (TerrainTree Tree, bool Structured)? TreeInCellDrawn(long anchorX, long anchorZ, ulong cellDraw)
+    {
+        if (DecideTree(anchorX, anchorZ, cellDraw) is not TreeShape shape)
+        {
+            return null;
+        }
+
+        long x = (anchorX * TreeCellMetres) + shape.OffsetX;
+        long z = (anchorZ * TreeCellMetres) + shape.OffsetZ;
+        TerrainTree tree = new(x, shape.GroundY, z, shape.Species, shape.Variant, shape.Scale, shape.Yaw);
+        bool structured = TreeFelling.Core(tree).Append(TreeFelling.Support(tree))
+            .Any(cell => !PoiAt(cell.X, cell.Y, cell.Z).IsNone || CrossingAt(cell.X, cell.Y, cell.Z) is not null);
+        return (tree, structured);
+    }
+
+    /// <summary>Makes ahead the place and crossing decisions over a rectangle of columns and the anchor cells about it (#10907).</summary>
+    internal void PrepareDrawsOver(long minimumX, long minimumZ, long maximumX, long maximumZ)
+    {
+        long place = PoiConstants.CellSize;
+        for (long anchorX = GridMath.FloorDivide(minimumX, place) - 1; anchorX <= GridMath.FloorDivide(maximumX, place) + 1; anchorX++)
+        {
+            for (long anchorZ = GridMath.FloorDivide(minimumZ, place) - 1; anchorZ <= GridMath.FloorDivide(maximumZ, place) + 1; anchorZ++)
+            {
+                pois.SiteAt(anchorX, anchorZ);
+                crossings.SiteAt(anchorX, anchorZ);
+            }
+        }
+    }
+
+    private TreeShape? DecideTree(long anchorX, long anchorZ) => DecideTree(anchorX, anchorZ, TreeCellDraw(anchorX, anchorZ));
+
+    private TreeShape? DecideTree(long anchorX, long anchorZ, ulong cell)
     {
         // One keyed draw per cell; every choice about its tree is hashed from it. The vegetation tiles
-        // decide a 128 m tile's thousand cells at once on the update's thread, where a keyed draw per
-        // choice cost tens of milliseconds a tile (#10032).
-        string key = TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ);
-        ulong cell = (ulong)Contract.DrawLong(draws, "tree.cell", key, 0, GenerationConstants.TreeCellDrawMaximum);
+        // decide a 128 m tile's thousand cells at once, where a keyed draw per choice cost tens of
+        // milliseconds a tile (#10032); the draws are made on the update's thread and the choices on a worker (#10907).
         double Part(TreeDraw part) => HashUnit(CoordinateHash(cell, (long)part, 0));
 
         long offsetX = (long)(Part(TreeDraw.OffsetX) * TreeCellMetres);

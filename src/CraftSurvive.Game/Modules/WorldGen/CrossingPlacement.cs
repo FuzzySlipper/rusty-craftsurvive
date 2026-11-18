@@ -42,7 +42,8 @@ internal sealed class CrossingPlacement
     private readonly ITerrainDraws draws;
     private readonly ITerrainColumns columns;
     private readonly long radius;
-    private readonly Dictionary<(long X, long Z), CrossingSite?> cells = [];
+    /// <summary>Each anchor cell's decision, read by the chunk workers too (#10907).</summary>
+    private readonly SharedCache<(long X, long Z), CrossingSite?> cells = new(PoiConstants.SiteCacheLimit);
 
     internal CrossingPlacement(TerrainGeneratorContract contract, ITerrainDraws draws, ITerrainColumns columns, long radius)
     {
@@ -60,12 +61,7 @@ internal sealed class CrossingPlacement
         }
 
         CrossingSite? site = Decide(cellX, cellZ);
-        if (cells.Count >= PoiConstants.SiteCacheLimit)
-        {
-            cells.Clear();
-        }
-
-        cells[(cellX, cellZ)] = site;
+        cells.Set((cellX, cellZ), site);
         return site;
     }
 

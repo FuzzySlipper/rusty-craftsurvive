@@ -33,7 +33,12 @@ internal sealed class UpdateTimes
 
     // This update's phases so far, and the slowest updates' breakdowns (#10889 R10889-2: where a stall goes).
     private readonly List<(string Phase, double Ms)> phases = [];
+
+    // The garbage collector's pauses and collections during this update (#10907: whether a slow update was the collector's).
+    private TimeSpan gcPauseAtBegin;
+    private int gen0AtBegin, gen2AtBegin;
     private readonly List<(double Ms, long Step, string Breakdown)> slowest = [];
+    private readonly List<(double Ms, long Step, string Breakdown)> slowestOwn = [];
     private const int SlowestKept = 8;
 
     // The process's memory over the window: the working set (the Engine's and the product's) and the managed heap.
@@ -48,6 +53,9 @@ internal sealed class UpdateTimes
 
     internal void Begin()
     {
+        gcPauseAtBegin = GC.GetTotalPauseDuration();
+        gen0AtBegin = GC.CollectionCount(0);
+        gen2AtBegin = GC.CollectionCount(2);
         started = marked = Stopwatch.GetTimestamp();
         interval = lastBegin == 0 ? double.NaN : Stopwatch.GetElapsedTime(lastBegin, started).TotalMilliseconds;
         lastBegin = started;
@@ -75,13 +83,28 @@ internal sealed class UpdateTimes
         begins[next] = started;
         next = (next + 1) % Kept;
         count = Math.Min(count + 1, Kept);
-        if (slowest.Count < SlowestKept || ms > slowest[^1].Ms)
+        bool slowAll = slowest.Count < SlowestKept || ms > slowest[^1].Ms;
+        bool slowOwn = ms - engine > FrameBudgetMs / 2d && (slowestOwn.Count < SlowestKept || ms - engine > slowestOwn[^1].Ms);
+        if (slowAll || slowOwn)
         {
             string breakdown = string.Join(" ", phases.Select(p => string.Create(CultureInfo.InvariantCulture, $"{p.Phase}={p.Ms:F1}")))
-                + string.Create(CultureInfo.InvariantCulture, $" engine={engine:F1}");
-            slowest.Add((ms, step, $"{breakdown} [{Detail?.Invoke()}]"));
-            slowest.Sort((a, b) => b.Ms.CompareTo(a.Ms));
-            if (slowest.Count > SlowestKept) slowest.RemoveAt(slowest.Count - 1);
+                + string.Create(CultureInfo.InvariantCulture,
+                    $" engine={engine:F1} gc={(GC.GetTotalPauseDuration() - gcPauseAtBegin).TotalMilliseconds:F1}ms/{GC.CollectionCount(0) - gen0AtBegin}+{GC.CollectionCount(2) - gen2AtBegin}gen2 pool={ThreadPool.PendingWorkItemCount}pending/{ThreadPool.ThreadCount}threads");
+            string kept = $"{breakdown} [{Detail?.Invoke()}]";
+            if (slowAll)
+            {
+                slowest.Add((ms, step, kept));
+                slowest.Sort((a, b) => b.Ms.CompareTo(a.Ms));
+                if (slowest.Count > SlowestKept) slowest.RemoveAt(slowest.Count - 1);
+            }
+
+            if (slowOwn)
+            {
+                // Kept by the product's own share (#10907): the updates that make a frame the product's.
+                slowestOwn.Add((ms - engine, step, string.Create(CultureInfo.InvariantCulture, $"(update {ms:F1}ms) {kept}")));
+                slowestOwn.Sort((a, b) => b.Ms.CompareTo(a.Ms));
+                if (slowestOwn.Count > SlowestKept) slowestOwn.RemoveAt(slowestOwn.Count - 1);
+            }
         }
 
         if (count % MemoryEvery == 0)
@@ -101,12 +124,14 @@ internal sealed class UpdateTimes
         lastBegin = 0;
         lastOwn = double.NaN;
         slowest.Clear();
+        slowestOwn.Clear();
         workingLeast = managedLeast = long.MaxValue;
         workingMost = managedMost = 0;
     }
 
     /// <summary>The slowest updates kept, each with its phases.</summary>
-    internal string Slowest() => string.Join("\n", slowest.Select(s => string.Create(CultureInfo.InvariantCulture, $"{s.Ms:F1}ms step {s.Step}: {s.Breakdown}")));
+    internal string Slowest() => string.Join("\n", slowest.Select(s => string.Create(CultureInfo.InvariantCulture, $"{s.Ms:F1}ms step {s.Step}: {s.Breakdown}"))
+        .Concat(slowestOwn.Select(s => string.Create(CultureInfo.InvariantCulture, $"own {s.Ms:F1}ms step {s.Step}: {s.Breakdown}"))));
 
     internal string Readout()
     {

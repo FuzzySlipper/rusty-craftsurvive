@@ -113,15 +113,15 @@ internal sealed class DungeonOvergrowth : IDisposable
             float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat or OvergrowthKind.CushionGreat or OvergrowthKind.IvoryBulbGreat ? GiantTextureTexels : TextureTexels;
             bool glows = kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeSpire or OvergrowthKind.GroveHanger or OvergrowthKind.GroveHangerSmall;
             MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels, glows ? Emission(texture) : null, Sways(kind))))];
-            MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
-                model.Indices, model.Groups, bindings));
+            MeshResource mesh = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
+                model.Indices, model.Groups, bindings)));
             kinds[kind] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
             if (FarLevel(kind) is (string farPath, float from))
             {
                 // The far level is cut from the near piece's painted mesh: its own uvs into the same texture, so the same materials.
                 MeshResourceCreateRequest farModel = Model(content, farPath).Mesh;
-                MeshResource farMesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(farModel.Positions, farModel.Normals, farModel.Uvs,
-                    farModel.Colors, farModel.Indices, farModel.Groups, bindings));
+                MeshResource farMesh = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(farModel.Positions, farModel.Normals, farModel.Uvs,
+                    farModel.Colors, farModel.Indices, farModel.Groups, bindings)));
                 far[kind] = (farMesh, engine.Graphics.CreateMeshAppearance(farMesh), from);
             }
 
@@ -283,12 +283,13 @@ internal sealed class DungeonOvergrowth : IDisposable
 
     private Material Material(string path, float texels, string? emissionPath = null, Sway? sway = null)
     {
-        RenderResource texture = engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
+        // The Engine decodes, mips and uploads the texture on the update thread: its time is counted as the Engine's (#10907).
+        RenderResource texture = World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.NearestMipmapped, TextureWrap.Repeat))).Handle;
         textures.Add(texture);
         RenderResource? emission = null;
         if (emissionPath is not null)
         {
-            emission = engine.Graphics.OpenResource(new RenderResourceRequest(emissionPath, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
+            emission = World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(emissionPath, TextureFilter.NearestMipmapped, TextureWrap.Repeat))).Handle;
             textures.Add(emission);
         }
 

@@ -139,8 +139,8 @@ internal sealed class DungeonKitLook : IDisposable
                 glow is Vector3 light ? Glowing(light)
                     : Material(Painted(part.Texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {part.Role}."), paint), emissionMap,
                         piece is KitPiece.WallRoundel or KitPiece.WallTallRoundel)))];
-            MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
-                model.Indices, model.Groups, bindings));
+            MeshResource mesh = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
+                model.Indices, model.Groups, bindings)));
             pieces[(piece, lit)] = (mesh, engine.Graphics.CreateMeshAppearance(mesh), bindings.Length, glow is null);
             yield return false;
         }
@@ -257,7 +257,7 @@ internal sealed class DungeonKitLook : IDisposable
                 });
             }
 
-            shell = engine.Graphics.CreateMeshResource(Shell(Model(content, model).Mesh, blanketMaterial));
+            shell = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(Shell(Model(content, model).Mesh, blanketMaterial)));
             blankets[piece] = shell;
         }
 
@@ -328,7 +328,8 @@ internal sealed class DungeonKitLook : IDisposable
     {
         if (!textures.TryGetValue(path, out RenderResource? texture))
         {
-            texture = engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
+            // The Engine decodes, mips and uploads the texture on the update thread: its time is counted as the Engine's (#10907).
+            texture = World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.NearestMipmapped, TextureWrap.Repeat))).Handle;
             textures[path] = texture;
         }
 
