@@ -274,7 +274,7 @@ internal static class CaveRuins
     private const double BuriedWeight = 4;
 
     /// <summary>The highest storey whose cells lie whole inside the cave's space.</summary>
-    private static int TopStorey => ((KarstCave.ChunksY * 16) - ModularDungeon.BaseY) / ModuleCanvas.StoreyHeight - 1;
+    private static int TopStorey => ((KarstCave.Running.ChunksY * 16) - ModularDungeon.BaseY) / ModuleCanvas.StoreyHeight - 1;
 
     /// <summary>The ruin fitted into a cave, or null when the cave has no site for one (or only fine voxels: a ruin is laid in 1 m voxels).</summary>
     internal static CaveRuin? Fit(Func<Vector3, float> cave, IReadOnlyList<Vector3> route, ulong seed)
@@ -296,7 +296,7 @@ internal static class CaveRuins
                 }
 
                 (DungeonVolume building, IReadOnlyList<Vector3> lights, HashSet<DungeonCell> climbs) = ModularDungeon.StampRuin(grown.Placed, grown.Joins,
-                    KarstCave.ChunksX, KarstCave.ChunksY, KarstCave.ChunksZ, random);
+                    KarstCave.Running.ChunksX, KarstCave.Running.ChunksY, KarstCave.Running.ChunksZ, random);
                 (Vector3 foot, Vector3 mouth) = Mouth(cave, breach);
                 return new CaveRuin(size, grown.Placed, breach, grown.Vault, building, lights, climbs, foot, mouth, grown.Joins);
             }

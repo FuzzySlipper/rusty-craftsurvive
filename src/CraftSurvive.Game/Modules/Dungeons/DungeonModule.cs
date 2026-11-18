@@ -174,12 +174,17 @@ internal sealed class DungeonModule : IProductModule
                 if (step.Step >= nextSearchStep)
                 {
                     nearbyEntrance = NearestEntrance();
+                    Prefetch();
                     nextSearchStep = step.Step + EntranceSearchIntervalSteps;
                 }
 
                 break;
+            case DungeonState.Loading when space is null:
+                // Behind the loading screen until the background has the candidate (#10888).
+                TakeGenerated();
+                break;
             case DungeonState.Loading:
-                DungeonSpace loading = space!;
+                DungeonSpace loading = space;
                 try
                 {
                     // A finer study grid (#10094) has many more chunks of the same metres; it loads them as fast per metre.
@@ -320,26 +325,78 @@ internal sealed class DungeonModule : IProductModule
         return last;
     }
 
-    /// <summary>Generates one of the entrance's candidates and starts loading it.</summary>
+    /// <summary>
+    /// How near a dungeon entrance the player comes before its first candidate is generated in the background (#10888). A
+    /// default karst cave takes about a second on every core and a few with the generator's share of them; a sprinting
+    /// player covers this in 20 s, so the cave is ready before they reach the entrance. The largest boxes studied (384 m
+    /// across, about a minute on every core) would need an earlier trigger: they are not generated in the game.
+    /// </summary>
+    internal const double PrefetchMetres = 160d;
+
+    /// <summary>The background generator: every candidate is generated there, the first one before the player arrives (#10888).</summary>
+    internal CaveGenerator Generator { get; } = new();
+
+    // The candidate the loading waits for: its key, while the background generation has not finished.
+    private string? awaiting;
+    private long awaitingSince;
+
+    // The entrance whose first candidate was last asked for ahead of the player, so it is asked for once.
+    private ulong prefetched;
+
+    /// <summary>What one candidate of the entrance being entered depends on, copied now: its key and how to generate it.</summary>
+    private (string Key, Func<DungeonCandidate> Generate) Candidate(ulong seed, CaveSetting setting, int index)
+    {
+        double voxelSize = DungeonSurfaces.RockAsMesh(surface) ? 1d : studyVoxelSize;
+        DungeonApproach chosen = approach;
+        KarstCave.Centrepiece? centre = studyCentre;
+        KarstCave.Settings settings = KarstCave.Next;
+        string key = string.Create(CultureInfo.InvariantCulture,
+            $"{chosen}-{seed:x}-{index}-{voxelSize}-{centre}-{(chosen == DungeonApproach.Karst ? settings.Key : "")}-{setting.Key}");
+        return (key, () => DungeonCandidates.Generate(chosen, seed, index, voxelSize, centre, setting, settings));
+    }
+
+    /// <summary>Asks for one of the entrance's candidates in the background and waits for it behind the loading screen.</summary>
     private string Load(int index)
     {
-        // Generated once (#10304 prototype): a cave already generated this run is taken as it was, as a stored one would be.
-        double voxelSize = DungeonSurfaces.RockAsMesh(surface) ? 1d : studyVoxelSize;
-        string key = string.Create(CultureInfo.InvariantCulture,
-            $"{approach}-{entranceSeed:x}-{index}-{voxelSize}-{studyCentre}-{KarstCave.ChunksX}x{KarstCave.ChunksY}x{KarstCave.ChunksZ}-{caveSetting.Key}-{KarstCave.StudyKey}");
-        long generating = System.Diagnostics.Stopwatch.GetTimestamp();
-        bool cached = Generated.TryGetValue(key, out DungeonCandidate? candidate);
-        if (candidate is null)
-        {
-            candidate = DungeonCandidates.Generate(approach, entranceSeed, index, voxelSize, studyCentre, caveSetting);
-            Generated[key] = candidate;
-        }
-
-        double generateMs = System.Diagnostics.Stopwatch.GetElapsedTime(generating).TotalMilliseconds;
-        lastStore = streamRadius > 0 ? Store(key, candidate.AllVoxels, cached) : "";
-        lastGenerate = string.Create(CultureInfo.InvariantCulture, $"generate={(cached ? "stored" : $"{generateMs:F0}ms")}");
+        (string key, Func<DungeonCandidate> generate) = Candidate(entranceSeed, caveSetting, index);
+        bool ready = Generator.Finished(key) is not null;
+        Generator.Request(key, generate);
         tour = null;
         candidateIndex = index;
+        awaiting = key;
+        awaitingSince = System.Diagnostics.Stopwatch.GetTimestamp();
+        lastGenerate = ready ? "generate=stored" : "generate=waiting";
+        state = DungeonState.Loading;
+        return string.Create(CultureInfo.InvariantCulture, $"loading {approach} dungeon {entranceSeed:x} (candidate {index}{(ready ? ", generated ahead" : ", generating in the background")})");
+    }
+
+    /// <summary>Takes the awaited candidate once the background has it, and starts loading it into its space.</summary>
+    private void TakeGenerated()
+    {
+        DungeonCandidate? candidate;
+        try
+        {
+            candidate = Generator.Finished(awaiting!);
+        }
+        catch (Exception failure) when (failure is not OutOfMemoryException)
+        {
+            Close($"the dungeon could not be generated: {failure.Message}");
+            return;
+        }
+
+        if (candidate is null)
+        {
+            return;
+        }
+
+        double waitedMs = System.Diagnostics.Stopwatch.GetElapsedTime(awaitingSince).TotalMilliseconds;
+        if (lastGenerate != "generate=stored")
+        {
+            (double generateMs, double queuedMs) = Generator.Timing(awaiting!) ?? (0d, 0d);
+            lastGenerate = string.Create(CultureInfo.InvariantCulture, $"generate=background {generateMs:F0}ms (queued {queuedMs:F0}ms, waited {waitedMs:F0}ms)");
+        }
+
+        awaiting = null;
         plan = candidate.Plan;
         walkable = candidate.Walkable;
         try
@@ -357,11 +414,30 @@ internal sealed class DungeonModule : IProductModule
             // The Engine would not make the space: nothing is entered, and the game carries on.
             plan = null;
             walkable = null;
-            return $"enter refused: the dungeon could not be made: {refusal.Message}";
+            Close($"enter refused: the dungeon could not be made: {refusal.Message}");
+            return;
         }
 
-        state = DungeonState.Loading;
-        return $"loading {approach} {candidate.Plan.Mix} dungeon {candidate.Seed:x} (candidate {index}, attempt {candidate.Plan.Attempt}, {candidate.Verdict.Reason})";
+        last = $"loading {approach} {candidate.Plan.Mix} dungeon {candidate.Seed:x} (candidate {candidateIndex}, attempt {candidate.Plan.Attempt}, {candidate.Verdict.Reason}); {lastGenerate}";
+    }
+
+    /// <summary>Asks for the first candidate of an entrance the player is coming near, so it is ready when they arrive (#10888).</summary>
+    private void Prefetch()
+    {
+        if (NearestEntrance(PrefetchMetres) is not PoiSite entrance)
+        {
+            return;
+        }
+
+        ulong seed = seedOverride ?? DungeonSeed(terrain.SaveIdentity.Seed, entrance);
+        if (seed == prefetched)
+        {
+            return;
+        }
+
+        prefetched = seed;
+        (string key, Func<DungeonCandidate> generate) = Candidate(seed, studySetting ?? terrain.CaveSettingUnder(entrance.X, entrance.Z), 0);
+        Generator.Request(key, generate);
     }
 
     /// <summary>
@@ -929,9 +1005,7 @@ internal sealed class DungeonModule : IProductModule
     // The streamed underworld prototype (#10304): an endless cave streamed about the player, for measuring.
     private StreamedCave? stream;
 
-    // The stored, streamed cave prototype (#10304): caves generated once and kept; the next spaces streamed within this many
-    // chunks of the player (0: loaded whole); what the last entry's generation and store cost.
-    private static readonly Dictionary<string, DungeonCandidate> Generated = [];
+    // The streamed cave prototype (#10304): the next spaces streamed within this many chunks of the player (0: loaded whole).
     private int streamRadius;
 
     // Prototype knob (#10304): a streamed space's indirect light - a probe volume over it all (rebaked wherever rock
@@ -984,7 +1058,7 @@ internal sealed class DungeonModule : IProductModule
     }
 
     private int probeMoves;
-    private string lastGenerate = "", lastStore = "";
+    private string lastGenerate = "";
 
     // The tour (#10304 prototype): a route from the arrival to the farthest place reachable, walked a few metres a call.
     private IReadOnlyList<DungeonCell>? tour;
@@ -1073,62 +1147,8 @@ internal sealed class DungeonModule : IProductModule
     }
 
     internal string StreamedReadout() => space is DungeonSpace current
-        ? $"{lastGenerate} {lastStore} {current.StreamReadout()} probes={streamProbes} moves={probeMoves} spacing={ProbeSpacing:0.#}m"
-        : $"{lastGenerate} {lastStore} no dungeon is loaded";
-
-    /// <summary>
-    /// Writes a cave's chunks as a store would hold them - only the shell (chunks holding air, and those touching them), each
-    /// its materials and densities, compressed - and reads them back, timing both; on a second entry only the read.
-    /// </summary>
-    private static string Store(string key, DungeonLayout layout, bool cached)
-    {
-        string path = Path.Combine(AppContext.BaseDirectory, ".runtime", "underworld-store", key + ".bin");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        long writing = System.Diagnostics.Stopwatch.GetTimestamp();
-        HashSet<(int X, int Y, int Z)> shell = DungeonSpace.Shell(layout.Volume);
-        int edge = TerrainConstants.ChunkEdgeLength;
-        bool written = !cached || !File.Exists(path);
-        if (written)
-        {
-            using FileStream file = File.Create(path);
-            using System.IO.Compression.ZLibStream zip = new(file, System.IO.Compression.CompressionLevel.Fastest);
-            using BinaryWriter writer = new(zip);
-            foreach ((int cx, int cy, int cz) in shell)
-            {
-                writer.Write(cx);
-                writer.Write(cy);
-                writer.Write(cz);
-                ushort[] materials = layout.Volume.Chunk(cx, cy, cz);
-                foreach (ushort material in materials)
-                {
-                    writer.Write(material);
-                }
-
-                for (int i = 0; i < materials.Length; i++)
-                {
-                    writer.Write(layout.Densities?.At((cx * edge) + (i % edge), (cy * edge) + (i / edge % edge), (cz * edge) + (i / (edge * edge))) ?? 0f);
-                }
-            }
-        }
-
-        double writeMs = System.Diagnostics.Stopwatch.GetElapsedTime(writing).TotalMilliseconds;
-        long reading = System.Diagnostics.Stopwatch.GetTimestamp();
-        long bytes = new FileInfo(path).Length, raw = 0;
-        using (FileStream file = File.OpenRead(path))
-        using (System.IO.Compression.ZLibStream zip = new(file, System.IO.Compression.CompressionMode.Decompress))
-        {
-            byte[] buffer = new byte[1 << 20];
-            int read;
-            while ((read = zip.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                raw += read;
-            }
-        }
-
-        double readMs = System.Diagnostics.Stopwatch.GetElapsedTime(reading).TotalMilliseconds;
-        return string.Create(CultureInfo.InvariantCulture,
-            $"store: {shell.Count} shell chunks, {bytes / 1048576.0:F1} MB on disk ({raw / 1048576.0:F1} MB raw), write={(written ? $"{writeMs:F0}ms" : "-")} read={readMs:F0}ms");
-    }
+        ? $"{lastGenerate} {current.StreamReadout()} probes={streamProbes} moves={probeMoves} spacing={ProbeSpacing:0.#}m"
+        : $"{lastGenerate} no dungeon is loaded";
 
     internal string StudyStream(string action, int radius, int budget)
     {
@@ -1973,7 +1993,7 @@ internal sealed class DungeonModule : IProductModule
         string layout = plan is DungeonPlan current2
             ? $" plan=[{current2.Mix} floors={current2.Floors} attempt={current2.Attempt} arrival={current2.Arrival} breach={current2.Breach} loot={current2.Loot}] {space?.RockReadout} {space?.Waterfalls?.Readout}"
             : string.Empty;
-        return $"dungeon approach={approach} surface={surface} state={state} candidate={candidateIndex}{loading}{layout} routes=[{routes}] candidatesRefused={candidatesRefused} nearbyEntrance={entrance} entered={entered} refused={refused} last={last}";
+        return $"dungeon approach={approach} surface={surface} state={state} candidate={candidateIndex}{loading}{layout} routes=[{routes}] candidatesRefused={candidatesRefused} nearbyEntrance={entrance} entered={entered} refused={refused} {lastGenerate} {Generator.Readout()} last={last}";
     }
 
     private void Close(string outcome)
@@ -1985,6 +2005,7 @@ internal sealed class DungeonModule : IProductModule
         player.SeparateWater = null;
         engine.CameraView.SetIndirectLight(new IndirectLightRequest(Vector3.Zero, Vector3.Zero, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));
         Retire();
+        awaiting = null;
         plan = null;
         walkable = null;
         state = DungeonState.Outside;
@@ -2012,7 +2033,7 @@ internal sealed class DungeonModule : IProductModule
     }
 
     /// <summary>The dungeon entrance nearest the player in the open world, if one is within reach.</summary>
-    private PoiSite? NearestEntrance()
+    private PoiSite? NearestEntrance(double reach = EnterReachMetres)
     {
         if (player.InSeparateSpace)
         {
@@ -2021,11 +2042,11 @@ internal sealed class DungeonModule : IProductModule
 
         Vector3 feet = player.WorldFeetPosition;
         candidates.Clear();
-        terrain.Recipe.Placement.CollectSitesNear((long)Math.Floor(feet.X), (long)Math.Floor(feet.Z), (long)Math.Ceiling(EnterReachMetres) + 1, candidates);
+        terrain.Recipe.Placement.CollectSitesNear((long)Math.Floor(feet.X), (long)Math.Floor(feet.Z), (long)Math.Ceiling(reach) + 1, candidates);
         return candidates
             .Where(site => site.Kind == PoiKind.DungeonEntrance)
             .Select(site => (Site: site, Distance: Math.Sqrt(Math.Pow(site.X + 0.5 - feet.X, 2) + Math.Pow(site.Z + 0.5 - feet.Z, 2))))
-            .Where(found => found.Distance <= EnterReachMetres)
+            .Where(found => found.Distance <= reach)
             .OrderBy(found => found.Distance)
             .Select(found => (PoiSite?)found.Site)
             .FirstOrDefault();

@@ -371,8 +371,8 @@ if (args is ["karsttime", string karstCount, ..])
         foreach (var light in karst.Layout.Lights) placed = (placed ^ (ulong)(light.X * 100 + light.Y * 10000 + light.Z * 1000000)) * 1099511628211UL;
         foreach (var e in karst.Layout.Ecology) placed = (placed ^ (ulong)(e.At.X * 100 + e.At.Z * 10000)) * 1099511628211UL;
         Console.WriteLine($"  chunks {withAir}/{chunks} hold air; volume hash {hash:x16} placed {placed:x16}");
-        Console.WriteLine("  ways: " + string.Join(" ", KarstCave.ShortestLog.Select(w => $"{w.Least:F2}:{w.Explored / 1000}k")));
-        Console.WriteLine("  stages: " + string.Join(" ", KarstCave.Stages.OrderByDescending(st => st.Value).Select(st => $"{st.Key}={st.Value:F0}")));
+        Console.WriteLine("  ways: " + string.Join(" ", karst.Report.Ways.Select(w => $"{w.Least:F2}:{w.Explored / 1000}k")));
+        Console.WriteLine("  stages: " + string.Join(" ", karst.Report.Stages.OrderByDescending(st => st.Value).Select(st => $"{st.Key}={st.Value:F0}")));
         double size = karst.Layout.VoxelSize, cube = size * size * size;
         var verdict = karst.Verdict;
         Console.WriteLine($"karst {karstSeed}: walkable={verdict.Walkable} sky={karst.Layout.SkyOpen} {ms:F0} ms, box {v.SizeX * size:F0}x{v.SizeY * size:F0}x{v.SizeZ * size:F0} m ({size} m voxels), air {open * cube:F0} m3 ({100.0 * open / ((double)v.SizeX * v.SizeY * v.SizeZ):F1}%)");
@@ -1062,6 +1062,42 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Check.That(nextBigger, "the size study must choose the next caves' box, not the kept cave's");
 }
 
+// A cave generated in the background is the cave generated synchronously (#10888): the same seed and setting give the
+// same volume and placements whether the CaveGenerator makes it on its capped scheduler or this thread makes it, and a cave
+// asked for keeps the settings copied when it was asked for, though the next caves' box changes before it starts.
+{
+    CaveSetting setting = CaveSetting.Temperate;
+    KarstCave.Settings asked = KarstCave.Next;
+    DungeonCandidate here = DungeonCandidates.Generate(DungeonApproach.Karst, 0x10888UL, 0, 1d, null, setting, asked);
+    CaveGenerator generator = new();
+    // Something queued ahead of it, so it runs after another generation on the background's own threads.
+    generator.Request("ahead", () => DungeonCandidates.Generate(DungeonApproach.Karst, 0x10889UL, 0, 1d, null, setting, asked));
+    generator.Request("cave", () => DungeonCandidates.Generate(DungeonApproach.Karst, 0x10888UL, 0, 1d, null, setting, asked));
+    (int x, int y, int z) chosen = (KarstCave.ChunksX, KarstCave.ChunksY, KarstCave.ChunksZ);
+    KarstCave.ChunksX = 3;
+    DungeonCandidate? background = null;
+    var waiting = System.Diagnostics.Stopwatch.StartNew();
+    while (background is null && waiting.Elapsed.TotalSeconds < 120)
+    {
+        background = generator.Finished("cave");
+        Thread.Sleep(20);
+    }
+
+    (KarstCave.ChunksX, KarstCave.ChunksY, KarstCave.ChunksZ) = chosen;
+    Check.That(background is not null, "a cave asked for in the background must finish");
+    if (background is not null)
+    {
+        (ulong volumeHere, ulong placedHere) = CaveHashes(here);
+        (ulong volumeThere, ulong placedThere) = CaveHashes(background);
+        (double generateMs, double queuedMs) = generator.Timing("cave") ?? (0, 0);
+        Console.WriteLine($"background cave: volume {volumeThere:x16} placed {placedThere:x16} (here {volumeHere:x16} {placedHere:x16}); generated in {generateMs:F0} ms on {CaveGenerator.Workers} workers after {queuedMs:F0} ms queued; {generator.Readout()}");
+        Check.That(volumeHere == volumeThere && placedHere == placedThere, "a cave generated in the background must be the cave generated synchronously");
+        Check.That(background.Karst?.Settings == asked && background.Walkable.ChunksX == asked.ChunksX,
+            "a cave asked for in the background must keep the settings it was asked with");
+        Check.That(background.Karst is { Stages.Count: > 0 }, "a background cave's stage timings must travel on its result");
+    }
+}
+
 // The trunk measure's own cases (R10304-2): an upright scale-1 VentGiant trunk at the origin (radius 1.1, height 10) is
 // crossed by a route at 1 m up, which its midpoint alone measured 4 m clear of, and is clear of the same route 3 m aside.
 {
@@ -1229,6 +1265,19 @@ static void Section(ulong seed)
 
 // The first segment of a route a trunk (its axis from foot to top, so far round it) leaves a crawling body no room
 // beside, or -1: the closest distance between the trunk's axis and each segment, against its radius and a crawl's.
+// A cave's volume and placement hashes (#10888): every voxel of the walked copy, and the lights and growth placed by its routes.
+static (ulong Volume, ulong Placed) CaveHashes(DungeonCandidate cave)
+{
+    DungeonVolume v = cave.Walkable;
+    ulong hash = 14695981039346656037UL;
+    for (int x = 0; x < v.SizeX; x++) for (int y = 0; y < v.SizeY; y++) for (int z = 0; z < v.SizeZ; z++) hash = (hash ^ (ulong)v.At(x, y, z)) * 1099511628211UL;
+    ulong placed = 14695981039346656037UL;
+    foreach (var light in cave.Layout.Lights) placed = (placed ^ (ulong)(light.X * 100 + light.Y * 10000 + light.Z * 1000000)) * 1099511628211UL;
+    foreach (var e in cave.Layout.Ecology) placed = (placed ^ (ulong)(e.At.X * 100 + e.At.Z * 10000)) * 1099511628211UL;
+    foreach (var k in cave.Layout.Kit) placed = (placed ^ (ulong)(k.Origin.X * 100 + k.Origin.Y * 10000 + k.Origin.Z * 1000000)) * 1099511628211UL;
+    return (hash, placed);
+}
+
 static int TrunkCrossing(System.Numerics.Vector3 foot, System.Numerics.Vector3 top, float radius, IReadOnlyList<System.Numerics.Vector3> route)
 {
     for (int i = 0; i + 1 < route.Count; i++)

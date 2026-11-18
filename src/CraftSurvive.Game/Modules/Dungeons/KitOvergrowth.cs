@@ -355,7 +355,7 @@ internal static class KitOvergrowth
         float size = 1f)
     {
         Vector3 at = DungeonKit.Local(p, local);
-        if (Hash(seed ^ (ulong)kind, at) >= chance || (KarstCave.StudyCarvedFormations && OvergrowthPlacement.Formation(kind)))
+        if (Hash(seed ^ (ulong)kind, at) >= chance || (KarstCave.Running.CarvedFormations && OvergrowthPlacement.Formation(kind)))
         {
             return;
         }

@@ -25,8 +25,12 @@ internal enum DungeonApproach
     Karst,
 }
 
-/// <summary>One generated dungeon: its layout, its plan, the generator's own verdict, and the voxel copy that was walked.</summary>
-internal sealed record DungeonCandidate(int Index, ulong Seed, DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable)
+/// <summary>
+/// One generated dungeon: its layout, its plan, the generator's own verdict, the voxel copy that was walked, and for a karst
+/// cave its generation's report (#10888: stage times, way searches, the ruin), which travels with it from whichever thread made it.
+/// </summary>
+internal sealed record DungeonCandidate(int Index, ulong Seed, DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable,
+    KarstCave.Report? Karst = null)
 {
     /// <summary>
     /// The candidate as voxels throughout, for a reconstructed surface: the walked copy (sculpted
@@ -55,8 +59,9 @@ internal static class DungeonCandidates
     /// <param name="voxelSize">The natural cavern study's voxel side in metres (#10094); other approaches are built in world blocks.</param>
     /// <param name="centrepiece">For the centrepiece studies (#10094): what a karst cave is built round - a great hall, a chasm or neither - or null for chance.</param>
     /// <param name="setting">For karst caves (#10304): the region above and the cave's depth; null for a temperate, middling cave.</param>
+    /// <param name="settings">For karst caves (#10888): the box and study switches copied when the cave was asked for; null for the next caves' as they are.</param>
     internal static DungeonCandidate Generate(DungeonApproach approach, ulong entranceSeed, int index, double voxelSize = 1d, KarstCave.Centrepiece? centrepiece = null,
-        CaveSetting? setting = null)
+        CaveSetting? setting = null, KarstCave.Settings? settings = null)
     {
         ulong seed = Seed(entranceSeed, index);
         switch (approach)
@@ -71,8 +76,8 @@ internal static class DungeonCandidates
                 var shaft = VerticalSampler.Shaft(seed);
                 return new DungeonCandidate(index, seed, shaft.Layout, shaft.Plan, shaft.Verdict, shaft.Walkable);
             case DungeonApproach.Karst:
-                var karst = KarstCave.Generate(seed, voxelSize, centrepiece, setting);
-                return new DungeonCandidate(index, seed, karst.Layout, karst.Plan, karst.Verdict, karst.Walkable);
+                var karst = KarstCave.Generate(seed, voxelSize, centrepiece, setting, settings);
+                return new DungeonCandidate(index, seed, karst.Layout, karst.Plan, karst.Verdict, karst.Walkable, karst.Report);
             case DungeonApproach.Natural:
                 var natural = NaturalCavern.Generate(seed, voxelSize);
                 return new DungeonCandidate(index, seed, natural.Layout, natural.Plan, natural.Verdict, natural.Walkable);

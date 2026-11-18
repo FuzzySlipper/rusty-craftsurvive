@@ -18,13 +18,100 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 internal static class KarstCave
 {
     /// <summary>
-    /// The cave's box in chunks (#10304 size prototype): 6 x 4 x 6 by default; the size study may set larger ones, for the
-    /// next caves generated.
+    /// What a cave is generated with (#10888): its box in chunks (#10304 size prototype: 6 x 4 x 6 by default) and the study
+    /// switches. A generation copies <see cref="Next"/> when it starts and reads only its copy, so a study or the bank changing
+    /// the next caves' settings never reaches a cave being generated, on whichever thread.
     /// </summary>
-    internal static int ChunksX = DefaultChunksX, ChunksY = DefaultChunksY, ChunksZ = DefaultChunksZ;
+    internal sealed record Settings(int ChunksX, int ChunksY, int ChunksZ)
+    {
+        internal static Settings Default { get; } = new(DefaultChunksX, DefaultChunksY, DefaultChunksZ);
 
-    /// <summary>The box the next cave is generated in.</summary>
-    private static (int X, int Y, int Z) Box => (ChunksX, ChunksY, ChunksZ);
+        internal int VentOrchards { get; init; }
+        internal int InvertedGroves { get; init; }
+        internal int FunnelGardens { get; init; }
+        internal int GlassSteppes { get; init; }
+        internal int RibbonThickets { get; init; }
+        internal int VeilForests { get; init; }
+        internal int CushionBarrens { get; init; }
+        internal int IvoryHeaths { get; init; }
+        internal bool NoCommunities { get; init; }
+        internal bool CarvedFormations { get; init; }
+        internal bool NoLightGrowth { get; init; }
+        internal bool NoRuinDetail { get; init; }
+        internal bool NoRuin { get; init; }
+
+        /// <summary>A community's study count: how many of it the cave grows, 0 for the choice by region and depth.</summary>
+        internal int Count(CaveCommunity community) => community switch
+        {
+            CaveCommunity.VentOrchard => VentOrchards,
+            CaveCommunity.InvertedGrove => InvertedGroves,
+            CaveCommunity.FunnelGarden => FunnelGardens,
+            CaveCommunity.GlassSteppe => GlassSteppes,
+            CaveCommunity.RibbonThicket => RibbonThickets,
+            CaveCommunity.VeilForest => VeilForests,
+            CaveCommunity.CushionBarrens => CushionBarrens,
+            _ => IvoryHeaths,
+        };
+
+        /// <summary>The settings that shape a cave, for a generated cave's key.</summary>
+        internal string Key => string.Create(CultureInfo.InvariantCulture,
+            $"{ChunksX}x{ChunksY}x{ChunksZ}-{string.Join(".", Enum.GetValues<CaveCommunity>().Select(Count))}{(NoCommunities ? "-none" : string.Empty)}{(CarvedFormations ? "-carved" : string.Empty)}{(NoLightGrowth ? "-unlit" : string.Empty)}{(NoRuin ? "-noruin" : string.Empty)}{(NoRuinDetail ? "-nodetail" : string.Empty)}");
+    }
+
+    /// <summary>The settings the caves generated next take (studies and the bank set them).</summary>
+    internal static Settings Next { get; set; } = Settings.Default;
+
+    /// <summary>The next caves' box in chunks.</summary>
+    internal static int ChunksX { get => Next.ChunksX; set => Next = Next with { ChunksX = value }; }
+
+    internal static int ChunksY { get => Next.ChunksY; set => Next = Next with { ChunksY = value }; }
+
+    internal static int ChunksZ { get => Next.ChunksZ; set => Next = Next with { ChunksZ = value }; }
+
+    // One generation at a time: the generator's working state (the running settings, the stage marks, the way searches'
+    // log) is static, so a generation holds this from start to end, on whichever thread it runs (#10888).
+    private static readonly Lock Generating = new();
+    private static int depth;
+
+    /// <summary>The running generation's settings: <see cref="Next"/> as it was when the generation started.</summary>
+    private static Settings run = Settings.Default;
+
+    /// <summary>The settings of the generation running now, or of the last one: for the passes in other files that run within it.</summary>
+    internal static Settings Running => run;
+
+    /// <summary>
+    /// What a generation reports besides its cave (#10888): where its time went by stage, its way searches, the ruin it
+    /// fitted and the settings it ran with. It travels on the result, so a cave generated in the background brings its own.
+    /// </summary>
+    internal sealed record Report(IReadOnlyDictionary<string, double> Stages, IReadOnlyList<(float Least, int Explored)> Ways, CaveRuin? Ruin, Settings Settings,
+        double Milliseconds);
+
+    /// <summary>Runs one generation with its own settings (a copy of the next caves' unless given), one at a time.</summary>
+    private static T WithLock<T>(Settings? settings, Func<T> generate)
+    {
+        lock (Generating)
+        {
+            if (depth++ == 0)
+            {
+                run = settings ?? Next;
+                Stages.Clear();
+                ShortestLog.Clear();
+                markAt = Stopwatch.GetTimestamp();
+            }
+
+            try
+            {
+                return generate();
+            }
+            finally
+            {
+                depth--;
+            }
+        }
+    }
+
+    /// <summary>The box the running cave is generated in.</summary>
+    private static (int X, int Y, int Z) Box => (run.ChunksX, run.ChunksY, run.ChunksZ);
 
     internal const int DefaultChunksX = 6, DefaultChunksY = 4, DefaultChunksZ = 6;
 
@@ -32,24 +119,24 @@ internal static class KarstCave
     /// A count tuned to the default box, scaled with the box's floor area (#10304 size prototype), so a larger box holds
     /// proportionally more cave rather than the same features spread thinner.
     /// </summary>
-    private static int Area(int count) => Math.Max(count == 0 ? 0 : 1, (int)Math.Round(count * ChunksX * ChunksZ / (double)(DefaultChunksX * DefaultChunksZ)));
+    private static int Area(int count) => Math.Max(count == 0 ? 0 : 1, (int)Math.Round(count * run.ChunksX * run.ChunksZ / (double)(DefaultChunksX * DefaultChunksZ)));
 
     /// <summary>A height tuned to the default box's top, kept the same distance below a taller box's top.</summary>
-    private static float FromTop(float height) => height + ((ChunksY - DefaultChunksY) * 8f);
+    private static float FromTop(float height) => height + ((run.ChunksY - DefaultChunksY) * 8f);
 
     // The structural grid water runs through, and the finer field the cave is shaped in.
     private const float GridCell = 2f;
-    private static int GridX => ChunksX * 16 / 2;
+    private static int GridX => run.ChunksX * 16 / 2;
 
-    private static int GridY => ChunksY * 16 / 2;
+    private static int GridY => run.ChunksY * 16 / 2;
 
-    private static int GridZ => ChunksZ * 16 / 2;
+    private static int GridZ => run.ChunksZ * 16 / 2;
     internal const float FieldStep = 0.5f;
-    internal static int FieldX => (int)(ChunksX * 16 / FieldStep);
+    internal static int FieldX => (int)(run.ChunksX * 16 / FieldStep);
 
-    internal static int FieldY => (int)(ChunksY * 16 / FieldStep);
+    internal static int FieldY => (int)(run.ChunksY * 16 / FieldStep);
 
-    internal static int FieldZ => (int)(ChunksZ * 16 / FieldStep);
+    internal static int FieldZ => (int)(run.ChunksZ * 16 / FieldStep);
     private const float FieldLimit = 2f;
 
     // The rock: bed spacing, how much more readily partings and joints dissolve, and the beds' dip.
@@ -1219,7 +1306,7 @@ internal static class KarstCave
         }
 
         // And as far as the daylight reaches (#10305), after the older boxes so what they grew stays.
-        if (!StudyNoLightGrowth)
+        if (!run.NoLightGrowth)
         {
             boxes.AddRange(cave.DaylightSources.Select(s => (s.At - new Vector3(s.Reach), s.At + new Vector3(s.Reach))));
         }
@@ -2136,7 +2223,7 @@ internal static class KarstCave
     /// For the underground ecology study (#10096; Patch, 2026-10-21, the design's abyssal seabed in air): how many vent
     /// orchards the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
-    internal static int StudyVentOrchards { get; set; }
+    internal static int StudyVentOrchards { get => Next.VentOrchards; set => Next = Next with { VentOrchards = value }; }
 
     /// <summary>The fewest pieces a chosen community must grow to count as one of its cave's communities, and of its signature pieces (#10304).</summary>
     private const int FewestCommunityPieces = 20, FewestSignaturePieces = 3;
@@ -2145,46 +2232,40 @@ internal static class KarstCave
     private static bool StudiedCommunities => Enum.GetValues<CaveCommunity>().Any(c => StudyCount(c) > 0);
 
     /// <summary>For studies (#10304): true grows none of the stranger communities in the caves generated next (unless a switch is set).</summary>
-    internal static bool StudyNoCommunities { get; set; }
+    internal static bool StudyNoCommunities { get => Next.NoCommunities; set => Next = Next with { NoCommunities = value }; }
 
     /// <summary>The study switches that shape generation, for the generation cache's key.</summary>
-    internal static string StudyKey => $"{string.Join(".", Enum.GetValues<CaveCommunity>().Select(StudyCount))}{(StudyNoCommunities ? "-none" : string.Empty)}{(StudyCarvedFormations ? "-carved" : string.Empty)}{(StudyNoLightGrowth ? "-unlit" : string.Empty)}{(StudyNoRuin ? "-noruin" : string.Empty)}{(StudyNoRuinDetail ? "-nodetail" : string.Empty)}";
+    internal static string StudyKey => Next.Key;
 
     /// <summary>
     /// For the geological kit's before and after (#10305): true carves the drip formations into the rock, as before the kit,
     /// and places none of the kit's pieces - in caves or, through <see cref="KitOvergrowth"/>, in ruins.
     /// </summary>
-    internal static bool StudyCarvedFormations { get; set; }
+    internal static bool StudyCarvedFormations { get => Next.CarvedFormations; set => Next = Next with { CarvedFormations = value }; }
 
     /// <summary>
     /// For growth at the light's before and after (#10305): true grows nothing by the daylight - no ferns, no moss or roots
     /// beyond the older rules - and no fungi in the damp dead ends.
     /// </summary>
-    internal static bool StudyNoLightGrowth { get; set; }
+    internal static bool StudyNoLightGrowth { get => Next.NoLightGrowth; set => Next = Next with { NoLightGrowth = value }; }
 
-    /// <summary>The ruin the last cave generated was fitted with (#10097), for the bank and the visits; null for none.</summary>
+    /// <summary>
+    /// The ruin the last cave generated was fitted with (#10097), for the bank's sequential checks; null for none. A cave's own
+    /// ruin travels on its <see cref="Report"/>.
+    /// </summary>
     internal static CaveRuin? LastRuin { get; private set; }
 
     /// <summary>
     /// For the ruin fitting's detail pass's before and after (#10097): true leaves it out - the cave's pieces keep no room from
     /// the ruin, no seats are flattened, no footings laid nor joins closed, the ramp undressed.
     /// </summary>
-    internal static bool StudyNoRuinDetail { get; set; }
+    internal static bool StudyNoRuinDetail { get => Next.NoRuinDetail; set => Next = Next with { NoRuinDetail = value }; }
 
     /// <summary>For the ruin fitting's before and after (#10097): true fits no ruin into the next caves.</summary>
-    internal static bool StudyNoRuin { get; set; }
+    internal static bool StudyNoRuin { get => Next.NoRuin; set => Next = Next with { NoRuin = value }; }
 
-    private static int StudyCount(CaveCommunity community) => community switch
-    {
-        CaveCommunity.VentOrchard => StudyVentOrchards,
-        CaveCommunity.InvertedGrove => StudyInvertedGroves,
-        CaveCommunity.FunnelGarden => StudyFunnelGardens,
-        CaveCommunity.GlassSteppe => StudyGlassSteppes,
-        CaveCommunity.RibbonThicket => StudyRibbonThickets,
-        CaveCommunity.VeilForest => StudyVeilForests,
-        CaveCommunity.CushionBarrens => StudyCushionBarrens,
-        _ => StudyIvoryHeaths,
-    };
+    private static int StudyCount(CaveCommunity community) => run.Count(community);
+
 
     // Vent orchards: a seep is a still floor where the drip is strongest (at least this), the seeps so far apart. Round each,
     // a lattice so fine out to this radius; a floor counts within so far of the seep's height, flat enough (its neighbours
@@ -2443,7 +2524,7 @@ internal static class KarstCave
     /// For the underground ecology study (#10096; owner, 2026-10-21, the concept sheet "inverted grove - a community"): how
     /// many inverted groves the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
-    internal static int StudyInvertedGroves { get; set; }
+    internal static int StudyInvertedGroves { get => Next.InvertedGroves; set => Next = Next with { InvertedGroves = value }; }
 
     // Inverted groves: under a ceiling within GroveUnderSurface of the surface (nutrients arrive from above), with at least
     // GroveDrop of clear fall below it, ranked by how much such ceiling lies round it (counted in AreaCell cells), the groves
@@ -2664,7 +2745,7 @@ internal static class KarstCave
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "ivory heath - a community"): how
     /// many ivory heaths the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
-    internal static int StudyIvoryHeaths { get; set; }
+    internal static int StudyIvoryHeaths { get => Next.IvoryHeaths; set => Next = Next with { IvoryHeaths = value }; }
 
     // Ivory heaths: on dead flowstone floors (the drip's formations and coats near the floor, and no drip, standing water or
     // flow left to speak of), the heaths chosen by how much such floor lies round them, so far apart. Sparse, a desert: storage bulbs widely
@@ -2851,7 +2932,7 @@ private static int MostHeathPieces => Area(300);
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "cushion barrens - a community"): how
     /// many cushion barrens the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
-    internal static int StudyCushionBarrens { get; set; }
+    internal static int StudyCushionBarrens { get => Next.CushionBarrens; set => Next = Next with { CushionBarrens = value }; }
 
     // Cushion barrens: on the rubble slopes of fallen-in chambers (the breakdown's blocks), the colonies chosen by how much
     // rubble floor lies within BarrensRadius of a chamber, so far apart. Hummocks on and near the rubble and on the floor's
@@ -3010,7 +3091,7 @@ private static int MostBarrensPieces => Area(400);
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "veil forest - a community"): how
     /// many veil forests the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
-    internal static int StudyVeilForests { get; set; }
+    internal static int StudyVeilForests { get => Next.VeilForests; set => Next = Next with { VeilForests = value }; }
 
     // Veil forests: on the draft's line - the routes between the cave's openings (from the arrival's sink to each other
     // sink), the air blowing towards the higher opening - in its widest places (wall to wall across the draft, measured
@@ -3200,7 +3281,7 @@ private static int MostBarrensPieces => Area(400);
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "ribbon thicket - a community"): how
     /// many ribbon thickets the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
-    internal static int StudyRibbonThickets { get; set; }
+    internal static int StudyRibbonThickets { get => Next.RibbonThickets; set => Next = Next with { RibbonThickets = value }; }
 
     // Ribbon thickets: along the routes the water traced through the cave, where the passage is wet (standing or running water at its floor, or drip
     // somewhere up to RibbonWetAbove over it, at least RibbonDamp),
@@ -3376,7 +3457,7 @@ private static int MostBarrensPieces => Area(400);
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "glass steppe - a community"): how
     /// many glass steppes the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
-    internal static int StudyGlassSteppes { get; set; }
+    internal static int StudyGlassSteppes { get => Next.GlassSteppes; set => Next = Next with { GlassSteppes = value }; }
 
     // Glass steppes: on dry, still, open floor (no drip or standing water to speak of, nothing running, on a level long
     // dry), the colonies chosen by how much such floor lies round them, so far apart, each out to SteppeRadius. Sparse: tufts
@@ -3545,7 +3626,7 @@ private static int MostBarrensPieces => Area(400);
     /// For the underground ecology study (#10096; owner, 2026-10-21, the concept sheet "funnel garden - a community"): how
     /// many funnel gardens the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
-    internal static int StudyFunnelGardens { get; set; }
+    internal static int StudyFunnelGardens { get => Next.FunnelGardens; set => Next = Next with { FunnelGardens = value }; }
 
     // Funnel gardens: on the floor under a sink (the shaft that dust and drip fall down), found within FunnelDrop of it, out
     // to FunnelRadius; keystones (giants, where there is room above, then tall funnels) nearest the fall, small funnels and
@@ -4066,8 +4147,8 @@ private static int MostBarrensPieces => Area(400);
     }
 
     /// <summary>
-    /// Where the last generation's time went, by stage (#10304: finding what grows faster than the box): each mark adds the
-    /// time since the last to its stage. Not thread-safe; for the bank's sequential timings.
+    /// Where the running (or last) generation's time went, by stage (#10304: finding what grows faster than the box): each mark
+    /// adds the time since the last to its stage. Written only under the generation lock; a cave's own copy is on its Report.
     /// </summary>
     internal static readonly Dictionary<string, double> Stages = [];
 
@@ -4081,24 +4162,27 @@ private static int MostBarrensPieces => Area(400);
     }
 
     /// <param name="setting">The region above and the cave's depth (#10304); null for a temperate, middling cave.</param>
-    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d, Centrepiece? centrepiece = null,
-        CaveSetting? setting = null)
+    /// <param name="settings">The box and study switches to generate with (#10888: copied when the cave was asked for); null for <see cref="Next"/> as it is when the generation starts.</param>
+    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable, Report Report) Generate(ulong seed, double voxelSize = 1d,
+        Centrepiece? centrepiece = null, CaveSetting? setting = null, Settings? settings = null) =>
+        WithLock(settings, () => GenerateRunning(seed, voxelSize, centrepiece, setting));
+
+    private static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable, Report Report) GenerateRunning(ulong seed, double voxelSize,
+        Centrepiece? centrepiece, CaveSetting? setting)
     {
-        Stages.Clear();
-        ShortestLog.Clear();
-        markAt = Stopwatch.GetTimestamp();
+        long generating = Stopwatch.GetTimestamp();
         // A ruin (#10097) is laid in the world's 1 m voxels, so a finer study has none.
-        Result cave = Build(seed, centrepiece, setting, ruin: voxelSize == 1d);
+        Result cave = BuildRunning(seed, centrepiece, setting, ruin: voxelSize == 1d);
         Mark("build-tail");
         // The ruin finished in the cave's final field: its rooms dug out of the rock, its masonry gone where the cave runs
         // through, the rock overgrowing its bursts, its footings.
-        CaveRuin? ruin = cave.Ruin is CaveRuin chosen ? CaveRuins.Finish(chosen, cave.At, seed, detail: !StudyNoRuinDetail) : null;
+        CaveRuin? ruin = cave.Ruin is CaveRuin chosen ? CaveRuins.Finish(chosen, cave.At, seed, detail: !run.NoRuinDetail) : null;
         LastRuin = ruin;
         Mark("ruin-finish");
         Func<Vector3, float> shape = ruin is null ? cave.At : ruin.Shape(cave.At);
         // The ramp to its breach is fallen stone: rubble.
         Func<Vector3, BlockId> rockAt = ruin is null ? cave.RockAt : p => ruin.UnderRamp(p) ? RubbleRock : cave.RockAt(p);
-        (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, ChunksX, ChunksY, ChunksZ, voxelSize, rockAt);
+        (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, run.ChunksX, run.ChunksY, run.ChunksZ, voxelSize, rockAt);
         ruin?.Lay(volume, cave.At, rockAt);
         Mark("sample");
         // The arrival is underground, at the foot of the first sink, even when the surface is open above it.
@@ -4206,8 +4290,9 @@ private static int MostBarrensPieces => Area(400);
             RuinMouth = ruin?.Mouth,
         };
         string grown = string.Join(",", Enum.GetValues<MossCardKind>().Select(k => $"{k}:{cards.Count(c => c.Kind == k)}"));
+        Report report = new(new Dictionary<string, double>(Stages), [.. ShortestLog], ruin, run, Stopwatch.GetElapsedTime(generating).TotalMilliseconds);
         return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
-            $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} ferns={ferns.Count} fungalPockets={cave.FungalPockets.Count} ruin={(ruin is null ? "none" : $"{ruin.Size}:{ruin.Modules.Count}m{(ruin.Vault is null ? "" : "+vault")}:overgrown{ruin.Overgrown.Count}:footings{ruin.Footings.Count}")} kit={kit.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume);
+            $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} ferns={ferns.Count} fungalPockets={cave.FungalPockets.Count} ruin={(ruin is null ? "none" : $"{ruin.Size}:{ruin.Modules.Count}m{(ruin.Vault is null ? "" : "+vault")}:overgrown{ruin.Overgrown.Count}:footings{ruin.Footings.Count}")} kit={kit.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume, report);
     }
 
     /// <summary>What a generated cave came to, in one line.</summary>
@@ -4218,7 +4303,10 @@ private static int MostBarrensPieces => Area(400);
 
     /// <summary>Generates the cave: the rock, the water's rounds through it, the shapes it leaves, and the passages checked.</summary>
     /// <param name="ruin">Whether a ruin is fitted into the cave (#10097): it is laid in 1 m voxels, so a finer study has none.</param>
-    internal static Result Build(ulong seed, Centrepiece? centrepiece = null, CaveSetting? setting = null, bool ruin = true)
+    internal static Result Build(ulong seed, Centrepiece? centrepiece = null, CaveSetting? setting = null, bool ruin = true) =>
+        WithLock(null, () => BuildRunning(seed, centrepiece, setting, ruin));
+
+    private static Result BuildRunning(ulong seed, Centrepiece? centrepiece, CaveSetting? setting, bool ruin)
     {
         CaveSetting place = setting ?? CaveSetting.Temperate;
         long started = Stopwatch.GetTimestamp();
@@ -4358,10 +4446,10 @@ private static int MostBarrensPieces => Area(400);
         float[] beforeDrip = (float[])open.Clone();
         // The formations' whole shapes go into a copy, only to mark the flowstone they laid (#10305); the study's carved
         // formations (the look before the kit) go into the rock itself, and no pieces are placed.
-        float[] dripShapes = StudyCarvedFormations ? open : (float[])open.Clone();
+        float[] dripShapes = run.CarvedFormations ? open : (float[])open.Clone();
         List<OvergrowthPlacement> formationPieces = [];
         int formations = Drip(open, dripShapes, joint, formed, eras.Length, finalTable, random, formationPieces);
-        if (StudyCarvedFormations)
+        if (run.CarvedFormations)
         {
             formationPieces.Clear();
         }
@@ -4439,7 +4527,7 @@ private static int MostBarrensPieces => Area(400);
         Mark("passages");
         // The ruin fitted into the finished passages (#10097), chosen in the cave's field as it stands: everything placed after
         // is handed it as a map, and keeps clear of it.
-        CaveRuin? fitted = ruin && !StudyNoRuin ? CaveRuins.Fit(p => Trilinear(open, p), mainRoute, seed) : null;
+        CaveRuin? fitted = ruin && !run.NoRuin ? CaveRuins.Fit(p => Trilinear(open, p), mainRoute, seed) : null;
         Mark("ruin");
         // The dark's growth starts with the drip's formation pieces (#10305): the geological kit draws with the growth, those
         // whose rock the passages' widening cut away left out.
@@ -4447,7 +4535,7 @@ private static int MostBarrensPieces => Area(400);
         Vector3[] routePoints = [.. routePaths.SelectMany(path => path.Where((_, i) => i % 2 == 0)).Select(FieldCentre)];
         List<OvergrowthPlacement> darkGrowth = [.. formationPieces.Select(f => Settle(open, f)).OfType<OvergrowthPlacement>().Where(f => !InTheWay(f, routePoints))];
         // The geological kit's smaller pieces (#10305), from the water's marks.
-        if (!StudyCarvedFormations)
+        if (!run.CarvedFormations)
         {
             darkGrowth.AddRange(SmallKit(open, formed, activeFlow, drip, standing, sediment, rubble, eras.Length, finalTable, seed));
         }
@@ -4456,7 +4544,7 @@ private static int MostBarrensPieces => Area(400);
         // into seats under them.
         void KeepClear(List<OvergrowthPlacement> growth, List<EcologyPlacement>? lights)
         {
-            if (fitted is CaveRuin r && !StudyNoRuinDetail)
+            if (fitted is CaveRuin r && !run.NoRuinDetail)
             {
                 growth.RemoveAll(g => r.Distance(g.At) < RuinRoom(g.Kind, g.Scale));
                 lights?.RemoveAll(e => r.Distance(e.At) < SmallRuinRoom);
@@ -4464,13 +4552,13 @@ private static int MostBarrensPieces => Area(400);
         }
 
         KeepClear(darkGrowth, null);
-        if (!StudyNoRuinDetail)
+        if (!run.NoRuinDetail)
         {
             Seat(open, darkGrowth);
         }
         // Where daylight comes in and how far it reaches (#10305): the moss, ferns and roots grow by it.
         (Vector3 At, float Reach)[] daylightSources = DaylightSources(open, sinks, skyOpen, seed);
-        float[] daylight = StudyNoLightGrowth ? new float[GridX * GridY * GridZ] : DaylightGrid(open, daylightSources, skyOpen ? Openings(tiankeng, chasm) : [], seed);
+        float[] daylight = run.NoLightGrowth ? new float[GridX * GridY * GridZ] : DaylightGrid(open, daylightSources, skyOpen ? Openings(tiankeng, chasm) : [], seed);
         Mark("daylight");
         List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen, darkGrowth, daylight);
         KeepClear(darkGrowth, ecology);
@@ -4584,7 +4672,7 @@ private static int MostBarrensPieces => Area(400);
                 }
             }
         }
-        else if (!StudyNoCommunities)
+        else if (!run.NoCommunities)
         {
             // The cave's floor lies at most its height deeper than its top.
             float deepest = place.DepthMetres + (FieldY * FieldStep);
@@ -4626,13 +4714,13 @@ private static int MostBarrensPieces => Area(400);
 
         Mark("communities");
         // Fungi in the damp dead ends (#10305), clear of the communities.
-        List<Vector3> pockets = StudyNoLightGrowth ? [] : FungalPockets(open, drip, standing, activeFlow, routePoints, daylight, seed, ecology, darkGrowth, claimed);
+        List<Vector3> pockets = run.NoLightGrowth ? [] : FungalPockets(open, drip, standing, activeFlow, routePoints, daylight, seed, ecology, darkGrowth, claimed);
         if (fitted is CaveRuin seated)
         {
             pockets.RemoveAll(p => seated.Distance(p) < LargeRuinRoom);
             KeepClear(darkGrowth, ecology);
             // The feature kit's fallen stone on the ruin's ramp.
-            if (!StudyNoRuinDetail)
+            if (!run.NoRuinDetail)
             {
                 darkGrowth.AddRange(seated.RampDressing());
             }
@@ -6076,7 +6164,7 @@ private static int MostBarrensPieces => Area(400);
         // directly rather than searched for across the whole field (#10304: such searches settled the entire field).
         if (least <= 0f)
         {
-            ShortestLog.Add((least, 0));
+            ShortestLog.Enqueue((least, 0));
             return Straight(start, goal);
         }
 
@@ -6134,7 +6222,7 @@ private static int MostBarrensPieces => Area(400);
             }
         }
 
-        ShortestLog.Add((least, explored));
+        ShortestLog.Enqueue((least, explored));
         if (strict && SearchValue(goal, float.MaxValue) == float.MaxValue)
         {
             return [];
@@ -6197,7 +6285,7 @@ private static int MostBarrensPieces => Area(400);
     }
 
     /// <summary>The last generation's way searches (#10304 timing): each one's least clearance and how many samples it settled.</summary>
-    internal static readonly List<(float Least, int Explored)> ShortestLog = [];
+    internal static readonly System.Collections.Concurrent.ConcurrentQueue<(float Least, int Explored)> ShortestLog = new();
 
     /// <summary>The widest a way's width is told apart up to (metres): a standing body's, all its caller asks about.</summary>
     private const float WidestCap = StandRadius;
