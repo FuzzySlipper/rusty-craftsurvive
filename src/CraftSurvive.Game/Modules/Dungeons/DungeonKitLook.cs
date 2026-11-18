@@ -22,7 +22,7 @@ internal sealed class DungeonKitLook : IDisposable
     /// <summary>The kit's collision asset and instance ids, clear of the rock's.</summary>
     private const ulong AssetBase = 0x4000UL, InstanceBase = 0x10_0000UL;
 
-    private const string ShaderPath = "shaders/kit-stone.wgsl";
+    internal const string ShaderPath = "shaders/kit-stone.wgsl";
 
     /// <summary>
     /// The kit stone shader's settings (kit-stone.wgsl): the texture's width in texels, the texel facets' strength, snap
@@ -39,6 +39,9 @@ internal sealed class DungeonKitLook : IDisposable
 
     private readonly IEngineContext engine;
     private readonly RenderResource shader;
+
+    /// <summary>Whether the stone shader is this owner's to release, or shared by the dungeon module (#10889: opened once, not for every cave).</summary>
+    private readonly bool ownsShader;
     private readonly Dictionary<string, RenderResource> textures = [];
     private readonly List<(Material Material, RenderResource Texture, RenderResource? Emission, bool Mosaic)> materials = [];
     private Look look;
@@ -69,12 +72,43 @@ internal sealed class DungeonKitLook : IDisposable
 
     /// <param name="paint">A study's folder of the kit's textures beside its own (#10089: "plain", painted from the geometry), or null for its own.</param>
     /// <param name="look">The kit stone shader's settings (a study may tune them).</param>
-    internal DungeonKitLook(IEngineContext engine, ProductContent content, IReadOnlyList<KitPlacement> placements, Look look, string? paint = null)
+    /// <remarks>Built over several <see cref="Advance"/> calls, a piece's mesh at a time (#10889: a cave in the open world is
+    /// dressed without taking one update's frame); <see cref="Finish"/> builds the rest at once.</remarks>
+    internal DungeonKitLook(IEngineContext engine, ProductContent content, IReadOnlyList<KitPlacement> placements, Look look, string? paint = null,
+        RenderResource? sharedShader = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         ArgumentNullException.ThrowIfNull(content);
         this.look = look;
-        shader = engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
+        ownsShader = sharedShader is null;
+        shader = sharedShader ?? engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
+        building = Build(content, placements, paint);
+    }
+
+    private IEnumerator<bool>? building;
+
+    /// <summary>Builds the next piece; true once the kit is all built.</summary>
+    internal bool Advance()
+    {
+        if (building is not null && !building.MoveNext())
+        {
+            building.Dispose();
+            building = null;
+        }
+
+        return building is null;
+    }
+
+    /// <summary>Builds whatever is left at once.</summary>
+    internal void Finish()
+    {
+        while (!Advance())
+        {
+        }
+    }
+
+    private IEnumerator<bool> Build(ProductContent content, IReadOnlyList<KitPlacement> placements, string? paint)
+    {
         using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
         Dictionary<string, JsonElement> entries = manifest.RootElement.GetProperty("pieces").EnumerateArray()
             .ToDictionary(p => p.GetProperty("name").GetString()!, p => p.Clone());
@@ -108,6 +142,7 @@ internal sealed class DungeonKitLook : IDisposable
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
                 model.Indices, model.Groups, bindings));
             pieces[(piece, lit)] = (mesh, engine.Graphics.CreateMeshAppearance(mesh), bindings.Length, glow is null);
+            yield return false;
         }
 
         foreach (KitPlacement p in placements.Take(ProductIds.DungeonKitObjects))
@@ -130,6 +165,7 @@ internal sealed class DungeonKitLook : IDisposable
                 engine.Graphics.UpdateStaticMeshMaterialFactors(new StaticMeshMaterialFactorsRequest(wetLook,
                     Enumerable.Range(0, drawn.Slots).Select(slot => new MeshMaterialFactors((uint)slot, false, default, false, Vector3.Zero, 0f, true, dampness)).ToArray()));
                 damp[(p.Piece, litHere, wet)] = wetLook;
+                yield return false;
             }
         }
     }
@@ -137,7 +173,32 @@ internal sealed class DungeonKitLook : IDisposable
     // The pieces' collision meshes (a manifest's collider: the shape decimated), by piece; a piece without one collides as drawn.
     private readonly Dictionary<KitPiece, (Vector3[] Vertices, Triangle[] Triangles)> colliders = [];
 
-    private static readonly Dictionary<string, (Vector3[] Vertices, Triangle[] Triangles)> Collisions = [];
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (Vector3[] Vertices, Triangle[] Triangles)> Collisions = new();
+
+    /// <summary>
+    /// Reads the models and colliders a kit's placements draw (#10889), off the update: pure product reads, kept for the
+    /// process, so building the kit later only makes its meshes.
+    /// </summary>
+    internal static void Preload(ProductContent content, IReadOnlyList<KitPlacement> placements)
+    {
+        if (placements.Count == 0)
+        {
+            return;
+        }
+
+        using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
+        Dictionary<string, JsonElement> entries = manifest.RootElement.GetProperty("pieces").EnumerateArray()
+            .ToDictionary(p => p.GetProperty("name").GetString()!, p => p.Clone());
+        foreach (KitPiece piece in placements.Select(p => p.Piece).Concat(placements.Select(p => DungeonKit.Collider(p.Piece))).Distinct())
+        {
+            JsonElement entry = entries[DungeonKit.Name(piece)];
+            Model(content, entry.GetProperty("model").GetString()!);
+            if (entry.TryGetProperty("collider", out JsonElement collider))
+            {
+                Collision(content, collider.GetString()!);
+            }
+        }
+    }
 
     /// <summary>A collider's vertices and triangles, read once for the process.</summary>
     private static (Vector3[] Vertices, Triangle[] Triangles) Collision(ProductContent content, string path)
@@ -158,7 +219,8 @@ internal sealed class DungeonKitLook : IDisposable
 
     // Each piece's model parsed once for the process: a piece's lit and plain meshes, and every later dungeon, reuse its
     // geometry with their own materials (the content does not change while the product runs).
-    private static readonly Dictionary<string, (MeshResourceCreateRequest Mesh, (string Role, string? Texture)[] Parts)> Models = [];
+    // Kept for the process, and filled from the background too (#10889: a cave's kit is read while it is generated).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (MeshResourceCreateRequest Mesh, (string Role, string? Texture)[] Parts)> Models = new();
 
     private static (MeshResourceCreateRequest Mesh, (string Role, string? Texture)[] Parts) Model(ProductContent content, string path)
     {
@@ -360,14 +422,26 @@ internal sealed class DungeonKitLook : IDisposable
     /// <summary>The pieces that collide (<see cref="DungeonKit.Collides"/>) as static collision: one asset per piece, an instance per placement.</summary>
     internal void Collide(SpatialSession session)
     {
-        List<KitPiece> kinds = [.. placed.Where(p => DungeonKit.Collides(p.Piece)).Select(p => DungeonKit.Collider(p.Piece)).Distinct()];
-        // A piece with a collider collides as its triangles, given inline; one without, as its drawn mesh.
+        List<StaticMeshAsset> assets = [];
         List<Vector3> vertices = [];
         List<Triangle> triangles = [];
-        List<StaticMeshAsset> assets = [];
+        List<StaticMeshInstance> instances = [];
+        AddCollision(assets, vertices, triangles, instances, place => place);
+        engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(session, assets.ToArray(), vertices.ToArray(), triangles.ToArray(), instances.ToArray()));
+    }
+
+    /// <summary>
+    /// The kit's collision added to a composition another owner hands to the Engine (the walking session's, #10889): its
+    /// assets after the ones already there, each piece's instance placed by <paramref name="place"/>.
+    /// </summary>
+    internal void AddCollision(List<StaticMeshAsset> assets, List<Vector3> vertices, List<Triangle> triangles, List<StaticMeshInstance> instances,
+        Func<Transform, Transform> place)
+    {
+        List<KitPiece> kinds = [.. placed.Where(p => DungeonKit.Collides(p.Piece)).Select(p => DungeonKit.Collider(p.Piece)).Distinct()];
+        // A piece with a collider collides as its triangles, given inline; one without, as its drawn mesh.
         foreach (KitPiece kind in kinds)
         {
-            ulong id = AssetBase + (ulong)assets.Count;
+            ulong id = AssetBase + (ulong)kinds.IndexOf(kind);
             if (colliders.TryGetValue(kind, out (Vector3[] Vertices, Triangle[] Triangles) collider))
             {
                 uint firstVertex = (uint)vertices.Count, firstTriangle = (uint)triangles.Count;
@@ -381,13 +455,8 @@ internal sealed class DungeonKitLook : IDisposable
             }
         }
 
-        engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(
-            session,
-            assets.ToArray(),
-            vertices.ToArray(),
-            triangles.ToArray(),
-            placed.Where(p => DungeonKit.Collides(p.Piece))
-                .Select((p, i) => new StaticMeshInstance(InstanceBase + (ulong)i, AssetBase + (ulong)kinds.IndexOf(DungeonKit.Collider(p.Piece)), p.Place)).ToArray()));
+        instances.AddRange(placed.Where(p => DungeonKit.Collides(p.Piece))
+            .Select((p, i) => new StaticMeshInstance(InstanceBase + (ulong)i, AssetBase + (ulong)kinds.IndexOf(DungeonKit.Collider(p.Piece)), place(p.Place))));
     }
 
     /// <summary>Disposes the pieces after the snapshot that last named them, then their materials.</summary>
@@ -435,6 +504,9 @@ internal sealed class DungeonKitLook : IDisposable
         }
 
         textures.Clear();
-        shader.Dispose();
+        if (ownsShader)
+        {
+            shader.Dispose();
+        }
     }
 }

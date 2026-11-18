@@ -40,6 +40,15 @@ internal static class KarstCave
         internal bool NoRuinDetail { get; init; }
         internal bool NoRuin { get; init; }
 
+        /// <summary>
+        /// A cave under the world's ground (#10889): no era opens it to a sky (no tiankeng, no chasm), since the overworld
+        /// lies over it and a cave mouth's tendril is its way in.
+        /// </summary>
+        internal bool Underground { get; init; }
+
+        /// <summary>Where the cave's first sink - its way in, a tendril's end - lies across its box (metres), or null where chance puts it.</summary>
+        internal Vector2? WayIn { get; init; }
+
         /// <summary>A community's study count: how many of it the cave grows, 0 for the choice by region and depth.</summary>
         internal int Count(CaveCommunity community) => community switch
         {
@@ -55,7 +64,7 @@ internal static class KarstCave
 
         /// <summary>The settings that shape a cave, for a generated cave's key.</summary>
         internal string Key => string.Create(CultureInfo.InvariantCulture,
-            $"{ChunksX}x{ChunksY}x{ChunksZ}-{string.Join(".", Enum.GetValues<CaveCommunity>().Select(Count))}{(NoCommunities ? "-none" : string.Empty)}{(CarvedFormations ? "-carved" : string.Empty)}{(NoLightGrowth ? "-unlit" : string.Empty)}{(NoRuin ? "-noruin" : string.Empty)}{(NoRuinDetail ? "-nodetail" : string.Empty)}");
+            $"{ChunksX}x{ChunksY}x{ChunksZ}-{string.Join(".", Enum.GetValues<CaveCommunity>().Select(Count))}{(NoCommunities ? "-none" : string.Empty)}{(CarvedFormations ? "-carved" : string.Empty)}{(NoLightGrowth ? "-unlit" : string.Empty)}{(NoRuin ? "-noruin" : string.Empty)}{(NoRuinDetail ? "-nodetail" : string.Empty)}{(Underground ? "-under" : string.Empty)}{(WayIn is Vector2 w ? $"-in{w.X:F1},{w.Y:F1}" : string.Empty)}");
     }
 
     /// <summary>The settings the caves generated next take (studies and the bank set them).</summary>
@@ -4322,6 +4331,12 @@ private static int MostBarrensPieces => Area(400);
             sinks[i] = new Vector3(Between(random, 8f, (GridX * GridCell) - 30f), (GridY - 2.5f) * GridCell, Between(random, 8f, (GridZ * GridCell) - 8f));
         }
 
+        // A cave under the world takes its way in where its mouth's tendril ends (#10889), drawn as chance would have it otherwise.
+        if (run.WayIn is Vector2 wayIn)
+        {
+            sinks[0] = new Vector3(wayIn.X, sinks[0].Y, wayIn.Y);
+        }
+
         float[] discharge = [.. Enumerable.Range(0, Sinks).Select(_ => Between(random, 0.5f, 1.5f))];
 
         // The cave's history: a few eras drawn without repeats, in the order they happen, the water table falling from
@@ -4876,6 +4891,13 @@ private static int MostBarrensPieces => Area(400);
         // A chasm is the cave's opening to the sky: no tiankeng beside it.
         float roll = Between(random, 0f, 1f);
         Centrepiece centre = centrepiece ?? (roll < GreatHallChance ? Centrepiece.GreatHall : roll < GreatHallChance + ChasmChance ? Centrepiece.Chasm : Centrepiece.None);
+        // Under the world nothing opens to a sky (#10889): neither a chasm nor a tiankeng.
+        if (run.Underground)
+        {
+            drawn.Remove(Era.Tiankeng);
+            centre = centre == Centrepiece.Chasm ? Centrepiece.None : centre;
+        }
+
         if (centre == Centrepiece.GreatHall)
         {
             drawn.Add(Era.GreatHall);

@@ -69,6 +69,7 @@ internal sealed class TerrainWorld : IDisposable
         SaveIdentity = new SaveIdentity(recipe.Contract.Version, recipe.Contract.Seed);
         overlayStore = new TerrainOverlayStore(engine, store, SaveIdentity, GeneratedAt);
         streamer = new TerrainResidencyStreamer(engine, policy, generator, chunkCache, overlayStore.Overlay, configuration.Seed);
+        caves = new TerrainCaves(recipe);
         Moss = new SurfaceMoss(engine);
         presentation = new TerrainPresentation(engine, content, Moss);
         trees = new TerrainTrees(engine, content, frame);
@@ -85,6 +86,57 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>The generation recipe, for the modules that reason about the generated world.</summary>
     internal TerrainRecipe Recipe => recipe;
+
+    private readonly TerrainCaves caves;
+
+    /// <summary>The caves under the world as the terrain keeps them (#10889): their chunks, and how deep the player stands.</summary>
+    internal TerrainCaves Caves => caves;
+
+    /// <summary>The one world-to-local conversion, for owners placing things in the walking session (a cave's dressing, #10889).</summary>
+    internal WorldFrame Frame => frame;
+
+    /// <summary>
+    /// Reads a generated cave into the world (#10889): its box's chunks generate with it from now on, the ones produced
+    /// already are dropped and the resident ones replaced a few an update, and its chunks with air are kept round the
+    /// player like the surface.
+    /// </summary>
+    internal void AdmitCave(WorldGen.CavePlacement cave, WorldGen.CaveInterior interior, HashSet<TerrainChunkAddress> shell)
+    {
+        Func<TerrainChunkAddress, bool> changed = caves.Admit(cave, interior, shell);
+        policy.Forget(changed);
+        streamer.MarkStale(streamer.Resident.Where(changed));
+    }
+
+    /// <summary>Lets a cave go (#10889): its box is rock again.</summary>
+    internal void ReleaseCave(WorldGen.CavePlacement cave)
+    {
+        Func<TerrainChunkAddress, bool> changed = caves.Release(cave);
+        policy.Forget(changed);
+        streamer.MarkStale(streamer.Resident.Where(changed));
+    }
+
+    /// <summary>The caves' readout: how deep the player is, what is kept, and the resident chunks split cave and overworld.</summary>
+    internal string CavesReadout() => $"{caves.Readout(streamer.Resident)} {streamer.Readout()}";
+
+    /// <summary>
+    /// A cave's static collision (its ruin's kit, #10889), composed with the rest of the walking session's: the session
+    /// holds one static collision, so every owner's pieces go into it together. Each instance's transform is in world metres.
+    /// </summary>
+    internal Action<List<StaticMeshAsset>, List<Vector3>, List<Triangle>, List<StaticMeshInstance>>? CaveCollision
+    {
+        get => caveCollision;
+        set
+        {
+            caveCollision = value;
+            if (started) ComposeStaticCollision();
+        }
+    }
+
+    private Action<List<StaticMeshAsset>, List<Vector3>, List<Triangle>, List<StaticMeshInstance>>? caveCollision;
+
+    /// <summary>Whether the open world's far reaches (far ground, trees, ground cover and plants) are drawn: not deep in a cave.</summary>
+    private bool deepHidden;
+    private bool awayHidden;
 
     /// <summary>Where water stands in the walking world (#9877): the one owner every water question asks.</summary>
     internal Water.WaterModel Water { get; }
@@ -196,12 +248,26 @@ internal sealed class TerrainWorld : IDisposable
     /// </summary>
     internal void DrawOpenWorld(bool drawn)
     {
+        awayHidden = !drawn;
         presentation.Drawn(drawn);
+        ShowFarReaches();
+    }
+
+    /// <summary>
+    /// The far ground and the vegetation fields are drawn unless the player is away in a separate space or deep in a cave
+    /// (#10889: going down, the overworld's far field, trees and ground cover go; coming up they return).
+    /// </summary>
+    private void ShowFarReaches()
+    {
+        bool drawn = !awayHidden && !deepHidden;
         farField?.Show(drawn);
         vegetationTiles?.Show(drawn);
         treeTiles?.Show(drawn);
         plantTiles?.Show(drawn);
     }
+
+    /// <summary>How far down a cave the far reaches go: half way to deep.</summary>
+    private const double FarReachesHiddenBelow = 0.5d;
 
     internal VoxelScenePresentation ProjectSeparateSpace(SpatialSession separate, IReadOnlyDictionary<BlockId, Material>? rock = null) => presentation.ProjectAnother(separate, rock);
 
@@ -392,6 +458,15 @@ internal sealed class TerrainWorld : IDisposable
         EnsureStarted();
         // On a continent the region tiles around the walker are refined before the residency reaches them (#9551).
         recipe.Regions?.Prefetch(centerVoxel.X, centerVoxel.Z, MapRegions.PrefetchRadius);
+        // Underground (#10889): the caves' chunks round the player are kept, and the overworld's surface less of it the deeper.
+        policy.SetUnderground(caves.Follow(centerVoxel, policy.RetainedRadius));
+        bool deep = caves.Below >= FarReachesHiddenBelow;
+        if (deep != deepHidden)
+        {
+            deepHidden = deep;
+            ShowFarReaches();
+        }
+
         if (streamer.Synchronize(Session, centerVoxel.Chunk))
         {
             presentation.Refresh();
@@ -422,7 +497,7 @@ internal sealed class TerrainWorld : IDisposable
         }
 
         // The ice is part of the walking collision (#9878): compose again when it changes, or when the origin moved under it.
-        if (waterSurfaces.IceRevision != composedIce || (composedIceAny && composedOrigin != frame.Origin)) ComposeStaticCollision();
+        if (waterSurfaces.IceRevision != composedIce || ((composedIceAny || caveCollision is not null) && composedOrigin != frame.Origin)) ComposeStaticCollision();
         // So are fallen logs and stumps (#10034): compose again when deadwood near the player changed, or they moved on.
         // So are the places' pieces (#9992): compose again when they were laid out again or the player walked on.
         else if (places.CollisionStale(new Vector3(centerVoxel.X + 0.5f, 0, centerVoxel.Z + 0.5f))) ComposeStaticCollision();
@@ -547,6 +622,19 @@ internal sealed class TerrainWorld : IDisposable
         }
 
         PlaceColliders = places.AddCollision(new Vector3(lastCentre.X + 0.5f, 0, lastCentre.Z + 0.5f), assets, vertices, triangles, instances);
+        // A cave's pieces (#10889), given in world metres and moved to the session's frame here.
+        if (caveCollision is not null)
+        {
+            int first = instances.Count;
+            caveCollision(assets, vertices, triangles, instances);
+            for (int i = first; i < instances.Count; i++)
+            {
+                StaticMeshInstance piece = instances[i];
+                Vector3 world = piece.Transform.Translation;
+                instances[i] = piece with { Transform = piece.Transform with { Translation = frame.ToLocal(world.X, world.Y, world.Z) } };
+            }
+        }
+
         engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(Session, assets.ToArray(), vertices.ToArray(), triangles.ToArray(), instances.ToArray()));
         DeadwoodColliders = deadwood;
         StaticCollisionRevision++;

@@ -31,7 +31,7 @@ internal sealed class CaveGenerator
     private sealed class Job
     {
         internal required string Key { get; init; }
-        internal required Task<DungeonCandidate> Work { get; init; }
+        internal required Task<object> Work { get; init; }
         internal required long Asked { get; init; }
         internal long Started { get; set; }
         internal long Finished { get; set; }
@@ -42,8 +42,11 @@ internal sealed class CaveGenerator
     private Task tail = Task.CompletedTask;
     private long generated, failed, waited;
 
-    /// <summary>Asks for a cave in the background, unless it is already finished or on its way.</summary>
-    internal void Request(string key, Func<DungeonCandidate> generate)
+    /// <summary>
+    /// Asks for a cave in the background, unless it is already finished or on its way. What comes back is whatever the
+    /// work makes: a dungeon's candidate, or a cave under the world with its interior prepared (#10889).
+    /// </summary>
+    internal void Request<T>(string key, Func<T> generate) where T : class
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(generate);
@@ -56,12 +59,12 @@ internal sealed class CaveGenerator
         long asked = Stopwatch.GetTimestamp();
         Job? job = null;
         // One at a time, in the order asked: each generation follows the last on the capped scheduler.
-        Task<DungeonCandidate> work = tail.ContinueWith(_ =>
+        Task<object> work = tail.ContinueWith(_ =>
         {
             job!.Started = Stopwatch.GetTimestamp();
             try
             {
-                return generate();
+                return (object)generate();
             }
             finally
             {
@@ -83,7 +86,7 @@ internal sealed class CaveGenerator
     /// The cave if it is finished: null while it is still being generated (or was never asked for). A generation that failed
     /// throws its failure here, once, and is forgotten so it can be asked for again.
     /// </summary>
-    internal DungeonCandidate? Finished(string key)
+    internal T? Finished<T>(string key) where T : class
     {
         if (!jobs.TryGetValue(key, out Job? job) || !job.Work.IsCompleted)
         {
@@ -99,19 +102,19 @@ internal sealed class CaveGenerator
             job.Work.GetAwaiter().GetResult();
         }
 
-        return job.Work.Result;
+        return job.Work.Result as T ?? throw new InvalidOperationException($"The cave {key} was asked for as {job.Work.Result.GetType().Name}, not {typeof(T).Name}.");
     }
 
     /// <summary>
     /// Waits for a cave the caller cannot go on without (a restored session standing in it, or the bank's synchronous
     /// comparison), generating it here if it was never asked for.
     /// </summary>
-    internal DungeonCandidate Wait(string key, Func<DungeonCandidate> generate)
+    internal T Wait<T>(string key, Func<T> generate) where T : class
     {
         Request(key, generate);
         waited++;
         jobs[key].Work.Wait();
-        return Finished(key)!;
+        return Finished<T>(key)!;
     }
 
     /// <summary>How long a finished cave took to generate, and how long it waited for the generations ahead of it.</summary>

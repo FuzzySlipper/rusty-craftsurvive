@@ -39,6 +39,9 @@ internal sealed class PlayerWaterProbe(IEngineContext engine)
     /// <summary>Feet this close under a frozen surface are on the ice, not in the water below it.</summary>
     private const double IceThickness = 0.3;
 
+    /// <summary>How far under a water's bed the feet are before the body is under the ground there, not in the water.</summary>
+    private const double UnderBedMetres = 2d;
+
     internal PlayerWaterCheck LastCheck { get; private set; }
 
     /// <summary>The water owner's sample at the player's column as last read, or null where water cells were read instead.</summary>
@@ -78,7 +81,9 @@ internal sealed class PlayerWaterProbe(IEngineContext engine)
             LastSample = sample;
             // On ice (#9878) the player stands on the ice's collision; only one already under it swims.
             bool onIce = sample.Ice && feetY >= sample.Top - IceThickness;
-            bool feetIn = sample.Wet && !onIce && feetY < sample.Top, eyesIn = sample.Wet && !onIce && world.WorldY < sample.Top;
+            // A body well under the water's bed is under the ground there - in a cave under a river or a lake (#10889) - not in it.
+            bool underBed = feetY < sample.Top - sample.Depth - UnderBedMetres;
+            bool feetIn = sample.Wet && !onIce && !underBed && feetY < sample.Top, eyesIn = sample.Wet && !onIce && !underBed && world.WorldY < sample.Top;
             LastCheck = new PlayerWaterCheck(feet, false, 0, eyes, feetIn, eyesIn, sample.Top, sample.Body);
             if (!LastCheck.InWater) return false;
 

@@ -63,6 +63,9 @@ internal sealed class DungeonOvergrowth : IDisposable
 
     private readonly IEngineContext engine;
     private readonly RenderResource shader;
+
+    /// <summary>Whether the stone shader is this owner's to release, or shared by the dungeon module (#10889: opened once, not for every cave).</summary>
+    private readonly bool ownsShader;
     private RenderResource? swayShader;
     private readonly List<RenderResource> textures = [];
     private readonly List<Material> materials = [];
@@ -70,11 +73,40 @@ internal sealed class DungeonOvergrowth : IDisposable
     private readonly Dictionary<OvergrowthKind, (MeshResource Mesh, Appearance Look, float From)> far = [];
     private readonly List<(OvergrowthKind Kind, Transform Place)> placed = [];
 
-    internal DungeonOvergrowth(IEngineContext engine, ProductContent content, IReadOnlyList<OvergrowthPlacement> placements)
+    /// <remarks>Built over several <see cref="Advance"/> calls, a kind's mesh at a time (#10889); <see cref="Finish"/> builds the rest at once.</remarks>
+    internal DungeonOvergrowth(IEngineContext engine, ProductContent content, IReadOnlyList<OvergrowthPlacement> placements, RenderResource? sharedShader = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         ArgumentNullException.ThrowIfNull(content);
-        shader = engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
+        ownsShader = sharedShader is null;
+        shader = sharedShader ?? engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
+        building = Build(content, placements);
+    }
+
+    private IEnumerator<bool>? building;
+
+    /// <summary>Builds the next kind; true once it is all built.</summary>
+    internal bool Advance()
+    {
+        if (building is not null && !building.MoveNext())
+        {
+            building.Dispose();
+            building = null;
+        }
+
+        return building is null;
+    }
+
+    /// <summary>Builds whatever is left at once.</summary>
+    internal void Finish()
+    {
+        while (!Advance())
+        {
+        }
+    }
+
+    private IEnumerator<bool> Build(ProductContent content, IReadOnlyList<OvergrowthPlacement> placements)
+    {
         foreach (OvergrowthKind kind in placements.Select(p => p.Kind).Distinct())
         {
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
@@ -92,6 +124,8 @@ internal sealed class DungeonOvergrowth : IDisposable
                     farModel.Colors, farModel.Indices, farModel.Groups, bindings));
                 far[kind] = (farMesh, engine.Graphics.CreateMeshAppearance(farMesh), from);
             }
+
+            yield return false;
         }
 
         foreach (OvergrowthPlacement p in placements.Take(ProductIds.DungeonOvergrowthObjects))
@@ -204,7 +238,21 @@ internal sealed class DungeonOvergrowth : IDisposable
     };
 
     // Each kind's model parsed once for the process (as the kit's): every dungeon reuses its geometry with its own materials.
-    private static readonly Dictionary<string, (MeshResourceCreateRequest Mesh, string[] Textures)> Models = [];
+    // Kept for the process, and filled from the background too (#10889: a cave's overgrowth is read while it is generated).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (MeshResourceCreateRequest Mesh, string[] Textures)> Models = new();
+
+    /// <summary>Reads the models a cave's overgrowth draws (#10889), off the update, so building it later only makes its meshes.</summary>
+    internal static void Preload(ProductContent content, IReadOnlyList<OvergrowthPlacement> placements)
+    {
+        foreach (OvergrowthKind kind in placements.Select(p => p.Kind).Distinct())
+        {
+            Model(content, ModelPath(kind));
+            if (FarLevel(kind) is (string farPath, _))
+            {
+                Model(content, farPath);
+            }
+        }
+    }
 
     private static (MeshResourceCreateRequest Mesh, string[] Textures) Model(ProductContent content, string path)
     {
@@ -360,7 +408,10 @@ internal sealed class DungeonOvergrowth : IDisposable
         }
 
         textures.Clear();
-        shader.Dispose();
+        if (ownsShader)
+        {
+            shader.Dispose();
+        }
         swayShader?.Dispose();
     }
 }

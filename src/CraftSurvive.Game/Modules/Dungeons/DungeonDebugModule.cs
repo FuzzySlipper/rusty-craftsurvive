@@ -13,6 +13,15 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     internal DungeonDebugModule(Func<DungeonModule> dungeons) =>
         this.dungeonsSource = dungeons ?? throw new ArgumentNullException(nameof(dungeons));
 
+    [DebugCommand("craft.cave.readout", Description = "Reads the caves under the world's cave mouths (#10889): asked for, ready, admitted and released; the one dressed; how deep the player is, how much of the overworld is kept and the resident chunks split cave and overworld; the sky's share of daylight; the background generator.")]
+    public string CaveReadout() => dungeons.CavesReadout();
+
+    [DebugCommand("craft.cave.goto", Description = "Assisted, for captures (#10889): stands the player outside the nearest cave mouth with a cave under it (within reach metres), facing in, asking for its cave; the walk starts there.")]
+    public string CaveGoTo(double reach = 3000) => dungeons.CaveGoTo(reach);
+
+    [DebugCommand("craft.cave.walk", Description = "Assisted, for captures (#10889): moves the player this many metres on along the chosen cave's way in - down its tendril, then its main route once the cave is ready - facing the way on; negative walks back out.")]
+    public string CaveWalk(float metres) => dungeons.CaveWalk(metres);
+
     [DebugCommand("craft.dungeon.readout", Description = "Reads where the player stands with dungeons: state, loading progress and cost, the nearby entrance.")]
     public string Readout() => dungeons.Readout();
 
@@ -43,36 +52,8 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.voxelsize", Description = "Assisted, for the micro-voxel study (#10094): the natural cavern study's (approach n) voxel side, 1, 0.5 or 0.25 metres, for voxel surfaces.")]
     public string VoxelSize(double metres) => dungeons.StudyVoxelSize(metres);
 
-    [DebugCommand("craft.dungeon.stream", Description = "Assisted, for the streamed underworld prototype (#10304): start <radius chunks> <budget chunks per update> enters an endless cave streamed about the player; readout; stop.")]
-    public string Stream(string action, int radius = 6, int budget = 8) => dungeons.StudyStream(action, radius, budget);
-
-    [DebugCommand("craft.dungeon.streamwalk", Description = "Assisted, for the streamed underworld prototype (#10304): moves the player this many metres across and through, onto the nearest standing place.")]
-    public string StreamWalk(float dx, float dz) => dungeons.StudyStreamWalk(dx, dz);
-
-    [DebugCommand("craft.dungeon.streamradius", Description = "Assisted, for the stored, streamed cave prototype (#10304): the next dungeons stream within this many chunks of the player (0 loads them whole); caves are generated once a run and kept.")]
-    public string StreamRadius(int radius) => dungeons.StudyStreamRadius(radius);
-
-    [DebugCommand("craft.dungeon.streamhandoff", Description = "Assisted, for the stored, streamed cave prototype (#10304): hands streamed chunks to the Engine (one transaction and one presentation refresh) at most every so many seconds, sooner when a chunk round the player is missing; 0 every update.")]
-    public string StreamHandOff(double seconds) => DungeonModule.StudyStreamHandOff(seconds);
-
-    [DebugCommand("craft.dungeon.streamdefer", Description = "Assisted, for the streamed cave (#10332): on hands streamed chunks away from the player to the Engine deferred - written now, meshed and collided on its worker, installed at a later update's start - with those round the player synchronous (the default); off hands every batch over synchronously, for the A/B.")]
-    public string StreamDefer(string mode)
-    {
-        DungeonSpace.StreamDeferred = mode != "off";
-        return DungeonSpace.StreamDeferred ? "streamed chunks away from the player are handed over deferred" : "streamed chunks are handed over synchronously";
-    }
-
-    [DebugCommand("craft.dungeon.streamprobes", Description = "Assisted, for the stored, streamed cave prototype (#10304): the next streamed dungeons' indirect light - follow (a probe volume about the player within the streamed rock, the default), whole (over the whole space, rebaked as rock streams) or off.")]
-    public string StreamProbes(string mode) => dungeons.StudyStreamProbes(mode);
-
-    [DebugCommand("craft.dungeon.streamed", Description = "Reads the stored, streamed cave prototype (#10304): the last entry's generation and store cost, and the stream's residency and update cost.")]
-    public string Streamed() => dungeons.StreamedReadout();
-
     [DebugCommand("craft.dungeon.tour", Description = "Assisted, for the streamed cave prototype (#10304): moves the player this many metres along a route from the arrival to the farthest place reachable.")]
     public string Tour(float metres) => dungeons.StudyTour(metres);
-
-    [DebugCommand("craft.dungeon.streamreset", Description = "Clears the streamed cave prototype's measures (#10304), so a walk is measured on its own.")]
-    public string StreamReset() => dungeons.StudyStreamReset();
 
     [DebugCommand("craft.dungeon.cavesize", Description = "Assisted, for the cave size prototype (#10304): the next karst caves' box in units across, up and through (16 m each; 6 4 6 the default); their feature counts scale with its floor area.")]
     public string CaveSize(int chunksX, int chunksY, int chunksZ)

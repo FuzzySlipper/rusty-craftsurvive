@@ -41,7 +41,13 @@ internal sealed class TerrainRecipe : ITerrainColumns
         towns = new(() => [.. Settlements.For(Map).Select(settlement => settlement.Ground)], LazyThreadSafetyMode.ExecutionAndPublication);
         pois = new PoiPlacement(configuration.Contract, draws, this, radius);
         crossings = new CrossingPlacement(configuration.Contract, draws, this, radius);
+        caves = new CaveUnderground(pois, radius);
     }
+
+    private readonly CaveUnderground caves;
+
+    /// <summary>The caves under the world (#10889): every cave mouth's tendril, and the caves generated so far, read into the chunks.</summary>
+    internal CaveUnderground Caves => caves;
 
     /// <summary>The versioned identity every feature draw is keyed from.</summary>
     internal TerrainGeneratorContract Contract => configuration.Contract;
@@ -105,6 +111,44 @@ internal sealed class TerrainRecipe : ITerrainColumns
         // and the only pass that may pave the course it stands on. Crossings come after sites
         // for the same reason sites come after the ground: a bridge is built over water, and
         // water is what the ground pass leaves behind.
+        if (caves.InCave(address, column.Surface, out ushort inside, out _))
+        {
+            return inside;
+        }
+
+        ushort material = SurfaceMaterialAt(address, column);
+        // Underground last (#10889): a cave mouth's tendril takes away what the passes above left, and an admitted cave's
+        // box below its seal is the cave's own.
+        return caves.At(address, column.Surface, column.Surface, material) is (ushort underground, _) ? underground : material;
+    }
+
+    /// <summary>
+    /// A voxel's generated material and, where a tendril or a cave reaches it, its density magnitude (#10889): the
+    /// chunk generator's one question, so a cave's smooth walls are not the height field's.
+    /// </summary>
+    internal ushort GeneratedAt(VoxelAddress address, TerrainColumn column, double height, out float? magnitude)
+    {
+        // Deep in an admitted cave's box the cave answers alone.
+        if (caves.InCave(address, column.Surface, out ushort inside, out float within))
+        {
+            magnitude = within;
+            return inside;
+        }
+
+        ushort material = SurfaceMaterialAt(address, column);
+        if (caves.At(address, column.Surface, height, material) is (ushort underground, float distance))
+        {
+            magnitude = distance;
+            return underground;
+        }
+
+        magnitude = null;
+        return material;
+    }
+
+    /// <summary>The overworld's own voxel, before anything underground: the ground, then the places and crossings.</summary>
+    private ushort SurfaceMaterialAt(VoxelAddress address, TerrainColumn column)
+    {
         ushort material = BaseMaterialAt(address, column);
         material = StructurePasses.ApplySite(material, PoiAt(address.X, address.Y, address.Z), address.Y, column);
         return CrossingAt(address.X, address.Y, address.Z) is PoiVoxel span

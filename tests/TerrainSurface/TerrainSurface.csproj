@@ -14,6 +14,7 @@
     <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product/Content" />
     <Compile Include="$(ProductModules)Terrain/TerrainConstants.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Terrain/TerrainSurfaces.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Dungeons/CaveMaterials.cs;$(ProductModules)Dungeons/DungeonSurfaces.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Terrain/VoxelMaterialRules.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Terrain/TerrainBlendSettings.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)WorldGen/TerrainDensity.cs" LinkBase="Product/WorldGen" />

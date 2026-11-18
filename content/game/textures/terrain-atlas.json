@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "image": "terrain-atlas.png",
-  "contentHash": "sha256:9778d41df8100def7808849ce753455b83b3e67edc8dfabec37e4ac6878cece4",
+  "contentHash": "sha256:cabc6b58a82841bfce3099bd98630179d43c59c9f89b21f866601c87028b1985",
   "extent": [
     256,
     448
@@ -260,6 +260,36 @@
       "face": "base",
       "contentMin": [
         0,
+        384
+      ],
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "cave-limestone",
+      "block": "cave-limestone",
+      "face": "base",
+      "contentMin": [
+        64,
+        384
+      ],
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "cave-mud",
+      "block": "cave-mud",
+      "face": "base",
+      "contentMin": [
+        128,
+        384
+      ],
+      "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "cave-silt",
+      "block": "cave-silt",
+      "face": "base",
+      "contentMin": [
+        192,
         384
       ],
       "authored": "authoring/tools/generators/generate-terrain-atlas.mjs"

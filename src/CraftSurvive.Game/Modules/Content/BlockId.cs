@@ -57,4 +57,16 @@ internal enum BlockId : ushort
     /// the generator's ground over days (BurnScars). Drawn as charred ground near the player, as ordinary ground far off.
     /// </summary>
     BurntGround = 24,
+
+    // The cave's own ground (#10889): a cave lies in the overworld's session, which draws stone, dirt and sand as the
+    // overworld's ground, so the cave's limestone, mud and silt are blocks of their own, placed by the cave generator only.
+
+    /// <summary>The cave's bedrock: limestone, the rock its water dissolved.</summary>
+    CaveLimestone = 25,
+
+    /// <summary>The cave's mud: fine sediment the water left on older floors.</summary>
+    CaveMud = 26,
+
+    /// <summary>The cave's silt and sand: what still water laid down.</summary>
+    CaveSilt = 27,
 }

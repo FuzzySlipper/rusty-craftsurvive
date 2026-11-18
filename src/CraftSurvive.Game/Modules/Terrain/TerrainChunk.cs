@@ -73,7 +73,9 @@ internal sealed class TerrainChunkGenerator
         // payload whose shape does not match a chunk.
         ArgumentNullException.ThrowIfNull(overlay);
         ushort[]? cached = null;
-        if (cache is not null && !overlay.TouchesChunk(address) && cache.TryRead(address, out ushort[] found))
+        // A chunk a tendril or a cave reaches is never read from the cache (#10889): its densities are the cave's, and a
+        // cave admitted since changes it.
+        if (cache is not null && !overlay.TouchesChunk(address) && Cacheable(address) && cache.TryRead(address, out ushort[] found))
         {
             CacheHits++;
             cached = found;
@@ -82,28 +84,82 @@ internal sealed class TerrainChunkGenerator
         ushort[] materials = cached ?? new ushort[TerrainConstants.ChunkVolume];
         float[] densities = new float[TerrainConstants.ChunkVolume];
         VoxelAddress origin = address.Origin;
+        // The chunk column's map samples, shared by the chunks stacked in it (a cave's box is several deep, #10889).
+        (TerrainColumn[] columns, double[] heights) = Columns(address.X, address.Z, origin);
         for (int z = 0; z < TerrainConstants.ChunkEdgeLength; z++)
         {
             for (int x = 0; x < TerrainConstants.ChunkEdgeLength; x++)
             {
-                TerrainColumn column = cached is null ? recipe.ColumnAt(origin.X + x, origin.Z + z) : default;
-                double height = recipe.ContinuousHeightAt(origin.X + x, origin.Z + z);
+                int at = (z * TerrainConstants.ChunkEdgeLength) + x;
+                TerrainColumn column = columns[at];
+                double height = heights[at];
                 for (int y = 0; y < TerrainConstants.ChunkEdgeLength; y++)
                 {
                     VoxelAddress voxel = new(origin.X + x, origin.Y + y, origin.Z + z);
                     int index = ToIndex(x, y, z);
-                    ushort generated = cached is not null ? cached[index] : recipe.MaterialAt(voxel, column);
+                    float? underground = null;
+                    ushort generated = cached is not null ? cached[index] : recipe.GeneratedAt(voxel, column, height, out underground);
                     ushort material = overlay.TryGetMaterial(voxel, out ushort overridden)
                         ? overridden
                         : generated;
                     materials[index] = material;
-                    densities[index] = TerrainDensity.At(voxel.Y, height, generated, material);
+                    densities[index] = Density(voxel.Y, height, generated, material, underground);
                 }
             }
         }
 
         return new TerrainChunk(address, materials, densities);
     }
+
+    // The map samples of the chunk columns generated last: a pure function of the column, so kept a while (#10889: going down a
+    // cave the chunks of one column come in a few at a time, each asked the same samples).
+    private readonly Dictionary<(long X, long Z), (TerrainColumn[] Columns, double[] Heights)> columnSamples = [];
+    private readonly Queue<(long X, long Z)> columnOrder = new();
+    // The surface ring a player walks in (19 x 19 columns) and a cave's (6 x 6 and its tendril), about 30 KB a column: climbing out of a
+    // cave finds the ring's samples still here.
+    private const int ColumnSampleLimit = 768;
+
+    /// <summary>A chunk column's samples of the map, every column's ground and its continuous height.</summary>
+    private (TerrainColumn[] Columns, double[] Heights) Columns(long chunkX, long chunkZ, VoxelAddress origin)
+    {
+        if (columnSamples.TryGetValue((chunkX, chunkZ), out (TerrainColumn[] Columns, double[] Heights) known))
+        {
+            return known;
+        }
+
+        int edge = TerrainConstants.ChunkEdgeLength;
+        TerrainColumn[] columns = new TerrainColumn[edge * edge];
+        double[] heights = new double[edge * edge];
+        for (int z = 0; z < edge; z++)
+        {
+            for (int x = 0; x < edge; x++)
+            {
+                columns[(z * edge) + x] = recipe.ColumnAt(origin.X + x, origin.Z + z);
+                heights[(z * edge) + x] = recipe.ContinuousHeightAt(origin.X + x, origin.Z + z);
+            }
+        }
+
+        if (columnSamples.Count >= ColumnSampleLimit && columnOrder.TryDequeue(out (long X, long Z) oldest))
+        {
+            columnSamples.Remove(oldest);
+        }
+
+        columnSamples[(chunkX, chunkZ)] = (columns, heights);
+        columnOrder.Enqueue((chunkX, chunkZ));
+        return (columns, heights);
+    }
+
+    /// <summary>Whether a chunk may be read from and written to the chunk cache: not one a tendril or a cave reaches (#10889).</summary>
+    internal bool Cacheable(TerrainChunkAddress address) => !recipe.Caves.Touches(address);
+
+    /// <summary>
+    /// A voxel's density: underground (#10889), the cave's or the tendril's own distance, signed by the material placed
+    /// there (an edit keeps the magnitude, as the height field's does); elsewhere the height field's.
+    /// </summary>
+    private static float Density(long y, double height, ushort generated, ushort material, float? underground) =>
+        underground is float magnitude
+            ? material == TerrainConstants.EmptyMaterial ? magnitude : -magnitude
+            : TerrainDensity.At(y, height, generated, material);
 
     /// <summary>
     /// An edited chunk without generating it again (#9578): the previous payload with only the
@@ -129,10 +185,10 @@ internal sealed class TerrainChunkGenerator
             }
 
             int index = ToIndex((int)(voxel.X - origin.X), (int)(voxel.Y - origin.Y), (int)(voxel.Z - origin.Z));
-            ushort generated = recipe.MaterialAt(voxel, column.Column);
+            ushort generated = recipe.GeneratedAt(voxel, column.Column, column.Height, out float? underground);
             ushort material = overlay.TryGetMaterial(voxel, out ushort overridden) ? overridden : generated;
             materials[index] = material;
-            densities[index] = TerrainDensity.At(voxel.Y, column.Height, generated, material);
+            densities[index] = Density(voxel.Y, column.Height, generated, material, underground);
         }
 
         return new TerrainChunk(previous.Address, materials, densities);

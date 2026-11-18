@@ -74,7 +74,13 @@ internal static class DungeonSurfaces
 
     private static readonly BlockId[] Rock = [BlockId.Stone, BlockId.Dirt, BlockId.Gravel, BlockId.Bedrock,
         BlockId.Sand, BlockId.WashedRock, BlockId.PatinatedRock, BlockId.Flowstone, BlockId.Rubble,
-        BlockId.MossyRock, BlockId.SlimyRock, BlockId.Moonmilk];
+        BlockId.MossyRock, BlockId.SlimyRock, BlockId.Moonmilk, BlockId.CaveLimestone, BlockId.CaveMud, BlockId.CaveSilt];
+
+    /// <summary>
+    /// A cave's rock in the overworld's session (#10889): the faceted look's surface - chiselled, flat-shaded, a little
+    /// rough - for the cave's own blocks, which the overworld never places.
+    /// </summary>
+    internal static SurfaceCharacter CaveRock { get; } = new(VertexPlacement.Sharp, FlatCreaseDegrees, ChiselledRoughness);
 
     /// <summary>
     /// The building blocks that weather: masonry walls. Floors, stairs and timber (planks,

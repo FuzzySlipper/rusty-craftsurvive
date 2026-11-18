@@ -32,9 +32,25 @@ internal readonly record struct TerrainBlendSettings(uint TransitionCells, float
 internal static class TerrainLayers
 {
     internal static readonly string[] Names = ["sage-ground", "ochre-rock", "dune-sand", "frost-stone", "dry-meadow", "burnt-ground"];
-    private static readonly uint[] Slots = BlockRegistry.MaterialBlocks
-        .Where(block => Layer(block.Id) >= 0).Select(block => (uint)block.Id).ToArray();
-    private static readonly uint[] Layers = Slots.Select(slot => (uint)Layer((BlockId)slot)).ToArray();
+
+    /// <summary>
+    /// Every layer the walking session blends, in order (#10889): the overworld's ground, then the cave's blended
+    /// blocks, so where a tendril meets its cave the two blend too.
+    /// </summary>
+    internal static readonly string[] AllNames = [.. Names, .. Dungeons.CaveMaterials.Blended.Select(b => b.Map)];
+
+    private static readonly uint[] Slots = [.. BlockRegistry.MaterialBlocks
+        .Where(block => Layer(block.Id) >= 0).Select(block => (uint)block.Id), .. Dungeons.CaveMaterials.Blended.Select(b => (uint)b.Block)];
+    private static readonly uint[] Layers = Slots.Select(slot => (uint)AnyLayer((BlockId)slot)).ToArray();
+
+    /// <summary>A block's layer in the walking session: the overworld's ground's, or after them a cave block's.</summary>
+    internal static int AnyLayer(BlockId block)
+    {
+        int ground = Layer(block);
+        if (ground >= 0) return ground;
+        int cave = Array.FindIndex(Dungeons.CaveMaterials.Blended, b => b.Block == block);
+        return cave < 0 ? -1 : Names.Length + cave;
+    }
 
     internal static int Layer(BlockId block) => block switch
     {

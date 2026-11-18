@@ -142,6 +142,22 @@ internal static class BlockRegistry
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
             BlastResistance: 1f, LightEmission: 0f, LightAttenuation: 1f,
             Climbable: true),
+
+        // The cave's own ground in the overworld's session (#10889): drawn by the cave materials; their atlas tiles are
+        // stand-ins, as the cave rock's are.
+        new(BlockId.CaveLimestone, "cave-limestone", "cave-limestone", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 1.5f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
+
+        new(BlockId.CaveMud, "cave-mud", "cave-mud", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 0.5f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
+
+        new(BlockId.CaveSilt, "cave-silt", "cave-silt", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 0.5f, LightEmission: 0f, LightAttenuation: 1f),
     ];
 
     /// <summary>Every block, air first, in slot order.</summary>

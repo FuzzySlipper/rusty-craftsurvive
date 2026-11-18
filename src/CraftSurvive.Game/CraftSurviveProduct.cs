@@ -207,6 +207,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         lamps = new LampLights(context.Engine, entities, player, frame);
         inventory = new InventoryModule(context.Engine, store, terrain.SaveIdentity, player, discovery, survival, ui, cues);
         dungeons = new DungeonModule(context.Engine, terrain, player, conditions, sky, ui);
+        player.PrepareUnderground = at => dungeons.PrepareCaveAt(at);
         actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, dungeons, ui, cues, frame);
         feedback = new FeedbackModule(cues, new SoundPlayer(context.Engine), new BurstEmitter(context.Engine, () => terrain.AtlasSprite),
             () => new Surroundings(player.InSeparateSpace, player.HeadSubmerged, WorldClock.Daylight(conditions.Time.DayFraction)),
@@ -375,6 +376,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(new SurvivalDebugModule(() => Owner(survival))));
         RequireRegistration(registrar.Register(new InventoryDebugModule(() => Owner(inventory))));
         RequireRegistration(registrar.Register(new DungeonDebugModule(() => Owner(dungeons))));
+        RequireRegistration(registrar.Register(new Modules.Debugging.UpdateTimesDebugModule(() => walkingUpdates)));
         RequireRegistration(registrar.Register(new FeedbackDebugModule(() => Owner(feedback))));
         RequireRegistration(registrar.Register(new ChemistryDebugModule(() => Owner(chemistry),
             () => { System.Numerics.Vector3 at = Owner(player).WorldPosition; return (at.X, at.Z); }, () => Owner(casting))));
@@ -472,6 +474,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return ProductUpdateResult.None;
         }
         ProductStep step = ProductStep.From(update.Facts);
+        walkingUpdates.Begin();
 
         // The waves move on first (#9902), so the boat and a swimmer ride, and the water draws, one sea this update.
         WeatherLook wind = sky.Look;
@@ -497,8 +500,12 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         creatureStyle.Advance(update.Facts.HostElapsedSeconds);
         PublishSled();
         PublishAppearanceSnapshot();
+        walkingUpdates.End(step.Step);
         return ProductUpdateResult.None;
     }
+
+    /// <summary>How long the walking updates take (#10889), for the readout.</summary>
+    private readonly UpdateTimes walkingUpdates = new();
 
     public void Pause()
     {

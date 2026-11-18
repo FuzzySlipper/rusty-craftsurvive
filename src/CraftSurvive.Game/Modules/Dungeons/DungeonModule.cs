@@ -27,7 +27,7 @@ internal enum DungeonState
 /// Leaving from its way out - or being carried out by a defeat - returns the player to the entrance
 /// and releases the space. Open-world owners (creatures, discovery) wait while the player is inside.
 /// </summary>
-internal sealed class DungeonModule : IProductModule
+internal sealed partial class DungeonModule : IProductModule
 {
     /// <summary>How close to a dungeon entrance's centre the player must stand to enter.</summary>
     internal const double EnterReachMetres = 10d;
@@ -156,20 +156,20 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>How many requests to enter or leave were refused, so a caller can tell a refusal from its answer.</summary>
     internal long Refused => refused;
 
-    public void Start() => Publish();
+    public void Start()
+    {
+        // The cave kit's stone shader is opened with the world, behind its loading, not when the first cave is dressed (#10889).
+        _ = StoneShader;
+        Publish();
+    }
 
     public void Update(ProductStep step)
     {
-        if (stream is StreamedCave streaming)
-        {
-            streaming.Update(player.WorldFeetPosition - DungeonCollision.Origin);
-            CarryLantern();
-            return;
-        }
-
         switch (state)
         {
             case DungeonState.Outside:
+                // The caves under the world's cave mouths (#10889): no state of their own, the player never leaves the open world.
+                FollowCaves(step);
                 CarryLantern();
                 if (step.Step >= nextSearchStep)
                 {
@@ -220,12 +220,7 @@ internal sealed class DungeonModule : IProductModule
                     RelicLights(loading.Layout.Relics);
                     Mist(loading.Layout.Mist);
                     player.SeparateWater = StillWater(loading.Layout.WaterZones);
-                    // A streamed space's probes follow the player (or are left off); a whole space's cover it all.
-                    streamProbeCentre = null;
-                    if (streamRadius == 0 || streamProbes == StreamProbes.Whole)
-                    {
-                        IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
-                    }
+                    IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
                     state = DungeonState.Inside;
                     entered++;
                     last = string.Create(CultureInfo.InvariantCulture,
@@ -234,8 +229,6 @@ internal sealed class DungeonModule : IProductModule
 
                 break;
             case DungeonState.Inside:
-                space?.Stream(player.WorldFeetPosition - DungeonCollision.Origin);
-                FollowProbes();
                 if (!player.InSeparateSpace)
                 {
                     // A defeat or a teleport took the player out: the dungeon is let go.
@@ -269,6 +262,7 @@ internal sealed class DungeonModule : IProductModule
     /// </summary>
     public void Dispose()
     {
+        DisposeCaves();
         if (space is not null)
         {
             player.ReturnFromSeparateSpace();
@@ -295,6 +289,7 @@ internal sealed class DungeonModule : IProductModule
         lantern?.Dispose();
         lantern = null;
         lanternLit = false;
+        DisposeStoneShader();
     }
 
     /// <summary>Starts loading the dungeon behind the entrance the player stands at.</summary>
@@ -359,7 +354,7 @@ internal sealed class DungeonModule : IProductModule
     private string Load(int index)
     {
         (string key, Func<DungeonCandidate> generate) = Candidate(entranceSeed, caveSetting, index);
-        bool ready = Generator.Finished(key) is not null;
+        bool ready = Generator.Finished<DungeonCandidate>(key) is not null;
         Generator.Request(key, generate);
         tour = null;
         candidateIndex = index;
@@ -376,7 +371,7 @@ internal sealed class DungeonModule : IProductModule
         DungeonCandidate? candidate;
         try
         {
-            candidate = Generator.Finished(awaiting!);
+            candidate = Generator.Finished<DungeonCandidate>(awaiting!);
         }
         catch (Exception failure) when (failure is not OutOfMemoryException)
         {
@@ -407,7 +402,7 @@ internal sealed class DungeonModule : IProductModule
                     candidate.Layout.Rock is null ? null : surface == DungeonSurface.Cubes ? RockMaterial() : terrain.CaveRockMaterial, surface)
                 : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface,
                     candidate.AllVoxels.Natural ? CaveLayers(candidate.AllVoxels.VoxelSize, candidate.Layout.Kit.Count > 0) : PlainRock(candidate.Layout.Kit.Count > 0), caveLayers: candidate.AllVoxels.Natural,
-                    kitPaint: kitPaint, kitLook: kitLook, streamRadius: streamRadius);
+                    kitPaint: kitPaint, kitLook: kitLook);
         }
         catch (EngineCallException refusal)
         {
@@ -450,7 +445,7 @@ internal sealed class DungeonModule : IProductModule
         // A natural study space (#10090, #10094) is entered unchecked: its passages are for looking, and are checked by other
         // means; but a ruin fitted into it (#10097) is walked from the cave at its mouth into it, to its loot and back (when
         // the space loads whole: streamed, the ruin may not be resident yet).
-        if (loaded.Layout.Natural && (loaded.Layout.RuinMouth is null || loaded.StreamRadius > 0))
+        if (loaded.Layout.Natural && loaded.Layout.RuinMouth is null)
         {
             routes = null;
             return true;
@@ -497,7 +492,7 @@ internal sealed class DungeonModule : IProductModule
     private static Vector3 NaturalExtent(DungeonLayout layout) => new Vector3(layout.Volume.SizeX, layout.Volume.SizeY, layout.Volume.SizeZ) * (float)layout.VoxelSize;
 
     /// <summary>What the loaded dungeon adds to the appearance snapshot: a sculpted dungeon's rock.</summary>
-    internal IEnumerable<AppearanceFact> AppearanceFacts => space?.AppearanceFacts(player.WorldEyePosition) ?? [];
+    internal IEnumerable<AppearanceFact> AppearanceFacts => [.. space?.AppearanceFacts(player.WorldEyePosition) ?? [], .. CaveFacts()];
 
     /// <summary>
     /// Called by the product root once it has published a snapshot: a closed dungeon's appearance is
@@ -507,6 +502,8 @@ internal sealed class DungeonModule : IProductModule
     {
         retiring?.Dispose();
         retiring = null;
+        retiringDressing?.Dispose();
+        retiringDressing = null;
     }
 
     /// <summary>Makes every dungeon entered use a chosen seed (the bank's seeds), or clears that with "entrance".</summary>
@@ -547,12 +544,14 @@ internal sealed class DungeonModule : IProductModule
     private bool lanternOut;
 
     /// <summary>Lights the kit's relics (none for a space without a kit), switching off the slots it does not need.</summary>
-    private void RelicLights(IReadOnlyList<Vector3> relics)
+    /// <param name="place">Where a point of the cave's own frame stands in the session the player is in; a separate space's by default.</param>
+    private void RelicLights(IReadOnlyList<Vector3> relics, Func<Vector3, Vector3>? place = null)
     {
+        place ??= DungeonSpace.InSession;
         for (int slot = 0; slot < MostRelicLights; slot++)
         {
             bool on = slot < relics.Count;
-            Vector3 at = on ? DungeonSpace.InSession(relics[slot]) : Vector3.Zero;
+            Vector3 at = on ? place(relics[slot]) : Vector3.Zero;
             LightRequest request = new(ProductIds.DungeonRelicLightBase + (ulong)slot, false, 0UL,
                 new LightDescriptor(LightKind.Point, RelicColour, on ? RelicIntensity * relicLightScale : 0f, on && relicLightScale > 0f, at, -Vector3.UnitY, true, RelicRange, LightDecay, 0f, 0f,
                     LightShadowIntent.Requested, LightShadowResolution, LightShadowPriority, true));
@@ -572,8 +571,10 @@ internal sealed class DungeonModule : IProductModule
     /// thing is that thing's. A great hall's vault blooms (shadowed: the hall's sun) and giant fungi first, then glow-worm
     /// curtains and fungi (the cave's life), then crystals.
     /// </summary>
-    private void GrowthLights(IReadOnlyList<EcologyPlacement> growths)
+    /// <param name="place">Where a point of the cave's own frame stands in the session the player is in; a separate space's by default.</param>
+    private void GrowthLights(IReadOnlyList<EcologyPlacement> growths, Func<Vector3, Vector3>? place = null)
     {
+        place ??= DungeonSpace.InSession;
         EcologyPlacement[] lit = [.. growths.Where(g => CaveEcology.GivesLight(g.Kind)).OrderBy(g => g.Kind switch
             {
                 EcologyKind.VaultBloom => 0,
@@ -596,7 +597,7 @@ internal sealed class DungeonModule : IProductModule
                 intensity *= lit[slot].Size;
                 range *= lit[slot].Size;
             }
-            Vector3 at = on ? DungeonSpace.InSession(CaveEcology.LightAt(lit[slot], GrowthLightOffset)) : Vector3.Zero;
+            Vector3 at = on ? place(CaveEcology.LightAt(lit[slot], GrowthLightOffset)) : Vector3.Zero;
             LightShadowIntent shadow = on && CaveEcology.Shadowed(lit[slot].Kind) ? LightShadowIntent.Requested : LightShadowIntent.Disabled;
             LightRequest request = new(ProductIds.DungeonGrowthLightBase + (ulong)slot, false, 0UL,
                 new LightDescriptor(LightKind.Point, colour, intensity, on, at, -Vector3.UnitY, true, range, LightDecay, 0f, 0f,
@@ -741,7 +742,7 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>Keeps the lantern at the player while inside with a lantern treatment, and puts it out once otherwise.</summary>
     private void CarryLantern()
     {
-        bool on = Darkness.Lantern && !lanternOut && (state == DungeonState.Inside || stream is not null);
+        bool on = Darkness.Lantern && !lanternOut && (state == DungeonState.Inside || CaveLanternWanted);
         if (!on && !lanternLit)
         {
             return;
@@ -749,8 +750,12 @@ internal sealed class DungeonModule : IProductModule
 
         lanternLit = on;
 
+        // In a separate space its local frame is the world's; in the walking session (a cave under the world, #10889) the
+        // world's origin may have moved, so the lantern hangs in its local frame.
+        Vector3 eye = player.InSeparateSpace ? player.WorldEyePosition
+            : terrain.Frame.ToLocal(player.WorldEyePosition.X, player.WorldEyePosition.Y, player.WorldEyePosition.Z);
         LightRequest request = new(ProductIds.DungeonLanternLight, false, 0UL,
-            new LightDescriptor(LightKind.Point, LanternColour, LanternIntensity, on, on ? player.WorldEyePosition + LanternBelowEye : Vector3.Zero,
+            new LightDescriptor(LightKind.Point, LanternColour, LanternIntensity, on, on ? eye + LanternBelowEye : Vector3.Zero,
                 -Vector3.UnitY, true, LanternRange, LightDecay, 0f, 0f, LightShadowIntent.Requested, LightShadowResolution, LightShadowPriority, true));
         if (lantern is Light held)
         {
@@ -763,14 +768,14 @@ internal sealed class DungeonModule : IProductModule
     }
 
     /// <summary>The cave detail study (#10094): the shader the voxel rock is drawn through, its parameters, and the materials made for it.</summary>
-    private const string RockDetailShaderPath = "shaders/cave-rock-detail.wgsl";
+    internal const string RockDetailShaderPath = "shaders/cave-rock-detail.wgsl";
     /// <summary>
     /// Dungeon rock's default look (owner, 2026-10-19): 3D pixels - facets 6 cm across leaning half a unit in two steps,
     /// each one flat colour of the cave palette, growing with distance so they stay a few screen pixels across, leaning
     /// partly with their neighbours.
     /// </summary>
-    private static readonly Vector4 DefaultRockDetail = new(0f, 3f, 0.06f, 0.5f);
-    private static readonly Vector4 DefaultRockPixels = new(0.06f, 2f, 2f, 0.6f);
+    internal static readonly Vector4 DefaultRockDetail = new(0f, 3f, 0.06f, 0.5f);
+    internal static readonly Vector4 DefaultRockPixels = new(0.06f, 2f, 2f, 0.6f);
     private Vector4? rockDetail = DefaultRockDetail;
     private RenderResource? rockDetailShader;
     private readonly Dictionary<(Vector4 Detail, bool Palette, Vector4 Pixels, Vector4 Glint), Material> rockDetailMaterials = [];
@@ -821,7 +826,7 @@ internal sealed class DungeonModule : IProductModule
     }
 
     /// <summary>The cave shader's colouring mode for the layered materials: the blended maps' colour under the strata.</summary>
-    private const float LayeredColouring = 2f;
+    internal const float LayeredColouring = 2f;
 
     /// <summary>Colours the next dungeon's voxel rock from the cave's own palette (strata, mottling, wet floors) instead of the painted texture.</summary>
     internal string StudyRockPalette(bool palette)
@@ -1002,62 +1007,6 @@ internal sealed class DungeonModule : IProductModule
         return $"karst caves entered next: {KarstCave.StudyIvoryHeaths} ivory heaths";
     }
 
-    // The streamed underworld prototype (#10304): an endless cave streamed about the player, for measuring.
-    private StreamedCave? stream;
-
-    // The streamed cave prototype (#10304): the next spaces streamed within this many chunks of the player (0: loaded whole).
-    private int streamRadius;
-
-    // Prototype knob (#10304): a streamed space's indirect light - a probe volume over it all (rebaked wherever rock
-    // streams in or out), one following the player within the streamed rock, or none.
-    private enum StreamProbes { Follow, Whole, Off }
-
-    private StreamProbes streamProbes = StreamProbes.Follow;
-    private Vector3? streamProbeCentre;
-
-    internal string StudyStreamProbes(string mode)
-    {
-        streamProbes = mode switch
-        {
-            "whole" => StreamProbes.Whole,
-            "off" => StreamProbes.Off,
-            _ => StreamProbes.Follow,
-        };
-        return $"streamed dungeons' probes: {streamProbes}";
-    }
-
-    /// <summary>
-    /// Keeps a streamed space's probe volume about the player, a chunk short of the streamed rock on every side, so rock
-    /// streaming in or out at the edge does not rebake it; it moves once the player is a chunk from its centre.
-    /// </summary>
-    private void FollowProbes()
-    {
-        if (space is not DungeonSpace current || current.StreamRadius == 0 || streamProbes != StreamProbes.Follow)
-        {
-            return;
-        }
-
-        float chunk = (float)(TerrainConstants.ChunkEdgeLength * current.Layout.VoxelSize);
-        Vector3 here = player.WorldFeetPosition;
-        if (streamProbeCentre is Vector3 centre && Vector3.Distance(centre, here) < chunk)
-        {
-            return;
-        }
-
-        Vector3 extent = new Vector3(current.StreamRadius - 1, DungeonSpace.StreamRadiusUp - 1, current.StreamRadius - 1) * chunk;
-        float spacing = ProbeSpacingMetres;
-        while (Probes(extent, spacing) > MostProbes)
-        {
-            spacing += ProbeSpacingStep;
-        }
-
-        ProbeSpacing = spacing;
-        engine.CameraView.SetIndirectLight(new IndirectLightRequest(here, extent, spacing, ProbeBounces, IndirectAmbient.Floor));
-        streamProbeCentre = here;
-        probeMoves++;
-    }
-
-    private int probeMoves;
     private string lastGenerate = "";
 
     // The tour (#10304 prototype): a route from the arrival to the farthest place reachable, walked a few metres a call.
@@ -1127,85 +1076,8 @@ internal sealed class DungeonModule : IProductModule
         return string.Create(CultureInfo.InvariantCulture, $"tour {tourAt}/{tour.Count - 1} at {at.X * size:F0},{at.Y * size:F0},{at.Z * size:F0}");
     }
 
-    internal string StudyStreamRadius(int radius)
-    {
-        streamRadius = Math.Max(0, radius);
-        return streamRadius == 0 ? "the next dungeons load whole" : $"the next dungeons stream within {streamRadius} chunks of the player";
-    }
-
-    internal static string StudyStreamHandOff(double seconds)
-    {
-        DungeonSpace.StreamHandOffSeconds = Math.Max(0, seconds);
-        return DungeonSpace.StreamHandOffSeconds == 0 ? "streamed chunks are handed over every update" : $"streamed chunks are handed over at most every {DungeonSpace.StreamHandOffSeconds:0.###} s";
-    }
-
-    internal string StudyStreamReset()
-    {
-        space?.ResetStreamMeasures();
-        probeMoves = 0;
-        return "stream measures cleared";
-    }
-
-    internal string StreamedReadout() => space is DungeonSpace current
-        ? $"{lastGenerate} {current.StreamReadout()} probes={streamProbes} moves={probeMoves} spacing={ProbeSpacing:0.#}m"
-        : $"{lastGenerate} no dungeon is loaded";
-
-    internal string StudyStream(string action, int radius, int budget)
-    {
-        switch (action)
-        {
-            case "start" when stream is null && state == DungeonState.Outside && !player.InSeparateSpace:
-                long started = System.Diagnostics.Stopwatch.GetTimestamp();
-                stream = new StreamedCave(engine, terrain, PlainRock(), surface, 1UL, radius, 2, budget);
-                // The first fill is the load: the chunks within the radius all at once.
-                stream.Update(stream.Arrival, all: true);
-                double loadMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-                player.EnterSeparateSpace(stream.Session, DungeonCollision.InSession(stream.Arrival));
-                terrain.DrawOpenWorld(false);
-                sky.Underground(true, conditions.Time, false, false, mist: false);
-                string first = stream.Readout();
-                stream.ResetMeasures();
-                return string.Create(CultureInfo.InvariantCulture, $"streamed cave entered at {stream.Arrival} after {loadMs:F0} ms; {first}");
-            case "stop" when stream is not null:
-                player.ReturnFromSeparateSpace();
-                terrain.DrawOpenWorld(true);
-                sky.Underground(false, conditions.Time, false, false, mist: false);
-                stream.Dispose();
-                stream = null;
-                CarryLantern();
-                return "streamed cave left";
-            case "readout" when stream is not null:
-                return stream.Readout();
-            default:
-                return "usage: start <radius chunks> <budget chunks/update> | readout | stop (start only from the open world)";
-        }
-    }
-
-    /// <summary>
-    /// Puts the player at a place in the space (layout metres) and streams toward it at once, so the chunks round them are
-    /// handed over synchronously - deferred ones there still installing among them - and live before the next step (R10332-1).
-    /// </summary>
-    private void PlaceInSpace(Vector3 layoutPoint)
-    {
-        player.MoveWithinSeparateSpace(DungeonSpace.InSession(layoutPoint));
-        space?.Stream(layoutPoint);
-    }
-
-    /// <summary>The streamed prototype: moves the player this far across, onto the nearest standing place there.</summary>
-    internal string StudyStreamWalk(float dx, float dz)
-    {
-        if (stream is null)
-        {
-            return "no streamed cave";
-        }
-
-        Vector3 at = player.WorldFeetPosition - DungeonCollision.Origin;
-        Vector3 to = stream.FindStanding(new Vector3(at.X + dx, at.Y + 2f, at.Z + dz));
-        player.MoveWithinSeparateSpace(DungeonCollision.InSession(to));
-        // Its chunks round the player streamed in and live before the next step (R10332-1).
-        stream.Update(to);
-        return string.Create(CultureInfo.InvariantCulture, $"at {to.X:F0},{to.Y:F0},{to.Z:F0}");
-    }
+    /// <summary>Puts the player at a place in the space (layout metres).</summary>
+    private void PlaceInSpace(Vector3 layoutPoint) => player.MoveWithinSeparateSpace(DungeonSpace.InSession(layoutPoint));
 
     internal string StudyCentrepiece(string choice)
     {

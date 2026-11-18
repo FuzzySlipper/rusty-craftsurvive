@@ -77,9 +77,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// network's water stands at an open lake's own level over its bed and its outflow cuts the sill to it, region
     /// tiles raise their ground to the floors the network filled and hold a small stream's ground as far out as a
     /// large river's, and local relief stays off a river's bank; version 41 leaves frozen ground no soil (#10629): too
-    /// steep for snow, it is bare stone.
+    /// steep for snow, it is bare stone; version 42 carves each cave mouth's tendril down into its hill, smooth-walled, to
+    /// the way in of the cave under it, and reads a cave generated there into the overworld's own chunks (#10889).
     /// </summary>
-    internal const uint CurrentVersion = 41;
+    internal const uint CurrentVersion = 42;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

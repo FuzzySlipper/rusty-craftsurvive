@@ -107,12 +107,17 @@ dungeons and the world map from the HUD's actions. A command that does one of th
 `craft.blast.fire`, `craft.world.difficulty`, `craft.world.view`) is a scripted stand-in for that path. The rest
 are for the lane:
 - reading an owner's state (each family's `readout`, `craft.terrain.*`, `craft.runtime`,
-  `craft.save.manifest`, `craft.discovery.near`/`find`/`crossings`, `craft.feedback.readout`);
+  `craft.save.manifest`, `craft.discovery.near`/`find`/`crossings`, `craft.feedback.readout`,
+  `craft.cave.readout`: the caves under the world's cave mouths, how deep the player is and what
+  is resident, cave and overworld);
 - setting up a live check (`craft.player.teleport`/`strike`, `craft.survival.set`,
   `craft.world.hour`, `craft.inventory.grant`, `craft.creatures.restart`,
-  `craft.dungeon.visit`, `craft.feedback.cue`, `craft.build.dig`);
+  `craft.dungeon.visit`, `craft.feedback.cue`, `craft.build.dig`, `craft.cave.goto` then
+  `craft.cave.walk <metres>`: outside the nearest cave mouth, then on down its tendril and the
+  cave's main route as a walk would go, negative back out);
 - comparing generators and measuring costs (`craft.dungeon.approach`/`surface`/`seed`/
-  `validate`/`blast`, `craft.creatures.navigation`, `craft.terrain.timing`).
+  `validate`/`blast`, `craft.creatures.navigation`, `craft.terrain.timing`, `craft.updates`
+  `[reset]`: the walking updates' median, p99, worst and how many went over a 60 Hz frame).
 
 A command earns its place by serving one of these; one whose experiment has ended is retired
 with it.

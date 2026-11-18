@@ -581,6 +581,47 @@ internal sealed class DayNightSky : IDisposable
     /// with no fill and no sky light, so only what the opening lets in is lit.</param>
     /// <param name="hallHaze">Underground in a great hall (#10094): thin air carrying a faint haze of the hall's own lights, so its far lights and walls stay in view.</param>
     /// <param name="mist">Underground where mist lies (a sump's, #10094): the volumetric fog is on to draw it, with no haze of its own.</param>
+    /// <summary>
+    /// How much of the day reaches the player going down a cave under the world (#10889): 1 in the open, falling with depth
+    /// to 0 deep in, where the sky is the underground's. The sun, the sky's light and the fill fade with it rather than
+    /// switching; at 0 it goes underground, and back above 0 it comes up again. A dungeon's separate space sets
+    /// <see cref="Underground"/> itself and is left alone here.
+    /// </summary>
+    internal void Below(double share, WorldTime time)
+    {
+        if (disposed || onMap)
+        {
+            return;
+        }
+
+        float next = (float)Math.Clamp(share, 0d, 1d);
+        bool deep = next <= 0f;
+        if (deep == underground && Math.Abs(next - caveShare) < CaveShareStep && (next == caveShare || (next > 0f && next < 1f)))
+        {
+            return;
+        }
+
+        caveShare = next;
+        if (deep != underground)
+        {
+            Underground(deep, time);
+            return;
+        }
+
+        // The same lights again, at the new share.
+        litDaylight = double.NaN;
+        Show(time);
+    }
+
+    /// <summary>The share of the day reaching the player in a cave under the world, 1 in the open (#10889).</summary>
+    private float caveShare = 1f;
+
+    /// <summary>How far the share changes before the sky's lights are set again.</summary>
+    private const float CaveShareStep = 0.04f;
+
+    /// <summary>The share of the day reaching the player in a cave under the world (1 in the open).</summary>
+    internal float CaveShare => caveShare;
+
     internal void Underground(bool below, WorldTime time, bool skyOpen = false, bool hallHaze = false, bool mist = false)
     {
         if (disposed)
@@ -929,12 +970,16 @@ internal sealed class DayNightSky : IDisposable
         skyShadowAround = skyCentre;
         LightDescriptor sunlight = Sunlight(time.DayFraction);
         float moonShare = Moon.Share(time) * (1f - (CloudMoonDim * weather.Cloud));
+        // Going down a cave (#10889) every light from the sky fades with the share of the day that reaches the player.
+        LightDescriptor skyShadowLight = SkyShadow(daylight, skyCentre), fillLight = Fill(time.DayFraction, daylight, moonShare),
+            moonLight = Moonlight(time, moonShare, sunOff: !sunlight.Enabled);
         Relight(
-            sunlight with { Intensity = sunlight.Intensity * (1f - (CloudSunDim * weather.Cloud)) },
-            SkyShadow(daylight, skyCentre),
-            Fill(time.DayFraction, daylight, moonShare),
-            Moonlight(time, moonShare, sunOff: !sunlight.Enabled));
-        Eyes(1f - (float)daylight);
+            sunlight with { Intensity = sunlight.Intensity * (1f - (CloudSunDim * weather.Cloud)) * caveShare },
+            skyShadowLight with { Intensity = skyShadowLight.Intensity * caveShare },
+            fillLight with { Intensity = fillLight.Intensity * caveShare },
+            moonLight with { Intensity = moonLight.Intensity * caveShare });
+        // The eyes adapt to the light that reaches them: going down a cave as they do at nightfall (#10889).
+        Eyes(1f - ((float)daylight * caveShare));
         if (Math.Abs(gradeNight - (1f - (float)daylight)) > RelightStep)
         {
             gradeNight = 1f - (float)daylight;
@@ -1104,7 +1149,7 @@ internal sealed class DayNightSky : IDisposable
         float low = (float)TwilightGlow(elevation) * spectacle;
         Vector3 haze = Vector3.Lerp(DayHazeColour, DuskHazeColour, warmth) * ((float)daylight + (LowSunHaze * low)) * (1f - w.Cloud);
         float nightSkyLight = NightSkyLightIntensity * (1f + (MoonSkyLight * moonShare));
-        engine.CameraView.SetSkyLight(new SkyLightRequest((float)(nightSkyLight + ((DaySkyLightIntensity - nightSkyLight) * daylight)) * (1f - (CloudSkyLightDim * w.Cloud))));
+        engine.CameraView.SetSkyLight(new SkyLightRequest((float)(nightSkyLight + ((DaySkyLightIntensity - nightSkyLight) * daylight)) * (1f - (CloudSkyLightDim * w.Cloud)) * caveShare));
         Vector3 hazeColour = new(haze.X, haze.Y, haze.Z);
         float hazeExponent = HazeExponent + ((LowSunHazeExponent - HazeExponent) * low);
         // The sky's sun is always the real sun, so the moon's lit limb faces it; by night it shows no disc.

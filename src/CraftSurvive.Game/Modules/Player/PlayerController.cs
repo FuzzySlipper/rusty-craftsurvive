@@ -389,6 +389,15 @@ internal sealed class PlayerController : IDisposable
         PublishRuntimeComponent();
     }
 
+    /// <summary>Assisted, for captures (#10889): faces a heading and pitch outright (radians; yaw 0 looks toward -z, a quarter turn toward +x).</summary>
+    internal void LookTo(double yawRadians, double pitchRadians)
+    {
+        EnsureStarted();
+        look = new LookState((float)yawRadians, (float)pitchRadians);
+        camera.Publish(EyePosition(), look, cameraSampleTimeSeconds, updateCount);
+        PublishRuntimeComponent();
+    }
+
     /// <summary>Whether the player's head is under water, as the last controller step found it.</summary>
     internal bool HeadSubmerged => headSubmerged;
 
@@ -424,6 +433,18 @@ internal sealed class PlayerController : IDisposable
     /// place in the session, the water's surface and bed there, or null.
     /// </summary>
     internal Func<Vector3, (float Surface, float Bed)?>? SeparateWater { get; set; }
+
+    /// <summary>
+    /// A cave's still water in the open world's own session (a cave under the world, #10889), set by its owner while the
+    /// cave is dressed: for a place in the walking session, its lake's or pool's surface and bed there, or null.
+    /// </summary>
+    internal Func<Vector3, (float Surface, float Bed)?>? CaveWater { get; set; }
+
+    /// <summary>
+    /// Makes the world under a saved position ready before the session continues there (#10889: a cave under the world is
+    /// generated and admitted, so a session that ended in one resumes in it rather than in rock). Given world feet metres.
+    /// </summary>
+    internal Action<Vector3>? PrepareUnderground { get; set; }
 
     /// <summary>Whether the player is in a separate space (a dungeon) rather than the open world.</summary>
     internal bool InSeparateSpace => away is not null;
@@ -523,6 +544,24 @@ internal sealed class PlayerController : IDisposable
         // A teleport is in the open world: a player in a separate space is brought out first.
         away = null;
         Place(place);
+        return entityWorld.Get(playerEntity, RuntimeComponent);
+    }
+
+    /// <summary>
+    /// Moves the live player exactly where asked if a standing body fits there, and nowhere otherwise (no fall back to the
+    /// column's ground): for walks through caves under the world (#10889), whose ground far above is not where they are.
+    /// </summary>
+    internal PlayerRuntimeComponent? TeleportExact(double x, double y, double z)
+    {
+        EnsureStarted();
+        if (away is not null) return null;
+        PlayerWorldPosition asked = PlayerWorldPosition.FromWorld(x, y, z);
+        if (!Fits(asked))
+        {
+            return null;
+        }
+
+        Place(asked);
         return entityWorld.Get(playerEntity, RuntimeComponent);
     }
 
@@ -766,7 +805,7 @@ internal sealed class PlayerController : IDisposable
         // feet dip below the water's rest level while the hull still carries them.
         CharacterMovementRequest movement;
         if (!aboard && water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out movement, away is null ? terrain.Water : null, terrain.WaveLift,
-            away is null ? null : SeparateWater))
+            away is null ? CaveWater : SeparateWater))
         {
             // A river's current carries the swimmer and, as it takes hold, weakens their stroke to their own (#9879).
             Vector2? current = water.LastSample is Water.WaterSample here ? new((float)here.CurrentX, (float)here.CurrentZ) : null;
@@ -852,6 +891,8 @@ internal sealed class PlayerController : IDisposable
         }
 
         Vitals.Restore(saved.Health, saved.Defeats);
+        // A session that ended in a cave under the world resumes there (#10889): its cave is made ready first.
+        PrepareUnderground?.Invoke(new Vector3((float)saved.FeetX, (float)saved.FeetY, (float)saved.FeetZ));
         PlayerWorldPosition standing = StandingAt(saved.FeetX, saved.FeetY, saved.FeetZ);
         if (!Fits(standing))
         {

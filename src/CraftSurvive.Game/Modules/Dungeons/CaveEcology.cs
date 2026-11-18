@@ -123,11 +123,12 @@ internal static class CaveEcology
         List<Material> materials, Dictionary<EcologyKind, (Material Plain, Material Glowing)>? shared = null)
     {
         List<MeshResourceCreateRequest> meshes = [];
+        // The growths' shapes, built off the update when the cave was generated (#10889), or here.
+        Dictionary<EcologyKind, (Builder Plain, Builder Glow, Builder Top)> shapes =
+            Shaped.TryGetValue(growths, out Prepared? prepared) && prepared.Origin == origin ? prepared.Parts : Shapes(growths, origin);
         foreach (EcologyKind kind in Enum.GetValues<EcologyKind>())
         {
-            EcologyPlacement[] these = [.. growths.Where(g => g.Kind == kind)];
-            // A luminous pool's glowing thing is its water (CaveWaterSurfaces), a grove crown's its hanger's painted tips: each has a light here, no mesh.
-            if (these.Length == 0 || kind is EcologyKind.LuminousPool or EcologyKind.GroveCrown or EcologyKind.SteppeGlow)
+            if (!shapes.TryGetValue(kind, out (Builder Plain, Builder Glow, Builder Top) shape))
             {
                 continue;
             }
@@ -165,6 +166,42 @@ internal static class CaveEcology
                     shared[kind] = (plain, glowing);
                 }
             }
+            (Builder plainPart, Builder glowPart, Builder topPart) = shape;
+            List<(Builder, Material)> parts = [(plainPart, plain), (glowPart, glowing)];
+            if (topPart.Indices.Count > 0)
+            {
+                Material top = engine.Graphics.CreateMaterial(new MaterialRequest(GiantCapTop, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
+                materials.Add(top);
+                parts.Add((topPart, top));
+            }
+
+            meshes.Add(Merge(parts));
+        }
+
+        return meshes;
+    }
+
+    private sealed record Prepared(Vector3 Origin, Dictionary<EcologyKind, (Builder Plain, Builder Glow, Builder Top)> Parts);
+
+    // The shapes built ahead for a cave's growths, kept with its list of placements while it lives.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IReadOnlyList<EcologyPlacement>, Prepared> Shaped = new();
+
+    /// <summary>Builds a cave's growths' shapes off the update (#10889), so making their meshes later is quick.</summary>
+    internal static void Prepare(IReadOnlyList<EcologyPlacement> growths, Vector3 origin) => Shaped.AddOrUpdate(growths, new Prepared(origin, Shapes(growths, origin)));
+
+    /// <summary>Each kind's shapes: a plain part, a glowing part and a giant fungus's cap tops. Pure.</summary>
+    private static Dictionary<EcologyKind, (Builder Plain, Builder Glow, Builder Top)> Shapes(IReadOnlyList<EcologyPlacement> growths, Vector3 origin)
+    {
+        Dictionary<EcologyKind, (Builder Plain, Builder Glow, Builder Top)> shapes = [];
+        foreach (EcologyKind kind in Enum.GetValues<EcologyKind>())
+        {
+            EcologyPlacement[] these = [.. growths.Where(g => g.Kind == kind)];
+            // A luminous pool's glowing thing is its water (CaveWaterSurfaces), a grove crown's its hanger's painted tips: each has a light here, no mesh.
+            if (these.Length == 0 || kind is EcologyKind.LuminousPool or EcologyKind.GroveCrown or EcologyKind.SteppeGlow)
+            {
+                continue;
+            }
+
             Builder plainPart = new(), glowPart = new(), topPart = new();
             foreach (EcologyPlacement growth in these)
             {
@@ -196,18 +233,10 @@ internal static class CaveEcology
                 }
             }
 
-            List<(Builder, Material)> parts = [(plainPart, plain), (glowPart, glowing)];
-            if (topPart.Indices.Count > 0)
-            {
-                Material top = engine.Graphics.CreateMaterial(new MaterialRequest(GiantCapTop, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
-                materials.Add(top);
-                parts.Add((topPart, top));
-            }
-
-            meshes.Add(Merge(parts));
+            shapes[kind] = (plainPart, glowPart, topPart);
         }
 
-        return meshes;
+        return shapes;
     }
 
     /// <summary>A vent seep: low glowing welts where the warm water wells up, sunk a little into the floor.</summary>

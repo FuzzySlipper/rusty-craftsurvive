@@ -19,6 +19,13 @@ internal sealed class TerrainPresentation : IDisposable
     /// <summary>The cave's ground materials (#10095), one set per voxel size (a map's repeat is counted in voxels), made when first asked for.</summary>
     private readonly Dictionary<double, TerrainGroundMaterials> caveGrounds = [];
 
+    // The walking session's blended ground (#10889): one terrain-layer material over the overworld's layers and the cave's,
+    // drawn plainly for the overworld's ground and through the cave shader for the cave's; the cave's unblended coats; the
+    // shader they share. Made with the first projection.
+    private Material? walkingLayered, caveLayered;
+    private readonly Dictionary<BlockId, Material> caveCoats = [];
+    private RenderResource? caveShader;
+
     /// <summary>Authored content is admitted at product create, so every later projection can bind it.</summary>
     internal TerrainPresentation(IEngineContext engine, ProductContent content, SurfaceMoss? moss = null)
     {
@@ -57,9 +64,10 @@ internal sealed class TerrainPresentation : IDisposable
 
     internal void Project(SpatialSession session)
     {
+        BuildWalkingGround();
         projection = engine.VoxelScenePresentation.ProjectSceneDirectional(new ProjectVoxelSceneDirectionalRequest(
             session,
-            MaterialBindings(),
+            WalkingBindings(),
             FaceMaterialBindings()));
         engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(projection, CoarseBeyondMetres));
         scatter?.Grow(projection);
@@ -134,16 +142,8 @@ internal sealed class TerrainPresentation : IDisposable
         (ground ?? throw new InvalidOperationException("Terrain ground materials are unavailable.")).PlainWithShader(CaveRockName, shader);
 
     /// <summary>The cave's materials blended as terrain layers and drawn through a product shader (#10095); disposed with the set.</summary>
-    internal Material CaveLayersWithShader(MaterialShader shader, double voxelSize)
-    {
-        if (!caveGrounds.TryGetValue(voxelSize, out TerrainGroundMaterials? set))
-        {
-            set = new TerrainGroundMaterials(engine, content, voxelSize, GroundTextureSet.Cave);
-            caveGrounds[voxelSize] = set;
-        }
-
-        return set.LayeredWithShader(GroundTextureSet.Cave.LayerNames, shader);
-    }
+    internal Material CaveLayersWithShader(MaterialShader shader, double voxelSize) =>
+        CaveGround(voxelSize).LayeredWithShader(GroundTextureSet.Cave.LayerNames, shader);
 
     /// <summary>Names a separate space's rock blocks as the cave's terrain layers, so where they meet they blend (#10095).</summary>
     internal void ConfigureCaveLayers(SpatialSession session)
@@ -190,32 +190,83 @@ internal sealed class TerrainPresentation : IDisposable
 
     public void Dispose()
     {
+        // The projection lets go of the appearances its scatters grow first, and of the materials it binds.
+        projection?.Dispose();
+        projection = null;
+        walkingLayered?.Dispose();
+        walkingLayered = null;
+        caveLayered?.Dispose();
+        caveLayered = null;
+        caveCoats.Clear();
         foreach (TerrainGroundMaterials set in caveGrounds.Values)
         {
             set.Dispose();
         }
 
         caveGrounds.Clear();
-        // The projection lets go of the appearances its scatters grow first.
-        projection?.Dispose();
-        projection = null;
         scatter?.Dispose();
         scatter = null;
         ground?.Dispose();
         ground = null;
         atlas?.Dispose();
         atlas = null;
+        // Last: the materials drawn through it (the cave's coats, the walking cave material's base) are gone now.
+        caveShader?.Dispose();
+        caveShader = null;
     }
 
     private TerrainAtlasCatalog Atlas => atlas ?? throw new InvalidOperationException("Terrain atlas catalog is unavailable.");
 
     /// <summary>
-    /// One binding per registered block. The registry is the block floor and the atlas catalog is
-    /// its material closure, so a block exists in the world only once both agree.
+    /// The walking session's ground materials (#10889): every layer the session blends (the overworld's ground, then the
+    /// cave's), once plainly and once through the cave shader with its default look, and the cave's unblended coats. A
+    /// layer's map keeps its own tiling; the base gives the rest.
     /// </summary>
-    private ReadOnlyMemory<VoxelSceneMaterialBinding> MaterialBindings(bool blend = true) =>
+    private void BuildWalkingGround()
+    {
+        if (walkingLayered is not null || ground is null)
+        {
+            return;
+        }
+
+        TerrainGroundMaterials cave = CaveGround(TerrainConstants.VoxelSize);
+        Material[] maps = [.. TerrainLayers.Names.Select(ground.Plain), .. Dungeons.CaveMaterials.Blended.Select(b => cave.Plain(b.Map))];
+        walkingLayered = engine.Graphics.CreateTerrainLayerMaterial(new TerrainLayerMaterialRequest(maps[0], maps[1..], ground.Settings.Contrast));
+        caveShader ??= engine.Graphics.OpenResource(new RenderResourceRequest(Dungeons.DungeonModule.RockDetailShaderPath)).Handle;
+        // The cave shader in its layered mode: the blended maps' colour under the strata, the 3D pixels and grain, no glint
+        // (the lantern's darkness). The strata are measured from the session's own height: one material serves every cave.
+        MaterialShader shader = new(caveShader, Dungeons.DungeonModule.DefaultRockDetail,
+            new System.Numerics.Vector4(Dungeons.DungeonModule.LayeredColouring, 0f, Dungeons.KarstCave.BedDip.X, Dungeons.KarstCave.BedDip.Y),
+            Dungeons.DungeonModule.DefaultRockPixels, System.Numerics.Vector4.Zero);
+        caveLayered = engine.Graphics.CreateTerrainLayerMaterial(new TerrainLayerMaterialRequest(ground.PlainWithShader(TerrainLayers.Names[0], shader), maps[1..],
+            ground.Settings.Contrast));
+        foreach ((BlockId block, string map) in Dungeons.CaveMaterials.Unblended)
+        {
+            caveCoats[block] = cave.PlainWithShader(map, shader);
+        }
+    }
+
+    private TerrainGroundMaterials CaveGround(double voxelSize)
+    {
+        if (!caveGrounds.TryGetValue(voxelSize, out TerrainGroundMaterials? set))
+        {
+            set = new TerrainGroundMaterials(engine, content, voxelSize, GroundTextureSet.Cave);
+            caveGrounds[voxelSize] = set;
+        }
+
+        return set;
+    }
+
+    /// <summary>
+    /// The walking session's bindings (#10889): the overworld's ground in the blended walking material, the cave's blended
+    /// blocks in it through the cave shader, its two coats unblended, and every other block as the atlas draws it.
+    /// </summary>
+    private ReadOnlyMemory<VoxelSceneMaterialBinding> WalkingBindings() =>
         BlockRegistry.BoundBlocks.Select(block => new VoxelSceneMaterialBinding(block.Slot,
-            ground?.For(block.Id, blend) ?? Atlas.BaseMaterial(block.Id))).ToArray();
+            Dungeons.CaveMaterials.Blended.Any(b => b.Block == block.Id) && caveLayered is not null ? caveLayered
+                : caveCoats.TryGetValue(block.Id, out Material? coat) ? coat
+                : TerrainLayers.Layer(block.Id) >= 0 && walkingLayered is not null ? walkingLayered
+                : ground?.For(block.Id) ?? Atlas.BaseMaterial(block.Id))).ToArray();
 
     /// <param name="skipRock">Leaves rock blocks to their one material (a separate space's cave rock, #10090).</param>
     private ReadOnlyMemory<VoxelSceneFaceMaterialBinding> FaceMaterialBindings(bool skipRock = false) =>

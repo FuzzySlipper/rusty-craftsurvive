@@ -32,6 +32,12 @@ internal static class TerrainConstants
     /// many per update so a boundary crossing's strip of columns fills in under a second.
     /// </summary>
     internal const int MaximumResidencyOperationsPerTick = 8;
+
+    /// <summary>
+    /// How long one update may spend generating chunks for residency, in milliseconds (at least one chunk is always
+    /// generated): about a third of a 60 Hz frame (#10889).
+    /// </summary>
+    internal const double ResidencyGenerationBudgetMs = 6d;
     /// <summary>
     /// Residency keeps each column's surface band rather than its full height, so the cap is
     /// sized for steep ground: about five banded chunks per column across the retained ring,

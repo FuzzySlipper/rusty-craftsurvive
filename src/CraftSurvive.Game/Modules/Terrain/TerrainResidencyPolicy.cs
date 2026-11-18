@@ -34,6 +34,45 @@ internal sealed class TerrainResidencyPolicy
     private TerrainOverlaySnapshot? cachedOverlay;
     private ulong cachedOverlayRevision;
 
+    /// <summary>
+    /// What is kept underground (#10889): the chunks of the caves and tendrils round the player, kept as the surface is;
+    /// how far round the player the overworld's surface is kept (all of it at the surface, none deep in a cave); and
+    /// whether the player's own storey is kept in every column (not underground, where it is buried rock). Its revision
+    /// changes whenever any of them does.
+    /// </summary>
+    internal sealed record UndergroundResidency(long Revision, int SurfaceRadius, bool Storey, IReadOnlySet<TerrainChunkAddress> Shell)
+    {
+        internal static UndergroundResidency None { get; } = new(0, int.MaxValue, true, new HashSet<TerrainChunkAddress>());
+    }
+
+    /// <summary>The underground the plans are built for.</summary>
+    internal UndergroundResidency Underground { get; private set; } = UndergroundResidency.None;
+
+    private long plannedUnderground = -1;
+
+    /// <summary>Sets what is kept underground; the next plan follows it.</summary>
+    internal void SetUnderground(UndergroundResidency underground)
+    {
+        ArgumentNullException.ThrowIfNull(underground);
+        if (underground.Revision == Underground.Revision) return;
+        Underground = underground;
+        cachedPlan = null;
+    }
+
+    /// <summary>
+    /// Drops the payloads produced for chunks whose generation changed without an edit (a cave admitted or let go,
+    /// #10889), so the next plan generates them again; the streamer replaces the resident ones.
+    /// </summary>
+    internal void Forget(Func<TerrainChunkAddress, bool> changed)
+    {
+        foreach (TerrainChunkAddress address in cachedChunks.Keys.Where(changed).ToArray())
+        {
+            cachedChunks.Remove(address);
+        }
+
+        cachedPlan = null;
+    }
+
     /// <summary>Where the last post-edit refresh spent its time, in milliseconds (#9578).</summary>
     internal readonly record struct RefreshTiming(double Snapshot, double Regenerate, double Candidates, double Plan)
     {
@@ -54,10 +93,12 @@ internal sealed class TerrainResidencyPolicy
     internal TerrainResidencyPlan PlanFor(TerrainChunkAddress center, TerrainOverlayState overlay)
     {
         ArgumentNullException.ThrowIfNull(overlay);
-        if (cachedPlan is not null && cachedPlan.Center == center && cachedOverlayRevision == overlay.Revision)
+        if (cachedPlan is not null && cachedPlan.Center == center && cachedOverlayRevision == overlay.Revision && plannedUnderground == Underground.Revision)
         {
             return cachedPlan;
         }
+
+        plannedUnderground = Underground.Revision;
 
         bool overlayChanged = cachedOverlay is null || cachedOverlayRevision != overlay.Revision;
         TerrainOverlaySnapshot snapshot = overlayChanged ? overlay.Snapshot() : cachedOverlay!;
@@ -201,20 +242,34 @@ internal sealed class TerrainResidencyPolicy
     {
         long minimumY = WorldGen.GridMath.FloorDivide(recipe.MinimumMaterialY, TerrainConstants.ChunkEdgeLength);
         long maximumY = WorldGen.GridMath.FloorDivide(recipe.MaximumMaterialY, TerrainConstants.ChunkEdgeLength);
-        for (long x = center.X - radius; x <= center.X + radius; x++)
+        // Underground (#10889) the surface is kept only so far round the player, none of it deep in a cave, and the storey
+        // is buried rock, not kept.
+        UndergroundResidency underground = Underground;
+        int surface = Math.Min(radius, underground.SurfaceRadius);
+        long storey = underground.Storey ? TerrainConstants.PlayerStoreyChunks : -1;
+        for (long x = center.X - surface; x <= center.X + surface; x++)
         {
-            for (long z = center.Z - radius; z <= center.Z + radius; z++)
+            for (long z = center.Z - surface; z <= center.Z + surface; z++)
             {
                 (long bandMinimum, long bandMaximum) = recipe.ChunkColumnBand(x, z);
-                long lower = Math.Max(minimumY, Math.Min(bandMinimum, center.Y - TerrainConstants.PlayerStoreyChunks));
-                long upper = Math.Min(maximumY, Math.Max(bandMaximum, center.Y + TerrainConstants.PlayerStoreyChunks));
+                long lower = Math.Max(minimumY, storey < 0 ? bandMinimum : Math.Min(bandMinimum, center.Y - storey));
+                long upper = Math.Min(maximumY, storey < 0 ? bandMaximum : Math.Max(bandMaximum, center.Y + storey));
                 for (long y = lower; y <= upper; y++)
                 {
-                    if (y >= bandMinimum && y <= bandMaximum || Math.Abs(y - center.Y) <= TerrainConstants.PlayerStoreyChunks)
+                    if (y >= bandMinimum && y <= bandMaximum || Math.Abs(y - center.Y) <= storey)
                     {
                         yield return new TerrainChunkAddress(x, y, z);
                     }
                 }
+            }
+        }
+
+        // The caves' and tendrils' chunks round the player, as far as the surface would be kept.
+        foreach (TerrainChunkAddress cave in underground.Shell)
+        {
+            if (IsWithinHorizontalRadius(cave, center, radius))
+            {
+                yield return cave;
             }
         }
 

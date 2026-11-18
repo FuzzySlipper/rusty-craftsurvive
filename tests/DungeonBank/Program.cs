@@ -1079,7 +1079,7 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     var waiting = System.Diagnostics.Stopwatch.StartNew();
     while (background is null && waiting.Elapsed.TotalSeconds < 120)
     {
-        background = generator.Finished("cave");
+        background = generator.Finished<DungeonCandidate>("cave");
         Thread.Sleep(20);
     }
 

@@ -28,4 +28,40 @@ internal static class CaveMaterials
         (BlockId.SlimyRock, 9),
         (BlockId.Moonmilk, 10),
     ];
+
+    /// <summary>
+    /// A cave in the overworld's session (#10889): its rock, mud and silt become the cave's own blocks (the overworld draws
+    /// stone, dirt and sand as its own ground); everything else keeps its block.
+    /// </summary>
+    internal static BlockId Underground(BlockId block) => block switch
+    {
+        BlockId.Stone or BlockId.Bedrock => BlockId.CaveLimestone,
+        BlockId.Dirt => BlockId.CaveMud,
+        BlockId.Sand => BlockId.CaveSilt,
+        _ => block,
+    };
+
+    /// <summary>
+    /// The cave's blocks that blend as the overworld session's terrain layers, each with its map in <see cref="Names"/>:
+    /// the session takes sixteen slots at most and the overworld's ground has eight, so the cave's two rarest coats, slime
+    /// and moonmilk, are drawn unblended (#10889; an Engine limit), and its turf is the overworld's grass.
+    /// </summary>
+    internal static readonly (BlockId Block, string Map)[] Blended =
+    [
+        (BlockId.CaveLimestone, "limestone"),
+        (BlockId.WashedRock, "washed"),
+        (BlockId.PatinatedRock, "patinated"),
+        (BlockId.CaveMud, "mud"),
+        (BlockId.CaveSilt, "silt"),
+        (BlockId.Rubble, "rubble"),
+        (BlockId.Flowstone, "flowstone"),
+        (BlockId.MossyRock, "moss"),
+    ];
+
+    /// <summary>The cave's blocks drawn unblended in the overworld's session, each in its own map.</summary>
+    internal static readonly (BlockId Block, string Map)[] Unblended =
+    [
+        (BlockId.SlimyRock, "slime"),
+        (BlockId.Moonmilk, "moonmilk"),
+    ];
 }

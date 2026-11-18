@@ -32,6 +32,7 @@ if (args is ["editbench"])
 
 // Terrain, generation, residency, edits and player input: the pure product policy the world is
 // built from, checked without an Engine context. Each area reports every failure it finds.
+Check.Section("caves under the world", CaveChecks.Run);
 Check.Section("player input", PlayerInputChecks.Run);
 Check.Section("world map", WorldMapChecks.Run);
 Check.Section("erosion and rivers", ErosionChecks.Run);

@@ -196,6 +196,10 @@ const painters = {
   moonmilk: (x, y) => tint(sourcePixel(TILE, TILE, x, y), [1.6, 1.58, 1.5]),
   // A grass fire's scar (#10296): the grass top charred, as authoring/tools/generators/make-burnt-ground.py chars the walking ground.
   'burnt-ground': (x, y) => charred(sourcePixel(0, 0, x, y)),
+  // The cave's own ground in the overworld's session (#10889): stone and dirt tinted as limestone, mud and silt.
+  'cave-limestone': (x, y) => tint(sourcePixel(TILE, TILE, x, y), [1.2, 1.18, 1.1]),
+  'cave-mud': (x, y) => tint(sourcePixel(0, TILE, x, y), [0.8, 0.72, 0.62]),
+  'cave-silt': (x, y) => tint(sourcePixel(0, TILE, x, y), [1.15, 1.08, 0.92]),
 };
 
 function charred([r, g, b, a]) {
@@ -260,6 +264,9 @@ const layout = [
   { id: 'slimy-rock', block: 'slimy-rock', face: 'base', at: [TILE * 2, TILE * 5] },
   { id: 'moonmilk', block: 'moonmilk', face: 'base', at: [TILE * 3, TILE * 5] },
   { id: 'burnt-ground', block: 'burnt-ground', face: 'base', at: [0, TILE * 6] },
+  { id: 'cave-limestone', block: 'cave-limestone', face: 'base', at: [TILE, TILE * 6] },
+  { id: 'cave-mud', block: 'cave-mud', face: 'base', at: [TILE * 2, TILE * 6] },
+  { id: 'cave-silt', block: 'cave-silt', face: 'base', at: [TILE * 3, TILE * 6] },
 ];
 
 // The source tiles keep their coordinates in every atlas so far (128 and 256 wide), so they copy across.
