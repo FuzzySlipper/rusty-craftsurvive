@@ -17,6 +17,21 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private readonly long radius;
     private readonly Dictionary<(long X, long Z), TreeShape?> featureCells = [];
     private readonly Dictionary<(long X, long Z), (long Minimum, long Maximum)> columnBands = [];
+    private readonly Queue<(long X, long Z)> columnBandOrder = new();
+    private readonly Queue<TerrainChunkAddress> chunkContentOrder = new();
+
+    /// <summary>
+    /// A full cache lets go of its oldest quarter, not all of it (#10889 R10889-2): clearing it whole made the next plan
+    /// sample the map again for every column of the ring at once, a stall of tens of milliseconds wherever a walk went.
+    /// </summary>
+    private static void Trim<TKey, TValue>(Dictionary<TKey, TValue> cache, Queue<TKey> order, int limit) where TKey : notnull
+    {
+        if (cache.Count < limit) return;
+        for (int i = 0; i < limit / 4 && order.TryDequeue(out TKey? oldest); i++)
+        {
+            cache.Remove(oldest);
+        }
+    }
     /// <summary>
     /// Whether a chunk holds generated content, remembered: the answer is a pure function of the
     /// recipe, and residency asks it of every candidate on every plan (#9578).
@@ -350,6 +365,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// chunk below its lowest ground to its highest ground, water or wall plus feature headroom.
     /// Chunks outside it are either empty air or buried solid rock with no surface to show.
     /// </summary>
+    /// <summary>Whether a chunk column's band is known already (no map sampling to answer it).</summary>
+    internal bool KnowsColumnBand(long chunkX, long chunkZ) => columnBands.ContainsKey((chunkX, chunkZ));
+
+    /// <summary>Whether a chunk's content is known already (no scan to answer it).</summary>
+    internal bool KnowsChunkContent(TerrainChunkAddress address) => chunkContent.ContainsKey(address);
+
     internal (long Minimum, long Maximum) ChunkColumnBand(long chunkX, long chunkZ)
     {
         if (columnBands.TryGetValue((chunkX, chunkZ), out (long, long) cached)) return cached;
@@ -368,8 +389,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
             ? (1, 0)
             : (GridMath.FloorDivide(lowest, edge) - BandFootingChunks,
                 GridMath.FloorDivide(highest + GenerationConstants.TerrainHeadroom, edge));
-        if (columnBands.Count >= ColumnBandCacheLimit) columnBands.Clear();
+        Trim(columnBands, columnBandOrder, ColumnBandCacheLimit);
         columnBands[(chunkX, chunkZ)] = band;
+        columnBandOrder.Enqueue((chunkX, chunkZ));
         return band;
     }
 
@@ -391,8 +413,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
     {
         if (chunkContent.TryGetValue(address, out bool known)) return known;
         bool content = ScanChunkContent(address);
-        if (chunkContent.Count >= ChunkContentCacheLimit) chunkContent.Clear();
+        Trim(chunkContent, chunkContentOrder, ChunkContentCacheLimit);
         chunkContent[address] = content;
+        chunkContentOrder.Enqueue(address);
         return content;
     }
 

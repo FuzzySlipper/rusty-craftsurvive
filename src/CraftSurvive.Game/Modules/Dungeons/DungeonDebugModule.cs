@@ -22,6 +22,12 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.cave.walk", Description = "Assisted, for captures (#10889): moves the player this many metres on along the chosen cave's way in - down its tendril, then its main route once the cave is ready - facing the way on; negative walks back out.")]
     public string CaveWalk(float metres) => dungeons.CaveWalk(metres);
 
+    [DebugCommand("craft.cave.steer", Description = "Assisted, for a walk on the player's own input (#10889): in turns the view each update toward the chosen cave's way a few metres on (down the tendril, then the main route), out back toward the mouth, off stops; held keys do the walking through the ordinary controller.")]
+    public string CaveSteer(string mode) => dungeons.CaveSteer(mode);
+
+    [DebugCommand("craft.cave.store", Description = "Assisted, for retention proof (#10888 R10888-4): read says which of the caves asked for this session the store keeps for this world, and how many probe records; probe first writes 30 small probe records through the store as though 30 more caves had been generated (more than the 24 it once let go after).")]
+    public string CaveStoreProbe(string action) => dungeons.CaveStoreProbe(action);
+
     [DebugCommand("craft.cave.generate", Description = "Assisted, for frame-time proof (#10888): generates the nearest cave mouth's cave afresh in the background (generated, prepared and encoded as a first visit, never from the store) without admitting it, so the updates measured meanwhile show the generator's cost; readout says when it is done.")]
     public string CaveGenerate(string action = "") => dungeons.CaveGenerate(action);
 

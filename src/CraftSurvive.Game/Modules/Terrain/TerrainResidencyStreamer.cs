@@ -89,10 +89,40 @@ internal sealed class TerrainResidencyStreamer(
     private static bool Round(TerrainChunkAddress chunk, TerrainChunkAddress center) =>
         Math.Abs(chunk.X - center.X) <= 1 && Math.Abs(chunk.Y - center.Y) <= 1 && Math.Abs(chunk.Z - center.Z) <= 1;
 
+    /// <summary>Where the last synchronize's time went (#10889 R10889-2): cache write, plan, generation, Engine hand-off, readback.</summary>
+    internal string LastTiming { get; private set; } = "";
+
     /// <summary>Moves residency one bounded step toward the plan for the centre; true when the presentation should be refreshed.</summary>
     internal bool Synchronize(SpatialSession session, TerrainChunkAddress center)
     {
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+        bool result = SynchronizeTimed(session, center, t0);
+        // What the next plans will ask, worked out ahead with what is left of a small budget (#10889 R10889-2).
+        double spent = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+        policy.WarmAhead(center, Math.Max(TerrainConstants.ResidencyWarmMinimumMs, TerrainConstants.ResidencyGenerationBudgetMs - spent));
+        return result;
+    }
+
+    private long tCache, tPlan, tGenerate, tApply;
+    private int generatedNow;
+
+    private static double Ms(long from, long to) => System.Diagnostics.Stopwatch.GetElapsedTime(from, to).TotalMilliseconds;
+
+    private bool SynchronizeTimed(SpatialSession session, TerrainChunkAddress center, long t0)
+    {
         DrainCacheWrite();
+        tCache = System.Diagnostics.Stopwatch.GetTimestamp();
+        generatedNow = 0;
+        bool done = SynchronizeInner(session, center);
+        long end = System.Diagnostics.Stopwatch.GetTimestamp();
+        LastTiming = string.Create(CultureInfo.InvariantCulture,
+            $"cacheWrite={Ms(t0, tCache):F1} plan={Ms(tCache, tPlan):F1}{(Ms(tCache, tPlan) >= 5 ? $"[{policy.LastPlanTiming}]" : "")} generate={Ms(tPlan, tGenerate):F1}x{generatedNow} apply={Ms(tGenerate, tApply == 0 ? end : tApply):F1} readback={Ms(tApply == 0 ? end : tApply, end):F1}");
+        tApply = 0;
+        return done;
+    }
+
+    private bool SynchronizeInner(SpatialSession session, TerrainChunkAddress center)
+    {
 
         // Deferred chunks handed over earlier are drawn once the scene's meshes reach their revision.
         bool installed = false;
@@ -103,6 +133,8 @@ internal sealed class TerrainResidencyStreamer(
         }
 
         TerrainResidencyPlan plan = policy.PlanFor(center, overlay);
+        tPlan = System.Diagnostics.Stopwatch.GetTimestamp();
+        tGenerate = tPlan;
         Batch urgent = new(), deferred = new();
         int Count() => urgent.Operations.Count + deferred.Operations.Count;
         // Generating chunks is the update's cost: past a time budget no more are generated this update (at least one is), so
@@ -153,6 +185,8 @@ internal sealed class TerrainResidencyStreamer(
             }
         }
 
+        tGenerate = System.Diagnostics.Stopwatch.GetTimestamp();
+        generatedNow = Count();
         foreach (TerrainChunkAddress address in resident.Keys)
         {
             if (plan.Retained.Contains(address) || Count() == plan.MaximumOperationsPerTick)
@@ -203,6 +237,7 @@ internal sealed class TerrainResidencyStreamer(
             deferredBatches++;
         }
 
+        tApply = System.Diagnostics.Stopwatch.GetTimestamp();
         Refresh(session, urgent.Operations.Concat(deferred.Operations).Select(operation => new TerrainChunkAddress(operation.Chunk.X, operation.Chunk.Y, operation.Chunk.Z)));
         PendingAdmissions = plan.Requested.Count(address => !resident.ContainsKey(address));
         return installed;

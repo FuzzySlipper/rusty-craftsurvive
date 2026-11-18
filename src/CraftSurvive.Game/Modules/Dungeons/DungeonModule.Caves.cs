@@ -76,6 +76,7 @@ internal sealed partial class DungeonModule
         DressNearestCave();
         AdvanceDressing();
         LightCave();
+        Steer();
     }
 
     /// <summary>The cave mouths within reach of the player whose caves have not been asked for are asked for, nearest first.</summary>
@@ -434,7 +435,7 @@ internal sealed partial class DungeonModule
 
     /// <summary>The caves under the world: those asked for and admitted, the one dressed, and how deep the player is.</summary>
     internal string CavesReadout() => string.Create(CultureInfo.InvariantCulture,
-        $"caves asked={underCaves.Count} ready={underCaves.Values.Count(c => c.Ready is not null)} admitted={cavesAdmitted} (generated {cavesGenerated}, from the store {cavesRead}) released={cavesReleased} {CaveStore.Readout()} dressed={(dressedCave is UnderCave d ? $"{d.Cave.Site.X},{d.Cave.Site.Z}" : "none")} skyShare={sky.CaveShare:F2} lantern={lanternLit} {terrain.CavesReadout()} {Generator.Readout()} last={lastCave}");
+        $"caves asked={underCaves.Count} ready={underCaves.Values.Count(c => c.Ready is not null)} admitted={cavesAdmitted} (generated {cavesGenerated}, from the store {cavesRead}) released={cavesReleased} {CaveStore.Readout()} dressed={(dressedCave is UnderCave d ? $"{d.Cave.Site.X},{d.Cave.Site.Z}" : "none")} skyShare={sky.CaveShare:F2} lantern={lanternLit} {terrain.CavesReadout()} {Generator.Readout()} way=[{SteerReadout()}] last={lastCave}");
 
     /// <summary>
     /// For captures and checks: the nearest cave mouth with a cave under it (within a search reach), its tendril's path and
@@ -536,20 +537,9 @@ internal sealed partial class DungeonModule
             return "no cave chosen: craft.cave.goto first";
         }
 
-        if (walkWay is null || (walkWay.Count <= cave.Cave.Path.Count && cave.Ready is not null))
-        {
-            List<Vector3> way = [.. cave.Cave.Path.Skip(1).Select(p => p - new Vector3(0f, CavePlacement.TendrilHalfHeight - WalkAboveFloor, 0f))];
-            if (cave.Ready is UndergroundCave ready)
-            {
-                // From the way in, along the main route as far as it goes.
-                way.AddRange(ready.Layout.MainRoute.Select(p => cave.Cave.ToWorld(p + new Vector3(0f, WalkAboveFloor, 0f))));
-            }
-
-            walkWay = way;
-        }
-
-        walked = Math.Clamp(walked + metres, 0f, Length(walkWay));
-        (Vector3 at, Vector3 heading) = Along(walkWay, walked);
+        EnsureWay(cave);
+        walked = Math.Clamp(walked + metres, 0f, Length(walkWay!));
+        (Vector3 at, Vector3 heading) = Along(walkWay!, walked);
         // The route runs along a passage's middle: a standing body is sought a little above and below it, never on the
         // overworld's ground over the cave.
         float[] heights = [0f, -0.6f, -1.2f, 0.6f, -1.8f, 1.2f, -2.4f];
@@ -560,10 +550,109 @@ internal sealed partial class DungeonModule
         }
 
         Face(heading, 0d);
-        return string.Create(CultureInfo.InvariantCulture, $"walked {walked:F0}/{Length(walkWay):F0} m to {at.X:F1},{at.Y:F1},{at.Z:F1}; {CavesReadout()}");
+        return string.Create(CultureInfo.InvariantCulture, $"walked {walked:F0}/{Length(walkWay!):F0} m to {at.X:F1},{at.Y:F1},{at.Z:F1}; {CavesReadout()}");
     }
 
     private const float OutsideMouthMetres = 6f, PlayerStandAbove = 1.2f, WalkAboveFloor = 1.2f;
+
+    /// <summary>The way into the chosen cave: down its tendril, then along its main route once the cave is ready.</summary>
+    private void EnsureWay(UnderCave cave)
+    {
+        if (walkWay is not null && (walkWay.Count > cave.Cave.Path.Count || cave.Ready is null))
+        {
+            return;
+        }
+
+        List<Vector3> way = [.. cave.Cave.Path.Skip(1).Select(p => p - new Vector3(0f, CavePlacement.TendrilHalfHeight - WalkAboveFloor, 0f))];
+        if (cave.Ready is UndergroundCave ready)
+        {
+            // From the way in, along the main route as far as it goes.
+            way.AddRange(ready.Layout.MainRoute.Select(p => cave.Cave.ToWorld(p + new Vector3(0f, WalkAboveFloor, 0f))));
+        }
+
+        walkWay = way;
+    }
+
+    // Steering for a walk on the player's own input (#10889 R10889-1): +1 in, -1 back out, 0 off.
+    private int steer;
+
+    /// <summary>How far ahead along the way the view is turned toward, in metres.</summary>
+    private const float SteerAheadMetres = 4f;
+
+    /// <summary>
+    /// Assisted, for a walk on the player's own input (#10889 R10889-1): each update turns the view toward the chosen cave's
+    /// way a few metres on from where the player stands - in, down the tendril and along the main route, or back out to the
+    /// mouth - while held keys move the player through the ordinary controller, with its slopes and collision. Off stops.
+    /// </summary>
+    internal string CaveSteer(string mode)
+    {
+        steer = mode switch { "in" => 1, "out" => -1, _ => 0 };
+        if (steer != 0 && (walkCave is not (long, long) key || !underCaves.ContainsKey(key)))
+        {
+            steer = 0;
+            return "no cave chosen: craft.cave.goto first";
+        }
+
+        return steer switch { 1 => "steering in", -1 => "steering out", _ => "steering off" } + "; " + SteerReadout();
+    }
+
+    /// <summary>Where the player is along the way: the nearest point's distance along it and how far off it they stand.</summary>
+    private string SteerReadout()
+    {
+        if (walkWay is null)
+        {
+            return "no way yet";
+        }
+
+        (float along, float off) = Progress(walkWay, player.WorldFeetPosition + (Vector3.UnitY * WalkAboveFloor));
+        return string.Create(CultureInfo.InvariantCulture, $"along={along:F1}/{Length(walkWay):F0}m off={off:F1}m");
+    }
+
+    private void Steer()
+    {
+        if (steer == 0 || walkCave is not (long, long) key || !underCaves.TryGetValue(key, out UnderCave? cave))
+        {
+            return;
+        }
+
+        EnsureWay(cave);
+        Vector3 here = player.WorldFeetPosition + (Vector3.UnitY * WalkAboveFloor);
+        (float along, _) = Progress(walkWay!, here);
+        Vector3 target;
+        if (steer < 0 && along <= SteerAheadMetres)
+        {
+            // Out past the start of the tendril: on to where the walk began, outside the mouth.
+            target = new Vector3(cave.Cave.Site.X + 0.5f - (cave.Cave.ForwardX * OutsideMouthMetres * 2f), here.Y, cave.Cave.Site.Z + 0.5f - (cave.Cave.ForwardZ * OutsideMouthMetres * 2f));
+        }
+        else
+        {
+            (target, _) = Along(walkWay!, Math.Clamp(along + (steer * SteerAheadMetres), 0f, Length(walkWay!)));
+        }
+
+        Face(target - here, 0d);
+    }
+
+    /// <summary>The nearest point of a way to a place: its distance along the way, and how far off the way the place is.</summary>
+    private static (float Along, float Off) Progress(IReadOnlyList<Vector3> way, Vector3 at)
+    {
+        float best = float.PositiveInfinity, bestAlong = 0f, travelled = 0f;
+        for (int i = 1; i < way.Count; i++)
+        {
+            Vector3 a = way[i - 1], ab = way[i] - a;
+            float length = ab.Length();
+            float t = length <= 0f ? 0f : Math.Clamp(Vector3.Dot(at - a, ab) / (length * length), 0f, 1f);
+            float d = Vector3.Distance(at, a + (ab * t));
+            if (d < best)
+            {
+                best = d;
+                bestAlong = travelled + (t * length);
+            }
+
+            travelled += length;
+        }
+
+        return (bestAlong, best);
+    }
 
     private void Face(Vector3 heading, double pitch)
     {
@@ -617,6 +706,35 @@ internal sealed partial class DungeonModule
     /// prepared and encoded as a first visit does, never from the store or the kept caves - and does not admit it, so the
     /// updates measured meanwhile show the generator's cost alone. "readout" says whether it is done and how long it took.
     /// </summary>
+    // The store's retention probe (R10888-4): more records than the store once kept, each a small stand-in for a cave.
+    private const int StoreProbeRecords = 30;
+    private const int StoreProbeBytes = 1024;
+    private const string StoreProbeKey = "probe-";
+
+    /// <summary>Assisted, for retention proof: which asked caves the store keeps, after writing probe records if asked.</summary>
+    internal string CaveStoreProbe(string action)
+    {
+        if (action is not ("read" or "probe"))
+        {
+            return "craft.cave.store read|probe";
+        }
+
+        if (action == "probe")
+        {
+            byte[] payload = new byte[StoreProbeBytes];
+            for (int i = 0; i < StoreProbeRecords; i++)
+            {
+                CaveStore.Write(StoreProbeKey + i.ToString(CultureInfo.InvariantCulture), payload);
+            }
+        }
+
+        int probes = Enumerable.Range(0, StoreProbeRecords).Count(i => CaveStore.Has(StoreProbeKey + i.ToString(CultureInfo.InvariantCulture)));
+        string caves = string.Join(" ", underCaves.Values.Select(c => string.Create(CultureInfo.InvariantCulture,
+            $"{c.Cave.Site.X},{c.Cave.Site.Z}:{(CaveStore.Has(c.Key) ? "kept" : "not kept")}{(c.FromStore ? " (read from the store)" : "")}")));
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{CaveStore.Readout()} probes kept={probes}/{StoreProbeRecords} caves asked: {(caves.Length == 0 ? "none" : caves)}; generated {cavesGenerated}, from the store {cavesRead}");
+    }
+
     internal string CaveGenerate(string action)
     {
         if (action == "readout")

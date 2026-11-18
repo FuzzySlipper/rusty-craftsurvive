@@ -100,12 +100,14 @@ internal sealed class TerrainResidencyPolicy
 
         plannedUnderground = Underground.Revision;
 
+        long planStarted = System.Diagnostics.Stopwatch.GetTimestamp();
         bool overlayChanged = cachedOverlay is null || cachedOverlayRevision != overlay.Revision;
         TerrainOverlaySnapshot snapshot = overlayChanged ? overlay.Snapshot() : cachedOverlay!;
         // A restore or an edit not reported through RefreshAfterOverlayChange
         // invalidates the payloads. Ordinary boundary crossings reuse overlap.
         if (overlayChanged) cachedChunks.Clear();
         HashSet<TerrainChunkAddress> candidates = CandidateChunks(center, RetainedRadius, snapshot).ToHashSet();
+        long gathered = System.Diagnostics.Stopwatch.GetTimestamp();
         foreach (TerrainChunkAddress address in cachedChunks.Keys.Where(address => !candidates.Contains(address)).ToArray())
             cachedChunks.Remove(address);
         // No payloads are produced here. Content is decided by the recipe's predicate, which
@@ -119,9 +121,69 @@ internal sealed class TerrainResidencyPolicy
 
         cachedOverlay = snapshot;
         cachedOverlayRevision = overlay.Revision;
+        long building = System.Diagnostics.Stopwatch.GetTimestamp();
         cachedPlan = BuildPlan(center, snapshot);
+        long built = System.Diagnostics.Stopwatch.GetTimestamp();
+        LastPlanTiming = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"candidates={Ms(planStarted, gathered):F1}({candidates.Count}) prune={Ms(gathered, building):F1} build={Ms(building, built):F1}(content {contentScans} scanned)");
+        contentScans = 0;
         return cachedPlan;
     }
+
+    /// <summary>
+    /// Works out ahead, within a time budget, what the next plans will ask of the recipe (#10889 R10889-2): the bands of the
+    /// columns just past the retained ring and whether their chunks hold anything, nearest first. Crossing a chunk border
+    /// brings a row of new columns into the ring, each a few hundred samples of the map; warmed ahead, the plan finds them
+    /// known instead of stalling the update that crosses.
+    /// </summary>
+    internal int WarmAhead(TerrainChunkAddress center, double budgetMs)
+    {
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        int warmed = 0;
+        int inner = RetainedRadius - 1, outer = RetainedRadius + WarmRings;
+        int surface = Math.Min(outer, Underground.SurfaceRadius);
+        for (int ring = inner; ring <= surface; ring++)
+        {
+            for (long x = center.X - ring; x <= center.X + ring; x++)
+            {
+                for (long z = center.Z - ring; z <= center.Z + ring; z++)
+                {
+                    if (Math.Max(Math.Abs(x - center.X), Math.Abs(z - center.Z)) != ring)
+                    {
+                        continue;
+                    }
+
+                    if (System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds >= budgetMs)
+                    {
+                        return warmed;
+                    }
+
+                    bool known = recipe.KnowsColumnBand(x, z);
+                    (long minimum, long maximum) = recipe.ChunkColumnBand(x, z);
+                    warmed += known ? 0 : 1;
+                    for (long y = minimum; y <= maximum; y++)
+                    {
+                        TerrainChunkAddress address = new(x, y, z);
+                        if (!recipe.KnowsChunkContent(address))
+                        {
+                            recipe.ChunkHasContent(address);
+                            warmed++;
+                        }
+                    }
+                }
+            }
+        }
+
+        return warmed;
+    }
+
+    /// <summary>How many rings past the retained one are warmed ahead.</summary>
+    private const int WarmRings = 2;
+
+    /// <summary>Where the last plan's time went (#10889 R10889-2).</summary>
+    internal string LastPlanTiming { get; private set; } = "";
+
+    private int contentScans;
 
     /// <summary>
     /// A chunk already produced for the overlay at <paramref name="overlayRevision"/>: its materials are the world's now,
@@ -182,11 +244,18 @@ internal sealed class TerrainResidencyPolicy
             return chunk.SolidVoxelCount > 0;
         }
 
+        // A cave's or tendril's chunk holds its rock round the air (#10889): content, without scanning the map's columns for it.
+        if (Underground.Shell.Contains(address))
+        {
+            return true;
+        }
+
         // The predicate answers for the generated world; an edit can put content into a chunk
         // generation leaves empty, and one that arrives without RefreshAfterOverlayChange
         // clears the payloads rather than refreshing them, so the overlay is consulted here
         // too. Without this an unreported edit is invisible until something happens to
         // request the chunk for another reason.
+        contentScans++;
         return (cachedOverlay?.TouchesChunk(address) ?? false) || recipe.ChunkHasContent(address);
     }
 

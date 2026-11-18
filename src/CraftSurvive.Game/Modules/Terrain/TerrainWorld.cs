@@ -266,8 +266,8 @@ internal sealed class TerrainWorld : IDisposable
         plantTiles?.Show(drawn);
     }
 
-    /// <summary>How far down a cave the far reaches go: half way to deep.</summary>
-    private const double FarReachesHiddenBelow = 0.5d;
+    /// <summary>How far down a cave the far reaches (and the horizon, and the surface's static pieces) go: half way to deep.</summary>
+    internal const double FarReachesHiddenBelow = 0.5d;
 
     internal VoxelScenePresentation ProjectSeparateSpace(SpatialSession separate, IReadOnlyDictionary<BlockId, Material>? rock = null) => presentation.ProjectAnother(separate, rock);
 
@@ -459,7 +459,18 @@ internal sealed class TerrainWorld : IDisposable
         // On a continent the region tiles around the walker are refined before the residency reaches them (#9551).
         recipe.Regions?.Prefetch(centerVoxel.X, centerVoxel.Z, MapRegions.PrefetchRadius);
         // Underground (#10889): the caves' chunks round the player are kept, and the overworld's surface less of it the deeper.
+        long syncStarted = System.Diagnostics.Stopwatch.GetTimestamp(), syncMarked = syncStarted;
+        syncPhases.Clear();
+        void SyncMark(string phase)
+        {
+            long now = System.Diagnostics.Stopwatch.GetTimestamp();
+            double ms = System.Diagnostics.Stopwatch.GetElapsedTime(syncMarked, now).TotalMilliseconds;
+            if (ms >= 0.5d) syncPhases.Add($"{phase}={ms:F1}");
+            syncMarked = now;
+        }
+
         policy.SetUnderground(caves.Follow(centerVoxel, policy.RetainedRadius));
+        SyncMark("caves");
         bool deep = caves.Below >= FarReachesHiddenBelow;
         if (deep != deepHidden)
         {
@@ -467,45 +478,74 @@ internal sealed class TerrainWorld : IDisposable
             ShowFarReaches();
         }
 
-        if (streamer.Synchronize(Session, centerVoxel.Chunk))
+        bool changed = streamer.Synchronize(Session, centerVoxel.Chunk);
+        SyncMark($"stream({streamer.LastTiming})");
+        if (changed)
         {
             presentation.Refresh();
             ui.Publish();
+            SyncMark("refresh");
         }
 
         trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, EditRevision, streamer.ResidentCount);
+        SyncMark("trees");
         places.Follow(new Vector3(centerVoxel.X + 0.5f, centerVoxel.Y, centerVoxel.Z + 0.5f), NearEdgeMetres);
+        SyncMark("places");
         // The field stones' scatter copies keep the moss origin they were grown with (#10044 review): after a rebase they
         // are grown again from the refreshed materials, so the stain and lichen stay put on the stones.
         if (Moss.Follow(frame.Origin)) RegrowMossCopies();
         lastCentre = centerVoxel;
         // Ground cover and trees re-ask the tiles under the columns edited since the last follow.
         var changedColumns = overlayStore.Overlay.TakeChangedColumns();
-        vegetationTiles?.Follow(centerVoxel, changedColumns);
-        treeTiles?.Follow(centerVoxel, changedColumns);
-        plantTiles?.Follow(centerVoxel, changedColumns);
-        if (farField is FarField far)
+        SyncMark("moss");
+        // Down a cave's tendril (#10889) the surface is held as the player left it, and deep in the far reaches are hidden:
+        // their tiles, the far field and the near water are not followed until the player climbs back to the mouth, when they
+        // catch up within their own budgets.
+        if (!deepHidden && !caves.HoldsSurface)
         {
-            far.Follow(centerVoxel.X, centerVoxel.Z);
-            far.Advance();
-            // The near water squares to the far field's sunk zone, which leaves its water out there.
-            waterSurfaces.Follow(far.SinkCentre, far.SinkOuter);
-        }
-        else
-        {
-            waterSurfaces.Follow((centerVoxel.X + 0.5, centerVoxel.Z + 0.5), NearEdgeMetres);
+            vegetationTiles?.Follow(centerVoxel, changedColumns);
+            SyncMark("vegetation");
+            treeTiles?.Follow(centerVoxel, changedColumns);
+            SyncMark("treeTiles");
+            plantTiles?.Follow(centerVoxel, changedColumns);
+            SyncMark("plants");
+            if (farField is FarField far)
+            {
+                far.Follow(centerVoxel.X, centerVoxel.Z);
+                SyncMark("farFollow");
+                far.Advance();
+                SyncMark("farAdvance");
+                // The near water squares to the far field's sunk zone, which leaves its water out there.
+                waterSurfaces.Follow(far.SinkCentre, far.SinkOuter);
+            }
+            else
+            {
+                waterSurfaces.Follow((centerVoxel.X + 0.5, centerVoxel.Z + 0.5), NearEdgeMetres);
+            }
+
+            SyncMark("water");
         }
 
         // The ice is part of the walking collision (#9878): compose again when it changes, or when the origin moved under it.
-        if (waterSurfaces.IceRevision != composedIce || ((composedIceAny || caveCollision is not null) && composedOrigin != frame.Origin)) ComposeStaticCollision();
+        // Deep in a cave (#10889) the surface's ice, places and deadwood are not followed: recomposing the one static collision
+        // waits on the Engine's deferred chunk meshing, and nothing up there can be touched; the origin moving still recomposes.
+        bool surfaceFollowed = !deepHidden && !caves.HoldsSurface;
+        if ((surfaceFollowed && waterSurfaces.IceRevision != composedIce) || ((composedIceAny || caveCollision is not null) && composedOrigin != frame.Origin)) ComposeStaticCollision();
         // So are fallen logs and stumps (#10034): compose again when deadwood near the player changed, or they moved on.
         // So are the places' pieces (#9992): compose again when they were laid out again or the player walked on.
-        else if (places.CollisionStale(new Vector3(centerVoxel.X + 0.5f, 0, centerVoxel.Z + 0.5f))) ComposeStaticCollision();
-        else if (plantTiles is PlantTiles flora && (flora.DeadwoodRevision != composedDeadwood
+        else if (surfaceFollowed && places.CollisionStale(new Vector3(centerVoxel.X + 0.5f, 0, centerVoxel.Z + 0.5f))) ComposeStaticCollision();
+        else if (surfaceFollowed && plantTiles is PlantTiles flora && (flora.DeadwoodRevision != composedDeadwood
             || Math.Max(Math.Abs(centerVoxel.X - composedDeadwoodAt.X), Math.Abs(centerVoxel.Z - composedDeadwoodAt.Z)) >= DeadwoodStepMetres
             || (DeadwoodColliders > 0 && composedOrigin != frame.Origin)))
             ComposeStaticCollision();
+        SyncMark("collision");
+        SyncTiming = $"sync={System.Diagnostics.Stopwatch.GetElapsedTime(syncStarted).TotalMilliseconds:F1}: {string.Join(" ", syncPhases)}";
     }
+
+    private readonly List<string> syncPhases = [];
+
+    /// <summary>Where the last synchronize's time went, its phases of half a millisecond or more (#10889 R10889-2).</summary>
+    internal string SyncTiming { get; private set; } = "";
 
     internal string TreesReadout() => trees.Readout();
 

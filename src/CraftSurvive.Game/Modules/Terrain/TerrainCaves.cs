@@ -11,14 +11,22 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// </summary>
 internal sealed class TerrainCaves
 {
-    /// <summary>Under this much ground the overworld is all kept.</summary>
-    internal const double SurfaceDepthMetres = 8d;
+    /// <summary>Under this much ground the overworld is all kept: the mouth and the tendril's daylit start.</summary>
+    internal const double SurfaceDepthMetres = 4d;
 
-    /// <summary>Under this much ground none of the overworld is kept: deep in a cave.</summary>
-    internal const double DeepDepthMetres = 32d;
+    /// <summary>
+    /// Under this much ground none of the overworld is kept: deep in, where the tendril meets its cave (the tendril ends some
+    /// 20 m under its mouth's floor, more under a hill), so the overworld is let go, and the sky gone, before the cave's
+    /// own drops and climbs begin (R10889-1: the way to deep in and back out is walkable).
+    /// </summary>
+    internal const double DeepDepthMetres = 14d;
 
-    /// <summary>How far up and down from the player's chunk a cave's chunks are kept.</summary>
-    internal const int ShellChunksUpDown = 3;
+    /// <summary>
+    /// How far up and down from the player's chunk a cave's chunks are kept: a cave's box and its tendril whole from its mouth
+    /// (the box is 4 chunks tall, its top about a chunk under the mouth), so they stream in as the player comes near and the
+    /// descent itself mostly lets the overworld go rather than generating (R10889-2).
+    /// </summary>
+    internal const int ShellChunksUpDown = 6;
 
     /// <summary>Under a share of this much of the way down the player's own storey is not kept (it is buried rock).</summary>
     private const double StoreyBelow = 0.25d;
@@ -43,6 +51,14 @@ internal sealed class TerrainCaves
 
     /// <summary>The cave whose box or tendril the player is in, if any.</summary>
     internal CavePlacement? Within { get; private set; }
+
+    /// <summary>
+    /// Whether the surface round the player is held as they left it: in a cave's reach and under the mouth's daylit start,
+    /// where they are going down, not across (R10889-2). Its tiles, far field, water and horizon are not followed again (their
+    /// resampling is the surface walk's worst stalls) until the player is back at the mouth; the residency still lets it go
+    /// with depth.
+    /// </summary>
+    internal bool HoldsSurface => Within is not null && Below > 0d;
 
     /// <summary>The caves admitted, by their mouths' keys.</summary>
     internal IEnumerable<CavePlacement> Admitted => admitted.Values.Select(a => a.Cave);
@@ -95,7 +111,9 @@ internal sealed class TerrainCaves
         Depth = Within is null ? 0d : Math.Max(0d, recipe.SurfaceAt(feet.X, feet.Z) - feet.Y);
         Below = Math.Clamp((Depth - SurfaceDepthMetres) / (DeepDepthMetres - SurfaceDepthMetres), 0d, 1d);
         int radius = Below >= 1d ? -1 : Below <= 0d ? int.MaxValue : (int)Math.Ceiling(retainedRadius * (1d - Below));
-        bool keepStorey = Below < StoreyBelow;
+        // Within a cave's reach its own and its tendril's chunks are kept; the storey across the whole ring would only be rock,
+        // and going down a tendril it would be checked again at every layer (R10889-2).
+        bool keepStorey = Within is null && Below < StoreyBelow;
         TerrainChunkAddress centre = feet.Chunk;
         bool shellMoved = centre != shellCentre || shellRevision != revision;
         if (shellMoved)

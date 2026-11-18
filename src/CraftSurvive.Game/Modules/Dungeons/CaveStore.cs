@@ -227,29 +227,30 @@ internal static class CaveCodec
 /// <summary>
 /// The caves generated for this world, kept through the Engine's persistence (#10888 R10888-2): a cave is generated once per
 /// world and build, and coming back to it - after the generator let it go, or after the game was closed - reads it instead.
-/// A record names the world (seed, generator version), this build (the product module's version id, so a changed generator
-/// never serves an old cave) and the cave's own key. At most <see cref="MaximumCaves"/> are kept, the oldest let go first. Like
-/// the terrain's chunk cache, it is an optimisation: a store that refuses stops writing for the session, and a record that
-/// does not decode is a miss.
+/// A record names the world (seed), the build (generator version, record format and the product module's version id, so a
+/// changed generator never serves an old cave) and the cave's own key. Every cave a build generates is kept for its world as
+/// long as that build serves it (R10888-4): a revisit after any amount of exploration, or after reopening the world, reads
+/// it back rather than generating again. Other worlds' records are kept too; only records another build wrote, which this
+/// one would never serve, are let go. A cave is about 0.4 MB on disk; only the generator's memory cache above the store is
+/// bounded. Like the terrain's chunk cache, it is an optimisation: a store that refuses stops writing for the session, and a
+/// record that does not decode is a miss.
 /// </summary>
 internal sealed class CaveStore : IDisposable
 {
     internal const string Scope = "craftsurvive.caves";
     private const string IndexKey = "index";
-
-    /// <summary>At one to three megabytes a cave, the store holds at most about 60 MB.</summary>
-    internal const int MaximumCaves = 24;
+    private const string KeyRoot = "cave";
 
     private readonly IEngineContext engine;
     private readonly PersistenceStore store;
     private readonly string prefix;
-    private readonly List<string> index;
+    private readonly HashSet<string> index;
 
     internal CaveStore(IEngineContext engine, ulong worldSeed, uint generatorVersion)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        prefix = string.Create(CultureInfo.InvariantCulture,
-            $"cave/{worldSeed:x16}/{generatorVersion}/{CaveCodec.Format}/{typeof(CaveStore).Module.ModuleVersionId:N}/");
+        string build = Build(generatorVersion);
+        prefix = string.Create(CultureInfo.InvariantCulture, $"{KeyRoot}/{worldSeed:x16}/{build}");
         store = engine.Persistence.OpenStore(new PersistenceOpenRequest(Scope));
         using (PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store, IndexKey)))
         {
@@ -258,21 +259,34 @@ internal sealed class CaveStore : IDisposable
                 : [];
         }
 
-        // Records another world or build wrote are let go: the store holds this world's caves.
-        string[] stale = [.. index.Where(key => !key.StartsWith(prefix, StringComparison.Ordinal))];
+        // Records another build wrote are let go (this build never serves them); another world's are kept for it (R10888-4).
+        string[] stale = [.. index.Where(key => !FromBuild(key, build))];
         if (stale.Length > 0)
         {
             Change(() =>
             {
                 foreach (string key in stale) Delete(key);
-                index.RemoveAll(stale.Contains);
+                index.ExceptWith(stale);
                 SaveIndex();
             });
         }
     }
 
-    /// <summary>How many caves the store holds for this world, and how many it read and wrote this session.</summary>
-    internal int Count => index.Count;
+    /// <summary>The build part of a record's key: the generator version, the record format and this product module's version.</summary>
+    internal static string Build(uint generatorVersion) => string.Create(CultureInfo.InvariantCulture,
+        $"{generatorVersion}/{CaveCodec.Format}/{typeof(CaveStore).Module.ModuleVersionId:N}/");
+
+    /// <summary>Whether a record was written by this build, for any world: cave/{seed}/{build}{cave key}.</summary>
+    internal static bool FromBuild(string key, string build)
+    {
+        string[] parts = key.Split('/', 3);
+        return parts.Length == 3 && parts[0] == KeyRoot && parts[1].Length == 16 && parts[2].StartsWith(build, StringComparison.Ordinal)
+            && parts[2].Length > build.Length;
+    }
+
+    /// <summary>How many caves the store holds for this world (all worlds), and how many it read and wrote this session.</summary>
+    internal int Count => index.Count(key => key.StartsWith(prefix, StringComparison.Ordinal));
+    internal int CountAllWorlds => index.Count;
     internal long Reads { get; private set; }
     internal long Writes { get; private set; }
 
@@ -299,7 +313,7 @@ internal sealed class CaveStore : IDisposable
         return engine.Persistence.ReadBlobBytes(blob).ToArray();
     }
 
-    /// <summary>Keeps a generated cave's bytes, letting the oldest go past <see cref="MaximumCaves"/>.</summary>
+    /// <summary>Keeps a generated cave's bytes for this world; nothing else is let go.</summary>
     internal void Write(string caveKey, byte[] bytes)
     {
         if (Failure is not null || Has(caveKey))
@@ -311,19 +325,13 @@ internal sealed class CaveStore : IDisposable
         {
             engine.Persistence.Save(new PersistenceSaveRequest(store, prefix + caveKey, PersistenceRevisionGuard.Any, 0, bytes));
             index.Add(prefix + caveKey);
-            while (index.Count > MaximumCaves)
-            {
-                Delete(index[0]);
-                index.RemoveAt(0);
-            }
-
             SaveIndex();
             Writes++;
         });
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"store caves={Count} reads={Reads} writes={Writes}{(Failure is null ? "" : $" failure=\"{Failure}\"")}");
+        $"store caves={Count} (all worlds {CountAllWorlds}) reads={Reads} writes={Writes}{(Failure is null ? "" : $" failure=\"{Failure}\"")}");
 
     public void Dispose() => store.Dispose();
 
@@ -342,5 +350,5 @@ internal sealed class CaveStore : IDisposable
     private void Delete(string key) => engine.Persistence.Delete(new PersistenceDeleteRequest(store, key, PersistenceRevisionGuard.Any, 0));
 
     private void SaveIndex() => engine.Persistence.Save(new PersistenceSaveRequest(store, IndexKey, PersistenceRevisionGuard.Any, 0,
-        System.Text.Encoding.UTF8.GetBytes(string.Join('\n', index))));
+        System.Text.Encoding.UTF8.GetBytes(string.Join('\n', index.Order(StringComparer.Ordinal)))));
 }

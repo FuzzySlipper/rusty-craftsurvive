@@ -44,6 +44,7 @@ internal sealed class HorizonBackdrop : IProductModule
     private readonly Func<Vector3> playerWorld;
     private readonly Func<Camera?> camera;
     private readonly Func<bool> inTheWorld;
+    private readonly Func<bool> held;
     private readonly Func<double> reach;
     private readonly Action<bool>? shownChanged;
     private readonly MapRegions? regions;
@@ -70,8 +71,9 @@ internal sealed class HorizonBackdrop : IProductModule
     /// <param name="inTheWorld">Whether the player is in the open world, not a separate space such as a dungeon.</param>
     /// <param name="reach">The far field's reach from the player, in metres: the backdrop is sunk within it.</param>
     /// <param name="shownChanged">Told each update whether the backdrop is shown, so the sky can thin its fog.</param>
+    /// <param name="held">Whether the backdrop is held where it is, still drawn but not followed (down a cave's tendril).</param>
     internal HorizonBackdrop(IEngineContext engine, WorldMap map, Func<SpatialSession> walking, Func<Vector3> playerWorld,
-        Func<Camera?> camera, Func<bool> inTheWorld, Func<double> reach, Action<bool>? shownChanged = null)
+        Func<Camera?> camera, Func<bool> inTheWorld, Func<double> reach, Action<bool>? shownChanged = null, Func<bool>? held = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.map = map ?? throw new ArgumentNullException(nameof(map));
@@ -79,6 +81,7 @@ internal sealed class HorizonBackdrop : IProductModule
         this.playerWorld = playerWorld ?? throw new ArgumentNullException(nameof(playerWorld));
         this.camera = camera ?? throw new ArgumentNullException(nameof(camera));
         this.inTheWorld = inTheWorld ?? throw new ArgumentNullException(nameof(inTheWorld));
+        this.held = held ?? (() => false);
         this.reach = reach ?? throw new ArgumentNullException(nameof(reach));
         this.shownChanged = shownChanged;
         Scale = map.Scale.Continental ? ContinentCellMetres : CellMetres;
@@ -179,11 +182,19 @@ internal sealed class HorizonBackdrop : IProductModule
         }
 
         Vector3 at = playerWorld();
-        Camera? view = inTheWorld() && Enabled ? camera() : null;
+        bool inWorld = inTheWorld();
+        Camera? view = inWorld && Enabled ? camera() : null;
         Build(camera());
-        FollowSink(at);
-        FollowRegions(at);
-        streamer?.Update();
+        // Away from the open world's sky (a separate space, or deep in a cave, #10889) nothing of the backdrop is drawn, so its
+        // ground is not sunk, resampled or streamed; it catches up when the player comes back. Down a cave's tendril it is still
+        // drawn but held where the player left it (R10889-2): they are going down, not across.
+        if (inWorld && !held())
+        {
+            FollowSink(at);
+            FollowRegions(at);
+            streamer?.Update();
+        }
+
         Link(view);
         shownChanged?.Invoke(shown);
         Weather?.Update(shown);

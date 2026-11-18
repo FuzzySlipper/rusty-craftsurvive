@@ -1144,6 +1144,16 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Check.That(same, "a stored cave must decode to the cave that was stored");
     byte[] other = (byte[])bytes.Clone();
     Check.That(CaveCodec.Decode(other.AsSpan(0, other.Length / 2)) is null && CaveCodec.Decode([1, 2, 3]) is null, "a stored record that does not decode must be a miss");
+
+    // The store keeps every world's caves for the build that wrote them (R10888-4): opening one world never lets another's go,
+    // and only another build's records (which this build would never serve) are stale.
+    string build = CaveStore.Build(42), olderGenerator = CaveStore.Build(41);
+    Check.That(CaveStore.FromBuild($"cave/4352414654535552/{build}under-1", build) && CaveStore.FromBuild($"cave/00000000000000ff/{build}under-2", build),
+        "a record this build wrote, for this world or another, must be kept");
+    Check.That(!CaveStore.FromBuild($"cave/4352414654535552/{olderGenerator}under-1", build)
+        && !CaveStore.FromBuild("cave/4352414654535552/42/1/00000000000000000000000000000000/under-1", build)
+        && !CaveStore.FromBuild($"cave/4352414654535552/{build}", build) && !CaveStore.FromBuild("index", build),
+        "a record another build wrote (or a malformed key) must be let go");
 }
 
 // A request whose work runs at once still finds its job (R10888-3): many quick requests on an idle generator, each scheduled

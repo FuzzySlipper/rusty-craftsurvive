@@ -208,6 +208,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         inventory = new InventoryModule(context.Engine, store, terrain.SaveIdentity, player, discovery, survival, ui, cues);
         dungeons = new DungeonModule(context.Engine, terrain, player, conditions, sky, ui);
         player.PrepareUnderground = at => dungeons.PrepareCaveAt(at);
+        walkingUpdates.Detail = () => terrain.SyncTiming;
         actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, dungeons, ui, cues, frame);
         feedback = new FeedbackModule(cues, new SoundPlayer(context.Engine), new BurstEmitter(context.Engine, () => terrain.AtlasSprite),
             () => new Surroundings(player.InSeparateSpace, player.HeadSubmerged, WorldClock.Daylight(conditions.Time.DayFraction)),
@@ -228,7 +229,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         // The entity store runs after the edits, so it saves what a charge swept or a build placed this
         // update; feedback runs last, so it presents everything raised this update.
         horizon = new HorizonBackdrop(context.Engine, worlds.Current.Map, () => terrain.Session, () => player.WorldPosition,
-            () => player.ViewCamera, () => !player.InSeparateSpace, () => terrain.ViewDistanceChunks * (double)FarField.ChunkMetres, sky.Horizon)
+            () => player.ViewCamera, () => !player.InSeparateSpace && terrain.Caves.Below < TerrainWorld.FarReachesHiddenBelow,
+            () => terrain.ViewDistanceChunks * (double)FarField.ChunkMetres, sky.Horizon, () => terrain.Caves.HoldsSurface)
         {
             Weather = new HorizonWeather(context.Engine, worlds.Current.Map, weather.Field, () => weather.Hours, () => player.WorldPosition,
                 world => { System.Numerics.Vector3 local = frame.ToLocal(world.X, 0, world.Y); return new System.Numerics.Vector2(local.X, local.Z); }, sky.CloudRegions)
@@ -486,26 +488,39 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         // where they now look; creatures, discovery and charges then read where the player is and
         // what they asked for this update.
         player.Update(update);
+        walkingUpdates.Mark("player");
         NoteTurnBacks(step.ElapsedSeconds);
         FollowTowns(update.Facts.HostElapsedSeconds);
         AccrueWalkingFatigue();
         actions.Update(update);
+        walkingUpdates.Mark("actions");
         foreach (IProductModule module in gameplay)
         {
+            long moduleStarted = System.Diagnostics.Stopwatch.GetTimestamp();
             module.Update(step);
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(moduleStarted).TotalMilliseconds >= SlowModuleMs)
+            {
+                walkingUpdates.Mark(module.GetType().Name);
+            }
         }
 
+        walkingUpdates.Mark("modules");
         terrain.Update(step);
+        walkingUpdates.Mark("terrain");
         styleTest.Advance(update.Facts.HostElapsedSeconds);
         creatureStyle.Advance(update.Facts.HostElapsedSeconds);
         PublishSled();
         PublishAppearanceSnapshot();
+        walkingUpdates.Mark("snapshot");
         walkingUpdates.End(step.Step);
         return ProductUpdateResult.None;
     }
 
     /// <summary>How long the walking updates take (#10889), for the readout.</summary>
     private readonly UpdateTimes walkingUpdates = new();
+
+    /// <summary>A module whose update takes this long is named in a slow update's breakdown.</summary>
+    private const double SlowModuleMs = 2d;
 
     public void Pause()
     {

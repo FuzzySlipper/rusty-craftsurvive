@@ -173,20 +173,45 @@ internal sealed class CavePlacement
         float along = ((point.X - path[0].X) * ForwardX) + ((point.Z - path[0].Z) * ForwardZ);
         int first = Math.Clamp((int)MathF.Floor(along / TendrilStep) - 2, 0, path.Length - 2);
         int last = Math.Clamp((int)MathF.Floor(along / TendrilStep) + 2, 0, path.Length - 2);
+        float centreY = point.Y;
         for (int s = first; s <= last; s++)
         {
             Vector3 a = path[s] * scale, b = path[s + 1] * scale;
             Vector3 ab = b - a;
             float t = Math.Clamp(Vector3.Dot(p - a, ab) / Math.Max(1e-6f, ab.LengthSquared()), 0f, 1f);
-            nearest = MathF.Min(nearest, Vector3.DistanceSquared(p, a + (ab * t)));
+            Vector3 on = a + (ab * t);
+            float d = Vector3.DistanceSquared(p, on);
+            if (d < nearest)
+            {
+                nearest = d;
+                centreY = on.Y;
+            }
         }
 
-        // The wall is rock, not a bore: its distance wanders by a smooth noise a few metres across.
-        return TendrilHalfHeight - MathF.Sqrt(nearest) + (TendrilRoughness * Noise(point * TendrilRoughnessFrequency, Site));
+        // The wall is rock, not a bore: its distance wanders by a smooth noise a few metres across, worked out only near the
+        // wall (deeper in the rock the distance is all a chunk needs, and the noise is most of a tendril chunk's cost). The
+        // floor stays smooth, so the slope can be walked up as well as down (R10889-1): a lip in it is climbed only by a jump.
+        float open = TendrilHalfHeight - MathF.Sqrt(nearest);
+        if (open < -(TendrilRoughness + TendrilNoiseMargin))
+        {
+            return open;
+        }
+
+        float floorward = Math.Clamp((centreY - point.Y) / TendrilHalfHeight, 0f, 1f);
+        float walls = open + (TendrilRoughness * (1f - floorward) * Noise(point * TendrilRoughnessFrequency, Site));
+        // A level floor across the section, following the slope: a round section's lower curve is too steep to stand on
+        // where the walk climbs the inside of a bend (the controller's steep-slope solver gives up there, R10889-1).
+        return MathF.Min(walls, point.Y - (centreY - TendrilFloorBelowCentre));
     }
+
+    /// <summary>How far under the tendril's centre line its level floor lies: about 2.8 m of floor across, 2.7 m of headroom.</summary>
+    private const float TendrilFloorBelowCentre = 1.1f;
 
     /// <summary>How far the tendril's wall wanders in and out, in metres, and how often (per metre).</summary>
     private const float TendrilRoughness = 0.45f, TendrilRoughnessFrequency = 0.3f;
+
+    /// <summary>Past this far into the rock beyond the wall's wander, the noise cannot bring the wall nearer than the chunk cares.</summary>
+    private const float TendrilNoiseMargin = 2f;
 
     /// <summary>A smooth value noise in -1..1, a pure function of the point and the mouth.</summary>
     private static float Noise(Vector3 p, PoiSite site)
