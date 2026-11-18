@@ -205,7 +205,7 @@ internal sealed class CavePlacement
     }
 
     /// <summary>How far under the tendril's centre line its level floor lies: about 2.8 m of floor across, 2.7 m of headroom.</summary>
-    private const float TendrilFloorBelowCentre = 1.1f;
+    internal const float TendrilFloorBelowCentre = 1.1f;
 
     /// <summary>How far the tendril's wall wanders in and out, in metres, and how often (per metre).</summary>
     private const float TendrilRoughness = 0.45f, TendrilRoughnessFrequency = 0.3f;

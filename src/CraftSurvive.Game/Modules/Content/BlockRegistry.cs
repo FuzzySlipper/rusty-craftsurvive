@@ -160,7 +160,7 @@ internal static class BlockRegistry
             BlastResistance: 0.5f, LightEmission: 0f, LightAttenuation: 1f),
     ];
 
-    /// <summary>Every block, air first, in slot order.</summary>
+    /// <summary>Every block, air first, in definition order (by and large slot order; burnt ground sits with the ground blocks).</summary>
     internal static ReadOnlySpan<BlockDefinition> All => Definitions;
 
     /// <summary>
@@ -197,19 +197,38 @@ internal static class BlockRegistry
         return false;
     }
 
+    /// <summary>
+    /// Each block's place among the definitions, by its id (its slot). The definitions are not all in id order (burnt ground,
+    /// #10296, sits with the ground blocks), so a block is found by its id here, never by its slot as an index (#10889: the
+    /// cave's washed, mossy and slimy rock, flowstone, rubble and moonmilk read as unknown blocks that way).
+    /// </summary>
+    private static readonly int[] PlaceOf = BuildPlaces();
+
+    private static int[] BuildPlaces()
+    {
+        int[] places = new int[Definitions.Max(definition => (int)definition.Id) + 1];
+        Array.Fill(places, -1);
+        for (int place = 0; place < Definitions.Length; place++)
+        {
+            places[(int)Definitions[place].Id] = place;
+        }
+
+        return places;
+    }
+
     internal static BlockDefinition Get(BlockId id)
     {
         int index = (int)id;
-        return index >= 0 && index < Definitions.Length && Definitions[index].Id == id
-            ? Definitions[index]
+        return index >= 0 && index < PlaceOf.Length && PlaceOf[index] >= 0
+            ? Definitions[PlaceOf[index]]
             : throw new ArgumentOutOfRangeException(nameof(id), id, "Unknown block id.");
     }
 
     internal static bool TryGetBySlot(ushort slot, out BlockDefinition definition)
     {
-        if (slot < Definitions.Length && (ushort)Definitions[slot].Id == slot)
+        if (slot < PlaceOf.Length && PlaceOf[slot] >= 0)
         {
-            definition = Definitions[slot];
+            definition = Definitions[PlaceOf[slot]];
             return true;
         }
 

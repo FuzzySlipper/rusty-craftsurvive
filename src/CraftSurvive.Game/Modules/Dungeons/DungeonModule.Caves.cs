@@ -167,9 +167,31 @@ internal sealed partial class DungeonModule
             }
         }
 
+        // The way down from the tendril's end past the cave's first sink (R10889-3): a ramp the player walks back up, and the
+        // route starting with it.
+        Vector3[] lead = [.. cave.Path.Select(cave.ToCanonical).Where(p => p.X >= 0f && p.X < volume.SizeX && p.Z >= 0f && p.Z < volume.SizeZ && p.Y >= 0f && p.Y < volume.SizeY)];
+        CaveWayDown.Carved? down = CaveWayDown.Carve(volume.SizeX, volume.SizeY, volume.SizeZ, materials, densities, lead.Length > 0 ? lead : [cave.ToCanonical(cave.Path[^1])],
+            candidate.Layout.MainRoute, CavePlacement.TendrilHalfWidth, CavePlacement.TendrilHalfHeight, CavePlacement.TendrilFloorBelowCentre,
+            TerrainConstants.EmptyMaterial, (ushort)BlockId.CaveLimestone);
+        foreach (int at in down?.Opened ?? [])
+        {
+            int i = at % volume.SizeX, j = at / volume.SizeX % volume.SizeY, k = at / (volume.SizeX * volume.SizeY);
+            Vector3 world = cave.ToWorld(new Vector3(i + 0.5f, j + 0.5f, k + 0.5f));
+            open.Add(new Terrain.VoxelAddress((long)MathF.Floor(world.X), (long)MathF.Floor(world.Y), (long)MathF.Floor(world.Z)).Chunk);
+        }
+
         interior = new CaveInterior(volume.SizeX, volume.SizeY, volume.SizeZ, materials, densities);
         // What dressing it reads: the layout without the voxels it was generated in.
-        DungeonLayout dressing = candidate.Layout with { Volume = new DungeonVolume(1, 1, 1, BlockId.Air), Rock = null, Densities = null, KitDrawn = null, Moisture = null };
+        DungeonLayout dressing = candidate.Layout with
+        {
+            Volume = new DungeonVolume(1, 1, 1, BlockId.Air), Rock = null, Densities = null, KitDrawn = null, Moisture = null,
+            MainRoute = down?.Route ?? candidate.Layout.MainRoute,
+        };
+        if (down is not null)
+        {
+            // What the way down cut through: the ruin's pieces in its way and the dressing left hanging in its air.
+            dressing = CaveWayDown.Clear(dressing, down, CavePlacement.TendrilHalfWidth, CavePlacement.TendrilHalfHeight, CavePlacement.TendrilFloorBelowCentre);
+        }
         return new UndergroundCave(dressing, interior, TerrainCaves.Beside(open));
     }
 
@@ -594,6 +616,84 @@ internal sealed partial class DungeonModule
         }
 
         return steer switch { 1 => "steering in", -1 => "steering out", _ => "steering off" } + "; " + SteerReadout();
+    }
+
+    // The way's profile (#10889 R10889-3): how far under and over each point the rock is, a metre at a time.
+    private const float ProfileStepMetres = 2f;
+    private const int ProfileReachCells = 40;
+
+    /// <summary>
+    /// Assisted, for traversal proof: the chosen cave's way between two distances along it ("from-to" metres), each step's
+    /// point with the floor under it and the ceiling over it as the terrain holds them, so a drop or a pinch shows.
+    /// </summary>
+    internal string CaveProfile(string range)
+    {
+        string[] ends = range.Split('-', 2);
+        if (ends.Length != 2 || !float.TryParse(ends[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float from)
+            || !float.TryParse(ends[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float to)
+            || walkCave is not (long, long) key || !underCaves.TryGetValue(key, out UnderCave? cave))
+        {
+            return "craft.cave.profile <from>-<to> metres along, after craft.cave.goto";
+        }
+
+        EnsureWay(cave);
+        bool Solid(long x, long y, long z) => BlockRegistry.TryGetBySlot(terrain.MaterialAt(new CraftSurvive.Game.Modules.Terrain.VoxelAddress(x, y, z)), out BlockDefinition block) && block.Collidable;
+        System.Text.StringBuilder text = new(string.Create(CultureInfo.InvariantCulture, $"tendril {Length([.. cave.Cave.Path.Skip(1)]):F1}m of {Length(walkWay!):F0}m; "));
+        for (float d = from; d <= Math.Min(to, Length(walkWay!)); d += ProfileStepMetres)
+        {
+            (Vector3 at, _) = Along(walkWay!, d);
+            long x = (long)MathF.Floor(at.X), z = (long)MathF.Floor(at.Z), y = (long)MathF.Floor(at.Y);
+            long floor = y, ceiling = y;
+            while (floor > y - ProfileReachCells && !Solid(x, floor, z)) floor--;
+            while (ceiling < y + ProfileReachCells && !Solid(x, ceiling, z)) ceiling++;
+            text.Append(string.Create(CultureInfo.InvariantCulture, $"{d:F0}:({x},{y},{z}) floor={floor + 1} ceil={ceiling} | "));
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>
+    /// Assisted, for traversal proof: a vertical slice of the terrain across x at one z ("x0,x1,y0,y1,z", world cells), a row
+    /// a cell high from the top: # rock, . air.
+    /// </summary>
+    internal string CaveSlice(string box)
+    {
+        long[] v = [.. box.Split(',').Select(t => long.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out long n) ? n : long.MinValue)];
+        if (v.Length != 5 || v.Contains(long.MinValue) || v[1] < v[0] || v[3] < v[2] || v[1] - v[0] > ProfileReachCells * 2 || v[3] - v[2] > ProfileReachCells * 2)
+        {
+            return "craft.cave.slice x0,x1,y0,y1,z";
+        }
+
+        System.Text.StringBuilder text = new();
+        for (long y = v[3]; y >= v[2]; y--)
+        {
+            text.Append(y.ToString(CultureInfo.InvariantCulture)).Append(' ');
+            for (long x = v[0]; x <= v[1]; x++)
+            {
+                bool solid = BlockRegistry.TryGetBySlot(terrain.MaterialAt(new CraftSurvive.Game.Modules.Terrain.VoxelAddress(x, y, v[4])), out BlockDefinition block) && block.Collidable;
+                text.Append(solid ? '#' : '.');
+            }
+
+            text.Append('\n');
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>Assisted, for traversal proof: one world voxel ("x,y,z") as the chosen cave's box holds it and as the terrain answers.</summary>
+    internal string CaveVoxel(string at)
+    {
+        long[] v = [.. at.Split(',').Select(t => long.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out long n) ? n : long.MinValue)];
+        if (v.Length != 3 || v.Contains(long.MinValue) || walkCave is not (long, long) key || !underCaves.TryGetValue(key, out UnderCave? cave)
+            || cave.Ready is not UndergroundCave ready)
+        {
+            return "craft.cave.voxel x,y,z after craft.cave.goto, once the cave is ready";
+        }
+
+        string box = cave.Cave.InBox(v[0], v[1], v[2], out int i, out int j, out int k)
+            ? string.Create(CultureInfo.InvariantCulture, $"box ({i},{j},{k}) material={ready.Interior.Materials[ready.Interior.Index(i, j, k)]} magnitude={ready.Interior.Densities[ready.Interior.Index(i, j, k)]:F2}")
+            : "outside the box";
+        return string.Create(CultureInfo.InvariantCulture, $"{box}; terrain material={terrain.MaterialAt(new CraftSurvive.Game.Modules.Terrain.VoxelAddress(v[0], v[1], v[2]))}");
     }
 
     /// <summary>Where the player is along the way: the nearest point's distance along it and how far off it they stand.</summary>

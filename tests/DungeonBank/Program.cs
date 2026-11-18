@@ -1113,6 +1113,57 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
         densities[at] = made.AllVoxels.Densities?.At(x, y, z) ?? 0.5f;
     }
 
+    // The way down from the tendril (#10889 R10889-3): the cave's first sink is a pipe a player falls down but cannot climb
+    // back; the ramp carved past it is walked both ways - a floor under every half metre at the ramp's own floor height, with
+    // room to stand over it - and the route starts with it.
+    {
+        const float SinkTop = 59f, HalfWidth = 1.9f, HalfHeight = 1.6f, FloorBelow = 1.1f;
+        ushort[] wayMaterials = (ushort[])materials.Clone();
+        float[] wayDensities = (float[])densities.Clone();
+        // The tendril's last run in the box: down an even slope along +x to its end two metres under the way in.
+        System.Numerics.Vector3[] lead = [.. Enumerable.Range(0, 7).Select(n => new System.Numerics.Vector3(0.5f + (2f * n), SinkTop - 2f + (0.33f * (12 - (2f * n))), 48.5f))];
+        CaveWayDown.Carved? down = CaveWayDown.Carve(v.SizeX, v.SizeY, v.SizeZ, wayMaterials, wayDensities, lead, made.Layout.MainRoute,
+            HalfWidth, HalfHeight, FloorBelow, (ushort)BlockId.Air, (ushort)BlockId.CaveLimestone);
+        bool Solid(float x, float y, float z)
+        {
+            int i = (int)MathF.Floor(x), j = (int)MathF.Floor(y), k = (int)MathF.Floor(z);
+            return i < 0 || j < 0 || k < 0 || i >= v.SizeX || j >= v.SizeY || k >= v.SizeZ || wayMaterials[(((k * v.SizeY) + j) * v.SizeX) + i] != (ushort)BlockId.Air;
+        }
+
+        int gaps = 0, low = 0, samples = 0;
+        float steepest = 0f;
+        if (down is not null)
+        {
+            System.Numerics.Vector3 top = down.From, foot = down.To;
+            float length = System.Numerics.Vector3.Distance(top, foot);
+            for (float d = 0f; d <= length; d += 0.5f, samples++)
+            {
+                System.Numerics.Vector3 on = top + ((foot - top) * (d / length));
+                float floorPlane = on.Y - FloorBelow;
+                // The floor's top within a voxel of the ramp's own floor height, and two metres of air over it.
+                bool floored = Solid(on.X, floorPlane - 0.5f, on.Z) || Solid(on.X, floorPlane - 1f, on.Z);
+                // The tendril's own air over its end is composed in the world, not held in the box: room is the ramp's beyond it.
+                // (A voxel just under the floor's height is solid, its density putting the surface where the floor is: room is
+                // read from a metre up.)
+                bool room = d < HalfWidth || Enumerable.Range(0, 3).All(h => !Solid(on.X, floorPlane + 1f + (h * 0.5f), on.Z));
+                gaps += floored ? 0 : 1;
+                low += room ? 0 : 1;
+                if (!floored || !room)
+                {
+                    Console.WriteLine($"  way down at {d:F1} m: {(floored ? "" : "no floor ")}{(room ? "" : "no room ")}over the floor: {string.Join("", Enumerable.Range(0, 8).Select(h => Solid(on.X, floorPlane - 1.5f + (h * 0.5f), on.Z) ? '#' : '.'))}");
+                }
+            }
+
+            steepest = MathF.Atan2(top.Y - foot.Y, new System.Numerics.Vector2(foot.X - top.X, foot.Z - top.Z).Length()) * 180f / MathF.PI;
+        }
+
+        Console.WriteLine($"way down: {(down is null ? "none" : $"{System.Numerics.Vector3.Distance(down.From, down.To):F1} m at {steepest:F0} degrees, {down.Opened.Count} voxels opened, {gaps}/{samples} without a floor, {low}/{samples} without room")}");
+        Check.That(down is not null && down.Route.Count > 0 && System.Numerics.Vector3.Distance(down.Route[0], lead[^1]) < 2.5f,
+            "an underground cave whose first sink falls past a step must get a way down from the tendril's end, starting its route");
+        Check.That(gaps == 0 && low == 0, "the way down must have a floor at its own height and room to stand all the way");
+        Check.That(steepest <= CaveWayDown.MaximumSlopeDegrees + 0.5f, "the way down must keep to a walkable grade");
+    }
+
     HashSet<CraftSurvive.Game.Modules.Terrain.TerrainChunkAddress> shell = [new(1, -2, 3), new(4, 5, -6)];
     foreach (WaterZone zone in made.Layout.WaterZones.Take(1))
     {

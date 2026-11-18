@@ -25,6 +25,15 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.cave.steer", Description = "Assisted, for a walk on the player's own input (#10889): in turns the view each update toward the chosen cave's way a few metres on (down the tendril, then the main route), out back toward the mouth, off stops; held keys do the walking through the ordinary controller.")]
     public string CaveSteer(string mode) => dungeons.CaveSteer(mode);
 
+    [DebugCommand("craft.cave.profile", Description = "Assisted, for traversal proof (#10889 R10889-3): the chosen cave's way between two distances along it, given as from-to metres - each 2 m point with the floor under it and the ceiling over it as the terrain holds them - so a drop or a pinch on the way shows.")]
+    public string CaveProfile(string range) => dungeons.CaveProfile(range);
+
+    [DebugCommand("craft.cave.slice", Description = "Assisted, for traversal proof (#10889 R10889-3): a vertical slice of the terrain across x at one z, given as x0,x1,y0,y1,z world cells - # rock, . air - to see a drop, a ledge or an overhang on a cave's way.")]
+    public string CaveSlice(string box) => dungeons.CaveSlice(box);
+
+    [DebugCommand("craft.cave.voxel", Description = "Assisted, for traversal proof (#10889 R10889-3): one world voxel, given as x,y,z, as the chosen cave's box holds it (its cell, material and density) and as the terrain answers it.")]
+    public string CaveVoxel(string at) => dungeons.CaveVoxel(at);
+
     [DebugCommand("craft.cave.store", Description = "Assisted, for retention proof (#10888 R10888-4): read says which of the caves asked for this session the store keeps for this world, and how many probe records; probe first writes 30 small probe records through the store as though 30 more caves had been generated (more than the 24 it once let go after).")]
     public string CaveStoreProbe(string action) => dungeons.CaveStoreProbe(action);
 
