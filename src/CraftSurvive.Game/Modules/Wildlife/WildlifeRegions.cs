@@ -36,10 +36,27 @@ internal sealed class HerdRecord
 
     internal string KindId { get; }
 
-    internal Vector2 Home { get; }
+    internal Vector2 Home { get; private set; }
 
     /// <summary>The height of a cave home's floor (#10876), in world metres; null for a home on the overworld's ground.</summary>
-    internal float? Floor { get; init; }
+    internal float? Floor { get => floor; init => floor = value; }
+
+    private float? floor;
+
+    /// <summary>How far a cave home was moved to floor its animals can route from (#10925); zero where it stands as derived.</summary>
+    internal float ResitedMetres { get; private set; }
+
+    /// <summary>
+    /// Moves a cave home to floor its animals can stand and route on (#10925), when the floor the cave's layout gave it reads
+    /// otherwise on their navigation: a face too steep, rock their bodies overlap. Cave homes are derived again each session
+    /// from the layout, and only their losses are saved, by key, so a move holds for this session.
+    /// </summary>
+    internal void Resite(Vector2 home, float floorHeight)
+    {
+        ResitedMetres += Vector2.Distance(Home, home);
+        Home = home;
+        floor = floorHeight;
+    }
 
     /// <summary>
     /// The way the draft comes from at a cave home (#10878), a world heading across the ground; null where no draft

@@ -428,12 +428,19 @@ Check.Section("hostile animals", () =>
     WildlifeMember first = WildlifeRules.Wake(den, runner, catalog, 7, Vector2.Zero, 1, () => 2).Leader;
     Check.That(first.Coat != second.Coat || first.Size != second.Size, "animals of a pack differ by their place in it");
 
-    // Navigation holds one body: it has to clear the tallest hunter, whichever was met first.
+    // Each body routes on a grid of its own (#10925): the gaunt and the axe-beak are different capsules, so different grids.
     WildlifeCapsule gauntBody = catalog.SizeClasses[catalog.Kind("gaunt").Body.SizeClass], beakBody = catalog.SizeClasses[beak.Body.SizeClass];
-    (float, float, double) gauntThenBeak = HunterRules.Envelope(gauntBody.Radius, gauntBody.Height, beakBody.Radius, beakBody.Height, 1);
-    (float, float, double) beakThenGaunt = HunterRules.Envelope(beakBody.Radius, beakBody.Height, gauntBody.Radius, gauntBody.Height, 1);
-    Check.That(gauntThenBeak == (1f, 4.6f, 2d), "a gaunt then an axe-beak are routed for the bird's height, on the same 2 m cells");
-    Check.That(beakThenGaunt == gauntThenBeak, "the other way round holds the same body");
+    Check.That(gauntBody != beakBody, "a gaunt and an axe-beak are routed as different bodies");
+    // The low, wide cave hunters take the broad class: their true width, a person's headroom.
+    WildlifeCapsule human = catalog.SizeClasses[WildlifeSizeClass.Human], broad = catalog.SizeClasses[WildlifeSizeClass.Broad];
+    Check.That(broad.Radius > human.Radius && broad.Height == human.Height, "a broad body is wider than a person and no taller");
+    foreach (string wide in new[] { "mouldback", "drop-sloth", "hummock" })
+    {
+        WildlifeKind k = catalog.Kind(wide);
+        Check.Equal(WildlifeSizeClass.Broad, k.Body.SizeClass, $"the {wide} is broad");
+        // The hummock (1.6 m) is wider still: broad is the nearest class without a large body's 2.4 m of headroom.
+        Check.That(wide == "hummock" || 2 * broad.Radius >= k.Body.WidthMetres * 0.9, $"the {wide}'s capsule holds its width");
+    }
     (float standing, float tilt) = WildlifeClips.Stance(10, 12, 8, -1.08, -1.08, catalog.Animation);
     Check.That(standing == 10 && tilt == 0, "a body whose feet stand in one place is not pitched by the ground");
 

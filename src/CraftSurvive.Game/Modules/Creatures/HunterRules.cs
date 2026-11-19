@@ -140,16 +140,6 @@ internal static class HunterRules
     /// forward of its legs on so long a head; the capsule holds the legs, so the mesh stands ahead of it
     /// by as much as the middle of its feet lies behind the origin.
     /// </summary>
-    /// <summary>
-    /// The body creatures are routed for, once another has joined them: as wide as the widest and as
-    /// tall as the tallest, whichever came first, on cells at least the width of it (#10622).
-    /// </summary>
-    internal static (float Radius, float Height, double Cell) Envelope(float radius, float height, float otherRadius, float otherHeight, double smallestCell)
-    {
-        float widest = Math.Max(radius, otherRadius);
-        return (widest, Math.Max(height, otherHeight), Math.Max(smallestCell, Math.Ceiling(2 * widest)));
-    }
-
     /// <summary>An animal's flank, by its place in its pack.</summary>
     internal static int SideOf(int order) => order % 2 == 1 ? (order + 1) / 2 : -(order / 2);
 

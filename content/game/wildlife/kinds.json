@@ -3,6 +3,7 @@
   "sizeClasses": {
     "small": { "radius": 0.3, "height": 0.8 },
     "human": { "radius": 0.35, "height": 1.8 },
+    "broad": { "radius": 0.6, "height": 1.8 },
     "large": { "radius": 0.6, "height": 2.4 },
     "huge": { "radius": 1.0, "height": 3.2 },
     "towering": { "radius": 1.0, "height": 4.6 }
@@ -522,7 +523,7 @@
       "habitat": {},
       "cave": { "lives": "damp-dead-ends", "homesPerCave": 2 },
       "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
-      "body": { "lengthMetres": 2.8, "heightMetres": 1.33, "widthMetres": 1.25, "sizeClass": "human", "colour": "#8a5a4e" },
+      "body": { "lengthMetres": 2.8, "heightMetres": 1.33, "widthMetres": 1.25, "sizeClass": "broad", "colour": "#8a5a4e" },
       "mesh": {
         "file": "creatures/mouldback/mouldback.glb",
         "manifest": "creatures/mouldback/mouldback.manifest.json",
@@ -572,7 +573,7 @@
       "habitat": {},
       "cave": { "lives": "cushion-barrens", "homesPerCave": 2 },
       "social": { "shape": "band", "groupMinimum": 1, "groupMaximum": 2, "spacingMetres": 5 },
-      "body": { "lengthMetres": 2.8, "heightMetres": 1.8, "widthMetres": 1.6, "sizeClass": "human", "colour": "#7b6b4a" },
+      "body": { "lengthMetres": 2.8, "heightMetres": 1.8, "widthMetres": 1.6, "sizeClass": "broad", "colour": "#7b6b4a" },
       "mesh": {
         "file": "creatures/gaunt/gaunt.glb",
         "manifest": "creatures/gaunt/gaunt.manifest.json",
@@ -647,7 +648,7 @@
       "habitat": {},
       "cave": { "lives": "inverted-grove", "homesPerCave": 2 },
       "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
-      "body": { "lengthMetres": 2.2, "heightMetres": 1.43, "widthMetres": 1.3, "sizeClass": "human", "colour": "#6e2a35" },
+      "body": { "lengthMetres": 2.2, "heightMetres": 1.43, "widthMetres": 1.3, "sizeClass": "broad", "colour": "#6e2a35" },
       "mesh": {
         "file": "creatures/drop-sloth/drop-sloth.glb",
         "manifest": "creatures/drop-sloth/drop-sloth.manifest.json",

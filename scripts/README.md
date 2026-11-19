@@ -145,13 +145,26 @@ node scripts/live.mjs capture --until 'draft-hound.*shows=Search' --out /tmp/sea
 - `craft.cave.stand <home key | kind> <metres> <upwind | downwind | degrees | any>` stands the player where a body
   fits on that home's own floor, about that far at that bearing (upwind and downwind of a home resting into a draft),
   facing it, and says how many spots had no floor, were off the home's level or had no room.
-- `craft.creatures.why <all | id | homes>` says why creatures cannot route on the navigation published around the
-  player: outside the published box (32 m about where the player stood), or how the creature's column reads at its
-  feet (a support, a capsule overlapping collision and with what, too steep, nothing) and the nearest support on its
-  level; `homes` flags each held cave home no route could start from as `UNROUTABLE`, and one the box does not reach
-  as `unread`. `craft.wildlife.caves` shows each home's `route=` as the creatures read it on their own once the
-  published box covers it: `ok`, `UNROUTABLE (why)` or `pending (why)`. The creatures readout's last event names a
-  home found unroutable.
+- **Grids per body size (#10925).** Each body capsule routes on its own navigation grid in a space (`grid=N` in the
+  readouts), published about the player while one of its size routes. Of grids published before, one republishes per
+  update. `craft.creatures.routing read` gives each grid's queries, failures and publication cost, and the creatures
+  readout's `navigation=[...]` lists them.
+- `craft.creatures.why <all | id | homes>` says why creatures cannot route, each on its own grid:
+  - outside the published box (32 m about where the player stood);
+  - how the creature's column reads at its feet (a support, a capsule overlapping collision and with what, too steep,
+    nothing) and the nearest support on its level;
+  - for a creature on a grid other than the player's, how the player's footing reads on its grid (a large body may not
+    fit where the player stands).
+  `homes` flags each held cave home no route could start from as `UNROUTABLE`, with the floor cells about it it could
+  move to, and one the box does not reach as `unread`.
+- **Cave homes.** `craft.wildlife.caves` shows each home's `route=` as the creatures read it on their own once its
+  grid's box covers it: `ok`, `UNROUTABLE (why)` or `pending (why)`. A home on floor its animals cannot route from
+  moves once, up to 8 m, to the nearest floor cell that reaches the floor about it (not a pocket), and says
+  `moved=<metres>`.
+- **Settling and footing.** A creature whose start its grid refuses is settled on the nearest supported cell within
+  2 m (at most once in ten seconds), or walks to its footing. A route whose goal the player's footing refuses goes to
+  the cell beside them. The creatures readout counts `settled`, `walkedToSupport`, `goalsBeside`, `resitedHomes` and
+  `unroutableHomes`.
 - `node scripts/live.mjs capture --until <regex> --out <file.rscene>` polls a readout (`--readout`, by default
   `craft.creatures.readout`) until the pattern matches and snapshots the renderer at once, so a short state (a
   search, a display, a bite) is caught. `--keep ward|heal` keeps the player standing meanwhile; `--hold yes` (the

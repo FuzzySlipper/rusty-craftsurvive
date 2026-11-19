@@ -78,11 +78,17 @@ internal sealed partial class CreatureModule : IProductModule
     /// <summary>The walking session as a space (#10876): the overworld and the caves under it.</summary>
     private readonly WalkingCreatureSpace walking;
 
-    /// <summary>Each space's navigation, made when a creature first pursues in it.</summary>
-    private readonly Dictionary<CreatureSpace, CreatureNavigation> navigations = [];
+    /// <summary>
+    /// Each space's navigation per body capsule (#10925), made when a creature of that size first routes there: each on a
+    /// grid of its own in the space's session, so a large hunter's grid does not coarsen a player-sized one's.
+    /// </summary>
+    private readonly Dictionary<(CreatureSpace Space, float Radius, float Height), CreatureNavigation> navigations = [];
 
-    /// <summary>The bodies every navigation has been fitted for, in order, so a space's first navigation fits them too.</summary>
-    private readonly List<CharacterControllerConfig> fitted = [];
+    /// <summary>The grid id the next body's navigation takes in each space.</summary>
+    private readonly Dictionary<CreatureSpace, ulong> nextGrid = [];
+
+    /// <summary>Each hunter kind's capsule, as its body steps and its grid routes.</summary>
+    private readonly Dictionary<string, CharacterControllerConfig> capsules = [];
     private int nextId = 1;
     private long step;
     private long swingSequence;
@@ -171,14 +177,51 @@ internal sealed partial class CreatureModule : IProductModule
     /// <summary>The space a creature lives in. Every creature the module places is given one.</summary>
     private CreatureSpace SpaceOf(Creature creature) => creature.Space as CreatureSpace ?? walking;
 
-    /// <summary>A space's navigation, made the first time a creature pursues there and fitted for every body seen so far.</summary>
-    private CreatureNavigation NavigationIn(CreatureSpace space)
+    /// <summary>A space's navigation for player-sized bodies: what readouts, the ambush's plain creatures and diagnosis of a point use.</summary>
+    private CreatureNavigation NavigationIn(CreatureSpace space) => NavigationIn(space, capsule);
+
+    /// <summary>A space's navigation for a body's capsule, made the first time a body of that size routes there.</summary>
+    private CreatureNavigation NavigationIn(CreatureSpace space, CharacterControllerConfig body)
     {
-        if (navigations.TryGetValue(space, out CreatureNavigation? found)) return found;
-        CreatureNavigation made = new(engine, space);
-        foreach (CharacterControllerConfig body in fitted) made.Fit(body);
-        return navigations[space] = made;
+        (CreatureSpace, float, float) key = (space, body.Shape.Radius, body.Shape.StandingHeight);
+        if (navigations.TryGetValue(key, out CreatureNavigation? found)) return found;
+        ulong grid = nextGrid.TryGetValue(space, out ulong next) ? next : FirstGridId;
+        nextGrid[space] = grid + 1;
+        return navigations[key] = new CreatureNavigation(engine, space, body, grid);
     }
+
+    /// <summary>
+    /// Publishes a grid about the player if it is stale (#10925): one never published goes at once, but of those published
+    /// before, one republishes an update, so several body sizes' grids do not all derive in one frame. A grid waiting its
+    /// turn still answers from where it was published.
+    /// </summary>
+    private void Publish(CreatureNavigation navigation, Vector3 playerFeet)
+    {
+        if (!navigation.Stale(playerFeet)) return;
+        if (navigation.Published)
+        {
+            if (republishedAt == step) return;
+            republishedAt = step;
+        }
+
+        navigation.EnsurePublished(playerFeet);
+    }
+
+    /// <summary>The update a grid last republished in.</summary>
+    private long republishedAt = -1;
+
+    /// <summary>The first grid a space's creatures route on; each further body size takes the next.</summary>
+    private const ulong FirstGridId = 1UL;
+
+    /// <summary>The navigation a creature routes on: its own space's, for its own body (#10925).</summary>
+    private CreatureNavigation NavigationOf(Creature creature) => NavigationIn(SpaceOf(creature), CapsuleOf(creature));
+
+    /// <summary>A creature's capsule: a hostile animal's kind's, or the plain creatures' player-sized one.</summary>
+    private CharacterControllerConfig CapsuleOf(Creature creature) => hunters.TryGetValue(creature.Id, out Hunter? hunter) ? BodyOf(hunter.Kind) : capsule;
+
+    /// <summary>The navigations of a space, every body size routed there so far.</summary>
+    private IEnumerable<CreatureNavigation> NavigationsIn(CreatureSpace space) =>
+        navigations.Where(entry => entry.Key.Space == space).Select(entry => entry.Value).OrderBy(navigation => navigation.GridId);
 
     /// <summary>Creatures of a space that has been let go go with it; so does the space's navigation.</summary>
     private void ReleaseGone()
@@ -191,7 +234,8 @@ internal sealed partial class CreatureModule : IProductModule
         }
 
         released += roster.Release(gone);
-        foreach (CreatureSpace space in navigations.Keys.Where(space => space.Gone).ToArray()) navigations.Remove(space);
+        foreach ((CreatureSpace, float, float) key in navigations.Keys.Where(key => key.Space.Gone).ToArray()) navigations.Remove(key);
+        foreach (CreatureSpace space in nextGrid.Keys.Where(space => space.Gone).ToArray()) nextGrid.Remove(space);
     }
 
     /// <summary>The navigation of the space the player is in (the walking session's when that space holds no creatures), for readouts.</summary>
@@ -267,7 +311,7 @@ internal sealed partial class CreatureModule : IProductModule
         }
 
         long routingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
-        long queriesBefore = here is null ? 0 : NavigationIn(here).Queries;
+        long queriesBefore = here is null ? 0 : NavigationsIn(here).Sum(navigation => navigation.Queries);
         if (here == walking) CloseAmbush();
         // While the test aid hides the player (#10878) nothing sees them, so a hunt turns to a search where they stand.
         HashSet<int> seeing = here is null || step < unseenUntil ? [] : Sense(playerWorld, here);
@@ -295,7 +339,7 @@ internal sealed partial class CreatureModule : IProductModule
         // A test aid sending a creature somewhere (#10926) has it search its way there.
         if (overrides.Count > 0) SteerOverrides();
         if (time.AdmittedSteps > 0) Route(player.WorldFeetPosition, here);
-        routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, (here is null ? 0 : NavigationIn(here).Queries) - queriesBefore,
+        routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, (here is null ? 0 : NavigationsIn(here).Sum(navigation => navigation.Queries)) - queriesBefore,
             roster.All.Count(creature => creature.Awake && creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking));
         bool playerCanBeHit = !player.Vitals.IsDown && !player.Vitals.IsInvulnerable(step);
         long bodiesStarted = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -521,17 +565,15 @@ internal sealed partial class CreatureModule : IProductModule
     private CreatureKind KindOf(WildlifeKind kind)
     {
         if (hunterKinds.TryGetValue(kind.Id, out CreatureKind? found)) return found;
-        CharacterControllerConfig body = BodyOf(kind);
-        fitted.Add(body);
-        foreach (CreatureNavigation navigation in navigations.Values) navigation.Fit(body);
         return hunterKinds[kind.Id] = HunterRules.KindOf(kind);
     }
 
     /// <summary>A hostile animal's capsule, its kind's size class: wide enough to hold its legs, so it is routed and stopped as what it is.</summary>
     private CharacterControllerConfig BodyOf(WildlifeKind kind)
     {
+        if (capsules.TryGetValue(kind.Id, out CharacterControllerConfig known)) return known;
         WildlifeCapsule body = Wildlife!.CapsuleOf(kind);
-        return CreatureBody.Capsule(engine.Spatial.DefaultCharacterControllerConfig(), body.Radius, body.Height);
+        return capsules[kind.Id] = CreatureBody.Capsule(engine.Spatial.DefaultCharacterControllerConfig(), body.Radius, body.Height);
     }
 
     /// <summary>The hostile animals to draw this update: only those on resident ground.</summary>
@@ -545,13 +587,18 @@ internal sealed partial class CreatureModule : IProductModule
     /// </summary>
     internal void AdmitHunter(HerdRecord record, WildlifeKind kind, Vector2 point, int alive)
     {
-        if (!started || hunted.ContainsKey(record.Key)) return;
+        int on = hunted.GetValueOrDefault(record.Key);
+        if (!started || on >= alive) return;
         if (record.Floor is float floor)
         {
             // A cave animal (#10876) takes up its home on its own floor in the walking session, under whatever ground lies over it.
-            if (walking.IsResident(new Vector3(point.X, floor - 1f, point.Y))) PlaceCaveHunter(record, kind, new Vector3(point.X, floor, point.Y), alive, walking);
+            // A pack whose places were not all on loaded floor when it woke takes up the rest as the floor loads (#10925): it
+            // used to stay one animal short for good.
+            if (walking.IsResident(new Vector3(point.X, floor - 1f, point.Y))) PlaceCaveHunter(record, kind, new Vector3(point.X, floor, point.Y), alive - on, walking, first: on);
             return;
         }
+
+        if (on > 0) return;
 
         if (!walking.IsResident(Feet(point) - Vector3.UnitY)) return;
         PlaceHunter(record, kind, point, 0, HunterHomeMetres, count: alive);
@@ -560,8 +607,11 @@ internal sealed partial class CreatureModule : IProductModule
     /// <summary>A cave home names a point in the air over its floor; the floor is looked for from this far above it.</summary>
     private const float CaveFloorLookAboveMetres = 0.5f;
 
-    /// <summary>A cave pack's places stand within this height of their home's floor, so none is set on a ledge or in a pit.</summary>
-    private const float CaveFloorReachMetres = 2f;
+    /// <summary>
+    /// A cave pack's places stand within this height of their home's floor, so none is set on a ledge or in a pit: one step,
+    /// as a body climbs (#10925). At two metres a glass-courser was set on a passage 2.2 m under its home that no step joined.
+    /// </summary>
+    private const float CaveFloorReachMetres = (float)CreatureNavigation.ClimbMetres;
 
     /// <summary>A cave pack stands in rings about its home, this many places to a ring.</summary>
     private const int CaveRingPlaces = 6;
@@ -574,12 +624,16 @@ internal sealed partial class CreatureModule : IProductModule
     /// spacing, in rings, on resident floor near the home's height. Each is its own encounter in the home's region. A home
     /// whose floor is not found yet waits for the next wake pass.
     /// </summary>
-    private void PlaceCaveHunter(HerdRecord record, WildlifeKind kind, Vector3 home, int count, CreatureSpace space)
+    /// <param name="first">How many of its animals are on the ground already: the rest take places none of them stands in.</param>
+    private void PlaceCaveHunter(HerdRecord record, WildlifeKind kind, Vector3 home, int count, CreatureSpace space, int first = 0)
     {
-        if (space.FloorBelow(home.X, home.Z, home.Y, CaveFloorLookAboveMetres) is not float homeFloor) return;
+        // A home moved to its animals' navigation (#10925) is stood on at the height its support reads, which can lie a little
+        // over the floor the voxels give.
+        if ((record.ResitedMetres > 0 ? home.Y : space.FloorBelow(home.X, home.Z, home.Y, CaveFloorLookAboveMetres)) is not float homeFloor) return;
         float spacing = (float)Math.Max(kind.SpacingMetres, 1d);
         long region = HunterRegionBase + ++hunterRegions;
-        int order = 0, placed = 0;
+        int order = first, placed = 0;
+        Vector2[] standing = first == 0 ? [] : [.. roster.All.Where(c => hunters.TryGetValue(c.Id, out Hunter? h) && h.Record.Key == record.Key).Select(c => c.Position)];
         for (int ring = 0; ring <= CaveRings && placed < count; ring++)
         {
             int places = ring == 0 ? 1 : CaveRingPlaces * ring;
@@ -590,6 +644,7 @@ internal sealed partial class CreatureModule : IProductModule
                 float? found = ring == 0 ? homeFloor
                     : space.IsResident(new Vector3(point.X, homeFloor - 1f, point.Y)) ? space.FloorBelow(point.X, point.Y, homeFloor + CaveFloorReachMetres, CaveFloorLookAboveMetres) : null;
                 if (found is not float floor || Math.Abs(floor - homeFloor) > CaveFloorReachMetres) continue;
+                if (standing.Any(taken => Vector2.Distance(taken, point) < spacing / 2)) continue;
                 int id = nextId;
                 EncounterSite site = new(RegionKind.Dungeon, region, (long)Math.Floor(floor), long.MinValue, HasGround: true, ShoreIsReachable: true);
                 if (!director.TryActivate(new EncounterCandidate(id, site, CreatureTraits.Walker, TimeWindow: 0), step, out EncounterDecision refusal))
@@ -607,7 +662,8 @@ internal sealed partial class CreatureModule : IProductModule
             }
         }
 
-        lastEvent = string.Create(CultureInfo.InvariantCulture, $"cave home {record.Key} took up {placed} of {count} at {home.X:F0},{home.Y:F0},{home.Z:F0} in {space.Name}");
+        if (placed == 0 && first > 0) return;
+        lastEvent = string.Create(CultureInfo.InvariantCulture, $"cave home {record.Key} took up {placed} of {count}{(first > 0 ? $" more ({first} already up)" : "")} at {home.X:F0},{home.Y:F0},{home.Z:F0} in {space.Name}");
     }
 
     private void PlaceHunter(HerdRecord record, WildlifeKind kind, Vector2 around, int minimumMetres, int maximumMetres,
@@ -677,6 +733,7 @@ internal sealed partial class CreatureModule : IProductModule
         lastPlayerAttack = "none";
         homeRouting.Clear();
         unroutableHomes = 0;
+        resitedHomes = 0;
         started = false;
         Start();
     }
@@ -820,11 +877,16 @@ internal sealed partial class CreatureModule : IProductModule
             {
                 float floor = HomeFloor(home) ?? (home.Floor ?? 0f);
                 Vector3 site = new(home.Home.X, floor, home.Home.Y);
-                string reading = navigation.Diagnose(site);
+                // Read on its own kind's grid (#10925).
+                CreatureNavigation its = HomeNavigation(home);
+                its.EnsurePublished(player.WorldFeetPosition);
+                string reading = its.Diagnose(site);
                 // A home the published box does not reach is unread, not unroutable (R10924-1).
-                string flag = reading.StartsWith(RoutableReading, StringComparison.Ordinal) ? "ok" : navigation.Covers(site) is null ? "UNROUTABLE" : "unread";
+                string flag = reading.StartsWith(RoutableReading, StringComparison.Ordinal) ? "ok" : its.Covers(site) is null ? "UNROUTABLE" : "unread";
                 lines.Append(string.Create(CultureInfo.InvariantCulture,
                     $" | {flag} {home.Key} at {home.Home.X:F1},{floor:F1},{home.Home.Y:F1}: {reading}"));
+                // Where it could move to (#10925): each floor cell about it, and whether a search from there leads anywhere.
+                if (flag == "UNROUTABLE") lines.Append("; open floor ").Append(its.OpenReadout(site, CreatureNavigation.DiagnoseLevelMetres, ResiteRingCells, ResiteTries));
             }
 
             return lines.ToString();
@@ -836,15 +898,23 @@ internal sealed partial class CreatureModule : IProductModule
         foreach (Creature creature in asked)
         {
             Vector3 feet = Feet(creature);
-            string reading = navigation.Diagnose(feet);
+            CreatureNavigation its = NavigationOf(creature);
+            its.EnsurePublished(player.WorldFeetPosition);
+            string reading = its.Diagnose(feet);
             // A start that is walkable but finds no way: how near the search got says whether the floors are joined.
-            string reach = reading.StartsWith("its column supports it", StringComparison.Ordinal) ? $"; {navigation.Reach(feet, player.WorldFeetPosition)}" : "";
+            string reach = reading.StartsWith("its column supports it", StringComparison.Ordinal) ? $"; {its.Reach(feet, player.WorldFeetPosition)}" : "";
+            // The player's footing on its own grid (#10925): a body this size may not fit where the player stands.
+            string goal = its.GridId == NavigationIn(here).GridId ? "" : $"; the player's footing on its grid: {its.Diagnose(player.WorldFeetPosition)}";
             lines.Append(string.Create(CultureInfo.InvariantCulture,
-                $" | id={creature.Id} kind={creature.Kind.Name} route={creature.RouteOutcome} feet={feet.X:F1},{feet.Y:F1},{feet.Z:F1}: {reading}{reach}"));
+                $" | id={creature.Id} kind={creature.Kind.Name} grid={its.GridId} route={creature.RouteOutcome} feet={feet.X:F1},{feet.Y:F1},{feet.Z:F1}: {reading}{reach}{goal}"));
         }
 
         return lines.ToString();
     }
+
+    /// <summary>The navigation a cave home's kind routes on in the walking session (#10925).</summary>
+    private CreatureNavigation HomeNavigation(HerdRecord home) =>
+        Wildlife?.HunterKinds.FirstOrDefault(kind => kind.Id == home.KindId) is WildlifeKind kind ? NavigationIn(walking, BodyOf(kind)) : NavigationIn(walking);
 
     /// <summary>A home's floor is looked for this far under its site.</summary>
     private const double HomeFloorSearchMetres = 1.5;
@@ -882,7 +952,7 @@ internal sealed partial class CreatureModule : IProductModule
         string rows = string.Join(" | ", roster.All.Select(creature => string.Create(CultureInfo.InvariantCulture,
             $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} feet={StandingAt(creature):F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}{(hunters.TryGetValue(creature.Id, out Hunter? shown) ? $" shows={shown.Member.Clip} display={shown.ThreatSeconds:F2}{HangReadout(shown)}{DraftReadout(shown, creature, playerWorld)}" : "")}")));
         return string.Create(CultureInfo.InvariantCulture,
-            $"step={step}; active={director.ActiveCount}; roster={roster.Count}; awake={roster.All.Count(creature => creature.Awake)}; shown={presentation.Shown}; released={released}; spawnRefusals={spawnRefusals}; unroutableHomes={unroutableHomes}; space={PlayerSpace?.Name ?? "none"} {NavigationHere.Readout()}; ")
+            $"step={step}; active={director.ActiveCount}; roster={roster.Count}; awake={roster.All.Count(creature => creature.Awake)}; shown={presentation.Shown}; released={released}; spawnRefusals={spawnRefusals}; unroutableHomes={unroutableHomes}; resitedHomes={resitedHomes}; settled={settled}; walkedToSupport={walkedToSupport}; goalsBeside={goalsMoved}; space={PlayerSpace?.Name ?? "none"} navigation=[{string.Join(" / ", NavigationsIn(PlayerSpace ?? walking).Select(navigation => navigation.Readout()))}]; ")
             + string.Create(CultureInfo.InvariantCulture,
             $"defeated={defeated} items={player.Progress.ItemsCollected} experience={player.Progress.Experience} level={player.Progress.Level} ")
             + string.Create(CultureInfo.InvariantCulture,
@@ -894,9 +964,12 @@ internal sealed partial class CreatureModule : IProductModule
     /// <summary>What routing has cost per update since the last reset: time (ambush, sensing and routing), navigation queries, pursuers.</summary>
     internal string RoutingReadout(bool reset)
     {
-        CreatureNavigation navigation = NavigationHere;
-        string readout = routing.Readout() + " " + navigation.QueryReadout() + $" backingOff={roster.All.Count(creature => creature.Awake && step < creature.BackoffUntil)}";
-        if (reset) { routing.Reset(); navigation.ResetQueries(); }
+        // The cost per grid (#10925): each body size's queries and publications.
+        CreatureNavigation[] grids = [.. NavigationsIn(PlayerSpace ?? walking)];
+        string readout = routing.Readout() + " | " + (grids.Length == 0 ? "no grids yet" : string.Join(" | ", grids.Select(navigation => navigation.QueryReadout())))
+            + $" | backingOff={roster.All.Count(creature => creature.Awake && step < creature.BackoffUntil)}";
+        if (reset) foreach (CreatureNavigation navigation in grids) navigation.ResetQueries();
+        if (reset) routing.Reset();
         return readout;
     }
 
@@ -947,13 +1020,15 @@ internal sealed partial class CreatureModule : IProductModule
             return;
         }
 
-        CreatureNavigation navigation = NavigationIn(here!);
+        // Each body size routes on its own grid (#10925), published once an update about the player while one of its size pursues.
+        HashSet<CreatureNavigation> published = [];
         try
         {
-            navigation.EnsurePublished(playerFeet);
             Vector2 hunted = new(playerFeet.X, playerFeet.Z);
             foreach (Creature creature in pursuers)
             {
+                CreatureNavigation navigation = NavigationOf(creature);
+                if (published.Add(navigation)) Publish(navigation, playerFeet);
                 bool searching = creature.Behavior.State == CreatureState.Searching;
                 Vector3 goalFeet = searching ? creature.LastSeen!.Value : playerFeet;
                 Vector2 playerGround = searching ? new Vector2(goalFeet.X, goalFeet.Z) : hunted;
@@ -975,6 +1050,16 @@ internal sealed partial class CreatureModule : IProductModule
                     || Vector2.Distance(creature.PathGoal, playerGround) > ReplanMetres
                     || creature.PathRevision != navigation.Publishes
                     || creature.StuckSteps >= StuckSteps;
+                // Outside the box its grid is published over (#10925), a query can only fail: it heads straight for the player as
+                // one beyond navigation does, and asks once it is inside.
+                if (navigation.Covers(Feet(creature)) is not null)
+                {
+                    creature.RouteOutcome = OutsideBox;
+                    creature.Path = null;
+                    creature.Waypoint = BeyondNavigation(creature, playerGround);
+                    continue;
+                }
+
                 // A body that has stopped sliding along what it touches is set down afresh, free of the motion it carried.
                 if (creature.StuckSteps >= StuckSteps) creature.Body = null;
                 if (stale && !Replan(navigation, creature, goalFeet, playerGround))
@@ -1014,6 +1099,36 @@ internal sealed partial class CreatureModule : IProductModule
     private bool Replan(CreatureNavigation navigation, Creature creature, Vector3 playerFeet, Vector2 playerGround)
     {
         NavigationStepResult result = navigation.Step(Feet(creature), playerFeet);
+        // Where its own grid's body cannot stand (#10925) - set down against rock, under a face too steep, dropped between
+        // cells - the creature is settled on the nearest cell its grid supports and asked again; where the player stands no
+        // such body could, it is routed to the nearest cell beside them that one could.
+        if (result.Outcome == NavigationPathOutcome.StartNotWalkable && Settle(navigation, creature, playerFeet))
+        {
+            settled++;
+            result = navigation.Step(Feet(creature), playerFeet);
+        }
+
+        // One set down where its grid's nearest support is too far to settle on walks to it, and is routed from there.
+        if (result.Outcome == NavigationPathOutcome.StartNotWalkable && navigation.NearestSupport(Feet(creature)) is Vector3 footing)
+        {
+            creature.RouteOutcome = result.Outcome.ToString();
+            creature.WaypointStep = step;
+            creature.StuckSteps = 0;
+            creature.RoutedFrom = null;
+            creature.Path = [new Vector2(footing.X, footing.Z)];
+            creature.PathIndex = 0;
+            creature.PathGoal = playerGround;
+            creature.PathRevision = navigation.Publishes;
+            walkedToSupport++;
+            return true;
+        }
+
+        if (result.Outcome == NavigationPathOutcome.GoalNotWalkable && navigation.NearestSupport(playerFeet) is Vector3 beside)
+        {
+            goalsMoved++;
+            result = navigation.Step(Feet(creature), beside);
+        }
+
         creature.RouteOutcome = result.Outcome.ToString();
         creature.WaypointStep = step;
         creature.StuckSteps = 0;
@@ -1046,6 +1161,35 @@ internal sealed partial class CreatureModule : IProductModule
         return true;
     }
 
+    /// <summary>
+    /// Sets a creature down on the nearest cell its grid supports on its level (#10925), one with a route to the player first, if one is within
+    /// <see cref="SettleMetres"/>: its body is set
+    /// down afresh there. Returns whether it moved.
+    /// </summary>
+    private bool Settle(CreatureNavigation navigation, Creature creature, Vector3 toward)
+    {
+        // Once in a while: settled, then refused again a step on, it walks to its footing instead of being set back.
+        if (step - creature.SettledStep < SettleAgainSteps) return false;
+        if (navigation.SettleSupport(Feet(creature), toward, CreatureNavigation.ClimbMetres, SettleMetres) is not Vector3 support) return false;
+        creature.Position = new Vector2(support.X, support.Z);
+        creature.Feet = support.Y;
+        creature.Body = null;
+        creature.SettledStep = step;
+        return true;
+    }
+
+    /// <summary>The route outcome of a creature outside its grid's published box: no query is asked for it.</summary>
+    internal const string OutsideBox = "OutsideBox";
+
+    /// <summary>A creature is settled at most once in this many update steps (ten seconds).</summary>
+    private const long SettleAgainSteps = 600;
+
+    /// <summary>The furthest a creature is settled: a cell or two, so it is seen to shift, not to jump.</summary>
+    private const double SettleMetres = 2.0;
+
+    /// <summary>How many creatures a refused start has settled onto their grid, and how many routes went to a cell beside the player (#10925).</summary>
+    private int settled, goalsMoved, walkedToSupport;
+
     private Vector3 Feet(Vector2 position) => new(position.X, GroundAt(position), position.Y);
 
     private Vector3 Feet(Creature creature) => new(creature.Position.X, StandingAt(creature), creature.Position.Y);
@@ -1072,13 +1216,14 @@ internal sealed partial class CreatureModule : IProductModule
         if (ambushWaiting <= 0) return;
         Vector3 feet = player.WorldFeetPosition;
         if (!walking.IsResident(Feet(new Vector2(feet.X, feet.Z)) - Vector3.UnitY)) return;
-        CreatureNavigation navigation = NavigationIn(walking);
+        WildlifeKind? hunter = Wildlife?.HunterKinds.FirstOrDefault();
+        // The ambush's columns are tried on its hunter's own grid (#10925).
+        CreatureNavigation navigation = hunter is null ? NavigationIn(walking) : NavigationIn(walking, BodyOf(hunter));
         try
         {
-            navigation.EnsurePublished(feet);
+            Publish(navigation, feet);
             // A few columns per update, each with a small search; a column refused once is not tried again.
             int checks = 0;
-            WildlifeKind? hunter = Wildlife?.HunterKinds.FirstOrDefault();
             int placed = Place(ambushWaiting, AmbushRegionBase + ambushes, _ => hunter is null ? CreatureKinds.Hostile : KindOf(hunter),
                 CreatureSpawnPlan.AmbushMinimumDistanceMetres, CreatureSpawnPlan.AmbushMaximumDistanceMetres,
                 column =>
@@ -1109,7 +1254,7 @@ internal sealed partial class CreatureModule : IProductModule
     /// <summary>What the player's swing strikes when no creature is in reach (#10567: wildlife); null when nothing is.</summary>
     internal Func<string?>? SwingElsewhere { get; set; }
 
-    /// <summary>What a navigation projection for another body costs over the creatures' box (#10567); theirs is published again on the next pursuit.</summary>
+    /// <summary>What a navigation projection for another body costs over the creatures' box (#10567), on a grid of its own that no creature routes on.</summary>
     internal string MeasureNavigation(CharacterControllerConfig character)
     {
         try

@@ -253,7 +253,7 @@ internal sealed partial class CreatureModule
         Part("perception", string.Create(CultureInfo.InvariantCulture,
             $"sees={lastSeeing.Contains(creature.Id)} alerted={lastAlerted.Contains(creature.Id)} d={distance:F2} sight={tuning.SightRange:F0}m x{SightScale(creature, lastAlerted):F2} wake={tuning.WakeRange:F0}m x{WakeShare(hunter, creature, player.WorldPosition):F2} reach={tuning.AttackRange:F1}m unseenAid={step < unseenUntil}"));
         Part("route", string.Create(CultureInfo.InvariantCulture,
-            $"outcome={creature.RouteOutcome} waypoint={(creature.Waypoint is Vector2 w ? $"{w.X:F1},{w.Y:F1}" : "none")} path={(creature.Path is Vector2[] p ? $"{creature.PathIndex}/{p.Length}" : "none")} stuck={creature.StuckSteps} backoff={Math.Max(0, creature.BackoffUntil - step)} lastSeen={(creature.LastSeen is Vector3 seen ? $"{seen.X:F1},{seen.Y:F1},{seen.Z:F1}" : "none")} why={NavigationIn(SpaceOf(creature)).Diagnose(feet)}"));
+            $"outcome={creature.RouteOutcome} waypoint={(creature.Waypoint is Vector2 w ? $"{w.X:F1},{w.Y:F1}" : "none")} path={(creature.Path is Vector2[] p ? $"{creature.PathIndex}/{p.Length}" : "none")} stuck={creature.StuckSteps} backoff={Math.Max(0, creature.BackoffUntil - step)} lastSeen={(creature.LastSeen is Vector3 seen ? $"{seen.X:F1},{seen.Y:F1},{seen.Z:F1}" : "none")} grid={NavigationOf(creature).GridId} why={NavigationOf(creature).Diagnose(feet)}"));
         if (hunter is not null)
         {
             WildlifeMember member = hunter.Member;

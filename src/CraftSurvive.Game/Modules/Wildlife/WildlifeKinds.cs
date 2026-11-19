@@ -10,6 +10,12 @@ internal enum WildlifeSizeClass
 {
     Small,
     Human,
+
+    /// <summary>
+    /// As tall as a person and twice as wide (#10925): the low, wide cave hunters - the mouldback, the drop-sloth, the
+    /// hummock - routed and stopped at their true width without asking a large body's headroom of a cave passage.
+    /// </summary>
+    Broad,
     Large,
     Huge,
     Towering,
@@ -383,6 +389,7 @@ internal static class WildlifeKinds
     {
         ["small"] = WildlifeSizeClass.Small,
         ["human"] = WildlifeSizeClass.Human,
+        ["broad"] = WildlifeSizeClass.Broad,
         ["large"] = WildlifeSizeClass.Large,
         ["huge"] = WildlifeSizeClass.Huge,
         ["towering"] = WildlifeSizeClass.Towering,

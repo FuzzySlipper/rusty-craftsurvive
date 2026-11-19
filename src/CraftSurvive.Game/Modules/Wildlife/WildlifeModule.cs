@@ -998,8 +998,8 @@ internal sealed partial class WildlifeModule : IProductModule
 
     /// <summary>
     /// What a collision-navigation projection costs for each size class the kinds use (#10567), over the
-    /// creatures' box around the player. The session holds one projection, so each replaces the last;
-    /// <paramref name="measure"/> publishes one and reports it.
+    /// creatures' box around the player. <paramref name="measure"/> publishes one on a grid of its own, clears it and
+    /// reports it, so the creatures' grids (#10925) are left as they were.
     /// </summary>
     internal string NavigationCost(Func<CharacterControllerConfig, string> measure)
     {

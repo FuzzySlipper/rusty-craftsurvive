@@ -47,9 +47,10 @@ internal sealed class WaterAvoidance
     /// Lays the overlay over the navigation just published in a cell box (local cell columns, inclusive
     /// minimum, exclusive maximum). <paramref name="waterAt"/> gives the water over a column, or null for
     /// none; <paramref name="collision"/> is anything that changes when the collision or the frame does,
-    /// so a column's supports are asked again. Returns whether the Engine took the overlay.
+    /// so a column's supports are asked again. Every request names the grid (#10925): each body's grid has its own overlay.
+    /// Returns whether the Engine took the overlay.
     /// </summary>
-    internal bool Apply(ISpatialService spatial, SpatialSession session, (long X, long Z) min, (long X, long Z) max,
+    internal bool Apply(ISpatialService spatial, SpatialSession session, ulong gridId, (long X, long Z) min, (long X, long Z) max,
         Func<long, long, ColumnWater?> waterAt, object collision)
     {
         ArgumentNullException.ThrowIfNull(spatial);
@@ -69,7 +70,7 @@ internal sealed class WaterAvoidance
             if (waterAt(x, z) is not ColumnWater water || water.Ice || water.Depth < FordDepth) continue;
             if (!columns.TryGetValue((x, z), out CollisionNavigationSample[]? samples))
             {
-                samples = spatial.ExplainCollisionNavigationColumn(new CollisionNavigationColumnRequest(session, x, z)).Samples.ToArray();
+                samples = spatial.ExplainCollisionNavigationColumn(new CollisionNavigationColumnRequest(session, x, z, gridId)).Samples.ToArray();
                 columns[(x, z)] = samples;
                 Explained++;
             }
@@ -96,8 +97,8 @@ internal sealed class WaterAvoidance
 
         try
         {
-            if (cells.Count == 0) spatial.ClearNavigationTraversal(new NavigationTraversalClearRequest(session));
-            else spatial.ReplaceNavigationTraversal(new NavigationTraversalReplaceRequest(session, cells.ToArray()));
+            if (cells.Count == 0) spatial.ClearNavigationTraversal(new NavigationTraversalClearRequest(session, gridId));
+            else spatial.ReplaceNavigationTraversal(new NavigationTraversalReplaceRequest(session, cells.ToArray(), gridId));
             (Closed, Fords, LastFailure) = (closed, fords, null);
             LastMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             return true;
