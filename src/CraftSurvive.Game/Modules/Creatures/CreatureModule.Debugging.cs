@@ -15,8 +15,11 @@ namespace CraftSurvive.Game.Modules.Creatures;
 internal sealed partial class CreatureModule
 {
     /// <summary>A test aid's hold on one creature (#10926): a state, a clip, a point to go to, or everything frozen.</summary>
-    private sealed class CreatureOverride
+    private sealed class CreatureOverride(string kind)
     {
+        /// <summary>The kind held: an id reused by another kind is not held.</summary>
+        internal string Kind { get; } = kind;
+
         internal CreatureState? State { get; set; }
         internal WildlifeClipRole? Clip { get; set; }
         internal Vector3? GoTo { get; set; }
@@ -38,8 +41,11 @@ internal sealed partial class CreatureModule
     /// <summary>The creature the player last defeated, so a watch can tell a kill from a creature let go.</summary>
     private int? lastDefeated;
 
-    /// <summary>The creature selected for inspection, by id and kind: an id reused by another kind is not it.</summary>
-    private (int Id, string Kind)? selected;
+    /// <summary>
+    /// The creature selected for inspection, by id and kind: an id reused by another kind is not it. A herd animal's id is
+    /// the wildlife's own, apart from the hunters' (shown as <c>herd:&lt;id&gt;</c>).
+    /// </summary>
+    private (int Id, string Kind, bool Herd)? selected;
 
     /// <summary>What the senses gave this update, kept for inspection.</summary>
     private HashSet<int> lastSeeing = [], lastAlerted = [];
@@ -56,7 +62,7 @@ internal sealed partial class CreatureModule
     private const double LookedAtDegrees = 12, LookedAtMetres = 60;
 
     /// <summary>What a watch compares from one update to the next.</summary>
-    private sealed record WatchFacts(CreatureState State, WildlifeClipRole? Clip, string Route, bool Sees, bool Alerted, int Health, bool Awake);
+    private sealed record WatchFacts(string State, string Clip, string Route, bool Sees, bool Alerted, int Health, bool Awake);
 
     // ---------------------------------------------------------------- spawn
 
@@ -64,9 +70,9 @@ internal sealed partial class CreatureModule
     /// Test aid (#10926): spawns <paramref name="count"/> of any hunter or herd kind, in no population, where asked:
     /// <c>here</c>, <c>ahead:&lt;metres&gt;</c> (along the view, on the floor there), <c>at:&lt;x&gt;,&lt;y&gt;,&lt;z&gt;</c>
     /// (on the floor under that point, in a cave too) or <c>home:&lt;key&gt;</c> (a cave home's floor). A hunter starts
-    /// <c>rest</c>, <c>idle</c>, <c>hunt</c> (alert to the player) or as its kind does (<c>default</c>); a herd kind is woken
-    /// on the overworld's ground (herds live there), and with <c>flee</c> it runs from the player when pressed, whatever its
-    /// kind does. Returns the new creatures' ids.
+    /// <c>rest</c>, <c>idle</c>, <c>hunt</c> (alert to the player) or as its kind does (<c>default</c>); a herd starts
+    /// <c>default</c>, <c>rest</c>, <c>idle</c> (grazing) or <c>flee</c> (running from the player now), each animal on the floor
+    /// near the point's height, caves included. Returns the new creatures' ids (a herd animal's as <c>herd:&lt;id&gt;</c>).
     /// </summary>
     internal string Spawn(string kindId, int count, string where, string start)
     {
@@ -96,10 +102,10 @@ internal sealed partial class CreatureModule
                 $"spawned {made.Length} of {count} {hunter.Id} {placed}, {(state is CreatureState shown ? shown.ToString() : "as its kind starts")}: ids=[{string.Join(",", made)}]{(made.Length < count ? $"; {lastEvent}" : "")}");
         }
 
-        Vector3 player3 = player.WorldPosition;
-        if (walking.UnderRock(player.WorldFeetPosition) || PlayerSpace != walking) return $"{kindId} is a herd kind: herds live on the overworld's ground, not here";
-        string woken = Wildlife.Spawn(kindId, at.X - player3.X, at.Z - player3.Z, count, start == "flee" ? PressedResponse.Flee : null);
-        return $"{kindId} {placed}: {woken}";
+        // Herds live in the walking session, its caves included; a separate space has none.
+        if (PlayerSpace != walking) return $"{kindId} is a herd kind: herds live in the walking session (its caves too), not in {PlayerSpace?.Name ?? "no space"}";
+        (string woken, IReadOnlyList<int> ids) = Wildlife.SpawnAt(kindId, at, count, start);
+        return ids.Count == 0 ? woken : $"spawned {ids.Count} {kindId} {placed}, {start}: ids=[{string.Join(",", ids.Select(id => $"herd:{id}"))}]; {woken}";
     }
 
     /// <summary>The most creatures one spawn makes.</summary>
@@ -159,44 +165,65 @@ internal sealed partial class CreatureModule
     {
         Vector3 eye = player.WorldPosition;
         Vector2 at = new(eye.X, eye.Z);
-        IEnumerable<Creature> awake = roster.All.Where(creature => creature.Awake);
-        Creature? chosen = which switch
+        // Hunters and herd animals alike: id, kind, herd or not, and the point a label or a look aims at.
+        List<(int Id, string Kind, bool Herd, Vector3 Feet)> awake = [.. roster.All.Where(creature => creature.Awake)
+            .Select(creature => (creature.Id, creature.Kind.Name, false, new Vector3(creature.Position.X, StandingAt(creature), creature.Position.Y)))];
+        if (Wildlife is not null) awake.AddRange(Wildlife.HerdMembers().Select(member => (member.Id, member.Kind, true, member.Feet)));
+        (int Id, string Kind, bool Herd, Vector3 Feet)? chosen = which switch
         {
-            "nearest" => awake.MinBy(creature => Vector2.Distance(creature.Position, at)),
+            "nearest" => Nearest(awake),
             "looked-at" => LookedAt(awake),
-            _ when which.StartsWith("nearest:", StringComparison.Ordinal) => awake.Where(creature => creature.Kind.Name == which[8..] || creature.Kind.Name == which[8..])
-                .MinBy(creature => Vector2.Distance(creature.Position, at)),
-            _ when int.TryParse(which, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id) => roster.TryGet(id, out Creature found) ? found : null,
+            _ when which.StartsWith("nearest:", StringComparison.Ordinal) => Nearest(awake.Where(c => c.Kind == which[8..])),
+            _ when which.StartsWith("herd:", StringComparison.Ordinal) && int.TryParse(which[5..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int member)
+                => awake.Where(c => c.Herd && c.Id == member).Select(c => ((int, string, bool, Vector3)?)c).FirstOrDefault(),
+            _ when int.TryParse(which, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id)
+                => awake.Where(c => !c.Herd && c.Id == id).Select(c => ((int, string, bool, Vector3)?)c).FirstOrDefault(),
             _ => null,
         };
-        if (chosen is null) return $"no creature for '{which}' (id, nearest, nearest:<kind>, looked-at)";
-        selected = (chosen.Id, chosen.Kind.Name);
+        if (chosen is not (int chosenId, string kind, bool herd, _)) return $"no creature for '{which}' (id, herd:<id>, nearest, nearest:<kind>, looked-at)";
+        selected = (chosenId, kind, herd);
         watched = null;
-        return $"selected {Describe(chosen)}";
+        return $"selected {Selected().Line}";
+
+        (int, string, bool, Vector3)? Nearest(IEnumerable<(int Id, string Kind, bool Herd, Vector3 Feet)> among) =>
+            among.Select(c => ((int, string, bool, Vector3)?)c).MinBy(c => Vector2.Distance(new Vector2(c!.Value.Item4.X, c.Value.Item4.Z), at));
     }
 
-    private Creature? LookedAt(IEnumerable<Creature> creatures)
+    private (int, string, bool, Vector3)? LookedAt(IEnumerable<(int Id, string Kind, bool Herd, Vector3 Feet)> creatures)
     {
         Vector3 eye = player.WorldPosition + (Vector3.UnitY * 1.6f);
         Vector3 forward = player.AimForward;
         if (forward.LengthSquared() < 1e-6f) return null;
         forward = Vector3.Normalize(forward);
         return creatures
-            .Select(creature => (Creature: creature, To: new Vector3(creature.Position.X, StandingAt(creature) + 0.8f, creature.Position.Y) - eye))
+            .Select(c => (Creature: c, To: c.Feet + (Vector3.UnitY * 0.8f) - eye))
             .Where(c => c.To.Length() <= LookedAtMetres && c.To.Length() > 0.1f)
             .Select(c => (c.Creature, Degrees: Math.Acos(Math.Clamp(Vector3.Dot(Vector3.Normalize(c.To), forward), -1, 1)) * 180 / Math.PI))
             .Where(c => c.Degrees <= LookedAtDegrees)
             .OrderBy(c => c.Degrees)
-            .Select(c => c.Creature)
+            .Select(c => ((int, string, bool, Vector3)?)c.Creature)
             .FirstOrDefault();
     }
 
-    /// <summary>The selected creature, while it is still the one selected; why not, otherwise.</summary>
-    private (Creature? Creature, string Why) Selected() =>
-        selected is not (int id, string kind) ? (null, "nothing selected: craft.creature.select <id|nearest|nearest:kind|looked-at>")
-        : !roster.TryGet(id, out Creature creature) ? (null, $"creature {id} ({kind}) is gone")
-        : creature.Kind.Name != kind ? (null, $"creature {id} is now a {creature.Kind.Name}: the {kind} selected is gone")
-        : (creature, "");
+    /// <summary>
+    /// The selected creature while it is still the one selected (a hunter, or null with <c>Herd</c> for a herd animal still
+    /// awake), a line naming it, and why not otherwise.
+    /// </summary>
+    private (Creature? Creature, bool Herd, string Line, string Why) Selected()
+    {
+        if (selected is not (int id, string kind, bool herd)) return (null, false, "", "nothing selected: craft.creature.select <id|herd:id|nearest|nearest:kind|looked-at>");
+        if (herd)
+        {
+            return Wildlife?.DescribeMember(id, kind) is string line ? (null, true, line, "") : (null, false, "", $"creature herd:{id} ({kind}) is gone");
+        }
+
+        return !roster.TryGet(id, out Creature creature) ? (null, false, "", $"creature {id} ({kind}) is gone")
+            : creature.Kind.Name != kind ? (null, false, "", $"creature {id} is now a {creature.Kind.Name}: the {kind} selected is gone")
+            : (creature, false, Describe(creature), "");
+    }
+
+    /// <summary>Whether the selection names a creature still here.</summary>
+    private static bool Present((Creature? Creature, bool Herd, string Line, string Why) chosen) => chosen.Creature is not null || chosen.Herd;
 
     private string Describe(Creature creature) => string.Create(CultureInfo.InvariantCulture,
         $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F1},{StandingAt(creature):F1},{creature.Position.Y:F1} state={creature.Behavior.State}");
@@ -206,7 +233,9 @@ internal sealed partial class CreatureModule
     /// <summary>Test aid (#10926): the selected creature, all of it: kind and home, state and timers, perception, route, body and animation.</summary>
     internal string Inspect()
     {
-        if (Selected() is not (Creature creature, _)) return Selected().Why;
+        var chosen = Selected();
+        if (chosen.Herd && selected is (int animal, string kind, _)) return Wildlife!.InspectMember(animal, kind);
+        if (chosen.Creature is not Creature creature) return chosen.Why;
         Vector3 playerFeet = player.WorldFeetPosition;
         Vector3 feet = Feet(creature);
         double distance = CreatureSimulation.PlanarDistance(creature.Position, player.WorldPosition);
@@ -254,35 +283,54 @@ internal sealed partial class CreatureModule
     {
         if (seconds == "read") return watchLog.Count == 0 ? "nothing logged" : string.Join(" | ", watchLog);
         if (!double.TryParse(seconds, NumberStyles.Float, CultureInfo.InvariantCulture, out double length)) return "watch <seconds> or watch read";
-        if (Selected() is not (Creature creature, _)) return Selected().Why;
+        var chosen = Selected();
+        if (!Present(chosen)) return chosen.Why;
         watchUntil = length <= 0 ? 0 : step + (long)Math.Ceiling(length * HunterRules.StepsPerSecond);
         watchLog.Clear();
         watched = null;
-        return length <= 0 ? "watch stopped" : string.Create(CultureInfo.InvariantCulture, $"watching {Describe(creature)} until step {watchUntil}");
+        return length <= 0 ? "watch stopped" : string.Create(CultureInfo.InvariantCulture, $"watching {chosen.Line} until step {watchUntil}");
     }
 
     /// <summary>Logs what changed for the watched creature this update.</summary>
     private void WatchUpdate()
     {
         if (step >= watchUntil) return;
-        if (Selected() is not (Creature creature, _))
+        var chosen = Selected();
+        if (!Present(chosen))
         {
-            // Its end is logged once: killed (its last health seen), or let go with its space or the encounter.
-            if (watched is WatchFacts last)
+            // Its end is logged once: killed (its last health seen), or let go with its space, its herd or the encounter.
+            if (watched is WatchFacts last && selected is (int id, _, bool herd))
             {
-                watchLog.Enqueue(string.Create(CultureInfo.InvariantCulture,
-                    $"step {step}: gone - {(lastDefeated == selected?.Id ? "killed by the player" : "released")} (last {last.State}, hp {last.Health}; {Selected().Why})"));
+                string how = herd ? Wildlife!.HowGone(id) : lastDefeated == id ? "killed by the player" : "released";
+                watchLog.Enqueue(string.Create(CultureInfo.InvariantCulture, $"step {step}: gone - {how} (last {last.State}, hp {last.Health}; {chosen.Why})"));
                 watched = null;
             }
 
             return;
         }
 
-        hunters.TryGetValue(creature.Id, out Hunter? hunter);
-        WatchFacts now = new(creature.Behavior.State, hunter?.Member.Clip, creature.RouteOutcome, lastSeeing.Contains(creature.Id), lastAlerted.Contains(creature.Id), creature.Combat.Health, creature.Awake);
+        WatchFacts now;
+        string context;
+        if (chosen.Creature is Creature creature)
+        {
+            hunters.TryGetValue(creature.Id, out Hunter? hunter);
+            now = new(creature.Behavior.State.ToString(), hunter?.Member.Clip.ToString() ?? "none", creature.RouteOutcome, lastSeeing.Contains(creature.Id), lastAlerted.Contains(creature.Id), creature.Combat.Health, creature.Awake);
+            double distance = CreatureSimulation.PlanarDistance(creature.Position, player.WorldPosition);
+            context = string.Create(CultureInfo.InvariantCulture,
+                $"d={distance:F1} sees={now.Sees} wake={creature.Kind.Tuning.WakeRange * WakeShare(hunter, creature, player.WorldPosition):F1}m sight={creature.Kind.Tuning.SightRange * SightScale(creature, lastAlerted):F0}m{(hunter is not null && packAlarms.ContainsKey(hunter.Record.Key) ? " packAlarm" : "")}{(overrides.TryGetValue(creature.Id, out CreatureOverride? held) && !held.Empty ? $" override[{held.Readout()}]" : "")}");
+        }
+        else if (selected is (int member, string kind, true) && Wildlife!.MemberFacts(member, kind) is var (state, clip, route, sees, alerted, health, facts))
+        {
+            now = new(state, clip, route, sees, alerted, health, true);
+            context = facts;
+        }
+        else
+        {
+            return;
+        }
+
         if (watched is WatchFacts was && was != now)
         {
-            double distance = CreatureSimulation.PlanarDistance(creature.Position, player.WorldPosition);
             List<string> changes = [];
             if (was.State != now.State) changes.Add($"state {was.State}->{now.State}");
             if (was.Clip != now.Clip) changes.Add($"clip {was.Clip}->{now.Clip}");
@@ -291,8 +339,6 @@ internal sealed partial class CreatureModule
             if (was.Alerted != now.Alerted) changes.Add(now.Alerted ? "alerted" : "no longer alerted");
             if (was.Health != now.Health) changes.Add($"hp {was.Health}->{now.Health}");
             if (was.Awake != now.Awake) changes.Add(now.Awake ? "awake" : "asleep (its floor let go)");
-            string context = string.Create(CultureInfo.InvariantCulture,
-                $"d={distance:F1} sees={now.Sees} wake={creature.Kind.Tuning.WakeRange * WakeShare(hunter, creature, player.WorldPosition):F1}m sight={creature.Kind.Tuning.SightRange * SightScale(creature, lastAlerted):F0}m{(hunter is not null && packAlarms.ContainsKey(hunter.Record.Key) ? " packAlarm" : "")}{(overrides.TryGetValue(creature.Id, out CreatureOverride? held) && !held.Empty ? $" override[{held.Readout()}]" : "")}");
             watchLog.Enqueue(string.Create(CultureInfo.InvariantCulture, $"step {step}: {string.Join(", ", changes)} ({context})"));
             while (watchLog.Count > MostWatchEntries) watchLog.Dequeue();
         }
@@ -309,8 +355,13 @@ internal sealed partial class CreatureModule
     /// </summary>
     internal string Force(string what, string value)
     {
-        if (Selected() is not (Creature creature, _)) return Selected().Why;
-        CreatureOverride held = overrides.TryGetValue(creature.Id, out CreatureOverride? kept) ? kept : overrides[creature.Id] = new CreatureOverride();
+        var chosen = Selected();
+        if (chosen.Herd && selected is (int member, string kind, _)) return Wildlife!.ForceMember(member, kind, what, value);
+        if (chosen.Creature is not Creature creature) return chosen.Why;
+        CreatureOverride held = overrides.TryGetValue(creature.Id, out CreatureOverride? kept) && kept.Kind == creature.Kind.Name
+            ? kept
+            : overrides[creature.Id] = new CreatureOverride(creature.Kind.Name);
+        hunters.TryGetValue(creature.Id, out Hunter? hunter);
         switch (what)
         {
             case "state" when ParseState(value) is CreatureState state:
@@ -326,6 +377,8 @@ internal sealed partial class CreatureModule
                 break;
             case "freeze":
                 held.Frozen = true;
+                // Its body is held too: the mesh pauses its playback and keeps its seat and feet (R10926-3).
+                if (hunter is not null) hunter.Member.Hold = new WildlifeHold { Frozen = true };
                 break;
             case "health" when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int health):
                 creature.Combat = creature.Combat with { Health = Math.Clamp(health, 1, creature.Combat.MaximumHealth) };
@@ -333,11 +386,12 @@ internal sealed partial class CreatureModule
                 return $"{Describe(creature)} health set to {creature.Combat.Health}/{creature.Combat.MaximumHealth}";
             case "release":
                 overrides.Remove(creature.Id);
+                if (hunter is not null) hunter.Member.Hold = null;
                 // A creature sent somewhere searched without end: its search ends now, and the rules take it from here.
                 if (creature.Behavior.SearchUntilTick == long.MaxValue) creature.Behavior = creature.Behavior with { SearchUntilTick = step };
                 return $"released {Describe(creature)}";
             default:
-                return $"force {what} {value}: state <rest|idle|alert|pursue|search|attack>, clip <role>, goto <x>,<z>, freeze, health <n> or release";
+                return $"force {what} {value}: for a hunter, state <rest|idle|alert|pursue|search|attack> (hunters do not flee: a herd animal does), clip <role>, goto <x>,<z>, freeze, health <n> or release";
         }
 
         if (held.Empty) overrides.Remove(creature.Id);
@@ -356,19 +410,22 @@ internal sealed partial class CreatureModule
     };
 
     /// <summary>Whether a test aid has frozen the creature: no rules, no move, its clip held.</summary>
-    private bool Frozen(Creature creature) => overrides.TryGetValue(creature.Id, out CreatureOverride? held) && held.Frozen;
+    private bool Frozen(Creature creature) => overrides.TryGetValue(creature.Id, out CreatureOverride? held) && held.Frozen && held.Kind == creature.Kind.Name;
 
     /// <summary>The state a test aid holds the creature in; a creature sent somewhere searches its way there.</summary>
-    private CreatureState? ForcedState(Creature creature) => overrides.TryGetValue(creature.Id, out CreatureOverride? held)
+    private CreatureState? ForcedState(Creature creature) => overrides.TryGetValue(creature.Id, out CreatureOverride? held) && held.Kind == creature.Kind.Name
         ? held.State ?? (held.GoTo is null ? null : CreatureState.Searching)
         : null;
 
     /// <summary>Before routing: a creature sent somewhere looks for it as a searcher looks for where it last saw the player.</summary>
     private void SteerOverrides()
     {
+        // A hold outlives its creature only until the id goes or is taken by another kind.
+        foreach (int gone in overrides.Where(entry => !roster.TryGet(entry.Key, out Creature c) || c.Kind.Name != entry.Value.Kind).Select(entry => entry.Key).ToArray())
+            overrides.Remove(gone);
         foreach ((int id, CreatureOverride held) in overrides)
         {
-            if (held.GoTo is Vector3 to && roster.TryGet(id, out Creature creature))
+            if (held.GoTo is Vector3 to && roster.TryGet(id, out Creature creature) && creature.Kind.Name == held.Kind)
             {
                 creature.LastSeen = to;
                 creature.Behavior = creature.Behavior with { State = CreatureState.Searching, SearchUntilTick = long.MaxValue };
@@ -409,7 +466,8 @@ internal sealed partial class CreatureModule
     private void PublishLabels(CreatureSpace? here)
     {
         if (labels == "off" || here is null) return;
-        int? chosen = Selected().Creature?.Id;
+        int? chosen = selected is (int id, _, false) ? id : null;
+        int? chosenHerd = selected is (int member, _, true) ? member : null;
         List<OverlayItem> items = [];
         foreach (Creature creature in roster.All.Where(c => c.Awake && SpaceOf(c) == here && (labels == "all" || c.Id == chosen)))
         {
@@ -419,6 +477,15 @@ internal sealed partial class CreatureModule
             string text = $"{creature.Id} {creature.Kind.Name} {creature.Behavior.State} {hunter?.Member.Clip.ToString() ?? ""} {creature.RouteOutcome}"
                 + (overrides.TryGetValue(creature.Id, out CreatureOverride? held) && !held.Empty ? $" [{held.Readout()}]" : "");
             items.Add(OverlayItem.Label(new OverlayPlace(OverlaySpace.World, 0, 0), at, text, creature.Id == chosen ? SelectedColour : LabelColour, true));
+        }
+
+        // Herd animals live in the walking session (#10926).
+        if (Wildlife is not null && here == walking)
+        {
+            foreach ((int animal, Vector3 at, string text) in Wildlife.MemberLabels(animal => labels == "all" || animal == chosenHerd, LabelGapMetres))
+            {
+                items.Add(OverlayItem.Label(new OverlayPlace(OverlaySpace.World, 0, 0), here.ToLocal(at.X, at.Y, at.Z), text, animal == chosenHerd ? SelectedColour : LabelColour, true));
+            }
         }
 
         engine.Graphics.PublishOverlaySet(new OverlaySetRequest(LabelSet, [.. items], []));

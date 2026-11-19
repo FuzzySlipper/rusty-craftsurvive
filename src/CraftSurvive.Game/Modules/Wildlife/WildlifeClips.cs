@@ -107,7 +107,9 @@ internal static class WildlifeClips
     {
         ArgumentNullException.ThrowIfNull(member);
         member.ClipSeconds += seconds;
-        WildlifeClipRole want = Want(member, herd, rig);
+        // A test aid's hold (#10926): a frozen animal keeps its clip, a held clip plays at once.
+        if (member.Hold is { Frozen: true }) return false;
+        WildlifeClipRole want = member.Hold?.Clip ?? Want(member, herd, rig);
         if (want == member.Clip) return false;
         // The young change gait at will: that is how they move.
         bool urgent = member.Young || want is WildlifeClipRole.Run or WildlifeClipRole.Look or WildlifeClipRole.Warn or WildlifeClipRole.Stand or WildlifeClipRole.Hunker or WildlifeClipRole.Slip or WildlifeClipRole.LedgeHop;

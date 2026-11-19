@@ -134,7 +134,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI - member.Yaw);
         Vector3 world = new(member.Position.X, body.Height + member.Lift, member.Position.Y);
         Transform placement = new(ToLocal(body, world), Quaternion.Concatenate(lift, turn), new Vector3(scale));
-        Plant(body, placement, world, scale, plant: !fallen && distance <= plantWithin);
+        Plant(body, placement, world, scale, plant: !fallen && distance <= plantWithin, frozen: !fallen && Frozen(member));
         return new AppearanceFact(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.Cast);
     }
 
@@ -160,12 +160,16 @@ internal sealed class WildlifeMeshBodies : IDisposable
         member.Position = new Vector2(hips.X, hips.Z);
     }
 
+    /// <summary>Whether a test aid has frozen the animal (#10926): its playback paused, its seat and feet held.</summary>
+    private static bool Frozen(WildlifeMember member) => member.Hold is { Frozen: true };
+
     /// <summary>Starts, changes, holds or resumes the clip the animal's state calls for.</summary>
     /// <param name="herd">Its herd, whose state picks the clip; null for a hostile animal, whose clip the creature rules have set.</param>
     private void Play(Body body, WildlifeHerd? herd, WildlifeKind kind, WildlifeMember member, double seconds, bool fallen)
     {
         WildlifeRig rig = body.Kind.Rig;
-        bool held = body.Tier >= WildlifeTier.Held;
+        // A test aid's freeze (#10926) pauses the playback as the held tier does, and resumes it on release; death ends it.
+        bool held = body.Tier >= WildlifeTier.Held || (Frozen(member) && !fallen);
         if (held != body.Paused && body.Playing is not null)
         {
             body.Paused = held;
@@ -202,6 +206,8 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <summary>Sits the body on the ground under its hind and fore feet: every update near, now and then further out, not at all once its pose is held.</summary>
     private void Sit(Body body, WildlifeKind kind, WildlifeMember member, float feet, double seconds)
     {
+        // A frozen body (#10926) keeps the height and pitch it had.
+        if (Frozen(member) && body.Sitting) return;
         float wantedHeight = feet, wantedPitch = 0;
         bool casts = body.Tier == WildlifeTier.Full || (body.Tier == WildlifeTier.Play && ++body.SinceSitting >= animation.PitchEveryUpdates) || !body.Sitting;
         if (body.Tier >= WildlifeTier.Held && body.Sitting) casts = false;
@@ -226,8 +232,10 @@ internal sealed class WildlifeMeshBodies : IDisposable
     }
 
     /// <summary>Plants the feet near the player, while the clip keeps them on the ground; otherwise the clip's own pose stands.</summary>
-    private void Plant(Body body, Transform placement, Vector3 world, float scale, bool plant)
+    private void Plant(Body body, Transform placement, Vector3 world, float scale, bool plant, bool frozen)
     {
+        // A frozen body (#10926) keeps its feet as they were planted, or not.
+        if (frozen) return;
         CreatureClip clip = body.Playing is WildlifeClipRole role ? body.Kind.Rig.Clip(role) : body.Kind.Rig.Clip(WildlifeClipRole.Idle);
         if (!plant || body.Tier != WildlifeTier.Full || !clip.PlantsFeet)
         {
@@ -361,8 +369,30 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <summary>What an animal's mesh plays now (#10926): the clip and its rate, its detail tier, whether its feet are planted, its pitch.</summary>
     internal string BodyReadout(WildlifeMember member) => bodies.Find(member) is Body body
         ? string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"playing={body.Playing?.ToString() ?? "none"} rate={body.Rate:F2} tier={body.Tier} planted={body.Planted} pitch={body.Pitch * 180 / MathF.PI:F1} fell={body.Fell}")
+            $"playing={body.Playing?.ToString() ?? "none"} paused={body.Paused} rate={body.Rate:F2} tier={body.Tier} planted={body.Planted} pitch={body.Pitch * 180 / MathF.PI:F1} fell={body.Fell} {PoseReadout(body)}")
         : "no mesh body";
+
+    /// <summary>
+    /// A signature of the pose its playback gives now (#10926), from the joints' model-space rotations: two reads alike mean
+    /// the clip has not moved on between them, as while the body is frozen; reads that differ mean it plays.
+    /// </summary>
+    private string PoseReadout(Body body)
+    {
+        if (!body.Published) return "pose=unpublished";
+        ReadOnlySpan<JointPose> pose = engine.Animation.SampleJointPose(
+            AnimationPoseSampleRequest.OfCurrentPlayback(body.Instance, new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), applyPoseControls: false)).Span;
+        double signature = 0;
+        for (int i = 0; i < pose.Length; i++)
+        {
+            Quaternion turn = pose[i].Model.Rotation;
+            signature += (i + 1) * ((turn.X * PoseWeightX) + (turn.Y * PoseWeightY) + (turn.Z * PoseWeightZ));
+        }
+
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"pose={signature:F5} joints={pose.Length}");
+    }
+
+    /// <summary>Weights that keep a pose signature from cancelling out across a joint's axes.</summary>
+    private const double PoseWeightX = 1, PoseWeightY = 3, PoseWeightZ = 7;
 
     internal string Readout()
     {

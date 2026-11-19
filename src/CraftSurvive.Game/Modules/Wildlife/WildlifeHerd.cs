@@ -97,6 +97,13 @@ internal sealed class WildlifeMember
     /// <summary>Struck since the last decision: it answers as its kind does when pressed.</summary>
     internal bool Struck { get; set; }
 
+    /// <summary>
+    /// Test aid (#10926): what a live-debug override holds this animal to - a wariness, a run from the player, a point to
+    /// walk to, a clip, or everything frozen (no rules, no move, its playback paused). Null for every animal the rules alone
+    /// drive, which is every animal outside a test.
+    /// </summary>
+    internal WildlifeHold? Hold { get; set; }
+
     internal void Enter(Wariness stage)
     {
         Stage = stage;
@@ -186,6 +193,9 @@ internal sealed class WildlifeHerd
     /// <summary>Which way the herd bolts when it flees: away from the player from where it stands.</summary>
     internal Vector2 FleeHeading { get; set; }
 
+    /// <summary>Test aid (#10926): the activity a live-debug override holds the herd to, whatever its schedule says.</summary>
+    internal WildlifeActivity? HeldActivity { get; set; }
+
     internal Vector2 Centre
     {
         get
@@ -211,4 +221,37 @@ internal sealed class WildlifeHerd
         Vector2 offset = Members[0].Slot;
         foreach (WildlifeMember other in Members) other.Slot -= offset;
     }
+}
+
+/// <summary>
+/// A live-debug override's hold on one animal (#10926). The herd rules, the clip choice and the mesh body each read it, so a
+/// held animal does what it is held to and says so; nothing reads it for an animal without one.
+/// </summary>
+internal sealed class WildlifeHold
+{
+    /// <summary>The wariness it stays at, whatever its senses say.</summary>
+    internal Wariness? Stage { get; set; }
+
+    /// <summary>Pressed, it runs from the player whatever its kind does.</summary>
+    internal bool Flee { get; set; }
+
+    /// <summary>A point it walks to, and stands at once there.</summary>
+    internal Vector2? GoTo { get; set; }
+
+    /// <summary>The clip it plays, whatever its state calls for.</summary>
+    internal WildlifeClipRole? Clip { get; set; }
+
+    /// <summary>No rules, no move, its clip's playback paused and its pose held.</summary>
+    internal bool Frozen { get; set; }
+
+    internal bool Empty => Stage is null && !Flee && GoTo is null && Clip is null && !Frozen;
+
+    internal string Readout() => string.Join(",", new[]
+    {
+        Stage is Wariness stage ? $"stage={stage}" : null,
+        Flee ? "flee" : null,
+        GoTo is Vector2 to ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"goto={to.X:F1},{to.Y:F1}") : null,
+        Clip is WildlifeClipRole clip ? $"clip={clip}" : null,
+        Frozen ? "frozen" : null,
+    }.Where(part => part is not null));
 }

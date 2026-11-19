@@ -164,7 +164,7 @@ node scripts/live.mjs capture --until 'draft-hound.*shows=Search' --out /tmp/sea
 
 ```sh
 node scripts/live.mjs exec craft.creature.spawn draft-hound 1 ahead:12 rest   # any hunter or herd kind; returns ids
-node scripts/live.mjs exec craft.creature.select looked-at                    # or an id, nearest, nearest:<kind>
+node scripts/live.mjs exec craft.creature.select looked-at                    # or an id, herd:<id>, nearest, nearest:<kind>
 node scripts/live.mjs exec craft.creature.inspect                             # state, perception, route, body, animation
 node scripts/live.mjs exec craft.creature.watch 60                            # log its changes; then: watch read
 node scripts/live.mjs exec craft.creature.force state search                  # or clip/goto/freeze/health; release -
@@ -173,14 +173,18 @@ node scripts/live.mjs frame --out /tmp/labels.png                             # 
 ```
 
 - `craft.creature.spawn <kind> <count> <where> <start>` places creatures outside any population: `where` is `here`,
-  `ahead:<metres>`, `at:<x>,<y>,<z>` (on the floor under that point, in caves too) or `home:<cave home key>`; `start`
-  is `default`, `rest`, `idle` or `hunt`, or `flee` for a herd (it runs when pressed). Herds are refused underground.
-- `craft.creature.select` picks the one creature the other commands act on and says when it is gone. `inspect` reads
+  `ahead:<metres>`, `at:<x>,<y>,<z>` (on the floor under that point, in caves too) or `home:<cave home key>`. A hunter
+  starts `default`, `rest`, `idle` or `hunt`. A herd starts `default`, `rest`, `idle` (grazing in place) or `flee`
+  (running from the player now), on the floor near the point's height, cave floors included. Herd animals are named
+  `herd:<id>`: their ids are the wildlife's own.
+- `craft.creature.select` picks the one creature, hunter or herd animal, the other commands act on, and says when it
+  is gone. `inspect` reads
   it whole, including the clip it wants and why and what its mesh plays. `watch <seconds>` logs each change of state,
   clip, route, sight, alarm, health or wakefulness with the update step and the facts then, and how it went (killed by
   the player, or released).
-- `craft.creature.force <what> <value>` holds the selected creature until `release -`: `state`, `clip`, `goto <x>,<z>`
-  (it searches its way there), `freeze -` (no rules, no move, clip held, not woken by a rouse or a pack alarm) or
+- `craft.creature.force <what> <value>` holds the selected creature until `release -`: `state` (a hunter's
+  `rest|idle|alert|pursue|search|attack`, a herd animal's `rest|idle|look|warn|flee`), `clip`, `goto <x>,<z>`, `freeze -`
+  (no rules, no move, its playback paused and pose held; not woken by a rouse, a pack alarm or its herd's alarm) or
   `health <n>`. Pass `-` where no value is needed: debug commands take no defaults.
 - Labels ride the Engine's inspection overlay, which `.rscene` snapshot renders do not carry: save them with
   `live.mjs frame --out` or `capture --frame <file.png>`, which take the live frame with its overlays. Labels of

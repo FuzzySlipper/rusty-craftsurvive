@@ -142,7 +142,8 @@ internal static class WildlifeRules
 
     /// <summary>What this animal does when pressed: its kind's answer, unless it is hurt badly enough to run. A shell is no place to run from.</summary>
     internal static PressedResponse Response(WildlifeMember member, WildlifeKind kind) =>
-        kind.Pressed is PressedResponse.Stand or PressedResponse.DisplayCharge && member.Combat.Health < member.Combat.MaximumHealth * kind.Senses.FleeBelowHealth
+        member.Hold?.Flee == true ? PressedResponse.Flee
+        : kind.Pressed is PressedResponse.Stand or PressedResponse.DisplayCharge && member.Combat.Health < member.Combat.MaximumHealth * kind.Senses.FleeBelowHealth
             ? PressedResponse.Flee
             : kind.Pressed;
 
@@ -201,6 +202,14 @@ internal static class WildlifeRules
     private static void Sense(WildlifeMember member, WildlifeKind kind, WildlifeBehaviour behaviour, double herdNearest, bool stayingDown, double seconds)
     {
         member.StageSeconds += seconds;
+        // A test aid's hold (#10926) keeps the animal where it is held: at its stage, or at whatever stage it was frozen in.
+        if (member.Hold is WildlifeHold hold && (hold.Stage is not null || hold.Frozen))
+        {
+            member.Struck = false;
+            if (hold.Stage is Wariness held && member.Stage != held) member.Enter(held);
+            return;
+        }
+
         WildlifeSenses senses = kind.Senses;
         double distance = member.PlayerDistance;
         double release = behaviour.ReleaseShare;
@@ -298,6 +307,8 @@ internal static class WildlifeRules
         double reach = behaviour.AlarmSpreadMetresPerSecond * herd.AlarmSeconds;
         foreach (WildlifeMember member in herd.Members)
         {
+            // A test aid's hold (#10926) is not raised by its herd's alarm.
+            if (member.Hold is { Frozen: true } or { Stage: not null }) continue;
             if (member.Stage < spread && Vector2.Distance(member.Position, herd.AlarmOrigin) <= reach) member.Enter(spread);
         }
     }
@@ -311,8 +322,17 @@ internal static class WildlifeRules
         if (period != herd.Period)
         {
             herd.Period = period;
-            herd.Activity = schedule.Steps[step].Activity;
+            herd.Activity = herd.HeldActivity ?? schedule.Steps[step].Activity;
             herd.GoalSerial = 0;
+            herd.Goal = Goal(herd, facts, catalog);
+            return;
+        }
+
+        // A test aid holds the herd to an activity (#10926): it takes it up at once.
+        if (herd.HeldActivity is WildlifeActivity held && herd.Activity != held)
+        {
+            herd.Activity = held;
+            herd.GoalSerial++;
             herd.Goal = Goal(herd, facts, catalog);
             return;
         }
@@ -324,6 +344,20 @@ internal static class WildlifeRules
             herd.GoalSerial++;
             herd.Goal = Goal(herd, facts, catalog);
         }
+    }
+
+    /// <summary>
+    /// Test aid (#10926): a herd just placed starts its schedule's current period at this activity, in place, where its
+    /// schedule would have chosen; the next period goes back to the schedule.
+    /// </summary>
+    internal static void Begin(WildlifeHerd herd, WildlifeActivity activity, WorldTime time)
+    {
+        ArgumentNullException.ThrowIfNull(herd);
+        WildlifeSchedule schedule = herd.Kind.Schedule;
+        herd.Period = (time.Day * schedule.Steps.Length) + schedule.StepAt(time.DayFraction);
+        herd.Activity = activity;
+        herd.GoalSerial = 0;
+        herd.Goal = herd.Leader.Position;
     }
 
     private static Vector2 Goal(WildlifeHerd herd, HerdFacts facts, WildlifeCatalog catalog)
@@ -478,6 +512,22 @@ internal static class WildlifeRules
 
             // The leader sets the pace; it is the others who keep their distance from it.
             if (shuffles && member != leader) velocity = Cap(velocity + Separation(member, herd, behaviour), Math.Max(kind.Speeds.Walk, velocity.Length()));
+            // A test aid's hold (#10926): a frozen animal stands as it is; one sent somewhere walks there.
+            if (member.Hold is WildlifeHold hold)
+            {
+                if (hold.Frozen)
+                {
+                    member.Velocity = Vector2.Zero;
+                    continue;
+                }
+
+                if (hold.GoTo is Vector2 to)
+                {
+                    velocity = Vector2.Distance(member.Position, to) <= behaviour.GoalArrivalMetres ? Vector2.Zero : Toward(member.Position, to, kind.Speeds.Walk, seconds);
+                    face = null;
+                }
+            }
+
             velocity = KeepOut(member.Position, velocity, seconds, facts.Excluded);
             member.Velocity = velocity;
             float turn = (float)(kind.Speeds.TurnDegrees * Math.PI / 180 * seconds);

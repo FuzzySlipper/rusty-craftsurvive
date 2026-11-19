@@ -26,7 +26,7 @@ namespace CraftSurvive.Game.Modules.Wildlife;
 /// It owns the population ledger (what each seeded herd has lost) and the awake herds; bodies and
 /// appearances are derived from them. Every number it behaves by comes from the kinds' content.
 /// </summary>
-internal sealed class WildlifeModule : IProductModule
+internal sealed partial class WildlifeModule : IProductModule
 {
     /// <summary>Herds wake and sleep this often (updates): the ledger is walked, not every frame.</summary>
     private const int WakeEverySteps = 30;
@@ -477,12 +477,16 @@ internal sealed class WildlifeModule : IProductModule
         slot.Save(Ledger.Losses(day));
     }
 
-    private WildlifeHerd WakeAt(HerdRecord record, WildlifeKind kind, Vector2 point, int alive)
+    /// <param name="near">A height to find each animal's floor near (#10926: a test's herd on a cave floor); the overworld's ground when null.</param>
+    private WildlifeHerd WakeAt(HerdRecord record, WildlifeKind kind, Vector2 point, int alive, float? near = null)
     {
         WildlifeHerd herd = WildlifeRules.Wake(record, kind, Catalog, Seed, point, alive, TakeId, Excluded);
         foreach (WildlifeMember member in herd.Members)
         {
-            bodies[member.Id] = new MemberBody { Feet = GroundOf(member.Position.X, member.Position.Y) };
+            float feet = near is float y
+                ? terrain.GroundBelow(member.Position.X, member.Position.Y, y, SpawnFloorReachMetres) ?? y
+                : GroundOf(member.Position.X, member.Position.Y);
+            bodies[member.Id] = new MemberBody { Feet = feet };
         }
 
         awake.Add(herd);
@@ -610,6 +614,7 @@ internal sealed class WildlifeModule : IProductModule
         {
             CharacterControllerConfig config = Config(herd.Kind, member.Young);
             MemberBody state = bodies[member.Id];
+            if (member.Hold is { Frozen: true }) continue;
             float speed = member.Velocity.Length();
             double travel = speed * seconds;
             if (herd.Kind.Mesh?.Clips.ContainsKey(WildlifeClipRole.LedgeHop) == true) Spring(member, state, here, seconds);
@@ -726,6 +731,9 @@ internal sealed class WildlifeModule : IProductModule
 
         double day = Day(clock());
         herd.Remove(member);
+        lastKilled = member.Id;
+        // A test aid's hold on its herd's activity (#10926) goes with the last animal held.
+        if (member.Hold is not null && herd.Members.All(mate => mate.Hold is null)) herd.HeldActivity = null;
         member.Velocity = Vector2.Zero;
         fallen.Add(new WildlifeFallen(herd.Kind, member, BlowOn(member)));
         herd.Record.Kill(day, herd.Kind.Population.RecoveryDays);

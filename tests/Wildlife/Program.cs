@@ -723,6 +723,12 @@ Check.Section("bodies", () =>
     one.Velocity = new Vector2(2.1f, 0);
     Check.Equal(WildlifeClipRole.Run, WildlifeClips.Want(one, herd, rig), "at fleeing pace it runs");
     Check.That(WildlifeClips.Rate(WildlifeClipRole.Run, 3, rig, animation) <= animation.MaximumRate, "a clip's rate stays within its limit");
+    // #10926: a test aid's held clip plays at once, whatever the state calls for; a frozen animal keeps the clip it has.
+    one.Hold = new WildlifeHold { Clip = WildlifeClipRole.Look };
+    Check.That(WildlifeClips.Advance(one, herd, rig, animation, 0) && one.Clip == WildlifeClipRole.Look, "a held clip plays at once");
+    one.Hold = new WildlifeHold { Frozen = true };
+    Check.That(!WildlifeClips.Advance(one, herd, rig, animation, 5) && one.Clip == WildlifeClipRole.Look, "a frozen animal keeps its clip");
+    one.Hold = null;
     one.Velocity = Vector2.Zero;
     one.Enter(Wariness.Look);
     Check.Equal(WildlifeClipRole.Look, WildlifeClips.Want(one, herd, rig), "a looking animal is alert");
@@ -1480,6 +1486,55 @@ Check.Section("cave animals", () =>
     Check.That(draftHound.Mesh!.Clips.ContainsKey(WildlifeClipRole.Search), "the draft-hound's body has a search clip");
     Check.Equal(WildlifeClipRole.Lie, HunterRules.Want(Of(catalog.Kind("glass-courser")), CreatureState.Resting, 0, 3), "the glass-courser lies flat at rest (#10878)");
 
+});
+
+// Creature behaviour debugging (#10926): a test aid's hold on a herd animal, read by the rules, and its release.
+Check.Section("debug holds", () =>
+{
+    Vector2 near = new(12, 0);
+    WildlifeHerd herd = Herd("hipparion", Vector2.Zero, 4, "holds");
+    WildlifeMember frozen = herd.Members[1];
+    frozen.Hold = new WildlifeHold { Frozen = true };
+    (Vector2 at, float yaw, Wariness stage) = (frozen.Position, frozen.Yaw, frozen.Stage);
+    Run(herd, 6, Morning, _ => near);
+    Check.That(frozen.Position == at && frozen.Yaw == yaw && frozen.Stage == stage && frozen.Velocity == Vector2.Zero, "a frozen animal neither moves, turns nor changes its wariness");
+    Check.That(herd.Members.Any(member => member != frozen && member.Stage != Wariness.Calm), "while the rest of its herd takes notice of the player");
+    frozen.Hold = null;
+    Run(herd, 2, Morning, _ => near);
+    Check.That(frozen.Stage != stage || frozen.Position != at, "released, it answers to its senses again");
+
+    WildlifeHerd looking = Herd("hipparion", Vector2.Zero, 3, "look");
+    looking.Members[0].Hold = new WildlifeHold { Stage = Wariness.Look };
+    Run(looking, 5, Morning, _ => new Vector2(500, 0));
+    Check.Equal(Wariness.Look, looking.Members[0].Stage, "a held wariness stays, with no player near");
+    Check.Equal(Wariness.Calm, looking.Members[1].Stage, "an animal not held is calm");
+
+    WildlifeHerd standing = Herd("mammoth", Vector2.Zero, 2, "flee");
+    WildlifeMember runner = standing.Members[0];
+    runner.Hold = new WildlifeHold { Stage = Wariness.Respond, Flee = true };
+    Check.Equal(PressedResponse.Flee, WildlifeRules.Response(runner, standing.Kind), "a held flee answers by fleeing, whatever its kind does");
+    float before = Vector2.Distance(runner.Position, near);
+    Run(standing, 3, Morning, _ => near);
+    Check.That(Vector2.Distance(runner.Position, near) > before + 1, "and it runs from the player");
+
+    WildlifeHerd walker = Herd("hipparion", Vector2.Zero, 2, "goto");
+    Vector2 there = new(0, -10);
+    walker.Members[1].Hold = new WildlifeHold { GoTo = there };
+    Run(walker, 30, Morning, _ => null);
+    Check.That(Vector2.Distance(walker.Members[1].Position, there) <= catalog.Behaviour.GoalArrivalMetres + 0.5, "an animal sent somewhere walks there");
+
+    WildlifeHerd resting = Herd("hipparion", Vector2.Zero, 3, "rest");
+    resting.HeldActivity = WildlifeActivity.Rest;
+    Run(resting, 2, Morning, _ => null);
+    Check.Equal(WildlifeActivity.Rest, resting.Activity, "a herd held at rest rests, whatever its schedule says");
+    resting.HeldActivity = null;
+    WildlifeRules.Begin(resting, WildlifeActivity.Rest, Morning);
+    Run(resting, 10, Morning, _ => null);
+    Check.Equal(WildlifeActivity.Rest, resting.Activity, "a herd placed to start at rest rests out its schedule's period");
+    resting.Period = -1;
+    Run(resting, 1, Morning, _ => null);
+    Check.Equal(Morning is var m ? catalog.Kind("hipparion").Schedule.Steps[catalog.Kind("hipparion").Schedule.StepAt(m.DayFraction)].Activity : default, resting.Activity,
+        "and the next period goes back to its schedule");
 });
 
 return Check.Finish("wildlife");
