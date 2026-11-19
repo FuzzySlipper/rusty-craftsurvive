@@ -506,6 +506,12 @@ CreatureSimulation.Step(searcher, new CreatureSense(false), playerAt, playerCanB
 Check.That(Math.Abs(searcher.Position.Y - (expectedOne * CreatureSimulation.SearchPaceShare)) < 1e-5,
     $"a searcher walks toward where it last saw the player at half pace, moved to {searcher.Position}");
 
+// A hanging or falling drop-sloth is measured from the lowest of its body (R10877-2): 5 m up, less its 1.43 m height,
+// it is out of reach of a player on its floor; landed, it is a target like any other.
+Creature overheadSloth = new(32, CreatureKinds.Hostile, new Vector2(1f, 0)) { Feet = 40f };
+Check.That(CreatureSimulation.MeleeTarget([(overheadSloth, 40f + 5f - 1.43f)], new Vector3(0, 40, 0)) is null, "a drop-sloth hanging overhead cannot be hit from its floor (R10877-2)");
+Check.That(CreatureSimulation.MeleeTarget([(overheadSloth, 40f)], new Vector3(0, 40, 0))?.Creature == overheadSloth, "landed, it can (R10877-2)");
+
 // A swing reaches only a creature on the player's own floor (R10876-2): one in a cave on the player's column, 20 m below,
 // is never a target, and never takes the swing from one on the player's floor a little further across the ground.
 Vector3 swingerFeet = new(0, 40, 0);

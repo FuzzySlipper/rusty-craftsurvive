@@ -1408,6 +1408,15 @@ Check.Section("cave animals", () =>
     double fallSeconds = fallTicks * Tick, freeFall = Math.Sqrt(2 * 5 / HunterRules.FallAcceleration);
     Check.That(hanger.Member.Lift == 0 && Math.Abs(fallSeconds - freeFall) < 0.05, $"it lands in about the time a fall from 5 m takes ({fallSeconds:F2} s)");
     Check.That(!hanger.Holding && HunterRules.Want(hanger, CreatureState.Pursuing, 0, 3) != WildlifeClipRole.Drop, "landed, it hunts");
+    Check.Equal(0f, HunterRules.BodyOffFloor(hanger), "landed, its body is on its floor, where a swing measures from (R10877-2)");
+    Hunter overhead = Of(dropSloth);
+    overhead.CeilingLift = 5f;
+    HunterRules.Hang(overhead, CreatureState.Resting, playerOutOfSight: true, Tick);
+    float hangingOff = HunterRules.BodyOffFloor(overhead);
+    Check.That(Math.Abs(hangingOff - (5f - (float)dropSloth.Body.HeightMetres)) < 1e-5, $"hanging 5 m up, the lowest of its body is {hangingOff:F2} m over its floor (R10877-2)");
+    HunterRules.Hang(overhead, CreatureState.Alert, playerOutOfSight: false, Tick);
+    float fallingOff = HunterRules.BodyOffFloor(overhead);
+    Check.That(fallingOff > 0 && fallingOff < hangingOff, "falling, its body comes down toward its floor");
     HunterRules.Hang(hanger, CreatureState.Resting, playerOutOfSight: false, Tick);
     Check.That(!hanger.Hangs && hanger.Member.Lift == 0, "at rest again in the player's sight, it stays on the floor");
     HunterRules.Hang(hanger, CreatureState.Resting, playerOutOfSight: true, Tick);

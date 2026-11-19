@@ -300,7 +300,8 @@ internal sealed class CreatureModule : IProductModule
         {
             CreatureSense sense = new(alerted.Contains(creature.Id));
             // An animal showing its display does not bite until it has shown it (#10876).
-            bool displaying = hunters.TryGetValue(creature.Id, out Hunter? shown) && shown.ThreatSeconds > 0 && shown.Kind.Hunt!.Display is not null;
+            // Nor does one still hanging or falling from its ceiling (#10877).
+            bool displaying = hunters.TryGetValue(creature.Id, out Hunter? shown) && ((shown.ThreatSeconds > 0 && shown.Kind.Hunt!.Display is not null) || shown.Member.Lift > 0);
             if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit && !displaying, time, SightScale(creature, alerted),
                 CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody) is CreatureStrike strike)
             {
@@ -371,6 +372,9 @@ internal sealed class CreatureModule : IProductModule
 
         member.Clip = HunterRules.Want(hunter, state, member.Velocity.Length(), runsAbove);
     }
+
+    /// <summary>How far over its floor a creature's body is now: a hanging or falling hunter's lowest point (R10877-2), else nothing.</summary>
+    private float BodyOffFloor(Creature creature) => hunters.TryGetValue(creature.Id, out Hunter? hunter) ? HunterRules.BodyOffFloor(hunter) : 0f;
 
     /// <summary>A hanging hunter's ceiling and lift for the readout (#10877); nothing for any other.</summary>
     private static string HangReadout(Hunter hunter) => hunter.Kind.Hunt?.Rest is { Hangs: true }
@@ -660,7 +664,7 @@ internal sealed class CreatureModule : IProductModule
         // the player, however near across the ground, is not a target and takes no swing from one that is.
         CreatureSpace? here = PlayerSpace;
         (Creature Creature, double Distance)? chosen = CreatureSimulation.MeleeTarget(
-            roster.All.Where(creature => creature.Awake && creature.Space == here).Select(creature => (creature, StandingAt(creature))), player.WorldFeetPosition);
+            roster.All.Where(creature => creature.Awake && creature.Space == here).Select(creature => (creature, StandingAt(creature) + BodyOffFloor(creature))), player.WorldFeetPosition);
         Creature? target = chosen?.Creature;
         double best = chosen?.Distance ?? double.MaxValue;
 

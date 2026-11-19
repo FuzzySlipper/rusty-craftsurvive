@@ -268,5 +268,11 @@ the drop-sloth's coat as clumps hugging the limbs), and both came out with separ
   origin at the ceiling. `drop` turns it back over as the product lowers it to the floor. In `kinds.json`,
   `"hang": true` in a hunt's `rest` block turns this on: a ceiling between 2.8 m and 14 m over its floor is hung
   from, and the animal falls under gravity when it wakes (`HunterRules.Hang`).
+- **Glow.** `emission_mask.py <body-64.png> <emission.png> [--hue lo hi]` keeps the texels of one hue band (the
+  mouldback's blue-green glow caps) and blackens the rest. `build_creature.py --emission <emission.png>` exports that
+  as the material's emissive texture at strength 2, so those parts show with no light on them, as the underground's
+  light-has-a-source rule asks. The product's coat tint keeps a GLB's emission.
+- **Reach while hanging.** A swing measures a hanging or falling hunter from the lowest of its body
+  (`HunterRules.BodyOffFloor`: its lift less its height), and it lands no bite until it is down (R10877-2).
 - **`aboveMetres` under `"mouth"`** keeps anything lower than that height out of the jaw parting. The drop-sloth's
   long forelimbs reach past its hinge, and without it the claw tips went with the jaw.

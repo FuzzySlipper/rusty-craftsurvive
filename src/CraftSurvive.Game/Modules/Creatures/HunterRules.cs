@@ -235,6 +235,16 @@ internal static class HunterRules
         if (member.Lift <= 0) hunter.FallSpeed = 0;
     }
 
+    /// <summary>
+    /// How far over its floor the lowest of a hanging or falling animal's body is (R10877-2): its lift less its height, since
+    /// it hangs below its grip. A swing measures its reach from there, so one overhead is out of reach until it comes down.
+    /// </summary>
+    internal static float BodyOffFloor(Hunter hunter)
+    {
+        ArgumentNullException.ThrowIfNull(hunter);
+        return Math.Max(0f, hunter.Member.Lift - (float)hunter.Kind.Body.HeightMetres);
+    }
+
     internal static Vector2 Drawn(Vector2 capsule, float yaw, double hindMetres, double foreMetres, float size) =>
         capsule + (WildlifeRules.Facing(yaw) * (float)(-(hindMetres + foreMetres) / 2 * size));
 

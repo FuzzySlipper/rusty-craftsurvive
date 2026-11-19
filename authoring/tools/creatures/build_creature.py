@@ -1,7 +1,7 @@
 """Builds a creature GLB from a species file: rig, body, skin and clips (#10568).
 
 usage: blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/build_creature.py -- \
-           <species.json> <out.glb> [--mesh <body.glb> [--texture <base colour.png>]] [--blend <review.blend>]
+           <species.json> <out.glb> [--mesh <body.glb> [--texture <base colour.png>] [--emission <glow.png>]] [--blend <review.blend>]
 
 - The rig is the species' family skeleton (families.py), placed from the species' key points. Every bone's X axis is the animal's left, so a pitch is the same rotation whatever
   the bone points at.
@@ -181,7 +181,11 @@ def paint_proxy(species, rig, mesh, family):
     mesh.data.materials.append(material)
 
 
-def import_mesh(path, texture=None):
+# How strongly an emission texture glows (#10877), as glTF's emissive strength: the glow caps read in the dark.
+EMISSION_STRENGTH = 2.0
+
+
+def import_mesh(path, texture=None, emission=None):
     bpy.ops.import_scene.gltf(filepath=str(path))
     meshes = [o for o in bpy.context.selected_objects if o.type == "MESH"]
     if len(meshes) != 1:
@@ -204,6 +208,17 @@ def import_mesh(path, texture=None):
                 if node.type == "TEX_IMAGE":
                     node.image = image
                     node.interpolation = "Closest"
+    if emission:
+        # The parts that glow (emission_mask.py), exported as the material's emissive texture.
+        glow = bpy.data.images.load(str(Path(emission).resolve()))
+        for material in mesh.data.materials:
+            nodes = material.node_tree.nodes
+            shader = next(node for node in nodes if node.type == "BSDF_PRINCIPLED")
+            node = nodes.new("ShaderNodeTexImage")
+            node.image = glow
+            node.interpolation = "Closest"
+            material.node_tree.links.new(node.outputs["Color"], shader.inputs["Emission Color"])
+            shader.inputs["Emission Strength"].default_value = EMISSION_STRENGTH
     return mesh
 
 
@@ -645,7 +660,8 @@ def main(argv):
         bpy.data.objects.remove(obj)
     rig = build_armature(species, family)
     texture = argv[argv.index("--texture") + 1] if "--texture" in argv else None
-    mesh = import_mesh(mesh_path, texture) if mesh_path else build_proxy(species, rig, family)
+    emission = argv[argv.index("--emission") + 1] if "--emission" in argv else None
+    mesh = import_mesh(mesh_path, texture, emission) if mesh_path else build_proxy(species, rig, family)
     skin(rig, mesh)
     pin_shell(species, mesh)
     pin_islands(mesh)
