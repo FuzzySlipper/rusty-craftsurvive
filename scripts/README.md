@@ -148,7 +148,10 @@ node scripts/live.mjs capture --until 'draft-hound.*shows=Search' --out /tmp/sea
 - `craft.creatures.why <all | id | homes>` says why creatures cannot route on the navigation published around the
   player: outside the published box (32 m about where the player stood), or how the creature's column reads at its
   feet (a support, a capsule overlapping collision and with what, too steep, nothing) and the nearest support on its
-  level; `homes` flags each held cave home no route could start from as `UNROUTABLE`.
+  level; `homes` flags each held cave home no route could start from as `UNROUTABLE`, and one the box does not reach
+  as `unread`. `craft.wildlife.caves` shows each home's `route=` as the creatures read it on their own once the
+  published box covers it: `ok`, `UNROUTABLE (why)` or `pending (why)`. The creatures readout's last event names a
+  home found unroutable.
 - `node scripts/live.mjs capture --until <regex> --out <file.rscene>` polls a readout (`--readout`, by default
   `craft.creatures.readout`) until the pattern matches and snapshots the renderer at once, so a short state (a
   search, a display, a bite) is caught. `--keep ward|heal` keeps the player standing meanwhile; `--hold yes` (the

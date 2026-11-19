@@ -335,6 +335,7 @@ internal sealed partial class CreatureModule : IProductModule
         // The test aids that watch and label creatures (#10926): nothing while none is asked for.
         if (watchUntil > step) WatchUpdate();
         PublishLabels(here);
+        CheckCaveHomes(here);
 
         // A creature in another space than the player's is kept while its space sleeps: it is not away from the encounter.
         IReadOnlyList<int> leaving = director.Tick(
@@ -674,6 +675,8 @@ internal sealed partial class CreatureModule : IProductModule
         released = 0;
         spawnRefusals = 0;
         lastPlayerAttack = "none";
+        homeRouting.Clear();
+        unroutableHomes = 0;
         started = false;
         Start();
     }
@@ -815,10 +818,13 @@ internal sealed partial class CreatureModule : IProductModule
         {
             foreach (HerdRecord home in Wildlife?.CaveHomes ?? [])
             {
-                float floor = walking.FloorBelow(home.Home.X, home.Home.Y, home.Floor ?? StandingAtHome(home), HomeFloorSearchMetres) ?? (home.Floor ?? 0f);
-                string reading = navigation.Diagnose(new Vector3(home.Home.X, floor, home.Home.Y));
+                float floor = HomeFloor(home) ?? (home.Floor ?? 0f);
+                Vector3 site = new(home.Home.X, floor, home.Home.Y);
+                string reading = navigation.Diagnose(site);
+                // A home the published box does not reach is unread, not unroutable (R10924-1).
+                string flag = reading.StartsWith(RoutableReading, StringComparison.Ordinal) ? "ok" : navigation.Covers(site) is null ? "UNROUTABLE" : "unread";
                 lines.Append(string.Create(CultureInfo.InvariantCulture,
-                    $" | {(reading.StartsWith("its column supports it", StringComparison.Ordinal) ? "ok" : "UNROUTABLE")} {home.Key} at {home.Home.X:F1},{floor:F1},{home.Home.Y:F1}: {reading}"));
+                    $" | {flag} {home.Key} at {home.Home.X:F1},{floor:F1},{home.Home.Y:F1}: {reading}"));
             }
 
             return lines.ToString();
@@ -876,7 +882,7 @@ internal sealed partial class CreatureModule : IProductModule
         string rows = string.Join(" | ", roster.All.Select(creature => string.Create(CultureInfo.InvariantCulture,
             $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} feet={StandingAt(creature):F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}{(hunters.TryGetValue(creature.Id, out Hunter? shown) ? $" shows={shown.Member.Clip} display={shown.ThreatSeconds:F2}{HangReadout(shown)}{DraftReadout(shown, creature, playerWorld)}" : "")}")));
         return string.Create(CultureInfo.InvariantCulture,
-            $"step={step}; active={director.ActiveCount}; roster={roster.Count}; awake={roster.All.Count(creature => creature.Awake)}; shown={presentation.Shown}; released={released}; spawnRefusals={spawnRefusals}; space={PlayerSpace?.Name ?? "none"} {NavigationHere.Readout()}; ")
+            $"step={step}; active={director.ActiveCount}; roster={roster.Count}; awake={roster.All.Count(creature => creature.Awake)}; shown={presentation.Shown}; released={released}; spawnRefusals={spawnRefusals}; unroutableHomes={unroutableHomes}; space={PlayerSpace?.Name ?? "none"} {NavigationHere.Readout()}; ")
             + string.Create(CultureInfo.InvariantCulture,
             $"defeated={defeated} items={player.Progress.ItemsCollected} experience={player.Progress.Experience} level={player.Progress.Level} ")
             + string.Create(CultureInfo.InvariantCulture,

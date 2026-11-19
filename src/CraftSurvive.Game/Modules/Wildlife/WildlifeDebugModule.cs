@@ -39,7 +39,7 @@ public sealed class WildlifeDebugModule : IDebugCommandModule
     [DebugCommand("craft.wildlife.country", Description = "Wildlife (#10570): the nearest ground of a biome within some kilometres, to see a kind in its own country.")]
     public string Country(string biome, double kilometres) => wildlife.Country(biome, kilometres);
 
-    [DebugCommand("craft.wildlife.caves", Description = "Cave wildlife (#10876): each held cave's hunters' homes (kind, home and floor, alive, distance) and its small creatures (where, height, hidden).")]
+    [DebugCommand("craft.wildlife.caves", Description = "Cave wildlife (#10876): each held cave's hunters' homes (kind, home and floor, alive, distance, and route: ok, UNROUTABLE with how its column reads, or pending while the navigation published about the player does not cover it) and its small creatures (where, height, hidden).")]
     public string Caves() => wildlife.CavesReadout();
 
     [DebugCommand("craft.cave.stand", Description = "Test aid (#10924): stands the player where a body fits on a cave home's own floor (home key, or kind for its home nearest), about this many metres away at a bearing - upwind or downwind of a home facing a draft, degrees (0 faces -z, 90 +x) or any - facing the home; says why other spots failed.")]

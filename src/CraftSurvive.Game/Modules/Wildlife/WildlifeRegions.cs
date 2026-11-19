@@ -245,9 +245,11 @@ internal sealed class WildlifeLedger
         ArgumentNullException.ThrowIfNull(homes);
         if (caves.TryGetValue(key, out IReadOnlyList<HerdRecord>? held)) return held;
         if (dormantCaves.Remove(key, out IReadOnlyList<HerdRecord>? kept)) return caves[key] = kept;
+        // A cave forgotten for a fresh start (#10924) drops the losses saved for its homes rather than taking them up.
+        bool fresh = forgotten.Remove(key);
         foreach (HerdRecord herd in homes)
         {
-            if (waiting.Remove(HerdLoss.IdOf(herd.Key), out HerdLoss loss)) herd.Restore(loss);
+            if (waiting.Remove(HerdLoss.IdOf(herd.Key), out HerdLoss loss) && !fresh) herd.Restore(loss);
         }
 
         return caves[key] = homes;
@@ -267,13 +269,17 @@ internal sealed class WildlifeLedger
 
     /// <summary>
     /// Test aid (#10924): forgets a cave's home records outright, held or kept from earlier this session, so the cave taken
-    /// up again seeds the homes its layout gives now. Their losses go too.
+    /// up again seeds the homes its layout gives now, whole. Their losses go too, those saved before this session included.
     /// </summary>
     internal void ForgetCave(string key)
     {
         caves.Remove(key);
         dormantCaves.Remove(key);
+        forgotten.Add(key);
     }
+
+    /// <summary>Caves forgotten by <see cref="ForgetCave"/> and not yet taken up again: their homes' saved losses are dropped.</summary>
+    private readonly HashSet<string> forgotten = [];
 
     /// <summary>Takes up saved losses. Call before any region is seeded.</summary>
     internal void Restore(IEnumerable<HerdLoss> losses)

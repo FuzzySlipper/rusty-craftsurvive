@@ -438,6 +438,12 @@ internal sealed class WildlifeModule : IProductModule
     /// <summary>A hostile animal's home has come near (#10615): the creature rules take it from here, and are told on every wake pass.</summary>
     internal Action<HerdRecord, WildlifeKind, Vector2, int>? HunterNear { get; set; }
 
+    /// <summary>
+    /// Whether a cave home could start a route (#10924 review R10924-1): ok, UNROUTABLE (why) or pending (why), as the creature
+    /// rules last read it on the navigation published around the player.
+    /// </summary>
+    internal Func<HerdRecord, string>? HomeRouting { get; set; }
+
     /// <summary>The hostile animals to draw this update.</summary>
     internal Func<IReadOnlyList<Creatures.WildlifeHunter>>? Hunters { get; set; }
 
@@ -866,7 +872,7 @@ internal sealed class WildlifeModule : IProductModule
         IEnumerable<HerdRecord> homes = Ledger.HomesWithin(at.X, at.Z, 1000).Where(home => home.Floor is not null)
             .OrderBy(home => Vector2.Distance(home.Home, new Vector2(at.X, at.Z)));
         string hunters = string.Join(" | ", homes.Select(home => string.Create(CultureInfo.InvariantCulture,
-            $"{home.Key} at={home.Home.X:F1},{home.Floor:F1},{home.Home.Y:F1} alive={home.Alive(day, Catalog.Kind(home.KindId).Population.RecoveryDays)}/{home.Founding} d={Vector3.Distance(new Vector3(home.Home.X, home.Floor!.Value, home.Home.Y), at):F0}")));
+            $"{home.Key} at={home.Home.X:F1},{home.Floor:F1},{home.Home.Y:F1} alive={home.Alive(day, Catalog.Kind(home.KindId).Population.RecoveryDays)}/{home.Founding} d={Vector3.Distance(new Vector3(home.Home.X, home.Floor!.Value, home.Home.Y), at):F0} route={HomeRouting?.Invoke(home) ?? "unknown"}")));
         string small = string.Join(" | ", Ambience.Creatures.Select(creature => string.Create(CultureInfo.InvariantCulture,
             $"{creature.Home.Kind.Id}#{creature.Member.Id} at={creature.Member.Position.X:F1},{creature.Feet:F1},{creature.Member.Position.Y:F1} v={creature.Member.Velocity.Length():F2} hidden={creature.Member.Under}")));
         return string.Create(CultureInfo.InvariantCulture, $"caves=[{string.Join(",", Ledger.Caves)}] {Ambience.Readout()} || homes: {hunters} || small: {small}");

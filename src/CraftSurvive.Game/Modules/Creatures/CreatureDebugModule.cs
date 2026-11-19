@@ -54,7 +54,7 @@ public sealed class CreatureDebugModule : IDebugCommandModule
     [DebugCommand("craft.creature.labels", Description = "Test aid (#10926): labels over creatures on the Engine's inspection overlay (id, kind, state, clip, route, override) - off, selected or all; the Engine draws them while engine.inspect.overlay show is on.")]
     public string Labels(string mode) => creatures.Labels(mode);
 
-    [DebugCommand("craft.creatures.why", Description = "Diagnosis (#10924): why creatures cannot route, on the navigation published around the player - all (every awake creature whose last route failed), an id, or homes (each held cave home's floor, flagged UNROUTABLE when no route could start there): outside the published box, or how the column reads (support, capsule overlap and with what, too steep, nothing) and the nearest support on its level.")]
+    [DebugCommand("craft.creatures.why", Description = "Diagnosis (#10924): why creatures cannot route, on the navigation published around the player - all (every awake creature whose last route failed), an id, or homes (each held cave home's floor, flagged UNROUTABLE when no route could start there, unread when the published box does not reach it): outside the published box, or how the column reads (support, capsule overlap and with what, too steep, nothing) and the nearest support on its level.")]
     public string Why(string which) => creatures.WhyReadout(which);
 
     [DebugCommand("craft.creatures.unseen", Description = "Test aid (#10878): no creature sees the player for this many seconds (0 ends it), so hunters lose the player where they stand and search there, by the player's own light, for captures.")]

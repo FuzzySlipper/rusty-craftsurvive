@@ -243,16 +243,13 @@ internal sealed class CreatureNavigation
     private const int DiagnoseRingCells = 4;
 
     /// <summary>
-    /// Why a point (a creature's feet, a home's floor or the player's) is or is not walkable on the navigation published now
-    /// (#10924): outside the published box, or how its column reads at that height - a support it stands on, a standing
-    /// capsule overlapping collision (and what), too steep, a higher support holding the cell, nothing sampled - and the
-    /// nearest support within a few cells on about the same level.
+    /// Null when the navigation published now covers this point; otherwise why not: none is published, or how far outside
+    /// its box the point lies.
     /// </summary>
-    internal string Diagnose(Vector3 feetWorld)
+    internal string? Covers(Vector3 feetWorld)
     {
         if (publishedAround is null) return "no navigation published";
         Vector3 local = space.ToLocal(feetWorld);
-        double cell = config.CellSize;
         float outX = Math.Max(publishedMinimum.X - local.X, local.X - publishedMaximum.X), outZ = Math.Max(publishedMinimum.Z - local.Z, local.Z - publishedMaximum.Z);
         if (outX > 0 || outZ > 0)
         {
@@ -265,6 +262,20 @@ internal sealed class CreatureNavigation
                 $"outside the published box by {(local.Y < publishedMinimum.Y ? publishedMinimum.Y - local.Y : local.Y - publishedMaximum.Y):F1} m {(local.Y < publishedMinimum.Y ? "below" : "above")}");
         }
 
+        return null;
+    }
+
+    /// <summary>
+    /// Why a point (a creature's feet, a home's floor or the player's) is or is not walkable on the navigation published now
+    /// (#10924): outside the published box, or how its column reads at that height - a support it stands on, a standing
+    /// capsule overlapping collision (and what), too steep, a higher support holding the cell, nothing sampled - and the
+    /// nearest support within a few cells on about the same level.
+    /// </summary>
+    internal string Diagnose(Vector3 feetWorld)
+    {
+        if (Covers(feetWorld) is string outside) return outside;
+        Vector3 local = space.ToLocal(feetWorld);
+        double cell = config.CellSize;
         long cx = (long)Math.Floor(local.X / cell), cz = (long)Math.Floor(local.Z / cell);
         CollisionNavigationColumnResult column = engine.Spatial.ExplainCollisionNavigationColumn(new CollisionNavigationColumnRequest(space.Session, cx, cz, GridId));
         CollisionNavigationSample[] samples = column.Samples.ToArray();

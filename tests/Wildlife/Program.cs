@@ -1384,6 +1384,17 @@ Check.Section("cave animals", () =>
     Check.That(ReferenceEquals(ledger.AddCave(sites.Key, fresh), fresh), "a cave forgotten while let go takes the fresh homes when taken up again");
     ledger.ForgetCave(sites.Key);
     Check.That(!ledger.Caves.Contains(sites.Key) && !ledger.CaveHomes.Any(), "a held cave forgotten holds no homes");
+    // A loss saved before this session is dropped by a cave forgotten afresh, and taken up by one seeded as usual.
+    WildlifeLedger saved = new(catalog, Seed, (_, _) => MapBiome.Grassland);
+    saved.Restore([new HerdLoss(HerdLoss.IdOf(hound.Key), hound.Founding, 10)]);
+    saved.ForgetCave(sites.Key);
+    saved.AddCave(sites.Key, CaveFauna.Homes(sites, catalog, Seed));
+    Check.Equal(hound.Founding, saved.CaveHomes.First(home => home.Key == hound.Key).Alive(10, recovery), "a cave forgotten afresh comes back whole, its saved losses dropped");
+    Check.That(!saved.Losses(10).Any(loss => loss.Herd == HerdLoss.IdOf(hound.Key)), "and those losses are no longer saved");
+    WildlifeLedger usual = new(catalog, Seed, (_, _) => MapBiome.Grassland);
+    usual.Restore([new HerdLoss(HerdLoss.IdOf(hound.Key), hound.Founding, 10)]);
+    usual.AddCave(sites.Key, CaveFauna.Homes(sites, catalog, Seed));
+    Check.Equal(0, usual.CaveHomes.First(home => home.Key == hound.Key).Alive(10, recovery), "a cave seeded as usual takes up its saved losses");
 
     // The small creatures (#10876; Patch: no colliders, no combat): none is a wildlife kind, so no body, capsule or swing finds one.
     Check.That(catalog.CaveAmbient.Select(kind => kind.Id).Order().SequenceEqual(new[] { "blindfish", "drift-grazer", "mound-shrew" }), "the three small cave creatures load");
