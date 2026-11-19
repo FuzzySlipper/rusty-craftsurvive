@@ -100,6 +100,7 @@ internal static class CreatureSimulation
     /// it still falls.
     /// Without one the creature is set down along the line, as a point that meets nothing.
     /// </param>
+    /// <param name="wakeScale">The share of its kind's wake range a resting creature wakes at now (#10878: from downwind of a draft).</param>
     internal static CreatureStrike? Step(
         Creature creature,
         CreatureSense sense,
@@ -108,13 +109,15 @@ internal static class CreatureSimulation
         ProductStep time,
         double sightScale,
         Vector2 waypoint,
-        Func<Creature, Vector2, double, double, Vector2>? move = null)
+        Func<Creature, Vector2, double, double, Vector2>? move = null,
+        double wakeScale = 1)
     {
         ArgumentNullException.ThrowIfNull(creature);
         CreatureKind kind = creature.Kind;
         double distance = PlanarDistance(creature.Position, playerWorld);
         PerceptionFacts facts = new(sense.PlayerVisible, distance, creature.Combat.Health);
-        BehaviorTuning tuning = kind.Tuning with { SightRange = kind.Tuning.SightRange * sightScale };
+        // A resting animal wakes nearer than its kind's range when the player comes from where it is not turned (#10878).
+        BehaviorTuning tuning = kind.Tuning with { SightRange = kind.Tuning.SightRange * sightScale, WakeRange = kind.Tuning.WakeRange * wakeScale };
         creature.Behavior = CreatureBehaviorRules.Step(tuning, creature.Behavior, facts, time.Step);
 
         double travel = 0;

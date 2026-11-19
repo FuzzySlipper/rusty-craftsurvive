@@ -297,6 +297,29 @@ internal static class HunterRules
         };
     }
 
+    /// <summary>
+    /// How much of its wake range a hunter resting into a draft (#10878) wakes at for a player at this bearing: all of it
+    /// for one coming down the draft from upwind, where its ears are turned, falling to its kind's downwind share for one
+    /// coming from behind it, the way past. 1 for a hunter with no draft at its home.
+    /// </summary>
+    internal static double WakeShare(Vector2 at, Vector2 player, Vector2? upwind, double? downwindShare)
+    {
+        Vector2 toPlayer = player - at;
+        if (upwind is not Vector2 into || downwindShare is not double behind || toPlayer.LengthSquared() < 1e-6f) return 1;
+        double facing = Vector2.Dot(Vector2.Normalize(toPlayer), Vector2.Normalize(into));
+        return behind + ((1 - behind) * (1 + facing) / 2);
+    }
+
+    /// <summary>A heading across the ground in degrees, as a hunter's yaw counts them: 0 faces -z, 90 faces +x.</summary>
+    internal static double HeadingDegrees(Vector2 heading) => Math.Atan2(heading.X, -heading.Y) * 180 / Math.PI;
+
+    /// <summary>Which way a hunter faces while it rests or idles at home: into its home's draft, if one blows there (#10878).</summary>
+    internal static Vector2 RestHeading(Hunter hunter, CreatureState state)
+    {
+        ArgumentNullException.ThrowIfNull(hunter);
+        return state is CreatureState.Resting && hunter.Record.Upwind is Vector2 upwind ? upwind : Vector2.Zero;
+    }
+
     /// <summary>Its facing after some seconds: where it is going, or at the player when it stands to them, turning no faster than its kind can.</summary>
     internal static float Turned(float yaw, Vector2 heading, double turnDegreesPerSecond, double seconds)
     {

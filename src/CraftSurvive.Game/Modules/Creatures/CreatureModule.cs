@@ -268,15 +268,20 @@ internal sealed class CreatureModule : IProductModule
         long routingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
         long queriesBefore = here is null ? 0 : NavigationIn(here).Queries;
         if (here == walking) CloseAmbush();
-        HashSet<int> seeing = here is null ? [] : Sense(playerWorld, here);
-        // A pack hunts as one: what one sees they all come for, though a bite still needs its own sight.
-        HashSet<int> alerted = HunterRules.Alerted(seeing, hunters, packAlarms, time.ElapsedSeconds, id => InOwnSight(id, playerWorld));
+        // While the test aid hides the player (#10878) nothing sees them, so a hunt turns to a search where they stand.
+        HashSet<int> seeing = here is null || step < unseenUntil ? [] : Sense(playerWorld, here);
+        // A pack hunts as one: what one sees they all come for, though a bite still needs its own sight. One still lying at
+        // rest calls nothing (#10878): it must wake first, at its own wake range, which a draft shortens from downwind.
+        HashSet<int> alerted = HunterRules.Alerted(seeing, hunters, packAlarms, time.ElapsedSeconds,
+            id => InOwnSight(id, playerWorld) && roster.All.FirstOrDefault(creature => creature.Id == id)?.Behavior.State != CreatureState.Resting);
         Vector3 playerFeet = player.WorldFeetPosition;
         foreach (Creature creature in roster.All.Where(creature => creature.Awake))
         {
             // Where it last saw the player is where it searches (#10876); a pack's call wakes one lying at rest.
             if (seeing.Contains(creature.Id)) creature.LastSeen = playerFeet;
-            if (alerted.Contains(creature.Id) && !seeing.Contains(creature.Id) && creature.Behavior.State == CreatureState.Resting)
+            // One that sees the player itself is still woken by its pack (#10878): its own sight wakes it only within its
+            // draft-shortened range, and a pack-mate that has woken calls them all.
+            if (creature.Behavior.State == CreatureState.Resting && hunters.TryGetValue(creature.Id, out Hunter? called) && packAlarms.ContainsKey(called.Record.Key))
             {
                 creature.Behavior = creature.Behavior with { State = CreatureState.Alert };
                 creature.LastSeen ??= playerFeet;
@@ -303,7 +308,7 @@ internal sealed class CreatureModule : IProductModule
             // Nor does one still hanging or falling from its ceiling (#10877).
             bool displaying = hunters.TryGetValue(creature.Id, out Hunter? shown) && ((shown.ThreatSeconds > 0 && shown.Kind.Hunt!.Display is not null) || shown.Member.Lift > 0);
             if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit && !displaying, time, SightScale(creature, alerted),
-                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody) is CreatureStrike strike)
+                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody, WakeShare(shown, creature, playerWorld)) is CreatureStrike strike)
             {
                 if (hunters.TryGetValue(creature.Id, out Hunter? biting)) HunterRules.Bite(biting, strike.Attack, ClipSeconds(biting, WildlifeClipRole.Bite));
                 else ResolveStrike(strike);
@@ -353,9 +358,10 @@ internal sealed class CreatureModule : IProductModule
 
         WildlifeRig rig = Wildlife!.RigOf(hunter.Kind);
         Vector2 toPlayer = new Vector2(playerWorld.X, playerWorld.Z) - creature.Position;
-        // At rest or searching it faces where it goes or stays as it was; hunting, it faces the player.
+        // At rest it faces into its home's draft, if one blows there (#10878); searching it faces where it goes or stays as
+        // it was; hunting, it faces the player.
         Vector2 heading = member.Velocity.Length() > HunterTurnsAboveMetres ? member.Velocity
-            : state is CreatureState.Idle or CreatureState.Resting or CreatureState.Searching ? Vector2.Zero : toPlayer;
+            : state is CreatureState.Idle or CreatureState.Resting or CreatureState.Searching ? HunterRules.RestHeading(hunter, state) : toPlayer;
         member.Yaw = HunterRules.Turned(member.Yaw, heading, hunter.Kind.Speeds.TurnDegrees, seconds);
         member.Position = HunterRules.Drawn(creature.Position, member.Yaw, rig.Rig.HindMetres, rig.Rig.ForeMetres, member.Size);
         double runsAbove = (rig.Clip(WildlifeClipRole.Walk).Speed + rig.Clip(WildlifeClipRole.Run).Speed) / 2 * member.Size;
@@ -377,6 +383,15 @@ internal sealed class CreatureModule : IProductModule
     private float BodyOffFloor(Creature creature) => hunters.TryGetValue(creature.Id, out Hunter? hunter) ? HunterRules.BodyOffFloor(hunter) : 0f;
 
     /// <summary>A hanging hunter's ceiling and lift for the readout (#10877); nothing for any other.</summary>
+    /// <summary>
+    /// A hunter resting into a draft (#10878): the way the draft comes from and the way it faces, in degrees (0 faces -z,
+    /// 90 faces +x), and the share of its wake range it wakes at for where the player stands.
+    /// </summary>
+    private static string DraftReadout(Hunter hunter, Creature creature, Vector3 playerWorld) => hunter.Record.Upwind is Vector2 upwind
+        ? string.Create(CultureInfo.InvariantCulture,
+            $" upwind={HunterRules.HeadingDegrees(upwind):F0} faces={Math.IEEERemainder(hunter.Member.Yaw * 180 / Math.PI, 360):F0} wake={WakeShare(hunter, creature, playerWorld):F2}")
+        : "";
+
     private static string HangReadout(Hunter hunter) => hunter.Kind.Hunt?.Rest is { Hangs: true }
         ? string.Create(CultureInfo.InvariantCulture, $" ceiling={(hunter.CeilingLift is float ceiling ? ceiling.ToString("F1", CultureInfo.InvariantCulture) : "none")} lift={hunter.Member.Lift:F1}")
         : "";
@@ -463,6 +478,10 @@ internal sealed class CreatureModule : IProductModule
         creature.Waypoint = place;
         return true;
     }
+
+    /// <summary>The share of its wake range a resting hunter wakes at for where the player stands against its home's draft (#10878).</summary>
+    private static double WakeShare(Hunter? hunter, Creature creature, Vector3 playerWorld) => hunter is null ? 1
+        : HunterRules.WakeShare(creature.Position, new Vector2(playerWorld.X, playerWorld.Z), hunter.Record.Upwind, hunter.Kind.Hunt!.Rest?.DownwindShare);
 
     /// <summary>A hostile animal going this slowly turns to face the player, not the way it is drifting.</summary>
     private const float HunterTurnsAboveMetres = 0.3f;
@@ -766,6 +785,19 @@ internal sealed class CreatureModule : IProductModule
     }
 
     /// <summary>Test aid: leaves every creature one health.</summary>
+    /// <summary>The step until which the test aid hides the player from every creature (#10878).</summary>
+    private long unseenUntil;
+
+    /// <summary>
+    /// Test aid (#10878): no creature sees the player for some seconds, so hunters lose them where they stand and search
+    /// there, by the player's own light, for captures; 0 ends it.
+    /// </summary>
+    internal string Unseen(double seconds)
+    {
+        unseenUntil = seconds <= 0 ? 0 : step + (long)Math.Ceiling(seconds * HunterRules.StepsPerSecond);
+        return string.Create(CultureInfo.InvariantCulture, $"the player is unseen until step {unseenUntil} (now {step})");
+    }
+
     internal string WeakenAll()
     {
         foreach (Creature creature in roster.All) creature.Combat = creature.Combat with { Health = 1 };
@@ -782,7 +814,7 @@ internal sealed class CreatureModule : IProductModule
         Vector3 playerWorld = player.WorldPosition;
         PlayerDefeatState vitals = player.Vitals.State;
         string rows = string.Join(" | ", roster.All.Select(creature => string.Create(CultureInfo.InvariantCulture,
-            $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} feet={StandingAt(creature):F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}{(hunters.TryGetValue(creature.Id, out Hunter? shown) ? $" shows={shown.Member.Clip} display={shown.ThreatSeconds:F2}{HangReadout(shown)}" : "")}")));
+            $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} feet={StandingAt(creature):F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}{(hunters.TryGetValue(creature.Id, out Hunter? shown) ? $" shows={shown.Member.Clip} display={shown.ThreatSeconds:F2}{HangReadout(shown)}{DraftReadout(shown, creature, playerWorld)}" : "")}")));
         return string.Create(CultureInfo.InvariantCulture,
             $"step={step}; active={director.ActiveCount}; roster={roster.Count}; awake={roster.All.Count(creature => creature.Awake)}; shown={presentation.Shown}; released={released}; spawnRefusals={spawnRefusals}; space={PlayerSpace?.Name ?? "none"} {NavigationHere.Readout()}; ")
             + string.Create(CultureInfo.InvariantCulture,

@@ -41,6 +41,12 @@ internal sealed class HerdRecord
     /// <summary>The height of a cave home's floor (#10876), in world metres; null for a home on the overworld's ground.</summary>
     internal float? Floor { get; init; }
 
+    /// <summary>
+    /// The way the draft comes from at a cave home (#10878), a world heading across the ground; null where no draft
+    /// blows or the kind does not rest into it. A draft-hound pack rests facing it.
+    /// </summary>
+    internal Vector2? Upwind { get; init; }
+
     internal int Founding { get; }
 
     /// <summary>Animals lost and not yet recovered, as of <see cref="RecoveringSince"/>.</summary>

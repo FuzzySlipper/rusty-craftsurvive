@@ -133,7 +133,15 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
 
 /// <summary>A hunter that rests (#10876) lies still, showing this clip, until it sees the player within its wake distance.</summary>
 /// <param name="Hangs">It rests hanging from the ceiling over its home and drops when it wakes (#10877: the drop-sloth).</param>
-internal sealed record WildlifeRest(double WakeMetres, WildlifeClipRole Clip, bool Hangs = false);
+internal sealed record WildlifeRest(double WakeMetres, WildlifeClipRole Clip, bool Hangs = false)
+{
+    /// <summary>
+    /// A hunter that rests facing into a cave's draft (#10878: the draft-hound, ears held into it) wakes to a player coming
+    /// from downwind at only this share of <see cref="WakeMetres"/>, the share growing to the whole of it upwind; null for
+    /// one that ignores the draft.
+    /// </summary>
+    internal double? DownwindShare { get; init; }
+}
 
 /// <summary>A hunter's display before it attacks (#10876): it stands this long showing this clip, however near the player is.</summary>
 internal sealed record WildlifeDisplay(double Seconds, WildlifeClipRole Clip);
@@ -700,6 +708,9 @@ internal static class WildlifeKinds
         {
             Rest = hunt.TryGetProperty("rest", out JsonElement rest)
                 ? new WildlifeRest(rest.GetProperty("wakeMetres").GetDouble(), Clip(rest, WildlifeClipRole.Idle), rest.TryGetProperty("hang", out JsonElement hang) && hang.GetBoolean())
+                {
+                    DownwindShare = rest.TryGetProperty("draft", out JsonElement draft) ? draft.GetProperty("downwindShare").GetDouble() : null,
+                }
                 : null,
             Display = hunt.TryGetProperty("display", out JsonElement display) ? new WildlifeDisplay(display.GetProperty("seconds").GetDouble(), Clip(display, WildlifeClipRole.Threat)) : null,
             Search = hunt.TryGetProperty("search", out JsonElement search) ? new WildlifeSearch(search.GetProperty("seconds").GetDouble(), Clip(search, WildlifeClipRole.Look)) : null,

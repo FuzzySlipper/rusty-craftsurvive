@@ -1311,6 +1311,23 @@ Check.Section("cave animals", () =>
     });
     IReadOnlyList<HerdRecord> homes = CaveFauna.Homes(sites, catalog, Seed);
     Check.That(homes.All(home => home.Floor is not null), "every cave home carries its floor's height");
+
+    // #10878: the draft-hound rests into the cave's draft, which the veil forest's fans show.
+    Check.That(catalog.Kind("draft-hound").Hunt!.Rest!.DownwindShare is > 0 and < 1, "the draft-hound rests into the draft and hears less from downwind");
+    Check.That(homes.All(home => home.Upwind is null), "with no draft in a cave, no home faces one");
+    Vector2 east = Vector2.UnitX;
+    CaveSites drafty = sites with { Drafts = [.. veil.Select(fan => (new Vector2(fan.X, fan.Z - 3), east))] };
+    IReadOnlyList<HerdRecord> draftHomes = CaveFauna.Homes(drafty, catalog, Seed);
+    Check.That(draftHomes.Where(home => home.KindId == "draft-hound").All(home => home.Upwind == east)
+        && draftHomes.Any(home => home.KindId == "draft-hound"), "a draft-hound home in the veil forest faces the way the draft comes from");
+    Check.That(draftHomes.Where(home => home.KindId != "draft-hound").All(home => home.Upwind is null), "a kind that ignores the draft faces none");
+    Check.Equal((Vector2?)null, drafty.UpwindAt(new Vector3(10, -40, 10 + CaveSites.DraftReachMetres + 5)), "past the fans' reach there is no draft");
+    double Share(Vector2 player) => HunterRules.WakeShare(Vector2.Zero, player, east, 0.3);
+    Check.That(Math.Abs(Share(new Vector2(10, 0)) - 1) < 1e-9, "a player coming down the draft is heard at the whole wake range");
+    Check.That(Math.Abs(Share(new Vector2(-10, 0)) - 0.3) < 1e-9, "one coming from downwind, at the downwind share");
+    Check.That(Math.Abs(Share(new Vector2(0, 10)) - 0.65) < 1e-9, "one from the side, between the two");
+    Check.Equal(1d, HunterRules.WakeShare(Vector2.Zero, new Vector2(-10, 0), null, 0.3), "with no draft at its home, it hears all round");
+    Check.That(Math.Abs(HunterRules.HeadingDegrees(east) - 90) < 1e-9 && Math.Abs(HunterRules.HeadingDegrees(-Vector2.UnitY)) < 1e-9, "headings count as yaw does: 0 faces -z, 90 faces +x");
     Check.That(homes.All(home => catalog.Kind(home.KindId).Cave is not null), "only cave kinds live in a cave");
     Check.That(!homes.Any(home => home.KindId is "hummock" or "ribbon-stalker" or "stalk-bill" or "drop-sloth" or "salt-monitor" or "glass-courser"),
         "a cave without a community holds none of that community's hunters");

@@ -668,7 +668,7 @@
     {
       "id": "draft-hound",
       "name": "Draft-hound",
-      "$comment": "Cave wildlife (#10876); its own body (#10878), a pack standing into the draft with its ear-fans held up, flaring them to search.",
+      "$comment": "Cave wildlife (#10876); its own body (#10878), a pack resting into the cave's draft with its ear-fans held up, so it hears what comes down the draft at its full wake range and what comes from downwind at only 0.3 of it; it flares the fans to search.",
       "habitat": {},
       "cave": { "lives": "veil-forest", "homesPerCave": 1 },
       "social": { "shape": "band", "groupMinimum": 3, "groupMaximum": 4, "spacingMetres": 4 },
@@ -684,7 +684,7 @@
       "wariness": { "noticeMetres": 36, "actMetres": 12, "lookSeconds": 1, "warnSeconds": 1 },
       "pressed": "hunt",
       "hunt": { "sightMetres": 36, "reachMetres": 2.6, "haltMetres": 2.1, "accuracy": 20, "power": 2, "cooldownTicks": 120, "biteWindupSeconds": 0.38, "dodgeMetres": 0.6, "pack": { "alarmMetres": 60, "alarmSeconds": 8, "flankDegrees": 30, "closeMetres": 8 },
-        "rest": { "wakeMetres": 12 }, "display": { "seconds": 1.2 }, "search": { "seconds": 10, "clip": "search" } },
+        "rest": { "wakeMetres": 12, "draft": { "downwindShare": 0.3 } }, "display": { "seconds": 1.2 }, "search": { "seconds": 10, "clip": "search" } },
       "schedule": "night-worker",
       "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
       "combat": { "health": 30, "evasion": 60, "armour": 2, "experience": 140 },

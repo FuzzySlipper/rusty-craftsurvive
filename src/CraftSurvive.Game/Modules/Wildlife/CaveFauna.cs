@@ -20,6 +20,24 @@ internal sealed record CaveSites(
     IReadOnlyList<Vector3> DeepFloors,
     IReadOnlyDictionary<CaveHabitat, IReadOnlyList<Vector3>> Communities)
 {
+    /// <summary>
+    /// Where a cave's draft blows (#10878): points across the ground with the way the air comes from there, from the veil
+    /// forests' fans, which stand square to it. Empty for a cave with no veil forest.
+    /// </summary>
+    internal IReadOnlyList<(Vector2 At, Vector2 Upwind)> Drafts { get; init; } = [];
+
+    /// <summary>The draft's upwind heading at a site: the nearest draft point's, within <see cref="DraftReachMetres"/>; else null.</summary>
+    internal Vector2? UpwindAt(Vector3 site)
+    {
+        Vector2 at = new(site.X, site.Z);
+        if (Drafts.Count == 0) return null;
+        (Vector2 At, Vector2 Upwind) nearest = Drafts.MinBy(draft => Vector2.DistanceSquared(draft.At, at));
+        return Vector2.Distance(nearest.At, at) <= DraftReachMetres ? nearest.Upwind : null;
+    }
+
+    /// <summary>How far from the nearest fan a site still feels its draft.</summary>
+    internal const float DraftReachMetres = 15f;
+
     /// <summary>The places a cave holds for animals that live in one of its zones or communities.</summary>
     internal IReadOnlyList<Vector3> Of(CaveHabitat habitat) => habitat switch
     {
@@ -67,7 +85,12 @@ internal static class CaveFauna
             foreach (Vector3 site in Spread(sites.Of(cave.Lives), cave.HomesPerCave, order++))
             {
                 string key = string.Create(CultureInfo.InvariantCulture, $"{kind.Id}@{sites.Key}#{index++}");
-                homes.Add(new HerdRecord(key, kind.Id, new Vector2(site.X, site.Z), Group(key, seed, kind.GroupMinimum, kind.GroupMaximum)) { Floor = site.Y });
+                homes.Add(new HerdRecord(key, kind.Id, new Vector2(site.X, site.Z), Group(key, seed, kind.GroupMinimum, kind.GroupMaximum))
+                {
+                    Floor = site.Y,
+                    // A kind that rests into the draft (#10878) faces the way it comes from at its home.
+                    Upwind = kind.Hunt!.Rest?.DownwindShare is not null ? sites.UpwindAt(site) : null,
+                });
             }
         }
 

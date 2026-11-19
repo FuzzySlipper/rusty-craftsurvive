@@ -310,3 +310,11 @@ The draft-hound and the glass-courser came through the Tripo web studio as the #
 - **In game.** The hound searches with its `search` clip (`"search": { "clip": "search" }`, the `Search` clip role);
   the courser rests on `lie`. Near the player, the hunters from one home ring it, each at striking distance in its
   own place (`HunterRules.Ring`: a pack turns by its flank, others by 35 degrees), rather than piling onto one spot.
+- **Resting into the draft (R10878-1).** The veil fans stand square to the cave's draft, so a cave's sites carry the
+  draft beside them (`CaveSites.Drafts`, upwind from each fan) and a home of a kind whose `rest` block has
+  `"draft": { "downwindShare": 0.3 }` takes the upwind heading there (`HerdRecord.Upwind`). The pack rests facing it,
+  and wakes to a player coming down the draft at its whole wake range, falling to that share of it from behind
+  (`HunterRules.WakeShare`), so the way past is from downwind. A pack-mate still lying at rest calls no alarm; one
+  that wakes calls them all. The creature readout shows `upwind=`, `faces=` and `wake=`.
+- **`craft.creatures.unseen <seconds>`** is a test aid for captures: no creature sees the player for that long, so
+  hunters lose the player where they stand and search there, by the player's own light (0 ends it).

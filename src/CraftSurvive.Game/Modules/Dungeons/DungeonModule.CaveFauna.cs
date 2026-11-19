@@ -88,7 +88,16 @@ internal sealed partial class DungeonModule
                 .Select(site => overhead ? Over(layout.FloorUnder(site)) : cave.ToWorld(site))];
         }
 
-        return new CaveSites(key, mouth, [.. layout.FungalPockets.Select(Over)], pools, deep, communities);
+        // The veil fans stand square to the draft, facing downwind (#10878): upwind is the other way, in world terms.
+        List<(Vector2 At, Vector2 Upwind)> drafts = [];
+        foreach (OvergrowthPlacement fan in layout.Overgrowth.Where(growth => CaveCommunities.Signature(CaveCommunity.VeilForest, growth.Kind)))
+        {
+            Vector3 at = cave.ToWorld(fan.At), downwind = cave.ToWorld(fan.At + fan.Out) - at;
+            Vector2 upwind = -new Vector2(downwind.X, downwind.Z);
+            if (upwind.LengthSquared() > 1e-6f) drafts.Add((new Vector2(at.X, at.Z), Vector2.Normalize(upwind)));
+        }
+
+        return new CaveSites(key, mouth, [.. layout.FungalPockets.Select(Over)], pools, deep, communities) { Drafts = drafts };
     }
 
     /// <summary>The wildlife's name for a community: the same eight.</summary>
