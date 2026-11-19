@@ -70,6 +70,15 @@ internal static class HunterRules
     /// <summary>The Engine's fixed steps a second, as the kinds' tick counts (their bite cooldowns) are written for.</summary>
     internal const double StepsPerSecond = 60d;
 
+    /// <summary>A creature is settled onto its grid at most once in this many update steps (ten seconds, #10925).</summary>
+    internal const long SettleAgainSteps = 600;
+
+    /// <summary>
+    /// Whether a creature may be settled onto its grid at this step (#10925 review R10925-1): one never settled may at once, and one
+    /// settled may again only <see cref="SettleAgainSteps"/> after, so a creature refused a step on walks to its footing instead.
+    /// </summary>
+    internal static bool MaySettle(long step, long? settledStep) => settledStep is not long last || step - last >= SettleAgainSteps;
+
     /// <summary>A creature kind from its content: it hunts by the creature rules, with the numbers its kind gives.</summary>
     internal static CreatureKind KindOf(WildlifeKind kind)
     {

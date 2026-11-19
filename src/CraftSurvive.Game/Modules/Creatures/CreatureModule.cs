@@ -1169,7 +1169,7 @@ internal sealed partial class CreatureModule : IProductModule
     private bool Settle(CreatureNavigation navigation, Creature creature, Vector3 toward)
     {
         // Once in a while: settled, then refused again a step on, it walks to its footing instead of being set back.
-        if (step - creature.SettledStep < SettleAgainSteps) return false;
+        if (!HunterRules.MaySettle(step, creature.SettledStep)) return false;
         if (navigation.SettleSupport(Feet(creature), toward, CreatureNavigation.ClimbMetres, SettleMetres) is not Vector3 support) return false;
         creature.Position = new Vector2(support.X, support.Z);
         creature.Feet = support.Y;
@@ -1180,9 +1180,6 @@ internal sealed partial class CreatureModule : IProductModule
 
     /// <summary>The route outcome of a creature outside its grid's published box: no query is asked for it.</summary>
     internal const string OutsideBox = "OutsideBox";
-
-    /// <summary>A creature is settled at most once in this many update steps (ten seconds).</summary>
-    private const long SettleAgainSteps = 600;
 
     /// <summary>The furthest a creature is settled: a cell or two, so it is seen to shift, not to jump.</summary>
     private const double SettleMetres = 2.0;

@@ -370,6 +370,10 @@ Check.Section("hostile animals", () =>
     Check.That(runner.GroupMinimum >= 3, "a pack is more than a pair");
     Check.That(catalog.Kind("gaunt").Hunt!.Pack is null, "the gaunt hunts alone");
     Check.That(Enumerable.Range(0, 5).Select(HunterRules.SideOf).SequenceEqual([0, 1, -1, 2, -2]), "a pack spreads to both sides of its first");
+    // #10925 review R10925-1: a creature never settled settles at once, at any step, and then not again until the cooldown is out.
+    Check.That(HunterRules.MaySettle(0, null) && HunterRules.MaySettle(600, null) && HunterRules.MaySettle(long.MaxValue, null), "a creature never settled may settle at once");
+    Check.That(!HunterRules.MaySettle(1000, 1000) && !HunterRules.MaySettle(1000 + HunterRules.SettleAgainSteps - 1, 1000), "one just settled may not settle again before the cooldown");
+    Check.That(HunterRules.MaySettle(1000 + HunterRules.SettleAgainSteps, 1000), "one settled may settle again once the cooldown is out");
 
     Vector2 player = Vector2.Zero, far = new(0, 40), near = new(0, 8);
     Check.That(HunterRules.Flank(far, player, 0, pack) is null, "the first of a pack comes straight in");

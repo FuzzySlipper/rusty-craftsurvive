@@ -36,8 +36,8 @@ internal sealed class Creature
     /// </summary>
     internal float? Feet { get; set; }
 
-    /// <summary>The update step it was last settled onto its grid at (#10925): it is not settled again soon after.</summary>
-    internal long SettledStep { get; set; } = long.MinValue;
+    /// <summary>The update step it was last settled onto its grid at (#10925), null until it first is: it is not settled again soon after.</summary>
+    internal long? SettledStep { get; set; }
 
     /// <summary>Its body as the Engine last stepped it (#9737), session-local; null until it first moves, or once the world's origin moves.</summary>
     internal CreatureBodyState? Body { get; set; }
