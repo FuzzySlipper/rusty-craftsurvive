@@ -232,6 +232,18 @@ internal sealed class CreatureModule : IProductModule
         HashSet<int> seeing = Sense(playerWorld);
         // A pack hunts as one: what one sees they all come for, though a bite still needs its own sight.
         HashSet<int> alerted = HunterRules.Alerted(seeing, hunters, packAlarms, time.ElapsedSeconds, id => InOwnSight(id, playerWorld));
+        Vector3 playerFeet = player.WorldFeetPosition;
+        foreach (Creature creature in roster.All.Where(creature => creature.Awake))
+        {
+            // Where it last saw the player is where it searches (#10876); a pack's call wakes one lying at rest.
+            if (seeing.Contains(creature.Id)) creature.LastSeen = playerFeet;
+            if (alerted.Contains(creature.Id) && !seeing.Contains(creature.Id) && creature.Behavior.State == CreatureState.Resting)
+            {
+                creature.Behavior = creature.Behavior with { State = CreatureState.Alert };
+                creature.LastSeen ??= playerFeet;
+            }
+        }
+
         // With no steps admitted nothing has moved, and a pursuer standing still is not stuck.
         if (time.AdmittedSteps > 0) Route(player.WorldFeetPosition);
         routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, navigation.Queries - queriesBefore,
@@ -248,7 +260,9 @@ internal sealed class CreatureModule : IProductModule
         foreach (Creature creature in roster.All.Where(creature => creature.Awake))
         {
             CreatureSense sense = new(alerted.Contains(creature.Id));
-            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time, SightScale(creature, alerted),
+            // An animal showing its display does not bite until it has shown it (#10876).
+            bool displaying = hunters.TryGetValue(creature.Id, out Hunter? shown) && shown.ThreatSeconds > 0 && shown.Kind.Hunt!.Display is not null;
+            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit && !displaying, time, SightScale(creature, alerted),
                 CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody) is CreatureStrike strike)
             {
                 if (hunters.TryGetValue(creature.Id, out Hunter? biting)) HunterRules.Bite(biting, strike.Attack, ClipSeconds(biting, WildlifeClipRole.Bite));
@@ -298,7 +312,9 @@ internal sealed class CreatureModule : IProductModule
 
         WildlifeRig rig = Wildlife!.RigOf(hunter.Kind);
         Vector2 toPlayer = new Vector2(playerWorld.X, playerWorld.Z) - creature.Position;
-        Vector2 heading = member.Velocity.Length() > HunterTurnsAboveMetres ? member.Velocity : state == CreatureState.Idle ? Vector2.Zero : toPlayer;
+        // At rest or searching it faces where it goes or stays as it was; hunting, it faces the player.
+        Vector2 heading = member.Velocity.Length() > HunterTurnsAboveMetres ? member.Velocity
+            : state is CreatureState.Idle or CreatureState.Resting or CreatureState.Searching ? Vector2.Zero : toPlayer;
         member.Yaw = HunterRules.Turned(member.Yaw, heading, hunter.Kind.Speeds.TurnDegrees, seconds);
         member.Position = HunterRules.Drawn(creature.Position, member.Yaw, rig.Rig.HindMetres, rig.Rig.ForeMetres, member.Size);
         double runsAbove = (rig.Clip(WildlifeClipRole.Walk).Speed + rig.Clip(WildlifeClipRole.Run).Speed) / 2 * member.Size;
@@ -387,8 +403,69 @@ internal sealed class CreatureModule : IProductModule
     /// </summary>
     internal void AdmitHunter(HerdRecord record, WildlifeKind kind, Vector2 point, int alive)
     {
-        if (!started || hunted.ContainsKey(record.Key) || !terrain.IsResident(GroundCell(point))) return;
+        if (!started || hunted.ContainsKey(record.Key)) return;
+        if (record.Floor is float floor)
+        {
+            // A cave animal (#10876) takes up its home on its own floor, under whatever ground lies over it.
+            if (terrain.IsResident(GroundCell(point, floor))) PlaceCaveHunter(record, kind, new Vector3(point.X, floor, point.Y), alive);
+            return;
+        }
+
+        if (!terrain.IsResident(GroundCell(point))) return;
         PlaceHunter(record, kind, point, 0, HunterHomeMetres, count: alive);
+    }
+
+    /// <summary>A cave home names a point in the air over its floor; the floor is looked for from this far above it.</summary>
+    private const float CaveFloorLookAboveMetres = 0.5f;
+
+    /// <summary>A cave pack's places stand within this height of their home's floor, so none is set on a ledge or in a pit.</summary>
+    private const float CaveFloorReachMetres = 2f;
+
+    /// <summary>A cave pack stands in rings about its home, this many places to a ring.</summary>
+    private const int CaveRingPlaces = 6;
+
+    /// <summary>A cave home's group is set down this many rings out at most.</summary>
+    private const int CaveRings = 3;
+
+    /// <summary>
+    /// Sets a cave home's animals down (#10876): the first on the floor under its home, the rest about it at its kind's
+    /// spacing, in rings, on resident floor near the home's height. Each is its own encounter in the home's region. A home
+    /// whose floor is not found yet waits for the next wake pass.
+    /// </summary>
+    private void PlaceCaveHunter(HerdRecord record, WildlifeKind kind, Vector3 home, int count)
+    {
+        if (terrain.GroundBelow(home.X, home.Z, home.Y, CaveFloorLookAboveMetres) is not float homeFloor) return;
+        float spacing = (float)Math.Max(kind.SpacingMetres, 1d);
+        long region = HunterRegionBase + ++hunterRegions;
+        int order = 0, placed = 0;
+        for (int ring = 0; ring <= CaveRings && placed < count; ring++)
+        {
+            int places = ring == 0 ? 1 : CaveRingPlaces * ring;
+            for (int at = 0; at < places && placed < count; at++)
+            {
+                double angle = 2 * Math.PI * at / places;
+                Vector2 point = new(home.X + (float)(ring * spacing * Math.Sin(angle)), home.Z - (float)(ring * spacing * Math.Cos(angle)));
+                float? found = ring == 0 ? homeFloor
+                    : terrain.IsResident(GroundCell(point, homeFloor)) ? terrain.GroundBelow(point.X, point.Y, homeFloor + CaveFloorReachMetres, CaveFloorLookAboveMetres) : null;
+                if (found is not float floor || Math.Abs(floor - homeFloor) > CaveFloorReachMetres) continue;
+                int id = nextId;
+                EncounterSite site = new(RegionKind.Dungeon, region, (long)Math.Floor(floor), long.MinValue, HasGround: true, ShoreIsReachable: true);
+                if (!director.TryActivate(new EncounterCandidate(id, site, CreatureTraits.Walker, TimeWindow: 0), step, out EncounterDecision refusal))
+                {
+                    spawnRefusals++;
+                    lastEvent = $"refused cave home {record.Key}: {refusal.Reason}";
+                    return;
+                }
+
+                nextId++;
+                Creature creature = new(id, KindOf(kind), point) { Feet = floor };
+                roster.Add(creature);
+                Admit(creature, kind, record, order++);
+                placed++;
+            }
+        }
+
+        lastEvent = string.Create(CultureInfo.InvariantCulture, $"cave home {record.Key} took up {placed} of {count} at {home.X:F0},{home.Y:F0},{home.Z:F0}");
     }
 
     private void PlaceHunter(HerdRecord record, WildlifeKind kind, Vector2 around, int minimumMetres, int maximumMetres,
@@ -431,6 +508,15 @@ internal sealed class CreatureModule : IProductModule
         Vector3 at = player.WorldPosition;
         Vector2 point = new(at.X + (float)east, at.Z + (float)south);
         int count = kind.GroupMaximum;
+        Vector3 feet = player.WorldFeetPosition;
+        if (feet.Y < terrain.Recipe.SurfaceAt((long)Math.Floor(feet.X), (long)Math.Floor(feet.Z)) - UndergroundMetres)
+        {
+            // Under the ground (#10876), it is set down on the player's own floor, as a cave home is.
+            HerdRecord underground = new($"{kind.Id}@near#{++hunterRegions}", kind.Id, point, count) { Floor = feet.Y + 1f };
+            PlaceCaveHunter(underground, kind, new Vector3(point.X, feet.Y + 1f, point.Y), count);
+            return Readout();
+        }
+
         PlaceHunter(new HerdRecord($"{kind.Id}@near#{++hunterRegions}", kind.Id, point, count), kind, point, 0, HunterHomeMetres, count: count);
         return Readout();
     }
@@ -524,6 +610,13 @@ internal sealed class CreatureModule : IProductModule
         }
 
         target.Combat = struck;
+        // A blow wakes an animal lying at rest, and it knows where the player is (#10876).
+        if (target.Behavior.State is CreatureState.Resting or CreatureState.Searching && !struck.IsDown)
+        {
+            target.Behavior = target.Behavior with { State = CreatureState.Alert };
+            target.LastSeen = player.WorldFeetPosition;
+        }
+
         if (hunters.TryGetValue(target.Id, out Hunter? struckHunter)) struckHunter.HurtSeconds = ClipSeconds(struckHunter, WildlifeClipRole.Hurt);
         cues.RaiseAt(struck.IsDown ? Cue.Defeat : Cue.Strike,
             frame.ToLocal(target.Position.X, StandingAt(target) + StruckHeightMetres, target.Position.Y));
@@ -553,6 +646,20 @@ internal sealed class CreatureModule : IProductModule
             $"defeated {target.Id}; xp={progression.Experience} level={progression.Level}{(progression.Advanced ? " advanced" : string.Empty)} drops={string.Join(",", reward.Drops.Select(drop => $"{drop.ItemId}:{drop.Quantity}"))}");
     }
 
+    /// <summary>Test aid (#10876): every creature at rest wakes to the player, as if it had seen them, so a cave's whole population hunts.</summary>
+    internal string RouseAll()
+    {
+        int roused = 0;
+        foreach (Creature creature in roster.All.Where(creature => creature.Behavior.State is CreatureState.Resting or CreatureState.Idle or CreatureState.Searching))
+        {
+            creature.Behavior = creature.Behavior with { State = CreatureState.Alert };
+            creature.LastSeen = player.WorldFeetPosition;
+            roused++;
+        }
+
+        return string.Create(CultureInfo.InvariantCulture, $"roused {roused}");
+    }
+
     /// <summary>Test aid: leaves every creature one health.</summary>
     internal string WeakenAll()
     {
@@ -570,7 +677,7 @@ internal sealed class CreatureModule : IProductModule
         Vector3 playerWorld = player.WorldPosition;
         PlayerDefeatState vitals = player.Vitals.State;
         string rows = string.Join(" | ", roster.All.Select(creature => string.Create(CultureInfo.InvariantCulture,
-            $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} feet={StandingAt(creature):F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}")));
+            $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} feet={StandingAt(creature):F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}{(hunters.TryGetValue(creature.Id, out Hunter? shown) ? $" shows={shown.Member.Clip} display={shown.ThreatSeconds:F2}" : "")}")));
         return string.Create(CultureInfo.InvariantCulture,
             $"step={step}; active={director.ActiveCount}; roster={roster.Count}; awake={roster.All.Count(creature => creature.Awake)}; shown={presentation.Shown}; released={released}; spawnRefusals={spawnRefusals}; {navigation.Readout()}; ")
             + string.Create(CultureInfo.InvariantCulture,
@@ -590,11 +697,12 @@ internal sealed class CreatureModule : IProductModule
     }
 
     /// <summary>The route from a column to the player as navigation cells (x,y,z), for diagnosis.</summary>
-    internal string RouteReadout(double x, double z)
+    internal string RouteReadout(double x, double z, double? y = null)
     {
         Vector3 feet = player.WorldFeetPosition;
         navigation.EnsurePublished(feet);
-        NavigationStepResult result = navigation.Step(Feet(new Vector2((float)x, (float)z)), feet, 4096);
+        Vector3 from = y is double height ? new Vector3((float)x, (float)height, (float)z) : Feet(new Vector2((float)x, (float)z));
+        NavigationStepResult result = navigation.Step(from, feet, 4096);
         return $"outcome={result.Outcome} visited={result.Visited} cells=" + string.Join(" ", result.Path.ToArray().Select(cell => $"{cell.X},{cell.Y},{cell.Z}"));
     }
 
@@ -620,8 +728,10 @@ internal sealed class CreatureModule : IProductModule
     /// </summary>
     private void Route(Vector3 playerFeet)
     {
+        // A searcher (#10876) is routed as a pursuer is, to where it last saw the player.
         Creature[] pursuers = [.. roster.All.Where(creature => creature.Awake
-            && creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking)];
+            && (creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking
+                || (creature.Behavior.State == CreatureState.Searching && creature.LastSeen is not null)))];
         foreach (Creature idle in roster.All.Where(creature => !pursuers.Contains(creature)))
         {
             idle.Waypoint = null;
@@ -635,12 +745,16 @@ internal sealed class CreatureModule : IProductModule
         try
         {
             navigation.EnsurePublished(playerFeet);
-            Vector2 playerGround = new(playerFeet.X, playerFeet.Z);
+            Vector2 hunted = new(playerFeet.X, playerFeet.Z);
             foreach (Creature creature in pursuers)
             {
+                bool searching = creature.Behavior.State == CreatureState.Searching;
+                Vector3 goalFeet = searching ? creature.LastSeen!.Value : playerFeet;
+                Vector2 playerGround = searching ? new Vector2(goalFeet.X, goalFeet.Z) : hunted;
+                double halt = searching ? WaypointArrivalMetres : creature.Kind.HaltDistanceMetres;
                 // A hostile animal standing to show its threat or bite is not walking, so it is not stuck either.
                 if (hunters.TryGetValue(creature.Id, out Hunter? hunter) && hunter.Holding) continue;
-                if (Flanks(creature, hunter, playerGround)) continue;
+                if (!searching && Flanks(creature, hunter, playerGround)) continue;
                 if (step < creature.BackoffUntil)
                 {
                     creature.Waypoint = BeyondNavigation(creature, playerGround);
@@ -656,7 +770,7 @@ internal sealed class CreatureModule : IProductModule
                     || creature.StuckSteps >= StuckSteps;
                 // A body that has stopped sliding along what it touches is set down afresh, free of the motion it carried.
                 if (creature.StuckSteps >= StuckSteps) creature.Body = null;
-                if (stale && !Replan(creature, playerFeet, playerGround))
+                if (stale && !Replan(creature, goalFeet, playerGround))
                 {
                     creature.Waypoint = BeyondNavigation(creature, playerGround);
                     continue;
@@ -673,7 +787,7 @@ internal sealed class CreatureModule : IProductModule
                 Vector2 next = following ? cells[creature.PathIndex] : playerGround;
                 // Following its path or closing on the player, a blocked pursuer is stuck; one at striking range has stopped.
                 bool stuck = CreatureSimulation.NotClosing(creature.Waypoint is null ? null : creature.RoutedFrom, creature.Position, next,
-                    Vector2.Distance(creature.Position, playerGround), creature.Kind.HaltDistanceMetres, ProgressMetres);
+                    Vector2.Distance(creature.Position, playerGround), halt, ProgressMetres);
                 creature.StuckSteps = stuck ? creature.StuckSteps + 1 : 0;
                 creature.RoutedFrom = creature.Position;
                 creature.Waypoint = next;
@@ -865,12 +979,12 @@ internal sealed class CreatureModule : IProductModule
     private HashSet<int> Sense(Vector3 playerWorld)
     {
         HashSet<int> senses = [];
-        if (!roster.All.Any(creature => creature.Awake))
+        if (!roster.All.Any(Senses))
         {
             return senses;
         }
 
-        PerceptionObserver[] observers = roster.All.Where(creature => creature.Awake).Select(creature => new PerceptionObserver(
+        PerceptionObserver[] observers = roster.All.Where(Senses).Select(creature => new PerceptionObserver(
             ProductIds.CreatureObserverBase + (ulong)creature.Id,
             frame.ToLocal(creature.Position.X, StandingAt(creature) + EyeHeightMetres, creature.Position.Y),
             Vector3.UnitZ,
@@ -920,6 +1034,14 @@ internal sealed class CreatureModule : IProductModule
         return senses;
     }
 
+    /// <summary>
+    /// Whether a creature looks for the player this update: any awake one, but one lying at rest only once the player is
+    /// near enough to wake it (#10876), so a cave's resting population costs no sight.
+    /// </summary>
+    private bool Senses(Creature creature) => creature.Awake
+        && (creature.Behavior.State != CreatureState.Resting
+            || Vector3.Distance(Feet(creature), player.WorldFeetPosition) <= creature.Kind.Tuning.WakeRange * SightScale(creature) + EyeHeightMetres);
+
     /// <summary>The ground of a column, from above: where a creature is first set down.</summary>
     private float GroundAt(Vector2 position) =>
         terrain.GroundAt(position.X, position.Y);
@@ -936,6 +1058,16 @@ internal sealed class CreatureModule : IProductModule
     {
         if (creature.Body is not null) return;
         float from = StandingAt(creature);
-        creature.Feet = terrain.GroundBelow(creature.Position.X, creature.Position.Y, from, CreatureNavigation.ClimbMetres) ?? creature.Feet;
+        float? below = terrain.GroundBelow(creature.Position.X, creature.Position.Y, from, CreatureNavigation.ClimbMetres);
+        // Under the ground, a creature that has not walked only ever drops to its floor (#10876): a surface above its feet
+        // is a cave's low ceiling met from inside its rock, and rising onto it would carry it up through the rock.
+        if (below > from + RiseToleranceMetres && from < terrain.Recipe.SurfaceAt((long)Math.Floor(creature.Position.X), (long)Math.Floor(creature.Position.Y)) - UndergroundMetres) return;
+        creature.Feet = below ?? creature.Feet;
     }
+
+    /// <summary>A floor found this little above a creature's feet is the floor it stands on, not one it would rise onto.</summary>
+    private const float RiseToleranceMetres = 0.05f;
+
+    /// <summary>A creature this far under its column's overworld ground is in a cave.</summary>
+    private const float UndergroundMetres = 4f;
 }

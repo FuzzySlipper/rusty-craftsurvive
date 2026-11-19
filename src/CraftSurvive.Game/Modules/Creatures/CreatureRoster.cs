@@ -12,7 +12,7 @@ internal sealed class Creature
         Kind = kind;
         Position = position;
         Combat = CombatantState.Fresh(kind.MaximumHealth, kind.Defence);
-        Behavior = CreatureBehaviorState.Spawned;
+        Behavior = CreatureBehaviorState.SpawnedFor(kind.Tuning);
     }
 
     internal int Id { get; }
@@ -72,6 +72,9 @@ internal sealed class Creature
     /// <summary>How many steps the creature has meant to walk and not closed on its waypoint, and where it stood last step; null on a fresh path.</summary>
     internal int StuckSteps { get; set; }
     internal Vector2? RoutedFrom { get; set; }
+
+    /// <summary>Where the player's feet were when it last saw them (#10876): where a search goes to look; null before.</summary>
+    internal Vector3? LastSeen { get; set; }
 }
 
 /// <summary>

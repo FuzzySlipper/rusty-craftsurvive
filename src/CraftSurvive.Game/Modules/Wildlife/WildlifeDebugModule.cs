@@ -39,6 +39,12 @@ public sealed class WildlifeDebugModule : IDebugCommandModule
     [DebugCommand("craft.wildlife.country", Description = "Wildlife (#10570): the nearest ground of a biome within some kilometres, to see a kind in its own country.")]
     public string Country(string biome, double kilometres) => wildlife.Country(biome, kilometres);
 
+    [DebugCommand("craft.wildlife.caves", Description = "Cave wildlife (#10876): each held cave's hunters' homes (kind, home and floor, alive, distance) and its small creatures (where, height, hidden).")]
+    public string Caves() => wildlife.CavesReadout();
+
+    [DebugCommand("craft.wildlife.floor", Description = "Cave wildlife (#10876): the floor a small creature finds at a point (x y z) and a step to each side, for diagnosis.")]
+    public string Floor(double x, double y, double z) => wildlife.FloorReadout(x, y, z);
+
     [DebugCommand("craft.wildlife.weaken", Description = "Test aid (#10621): leaves every awake animal one health, so the next blow that lands kills it.")]
     public string Weaken() => wildlife.WeakenAll();
 

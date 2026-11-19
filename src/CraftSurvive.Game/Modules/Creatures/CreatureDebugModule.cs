@@ -42,6 +42,12 @@ public sealed class CreatureDebugModule : IDebugCommandModule
     [DebugCommand("craft.creatures.route", Description = "Reads the navigation route from a world column (x z) to the player as cells, for diagnosis.")]
     public string Route(double x, double z) => creatures.RouteReadout(x, z);
 
+    [DebugCommand("craft.creatures.rouse", Description = "Test aid (#10876): every creature at rest or idle wakes to the player, so a cave's whole population hunts, for cost runs.")]
+    public string Rouse() => creatures.RouseAll();
+
+    [DebugCommand("craft.creatures.routefrom", Description = "Reads the navigation route from a world point's floor (x y z) to the player as cells: a creature in a cave (#10876).")]
+    public string RouteFrom(double x, double y, double z) => creatures.RouteReadout(x, z, y);
+
     [DebugCommand("craft.creatures.navigation", Description = "Publishes navigation around the player now and reports the columns it re-derived and reused, and its cost.")]
     public string Navigation() => creatures.PublishNavigation();
 }

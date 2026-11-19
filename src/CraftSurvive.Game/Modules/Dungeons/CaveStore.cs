@@ -28,7 +28,7 @@ internal static class CaveCodec
     private const uint Magic = 0x4556_4143; // "CAVE"
 
     /// <summary>The layout of the bytes; a change to it (or to what a cave holds) changes this, and older records are misses.</summary>
-    internal const int Format = 1;
+    internal const int Format = 2;
 
     internal static byte[] Encode(UndergroundCave cave)
     {
@@ -142,6 +142,8 @@ internal static class CaveCodec
                 List(w, surface.Indices, (w, i) => w.Write(i));
             }
         });
+        // The damp dead ends the cave's fungi crowd: where its mouldbacks lie (#10876).
+        List(w, layout.FungalPockets, V);
     }
 
     private static DungeonLayout ReadLayout(BinaryReader r)
@@ -181,6 +183,7 @@ internal static class CaveCodec
 
             return zone;
         });
+        List<Vector3> pockets = List(r, V);
         return new DungeonLayout(name, new DungeonVolume(1, 1, 1, Content.BlockId.Air), arrival, exit, lights)
         {
             Natural = true,
@@ -196,6 +199,7 @@ internal static class CaveCodec
             Abyss = abyss,
             Communities = communities,
             WaterZones = zones,
+            FungalPockets = pockets,
         };
     }
 

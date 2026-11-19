@@ -519,7 +519,9 @@ Check.Section("kinds", () =>
     string[] secondWave = ["ancylotherium", "paraceratherium", "diprotodon", "megacerops", "sivatherium"];
     Check.That(firstWave.Concat(secondWave).All(id => catalog.TryKind(id, out _)), "the first- and second-wave kinds must load");
     string[] hunters = ["gaunt", "axe-beak", "drift-runner"];
-    Check.Equal(firstWave.Length + secondWave.Length + hunters.Length, catalog.Kinds.Count, "the content holds the two waves, the hunters and nothing else");
+    string[] cave = ["root-adder", "mouldback", "drowner", "hummock", "ribbon-stalker", "stalk-bill", "drop-sloth", "draft-hound", "salt-monitor", "glass-courser", "seep-rat", "plume-neck"];
+    Check.That(cave.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Cave is not null), "the cave's hunters (#10876) load, each with its cave");
+    Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length, catalog.Kinds.Count, "the content holds the two waves, the hunters, the cave's hunters and nothing else");
     Check.That(Enum.GetValues<PressedResponse>().All(r => catalog.Kinds.Any(k => k.Pressed == r)), "every pressed response must have a kind that shows it");
     Check.That(Enum.GetValues<WildlifeSizeClass>().All(c => catalog.SizeClasses.ContainsKey(c)), "every size class must have a capsule");
     WildlifeKind sloth = catalog.Kind("ground-sloth");
@@ -1243,6 +1245,137 @@ Check.Section("population", () =>
     WildlifeLedger other = new(catalog, Seed, Grass);
     other.Place(catalog.Kind("ground-sloth"), Vector2.Zero, 4).Kill(1, recovery);
     Check.Equal(0, other.Losses(1).Count, "a herd placed by live debug is in no population and is not saved");
+});
+
+Check.Section("cave animals", () =>
+{
+    // #10876: each zone and community of the cave-wildlife page has its hunter, kept out of the overworld's regions.
+    Dictionary<CaveHabitat, string[]> lives = new()
+    {
+        [CaveHabitat.Mouth] = ["root-adder"],
+        [CaveHabitat.DampDeadEnds] = ["mouldback"],
+        [CaveHabitat.Pools] = ["drowner"],
+        [CaveHabitat.CushionBarrens] = ["hummock"],
+        [CaveHabitat.RibbonThicket] = ["ribbon-stalker"],
+        [CaveHabitat.FunnelGarden] = ["stalk-bill"],
+        [CaveHabitat.InvertedGrove] = ["drop-sloth"],
+        [CaveHabitat.VeilForest] = ["draft-hound"],
+        [CaveHabitat.IvoryHeath] = ["salt-monitor"],
+        [CaveHabitat.GlassSteppe] = ["glass-courser"],
+        [CaveHabitat.VentOrchard] = ["seep-rat", "plume-neck"],
+    };
+    WildlifeKind[] caveKinds = [.. catalog.Kinds.Where(kind => kind.Cave is not null)];
+    foreach ((CaveHabitat habitat, string[] ids) in lives)
+    {
+        Check.That(caveKinds.Where(kind => kind.Cave!.Lives == habitat).Select(kind => kind.Id).Order().SequenceEqual(ids.Order()), $"{habitat} holds {string.Join(" and ", ids)}");
+    }
+
+    foreach (WildlifeKind kind in caveKinds)
+    {
+        Check.That(kind.Pressed == PressedResponse.Hunt && kind.Hunt is not null, $"{kind.Id} hunts");
+        Check.That(Enum.GetValues<MapBiome>().All(biome => kind.HabitatWeight(biome) == 0) && kind.Population.HerdsPerSquareKilometre == 0, $"{kind.Id} lives in no overworld region");
+        Check.That(kind.Hunt!.Rest is { } rest && rest.WakeMetres > kind.Hunt.ReachMetres && rest.WakeMetres <= kind.Hunt.SightMetres, $"{kind.Id} rests and wakes within its sight");
+        Check.That(kind.Hunt.Display is { Seconds: > 0 } && kind.Hunt.Search is { Seconds: > 0 }, $"{kind.Id} displays before it attacks and searches for a player it lost");
+        CreatureKind creature = HunterRules.KindOf(kind);
+        Check.That(creature.Tuning.WakeRange == kind.Hunt.Rest!.WakeMetres && creature.Tuning.SearchTicks > 0, $"{kind.Id}'s rest and search reach the creature rules");
+    }
+
+    Check.That(catalog.Kinds.Where(kind => kind.Cave is null && kind.Hunt is not null).All(kind => kind.Hunt!.Rest is null && kind.Hunt.Display is null && kind.Hunt.Search is null),
+        "the overworld's hunters keep their own ways: no rest, display or search of a cave's");
+    Check.That(catalog.CaveWakeMetres > 0 && catalog.CaveWakeMetres < 96, "a cave home wakes inside the distance the encounter director lets creatures go at");
+
+    // A cave with dead ends, a pool, the veil forest and the vent orchard, and a mouth; no cushion barrens.
+    Vector3[] veil = [new(10, -40, 10), new(30, -40, 10), new(50, -40, 12), new(70, -41, 10)];
+    Vector3[] vents = [new(10, -80, 60), new(25, -80, 60), new(40, -80, 60), new(55, -80, 60), new(70, -80, 60)];
+    Vector3[] deadEnds = [new(5, -30, 40), new(8, -30, 42), new(40, -35, 40)];
+    CavePool pool = new(-50f, [new Vector2(20.5f, 80.5f), new Vector2(21.5f, 80.5f), new Vector2(22.5f, 80.5f), new Vector2(21.5f, 81.5f)]);
+    Vector3[] mouth = [new(0, 2, -20), new(0, 1, -14), new(0, 0, -8)];
+    Vector3[] deep = [new(60, -85, 30), new(80, -88, 30)];
+    CaveSites sites = new("cave:1,2", mouth, deadEnds, [pool], deep, new Dictionary<CaveHabitat, IReadOnlyList<Vector3>>
+    {
+        [CaveHabitat.VeilForest] = veil,
+        [CaveHabitat.VentOrchard] = vents,
+    });
+    IReadOnlyList<HerdRecord> homes = CaveFauna.Homes(sites, catalog, Seed);
+    Check.That(homes.All(home => home.Floor is not null), "every cave home carries its floor's height");
+    Check.That(homes.All(home => catalog.Kind(home.KindId).Cave is not null), "only cave kinds live in a cave");
+    Check.That(!homes.Any(home => home.KindId is "hummock" or "ribbon-stalker" or "stalk-bill" or "drop-sloth" or "salt-monitor" or "glass-courser"),
+        "a cave without a community holds none of that community's hunters");
+    bool At(HerdRecord home, IEnumerable<Vector3> points) => points.Any(p => p.X == home.Home.X && p.Z == home.Home.Y && p.Y == home.Floor);
+    Check.That(homes.Where(home => home.KindId == "draft-hound").All(home => At(home, veil)) && homes.Any(home => home.KindId == "draft-hound"), "the draft-hounds live in the veil forest");
+    Check.That(homes.Where(home => home.KindId is "seep-rat" or "plume-neck").All(home => At(home, vents)), "the seep-rats and plume-necks live in the vent orchard");
+    Check.That(homes.Any(home => home.KindId == "seep-rat") && homes.Any(home => home.KindId == "plume-neck"), "and both of its hunters live there");
+    Check.That(homes.Where(home => home.KindId == "mouldback").All(home => At(home, deadEnds)) && homes.Any(home => home.KindId == "mouldback"), "the mouldbacks live in the damp dead ends");
+    Check.That(homes.Where(home => home.KindId == "root-adder").All(home => At(home, mouth)) && homes.Count(home => home.KindId == "root-adder") == 1, "one root-adder lives in the mouth's twilight");
+    Check.That(homes.Where(home => home.KindId == "drowner").All(home => home.Floor == pool.Surface) && homes.Count(home => home.KindId == "drowner") == 1, "a drowner lives in the pool");
+    foreach (IGrouping<string, HerdRecord> kind in homes.GroupBy(home => home.KindId))
+    {
+        WildlifeKind k = catalog.Kind(kind.Key);
+        Check.That(kind.Count() <= k.Cave!.HomesPerCave, $"{kind.Key} keeps to its number of homes in a cave");
+        HerdRecord[] its = [.. kind];
+        Check.That(its.All(a => its.All(b => a == b || Vector2.Distance(a.Home, b.Home) >= CaveFauna.HomesApartMetres - 0.01f)), $"{kind.Key}'s homes stand apart");
+        Check.That(its.All(home => home.Founding >= k.GroupMinimum && home.Founding <= k.GroupMaximum), $"{kind.Key}'s groups are of its size");
+    }
+
+    Check.That(homes.Select(home => (home.Key, home.Home, home.Floor, home.Founding)).SequenceEqual(CaveFauna.Homes(sites, catalog, Seed).Select(home => (home.Key, home.Home, home.Floor, home.Founding))),
+        "the same cave gives the same homes");
+    Check.That(homes.Select(home => home.Key).Distinct().Count() == homes.Count, "each home has its own key");
+
+    // The ledger holds a cave's homes like a region's: found near the player, and a loss kept while the cave is let go.
+    WildlifeLedger ledger = new(catalog, Seed, (_, _) => MapBiome.Grassland);
+    ledger.AddCave(sites.Key, homes);
+    Check.That(ledger.HomesWithin(30, 10, 40).Any(home => home.KindId == "draft-hound"), "a cave home is found near the player");
+    HerdRecord hound = homes.First(home => home.KindId == "draft-hound");
+    hound.Kill(10, catalog.Kind("draft-hound").Population.RecoveryDays);
+    ledger.RemoveCave(sites.Key, 10);
+    Check.That(!ledger.HomesWithin(30, 10, 40).Any(home => home.KindId == "draft-hound"), "a cave let go holds no homes");
+    IReadOnlyList<HerdRecord> again = CaveFauna.Homes(sites, catalog, Seed);
+    ledger.AddCave(sites.Key, again);
+    Check.Equal(hound.Founding - 1, again.First(home => home.Key == hound.Key).Alive(10, catalog.Kind("draft-hound").Population.RecoveryDays), "a cave taken up again keeps its losses");
+    Check.That(ledger.Losses(10).Any(loss => loss.Herd == HerdLoss.IdOf(hound.Key)), "and saves them with the regions'");
+
+    // The small creatures (#10876; Patch: no colliders, no combat): none is a wildlife kind, so no body, capsule or swing finds one.
+    Check.That(catalog.CaveAmbient.Select(kind => kind.Id).Order().SequenceEqual(new[] { "blindfish", "drift-grazer", "mound-shrew" }), "the three small cave creatures load");
+    Check.That(catalog.CaveAmbient.All(kind => !catalog.TryKind(kind.Id, out _)), "a small cave creature is not a herd or a hunter: it has no capsule, collider or combat");
+    IReadOnlyList<CaveAmbientHome> ambient = CaveFauna.Ambient(sites, catalog, Seed);
+    Check.That(ambient.Where(home => home.Kind.Id == "blindfish").All(home => home.Pool == pool) && ambient.Any(home => home.Kind.Id == "blindfish"), "blindfish school in the pools");
+    Check.That(ambient.Where(home => home.Kind.Id == "drift-grazer").All(home => deep.Contains(home.Home)) && ambient.Any(home => home.Kind.Id == "drift-grazer"), "drift-grazers wander the deep floors");
+    Check.That(!ambient.Any(home => home.Kind.Id == "mound-shrew"), "a cave without the inverted grove has no mound-shrews");
+
+    // They wander, and slip away from a player who comes near, hiding while the player stays.
+    int ambientIds = 5000;
+    CaveAmbience ambience = new(Seed, (x, z, from) => -88f);
+    Check.Equal(0, ambience.Add(ambient, () => ++ambientIds).Count, "every small creature finds its floor");
+    CaveAmbient grazer = ambience.Creatures.First(c => c.Home.Kind.Id == "drift-grazer");
+    Vector3 far = new(500, 0, 500);
+    Vector2 began = grazer.Member.Position;
+    for (int i = 0; i < 600; i++) ambience.Update(far, Tick);
+    Check.That(Vector2.Distance(began, grazer.Member.Position) > 0.1f, "a small creature moves about on its own");
+    Check.That(ambience.Creatures.All(c => c.Home.Pool is not CavePool p || p.Columns.Any(col => Vector2.Distance(col, c.Member.Position) <= 1.01f)), "a fish keeps to its pool");
+    Vector3 near = new(grazer.Member.Position.X + 1, grazer.Feet, grazer.Member.Position.Y);
+    Vector2 before = grazer.Member.Position;
+    ambience.Update(near, Tick);
+    Check.That(Vector2.Distance(grazer.Member.Position, new Vector2(near.X, near.Z)) > Vector2.Distance(before, new Vector2(near.X, near.Z)), "a small creature runs from the player");
+    for (int i = 0; i < 100; i++) ambience.Update(near, Tick);
+    Check.That(grazer.Member.Under, "having run a while it slips out of sight");
+    for (int i = 0; i < 5; i++) ambience.Update(far, Tick);
+    Check.That(!grazer.Member.Under, "and comes out once the player has gone");
+    Check.Equal(ambience.Creatures.Count, ambience.Remove(c => c.Home.Cave == sites.Key).Count, "a cave let go takes its small creatures with it");
+
+    // Hunter rules for a cave's ways: a display first, however near; then its search and rest shown.
+    WildlifeKind hummock = catalog.Kind("hummock");
+    Hunter Of(WildlifeKind kind) => new(kind, new HerdRecord("cave@test", kind.Id, Vector2.Zero, 1),
+        new WildlifeMember(1, Vector2.Zero, Vector2.Zero, CombatantState.Fresh(kind.MaximumHealth, kind.Defence)));
+    Hunter displaying = Of(hummock);
+    HunterRules.Advance(displaying, CreatureState.Attacking, 1, 9, 1d / 60);
+    Check.That(displaying.Holding && Math.Abs(displaying.ThreatSeconds - hummock.Hunt!.Display!.Seconds) < 1e-9, "a cave hunter shows its display for its own while, even with the player in reach");
+    Check.Equal(hummock.Hunt!.Display!.Clip, HunterRules.Want(displaying, CreatureState.Attacking, 0, 3), "showing its display's clip");
+    Hunter idler = Of(hummock);
+    Check.Equal(hummock.Hunt!.Rest!.Clip, HunterRules.Want(idler, CreatureState.Resting, 0, 3), "at rest it shows its rest");
+    Check.Equal(hummock.Hunt!.Search!.Clip, HunterRules.Want(idler, CreatureState.Searching, 0, 3), "searching it shows its search");
+    Hunter overworld = Of(catalog.Kind("gaunt"));
+    HunterRules.Advance(overworld, CreatureState.Attacking, 1, 9, 1d / 60);
+    Check.That(!overworld.Holding && !overworld.Threatened, "an overworld hunter in reach bites without a threat, as before");
 });
 
 return Check.Finish("wildlife");

@@ -14,6 +14,8 @@
     <Compile Include="$(ProductModules)Wildlife/WildlifeRules.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/WildlifeRegions.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/HerdLoss.cs" LinkBase="Product/Wildlife" />
+    <Compile Include="$(ProductModules)Wildlife/CaveFauna.cs" LinkBase="Product/Wildlife" />
+    <Compile Include="$(ProductModules)Wildlife/CaveAmbience.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/WildlifeClips.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/OwnedBodies.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/WildlifeRagdollRig.cs" LinkBase="Product/Wildlife" />

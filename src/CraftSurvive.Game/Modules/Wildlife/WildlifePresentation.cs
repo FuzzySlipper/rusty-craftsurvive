@@ -73,7 +73,9 @@ internal sealed class WildlifePresentation : IDisposable
     /// <param name="here">Where the player stands (world X, Z), which sets how much of each animal's animation runs.</param>
     /// <param name="seconds">How long since the last sync; zero when it only reflects a change made outside an update.</param>
     /// <param name="hunters">The hostile animals awake (#10615): the creature rules move them, and they are drawn here with the rest.</param>
-    internal void Sync(IReadOnlyList<WildlifeHerd> herds, IReadOnlyList<WildlifeFallen> fallen, IReadOnlyList<Creatures.WildlifeHunter> hunters, Func<WildlifeMember, float> feet, Vector2 here, double seconds)
+    /// <param name="ambient">The small cave creatures (#10876): placeholders until they have meshes, drawn and nothing else.</param>
+    internal void Sync(IReadOnlyList<WildlifeHerd> herds, IReadOnlyList<WildlifeFallen> fallen, IReadOnlyList<Creatures.WildlifeHunter> hunters, Func<WildlifeMember, float> feet, Vector2 here, double seconds,
+        IReadOnlyList<CaveAmbient>? ambient = null)
     {
         List<AppearanceFact> next = [];
         HashSet<WildlifeMember> kept = [];
@@ -87,7 +89,7 @@ internal sealed class WildlifePresentation : IDisposable
                 if (member.Under) continue;
                 if (herd.Kind.Mesh is null)
                 {
-                    Pose(herd.Kind, herd.Activity, member, feet(member), false, Appearances(herd.Kind), next);
+                    Pose(herd.Kind.Body, herd.Kind.Pressed, herd.Activity, member, feet(member), false, Appearances(herd.Kind.Id, herd.Kind.Body), next);
                     continue;
                 }
 
@@ -106,7 +108,7 @@ internal sealed class WildlifePresentation : IDisposable
         {
             if (body.Kind.Mesh is null)
             {
-                Pose(body.Kind, WildlifeActivity.Rest, body.Member, feet(body.Member), true, Appearances(body.Kind), next);
+                Pose(body.Kind.Body, body.Kind.Pressed, WildlifeActivity.Rest, body.Member, feet(body.Member), true, Appearances(body.Kind.Id, body.Kind.Body), next);
                 continue;
             }
 
@@ -114,19 +116,25 @@ internal sealed class WildlifePresentation : IDisposable
             next.Add(meshes.Pose(null, body.Kind, body.Member, feet(body.Member), Vector2.Distance(body.Member.Position, here), seconds, plantWithin, fallen: true, body.Blow));
         }
 
+        foreach (CaveAmbient creature in ambient ?? [])
+        {
+            if (creature.Member.Under) continue;
+            CaveAmbientKind kind = creature.Home.Kind;
+            Pose(kind.Body, PressedResponse.Flee, WildlifeActivity.Drift, creature.Member, creature.Feet, false, Appearances(kind.Id, kind.Body), next);
+        }
+
         meshes.Keep(kept);
         facts = [.. next];
     }
 
     /// <summary>The parts of one animal, posed by what it is doing.</summary>
-    private void Pose(WildlifeKind kind, WildlifeActivity activity, WildlifeMember member, float feet, bool fallen, Appearance[] parts, List<AppearanceFact> into)
+    private void Pose(WildlifeBody body, PressedResponse pressed, WildlifeActivity activity, WildlifeMember member, float feet, bool fallen, Appearance[] parts, List<AppearanceFact> into)
     {
-        WildlifeBody body = kind.Body;
         float h = (float)body.HeightMetres * member.Size, l = (float)body.LengthMetres * member.Size, w = (float)body.WidthMetres * member.Size;
         bool responding = !fallen && member.Stage == Wariness.Respond;
-        bool hunkered = responding && kind.Pressed == PressedResponse.Hunker;
-        bool rearing = responding && kind.Pressed == PressedResponse.Stand;
-        bool displaying = !fallen && member.Stage == Wariness.Warn && kind.Pressed == PressedResponse.DisplayCharge;
+        bool hunkered = responding && pressed == PressedResponse.Hunker;
+        bool rearing = responding && pressed == PressedResponse.Stand;
+        bool displaying = !fallen && member.Stage == Wariness.Warn && pressed == PressedResponse.DisplayCharge;
         bool calm = fallen || member.Stage is Wariness.Calm or Wariness.Regroup;
         bool still = member.Velocity.Length() < GrazingSpeed;
         bool lying = fallen || hunkered || (calm && activity == WildlifeActivity.Rest && member.Velocity == Vector2.Zero);
@@ -168,15 +176,15 @@ internal sealed class WildlifePresentation : IDisposable
     }
 
     /// <summary>A kind's three shared appearances, made the first time it is drawn.</summary>
-    private Appearance[] Appearances(WildlifeKind kind)
+    private Appearance[] Appearances(string id, WildlifeBody body)
     {
-        if (appearances.TryGetValue(kind.Id, out Appearance[]? parts)) return parts;
-        Color coat = Color.FromSrgbHex((int)kind.Body.SrgbColour);
+        if (appearances.TryGetValue(id, out Appearance[]? parts)) return parts;
+        Color coat = Color.FromSrgbHex((int)body.SrgbColour);
         parts = new Appearance[3];
         parts[(int)Part.Legs] = Primitive(Shade(coat, LegShade));
         parts[(int)Part.Torso] = Primitive(coat);
         parts[(int)Part.Head] = Primitive(Shade(coat, HeadShade));
-        appearances[kind.Id] = parts;
+        appearances[id] = parts;
         return parts;
     }
 

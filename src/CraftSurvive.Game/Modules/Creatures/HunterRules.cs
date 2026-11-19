@@ -54,6 +54,9 @@ internal static class HunterRules
     /// <summary>Slower than this over the ground is standing.</summary>
     private const float StandingSpeed = 0.05f;
 
+    /// <summary>The Engine's fixed steps a second, as the kinds' tick counts (their bite cooldowns) are written for.</summary>
+    internal const double StepsPerSecond = 60d;
+
     /// <summary>A creature kind from its content: it hunts by the creature rules, with the numbers its kind gives.</summary>
     internal static CreatureKind KindOf(WildlifeKind kind)
     {
@@ -61,7 +64,14 @@ internal static class HunterRules
         WildlifeHunt hunt = kind.Hunt ?? throw new InvalidDataException($"{kind.Id} does not hunt");
         return new CreatureKind(
             kind.Id,
-            BehaviorTuning.Hostile with { SightRange = hunt.SightMetres, AttackRange = hunt.ReachMetres, AttackCooldownTicks = hunt.CooldownTicks },
+            BehaviorTuning.Hostile with
+            {
+                SightRange = hunt.SightMetres,
+                AttackRange = hunt.ReachMetres,
+                AttackCooldownTicks = hunt.CooldownTicks,
+                WakeRange = hunt.Rest?.WakeMetres ?? 0,
+                SearchTicks = hunt.Search is { } search ? (long)Math.Ceiling(search.Seconds * StepsPerSecond) : 0,
+            },
             kind.MaximumHealth,
             kind.Defence,
             kind.Speeds.Flee,
@@ -90,13 +100,16 @@ internal static class HunterRules
         hunter.ThreatSeconds = Math.Max(0, hunter.ThreatSeconds - seconds);
         hunter.BiteSeconds = Math.Max(0, hunter.BiteSeconds - seconds);
         hunter.HurtSeconds = Math.Max(0, hunter.HurtSeconds - seconds);
-        if (state == CreatureState.Idle) hunter.Threatened = false;
-        // It shows its threat once a hunt, from where it first saw the player, unless they are already in reach.
-        bool hunting = state is CreatureState.Pursuing or CreatureState.Alert;
+        if (state is CreatureState.Idle or CreatureState.Resting) hunter.Threatened = false;
+        // It shows its threat once a hunt, from where it first saw the player, unless they are already in reach; a kind with
+        // a display of its own (#10876) always shows it first, for its own while, before it closes or bites.
+        WildlifeDisplay? display = hunter.Kind.Hunt!.Display;
+        bool hunting = state is CreatureState.Pursuing or CreatureState.Alert || (display is not null && state == CreatureState.Attacking);
         if (hunting && !hunter.Threatened)
         {
             hunter.Threatened = true;
-            if (playerDistance > hunter.Kind.Hunt!.ReachMetres) hunter.ThreatSeconds = threatSeconds;
+            if (display is not null) hunter.ThreatSeconds = display.Seconds;
+            else if (playerDistance > hunter.Kind.Hunt!.ReachMetres) hunter.ThreatSeconds = threatSeconds;
         }
 
         if (hunter.Blow is not AttackProfile blow) return null;
@@ -190,9 +203,17 @@ internal static class HunterRules
         ArgumentNullException.ThrowIfNull(hunter);
         if (hunter.HurtSeconds > 0) return WildlifeClipRole.Hurt;
         if (hunter.BiteSeconds > 0) return WildlifeClipRole.Bite;
-        if (hunter.ThreatSeconds > 0) return WildlifeClipRole.Threat;
+        WildlifeHunt hunt = hunter.Kind.Hunt!;
+        if (hunter.ThreatSeconds > 0) return hunt.Display?.Clip ?? WildlifeClipRole.Threat;
         if (speed > StandingSpeed) return speed > runsAbove ? WildlifeClipRole.Run : WildlifeClipRole.Walk;
-        return state is CreatureState.Attacking or CreatureState.Pursuing or CreatureState.Alert ? WildlifeClipRole.Look : WildlifeClipRole.Idle;
+        return state switch
+        {
+            CreatureState.Attacking or CreatureState.Pursuing or CreatureState.Alert => WildlifeClipRole.Look,
+            // Searching, it shows its search (a draft-hound's ears flared); resting, its rest (#10876).
+            CreatureState.Searching => hunt.Search?.Clip ?? WildlifeClipRole.Look,
+            CreatureState.Resting => hunt.Rest?.Clip ?? WildlifeClipRole.Idle,
+            _ => WildlifeClipRole.Idle,
+        };
     }
 
     /// <summary>Its facing after some seconds: where it is going, or at the player when it stands to them, turning no faster than its kind can.</summary>

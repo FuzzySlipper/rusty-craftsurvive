@@ -107,7 +107,77 @@ internal sealed record WildlifeYoung(
 /// <param name="CooldownTicks">How long after one bite before the next.</param>
 /// <param name="BiteWindupSeconds">How far into the bite the jaws close: the blow lands then.</param>
 /// <param name="DodgeMetres">How far past its reach a closing bite still finds the player.</param>
-internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, double HaltMetres, int Accuracy, int Power, long CooldownTicks, double BiteWindupSeconds, double DodgeMetres, WildlifePack? Pack = null);
+internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, double HaltMetres, int Accuracy, int Power, long CooldownTicks, double BiteWindupSeconds, double DodgeMetres, WildlifePack? Pack = null)
+{
+    /// <summary>How it rests where it lives (#10876); null for one that stands about, seeing as far as its sight.</summary>
+    internal WildlifeRest? Rest { get; init; }
+
+    /// <summary>How it displays before it attacks (#10876); null shows its threat clip once a hunt, from beyond its reach.</summary>
+    internal WildlifeDisplay? Display { get; init; }
+
+    /// <summary>How it searches for a player it has lost (#10876); null gives up at once.</summary>
+    internal WildlifeSearch? Search { get; init; }
+}
+
+/// <summary>A hunter that rests (#10876) lies still, showing this clip, until it sees the player within its wake distance.</summary>
+internal sealed record WildlifeRest(double WakeMetres, WildlifeClipRole Clip);
+
+/// <summary>A hunter's display before it attacks (#10876): it stands this long showing this clip, however near the player is.</summary>
+internal sealed record WildlifeDisplay(double Seconds, WildlifeClipRole Clip);
+
+/// <summary>A hunter's search (#10876): it goes to where it last saw the player and looks about, showing this clip, for this long.</summary>
+internal sealed record WildlifeSearch(double Seconds, WildlifeClipRole Clip);
+
+/// <summary>Where in a cave a cave animal lives (#10876): one of the everyday zones, or one of the eight communities.</summary>
+internal enum CaveHabitat
+{
+    /// <summary>The twilight of a cave mouth's tendril, on the overworld's side.</summary>
+    Mouth,
+
+    /// <summary>The damp dead ends where fungi crowd.</summary>
+    DampDeadEnds,
+
+    /// <summary>The cave's lakes and pools.</summary>
+    Pools,
+
+    /// <summary>The cave's deep floors, along its main route.</summary>
+    DeepFloors,
+
+    CushionBarrens,
+    RibbonThicket,
+    FunnelGarden,
+    InvertedGrove,
+    VeilForest,
+    IvoryHeath,
+    GlassSteppe,
+    VentOrchard,
+}
+
+/// <summary>A cave animal's place (#10876): where it lives in a cave, and how many homes one cave holds at most.</summary>
+internal sealed record WildlifeCave(CaveHabitat Lives, int HomesPerCave);
+
+/// <summary>
+/// A small cave creature kept as ambience (#10876; Patch: furtive, no colliders and no combat): drawn as its kind's
+/// placeholder body, it wanders near its home and slips away from the player, hiding while they stay near.
+/// </summary>
+/// <param name="GroupMinimum">The fewest in a group; a group is one home.</param>
+/// <param name="WanderMetres">How far from its home it wanders.</param>
+/// <param name="FleeMetres">The player this near sends it away.</param>
+/// <param name="HideSeconds">How long it runs before it slips out of sight, until the player has gone.</param>
+/// <param name="Swims">A swimmer keeps under its pool's surface rather than on a floor.</param>
+internal sealed record CaveAmbientKind(
+    string Id,
+    string Name,
+    WildlifeCave Cave,
+    int GroupMinimum,
+    int GroupMaximum,
+    WildlifeBody Body,
+    double WalkSpeed,
+    double FleeSpeed,
+    double WanderMetres,
+    double FleeMetres,
+    double HideSeconds,
+    bool Swims);
 
 /// <summary>
 /// How a pack hunts (#10626): what one sees calls the others from this far, for this long after it last
@@ -173,6 +243,9 @@ internal sealed record WildlifeKind(
 {
     /// <summary>How it hunts, for a hostile animal; null for every other.</summary>
     internal WildlifeHunt? Hunt { get; init; }
+
+    /// <summary>Where it lives in a cave (#10876), for a cave animal; null for one of the overworld's regions.</summary>
+    internal WildlifeCave? Cave { get; init; }
 
     /// <summary>How much of this kind's density a biome carries: zero where it does not live.</summary>
     internal double HabitatWeight(MapBiome biome) => Habitat.TryGetValue(biome, out double weight) ? weight : 0;
@@ -269,6 +342,12 @@ internal sealed record WildlifeCatalog(
         kind = Kinds.FirstOrDefault(candidate => candidate.Id == id)!;
         return kind is not null;
     }
+
+    /// <summary>The small creatures kept as a cave's ambience (#10876).</summary>
+    internal IReadOnlyList<CaveAmbientKind> CaveAmbient { get; init; } = [];
+
+    /// <summary>A cave animal's home within this distance of the player (across the ground) is woken (#10876): about a cave's reach.</summary>
+    internal double CaveWakeMetres { get; init; }
 }
 
 /// <summary>
@@ -349,6 +428,11 @@ internal static class WildlifeKinds
         if (wake.SleepMetres <= wake.WakeMetres)
             throw new InvalidDataException("herds must sleep further out than they wake, or they flicker at the edge");
 
+        double caveWake = waking.GetProperty("caveMetres").GetDouble();
+        if (caveWake <= 0 || caveWake >= wake.WakeMetres) throw new InvalidDataException("cave animals wake nearer than the overworld's herds, and at some distance");
+        List<CaveAmbientKind> ambient = root.TryGetProperty("caveAmbient", out JsonElement ambience)
+            ? [.. ambience.EnumerateArray().Select(ReadAmbient)]
+            : [];
         return new WildlifeCatalog(
             classes,
             kinds,
@@ -386,7 +470,62 @@ internal static class WildlifeKinds
                 behaviour.GetProperty("hopSeconds").GetDouble(),
                 behaviour.GetProperty("hopEverySeconds").GetDouble()),
             ReadAnimation(root.GetProperty("animation")),
-            ReadVariety(root.GetProperty("variety")));
+            ReadVariety(root.GetProperty("variety")))
+        {
+            CaveAmbient = ambient,
+            CaveWakeMetres = caveWake,
+        };
+    }
+
+    private static readonly Dictionary<string, CaveHabitat> CaveHabitatNames = new(StringComparer.Ordinal)
+    {
+        ["mouth"] = CaveHabitat.Mouth,
+        ["damp-dead-ends"] = CaveHabitat.DampDeadEnds,
+        ["pools"] = CaveHabitat.Pools,
+        ["deep-floors"] = CaveHabitat.DeepFloors,
+        ["cushion-barrens"] = CaveHabitat.CushionBarrens,
+        ["ribbon-thicket"] = CaveHabitat.RibbonThicket,
+        ["funnel-garden"] = CaveHabitat.FunnelGarden,
+        ["inverted-grove"] = CaveHabitat.InvertedGrove,
+        ["veil-forest"] = CaveHabitat.VeilForest,
+        ["ivory-heath"] = CaveHabitat.IvoryHeath,
+        ["glass-steppe"] = CaveHabitat.GlassSteppe,
+        ["vent-orchard"] = CaveHabitat.VentOrchard,
+    };
+
+    private static WildlifeCave? ReadCave(JsonElement kind, string id)
+    {
+        if (!kind.TryGetProperty("cave", out JsonElement cave)) return null;
+        WildlifeCave read = new(Named(CaveHabitatNames, cave.GetProperty("lives").GetString()!, "cave habitat"), cave.GetProperty("homesPerCave").GetInt32());
+        if (read.HomesPerCave < 1) throw new InvalidDataException($"{id}: a cave animal has at least one home in a cave");
+        return read;
+    }
+
+    private static CaveAmbientKind ReadAmbient(JsonElement kind)
+    {
+        string id = kind.GetProperty("id").GetString()!;
+        JsonElement body = kind.GetProperty("body");
+        CaveAmbientKind read = new(
+            id,
+            kind.GetProperty("name").GetString()!,
+            ReadCave(kind, id) ?? throw new InvalidDataException($"{id}: a cave creature needs a cave block"),
+            kind.GetProperty("groupMinimum").GetInt32(),
+            kind.GetProperty("groupMaximum").GetInt32(),
+            new WildlifeBody(
+                body.GetProperty("lengthMetres").GetDouble(),
+                body.GetProperty("heightMetres").GetDouble(),
+                body.GetProperty("widthMetres").GetDouble(),
+                WildlifeSizeClass.Small,
+                uint.Parse(body.GetProperty("colour").GetString()!.TrimStart('#'), NumberStyles.HexNumber, CultureInfo.InvariantCulture)),
+            kind.GetProperty("walkSpeed").GetDouble(),
+            kind.GetProperty("fleeSpeed").GetDouble(),
+            kind.GetProperty("wanderMetres").GetDouble(),
+            kind.GetProperty("fleeMetres").GetDouble(),
+            kind.GetProperty("hideSeconds").GetDouble(),
+            kind.TryGetProperty("swims", out JsonElement swims) && swims.GetBoolean());
+        if (read.GroupMinimum < 1 || read.GroupMaximum < read.GroupMinimum) throw new InvalidDataException($"{id}: group size must be 1 or more, minimum first");
+        if (read.FleeSpeed <= read.WalkSpeed) throw new InvalidDataException($"{id}: a cave creature runs faster than it wanders");
+        return read;
     }
 
     private static WildlifeVariety ReadVariety(JsonElement variety)
@@ -520,6 +659,7 @@ internal static class WildlifeKinds
             table)
         {
             Hunt = ReadHunt(kind, id),
+            Cave = ReadCave(kind, id),
         };
     }
 
@@ -541,6 +681,17 @@ internal static class WildlifeKinds
                 ? new WildlifePack(pack.GetProperty("alarmMetres").GetDouble(), pack.GetProperty("alarmSeconds").GetDouble(), pack.GetProperty("flankDegrees").GetDouble(), pack.GetProperty("closeMetres").GetDouble())
                 : null);
         if (read.HaltMetres >= read.ReachMetres) throw new InvalidDataException($"{id}: a hunter halts inside its reach");
+        WildlifeClipRole Clip(JsonElement block, WildlifeClipRole otherwise) =>
+            block.TryGetProperty("clip", out JsonElement clip) ? Enum<WildlifeClipRole>(clip.GetString()) : otherwise;
+        read = read with
+        {
+            Rest = hunt.TryGetProperty("rest", out JsonElement rest) ? new WildlifeRest(rest.GetProperty("wakeMetres").GetDouble(), Clip(rest, WildlifeClipRole.Idle)) : null,
+            Display = hunt.TryGetProperty("display", out JsonElement display) ? new WildlifeDisplay(display.GetProperty("seconds").GetDouble(), Clip(display, WildlifeClipRole.Threat)) : null,
+            Search = hunt.TryGetProperty("search", out JsonElement search) ? new WildlifeSearch(search.GetProperty("seconds").GetDouble(), Clip(search, WildlifeClipRole.Look)) : null,
+        };
+        if (read.Rest is { } resting && (resting.WakeMetres <= read.ReachMetres || resting.WakeMetres > read.SightMetres))
+            throw new InvalidDataException($"{id}: a resting hunter wakes beyond its reach and within its sight");
+        if (read.Display is { Seconds: <= 0 } || read.Search is { Seconds: <= 0 }) throw new InvalidDataException($"{id}: a display or search lasts some time");
         return read;
     }
 

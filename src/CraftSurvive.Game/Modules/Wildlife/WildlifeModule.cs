@@ -104,6 +104,18 @@ internal sealed class WildlifeModule : IProductModule
         };
     }
 
+    /// <summary>
+    /// The caves near the player whose layouts are known (#10876): what each offers its animals. The dungeon module reads
+    /// them from the caves it has admitted; null holds no cave animals.
+    /// </summary>
+    internal Func<IReadOnlyList<CaveSites>>? CavesNear { get; set; }
+
+    /// <summary>The small cave creatures (#10876), made once wildlife starts.</summary>
+    private CaveAmbience? ambience;
+
+    /// <summary>Cave homes of small creatures that found no resident floor yet, by cave.</summary>
+    private readonly Dictionary<string, IReadOnlyList<CaveAmbientHome>> ambientWaiting = [];
+
     /// <summary>Ground no herd calls home or heads for (#9895): the towns' sanctuary. The product decides where towns stand.</summary>
     internal Func<double, double, bool>? Sanctuary { get; set; }
 
@@ -125,7 +137,7 @@ internal sealed class WildlifeModule : IProductModule
         if (presentation is null)
         {
             ragdolls = new WildlifeRagdolls(engine, frame, () => terrain.Session, catalog.Animation.Ragdoll);
-            WildlifeMeshBodies meshes = new(engine, content, frame, catalog.Animation, GroundOf, Seed, ragdolls);
+            WildlifeMeshBodies meshes = new(engine, content, frame, catalog.Animation, GroundNear, Seed, ragdolls);
             foreach (WildlifeKind kind in catalog.Kinds.Where(kind => kind.Mesh is not null)) meshes.Prepare(kind);
             presentation = new WildlifePresentation(engine, frame, meshes);
         }
@@ -136,8 +148,52 @@ internal sealed class WildlifeModule : IProductModule
             if (slot.Restore() is { Outcome: SaveRestoreOutcome.Restored, State: IReadOnlyList<HerdLoss> losses }) ledger.Restore(losses);
         }
 
+        ambience ??= new CaveAmbience(Seed, AmbientFloor);
         started = true;
     }
+
+    /// <summary>The floor under a small cave creature: the Engine's standing surface a little above where it stands, within a step.</summary>
+    private float? AmbientFloor(double x, double z, double from) => terrain.GroundBelow(x, z, from, AmbientReachMetres);
+
+    /// <summary>A small creature finds its floor within this much above and below where it was.</summary>
+    private const double AmbientReachMetres = 1d;
+
+    /// <summary>
+    /// Takes up the caves near the player (#10876): a cave newly known seeds its homes in the ledger and its small creatures;
+    /// one no longer near lets them go, its losses kept.
+    /// </summary>
+    private void FollowCaves(WorldTime now)
+    {
+        IReadOnlyList<CaveSites> near = CavesNear?.Invoke() ?? [];
+        HashSet<string> keys = [.. near.Select(sites => sites.Key)];
+        foreach (string gone in Ledger.Caves.Where(key => !keys.Contains(key)).ToArray())
+        {
+            Ledger.RemoveCave(gone, Day(now));
+            ambientWaiting.Remove(gone);
+            foreach (WildlifeMember member in Ambience.Remove(creature => creature.Home.Cave == gone))
+                Forget(member);
+            lastEvent = $"cave {gone} let go";
+        }
+
+        foreach (CaveSites sites in near)
+        {
+            if (!Ledger.Caves.Contains(sites.Key))
+            {
+                Ledger.AddCave(sites.Key, CaveFauna.Homes(sites, Catalog, Seed));
+                ambientWaiting[sites.Key] = CaveFauna.Ambient(sites, Catalog, Seed);
+                lastEvent = $"cave {sites.Key} seeded";
+            }
+
+            if (ambientWaiting.TryGetValue(sites.Key, out IReadOnlyList<CaveAmbientHome>? waiting))
+            {
+                IReadOnlyList<CaveAmbientHome> left = Ambience.Add(waiting, TakeId);
+                if (left.Count == 0) ambientWaiting.Remove(sites.Key);
+                else ambientWaiting[sites.Key] = left;
+            }
+        }
+    }
+
+    private CaveAmbience Ambience => ambience ?? throw new InvalidOperationException("wildlife has not started");
 
     public void Update(ProductStep time)
     {
@@ -145,7 +201,7 @@ internal sealed class WildlifeModule : IProductModule
         if (player.InSeparateSpace)
         {
             // The open world's herds sleep while the player is in a dungeon: nothing draws them there.
-            if (awake.Count > 0 || fallen.Count > 0 || AppearanceFacts.Count > 0) SleepAll();
+            if (awake.Count > 0 || fallen.Count > 0 || AppearanceFacts.Count > 0 || Ambience.Creatures.Count > 0) SleepAll();
             ragdolls?.Update(time);
             return;
         }
@@ -159,6 +215,7 @@ internal sealed class WildlifeModule : IProductModule
         {
             lastWakeStep = step;
             long waking = Stopwatch.GetTimestamp();
+            FollowCaves(now);
             Sleep(at);
             Wake(at, now);
             parts.Wake = Math.Max(parts.Wake, Stopwatch.GetElapsedTime(waking).TotalMilliseconds);
@@ -173,7 +230,8 @@ internal sealed class WildlifeModule : IProductModule
         }
 
         Decay(here, time.ElapsedSeconds);
-        Presentation.Sync(awake, fallen, Hunters?.Invoke() ?? [], FeetOf, here, time.ElapsedSeconds);
+        Ambience.Update(at, time.ElapsedSeconds);
+        Presentation.Sync(awake, fallen, Hunters?.Invoke() ?? [], FeetOf, here, time.ElapsedSeconds, Ambience.Creatures);
         ragdolls?.Update(time);
         double milliseconds = Stopwatch.GetElapsedTime(began).TotalMilliseconds;
         cost = (cost.Total + milliseconds, cost.Count + 1, Math.Max(cost.Worst, milliseconds), cost.Steps, cost.Refused, cost.Glides);
@@ -269,6 +327,20 @@ internal sealed class WildlifeModule : IProductModule
             : (float)(WildlifeClips.DrawnGround(x, z, terrain.Recipe.ContinuousHeightAt) + FarGround.GroundTopFace);
     }
 
+    /// <summary>
+    /// The ground under a point near a height (#10876): the overworld's where that is near it, else the first floor below a
+    /// little over the height, so an animal in a cave sits and plants its feet on the cave's floor, not the hill above.
+    /// </summary>
+    private float GroundNear(double x, double z, double near)
+    {
+        float ground = GroundOf(x, z);
+        if (Math.Abs(ground - near) <= OverworldGroundMetres) return ground;
+        return terrain.GroundBelow(x, z, near, AmbientReachMetres) ?? (float)near;
+    }
+
+    /// <summary>Ground this near a body's height is the overworld's under it; further, the body is somewhere below it.</summary>
+    private const double OverworldGroundMetres = 4d;
+
     private static double Day(WorldTime time) => time.Day + time.DayFraction;
 
     /// <summary>Herds whose leader has gone beyond the sleep distance sleep.</summary>
@@ -301,8 +373,9 @@ internal sealed class WildlifeModule : IProductModule
             .Select(record => (Record: record, Kind: Catalog.Kind(record.KindId)))
             .Select(entry => (entry.Record, entry.Kind,
                 Alive: entry.Record.Alive(Day(now), entry.Kind.Population.RecoveryDays),
-                Point: WildlifeRules.WakePoint(entry.Record, entry.Kind, now, Seed, Catalog.Placement.HomeAttempts, Allowed)))
-            .Where(entry => entry.Alive > 0 && Vector2.Distance(entry.Point, here) <= waking.WakeMetres)
+                // A cave animal (#10876) is found at its home, and only within a cave's reach.
+                Point: entry.Record.Floor is null ? WildlifeRules.WakePoint(entry.Record, entry.Kind, now, Seed, Catalog.Placement.HomeAttempts, Allowed) : entry.Record.Home))
+            .Where(entry => entry.Alive > 0 && Vector2.Distance(entry.Point, here) <= (entry.Record.Floor is null ? waking.WakeMetres : Catalog.CaveWakeMetres))
             .OrderBy(entry => Vector2.Distance(entry.Point, here));
         foreach (var entry in candidates)
         {
@@ -635,8 +708,35 @@ internal sealed class WildlifeModule : IProductModule
         foreach (WildlifeHerd herd in awake.ToArray()) Release(herd);
         foreach (WildlifeFallen body in fallen) Forget(body.Member);
         fallen.Clear();
+        // The caves' small creatures go too, and come again from their homes when the caves are taken up afresh.
+        foreach (WildlifeMember member in Ambience.Remove(_ => true)) Forget(member);
+        foreach (string cave in Ledger.Caves.ToArray()) Ledger.RemoveCave(cave, Day(clock()));
+        ambientWaiting.Clear();
         Presentation.Sync(awake, fallen, [], FeetOf, Here, 0);
         return "all herds asleep";
+    }
+
+    /// <summary>The floor a small creature finds at a point and half a metre to each side, from a little over the point.</summary>
+    internal string FloorReadout(double x, double y, double z)
+    {
+        const double Side = 0.5, Over = 0.6;
+        string At(double dx, double dz) => AmbientFloor(x + dx, z + dz, y + Over) is float floor ? floor.ToString("F2", CultureInfo.InvariantCulture) : "none";
+        return $"here={At(0, 0)} east={At(Side, 0)} west={At(-Side, 0)} south={At(0, Side)} north={At(0, -Side)} resident={terrain.IsResident(new VoxelAddress((long)Math.Floor(x), (long)Math.Floor(y + Over), (long)Math.Floor(z)))}";
+    }
+
+    /// <summary>The caves' animals (#10876): each held cave home nearest first, and every small creature.</summary>
+    internal string CavesReadout()
+    {
+        if (!started) return "wildlife: not started";
+        Vector3 at = player.WorldPosition;
+        double day = Day(clock());
+        IEnumerable<HerdRecord> homes = Ledger.HomesWithin(at.X, at.Z, 1000).Where(home => home.Floor is not null)
+            .OrderBy(home => Vector2.Distance(home.Home, new Vector2(at.X, at.Z)));
+        string hunters = string.Join(" | ", homes.Select(home => string.Create(CultureInfo.InvariantCulture,
+            $"{home.Key} at={home.Home.X:F1},{home.Floor:F1},{home.Home.Y:F1} alive={home.Alive(day, Catalog.Kind(home.KindId).Population.RecoveryDays)}/{home.Founding} d={Vector3.Distance(new Vector3(home.Home.X, home.Floor!.Value, home.Home.Y), at):F0}")));
+        string small = string.Join(" | ", Ambience.Creatures.Select(creature => string.Create(CultureInfo.InvariantCulture,
+            $"{creature.Home.Kind.Id}#{creature.Member.Id} at={creature.Member.Position.X:F1},{creature.Feet:F1},{creature.Member.Position.Y:F1} v={creature.Member.Velocity.Length():F2} hidden={creature.Member.Under}")));
+        return string.Create(CultureInfo.InvariantCulture, $"caves=[{string.Join(",", Ledger.Caves)}] {Ambience.Readout()} || homes: {hunters} || small: {small}");
     }
 
     /// <summary>Test aid: leaves every awake animal one health.</summary>
@@ -657,7 +757,7 @@ internal sealed class WildlifeModule : IProductModule
         cost = default;
         parts = default;
         return string.Create(CultureInfo.InvariantCulture,
-            $"step={step} day={now.Day} hour={now.DayFraction * WildlifeSchedule.HoursPerDay:F2} herds={awake.Count} animals={awake.Sum(herd => herd.Members.Count)} regions={Ledger.Regions.Count()} player={at.X:F0},{at.Z:F0} {costs} {Presentation.Meshes.Readout()} {ragdolls?.Readout()} fallen={fallen.Count} fallenAt={string.Join("/", fallen.Select(body => string.Create(CultureInfo.InvariantCulture, $"{body.Member.Position.X:F1},{body.Member.Position.Y:F1}")))} last={lastEvent} asleep={Asleep(at, now)} | ")
+            $"step={step} day={now.Day} hour={now.DayFraction * WildlifeSchedule.HoursPerDay:F2} herds={awake.Count} animals={awake.Sum(herd => herd.Members.Count)} regions={Ledger.Regions.Count()} player={at.X:F0},{at.Z:F0} {costs} {Presentation.Meshes.Readout()} {ragdolls?.Readout()} {Ambience.Readout()} caves={Ledger.Caves.Count()} fallen={fallen.Count} fallenAt={string.Join("/", fallen.Select(body => string.Create(CultureInfo.InvariantCulture, $"{body.Member.Position.X:F1},{body.Member.Position.Y:F1}")))} last={lastEvent} asleep={Asleep(at, now)} | ")
             + string.Join(" | ", awake.Select(Readout));
     }
 

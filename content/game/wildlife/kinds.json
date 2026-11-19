@@ -47,7 +47,8 @@
     "wakeMetres": 300,
     "sleepMetres": 360,
     "mostAwakeHerds": 4,
-    "bodyMetres": 60
+    "bodyMetres": 60,
+    "caveMetres": 90
   },
   "behaviour": {
     "alarmSpreadMetresPerSecond": 12,
@@ -109,6 +110,32 @@
       "blowLift": 0.2
     }
   },
+  "caveAmbient": [
+    {
+      "id": "blindfish",
+      "name": "Blindfish",
+      "cave": { "lives": "pools", "homesPerCave": 2 },
+      "groupMinimum": 4, "groupMaximum": 7,
+      "body": { "lengthMetres": 0.3, "heightMetres": 0.08, "widthMetres": 0.06, "colour": "#f2dcd8" },
+      "walkSpeed": 0.3, "fleeSpeed": 1.6, "wanderMetres": 3, "fleeMetres": 3, "hideSeconds": 1.2, "swims": true
+    },
+    {
+      "id": "drift-grazer",
+      "name": "Drift-grazer",
+      "cave": { "lives": "deep-floors", "homesPerCave": 2 },
+      "groupMinimum": 2, "groupMaximum": 4,
+      "body": { "lengthMetres": 0.5, "heightMetres": 0.3, "widthMetres": 0.3, "colour": "#e8c9c4" },
+      "walkSpeed": 0.15, "fleeSpeed": 0.6, "wanderMetres": 5, "fleeMetres": 4, "hideSeconds": 4
+    },
+    {
+      "id": "mound-shrew",
+      "name": "Mound-shrew",
+      "cave": { "lives": "inverted-grove", "homesPerCave": 2 },
+      "groupMinimum": 1, "groupMaximum": 3,
+      "body": { "lengthMetres": 0.4, "heightMetres": 0.15, "widthMetres": 0.12, "colour": "#6b5546" },
+      "walkSpeed": 0.6, "fleeSpeed": 3.0, "wanderMetres": 4, "fleeMetres": 5, "hideSeconds": 1.5
+    }
+  ],
   "kinds": [
     {
       "id": "axe-beak",
@@ -462,6 +489,306 @@
       "population": { "herdsPerSquareKilometre": 0.15, "rangeMetres": 600, "recoveryDays": 14 },
       "combat": { "health": 120, "evasion": 35, "armour": 4, "experience": 220 },
       "loot": [ { "item": "meat", "minimum": 4, "maximum": 7, "oneIn": 1 }, { "item": "hide", "minimum": 1, "maximum": 3, "oneIn": 1 } ]
+    },
+    {
+      "id": "root-adder",
+      "name": "Root-adder",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the gaunt mesh at 0.8, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "mouth", "homesPerCave": 1 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 7.0, "heightMetres": 1.0, "widthMetres": 0.6, "sizeClass": "human", "colour": "#5a4632" },
+      "mesh": {
+        "file": "creatures/gaunt/gaunt.glb",
+        "manifest": "creatures/gaunt/gaunt.manifest.json",
+        "ragdoll": "creatures/gaunt/gaunt.ragdoll.json",
+        "scale": 0.8,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.4, "flee": 5.0, "turnDegrees": 140 },
+      "wariness": { "noticeMetres": 24, "actMetres": 6, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 24, "reachMetres": 3.0, "haltMetres": 2.5, "accuracy": 22, "power": 3, "cooldownTicks": 150, "biteWindupSeconds": 0.5, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 6 }, "display": { "seconds": 1.2 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 70, "evasion": 40, "armour": 3, "experience": 320 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "mouldback",
+      "name": "Mouldback",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the gaunt mesh at 0.7, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "damp-dead-ends", "homesPerCave": 2 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 2.6, "heightMetres": 1.6, "widthMetres": 1.1, "sizeClass": "human", "colour": "#cfc4b0" },
+      "mesh": {
+        "file": "creatures/gaunt/gaunt.glb",
+        "manifest": "creatures/gaunt/gaunt.manifest.json",
+        "ragdoll": "creatures/gaunt/gaunt.ragdoll.json",
+        "scale": 0.7,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.4, "flee": 4.5, "turnDegrees": 120 },
+      "wariness": { "noticeMetres": 20, "actMetres": 7, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 20, "reachMetres": 2.6, "haltMetres": 2.1, "accuracy": 20, "power": 3, "cooldownTicks": 150, "biteWindupSeconds": 0.5, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 7 }, "display": { "seconds": 1.4 }, "search": { "seconds": 8 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 80, "evasion": 30, "armour": 6, "experience": 300 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "drowner",
+      "name": "Drowner",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the gaunt mesh at 1.0, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "pools", "homesPerCave": 2 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 4.5, "heightMetres": 1.2, "widthMetres": 0.8, "sizeClass": "human", "colour": "#d8cfc6" },
+      "mesh": {
+        "file": "creatures/gaunt/gaunt.glb",
+        "manifest": "creatures/gaunt/gaunt.manifest.json",
+        "ragdoll": "creatures/gaunt/gaunt.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.4, "flee": 5.5, "turnDegrees": 140 },
+      "wariness": { "noticeMetres": 22, "actMetres": 9, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 22, "reachMetres": 3.4, "haltMetres": 2.9, "accuracy": 22, "power": 3, "cooldownTicks": 150, "biteWindupSeconds": 0.46, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 9 }, "display": { "seconds": 1.2 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 70, "evasion": 45, "armour": 3, "experience": 320 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "hummock",
+      "name": "Hummock",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the gaunt mesh at 0.75, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "cushion-barrens", "homesPerCave": 2 },
+      "social": { "shape": "band", "groupMinimum": 1, "groupMaximum": 2, "spacingMetres": 5 },
+      "body": { "lengthMetres": 2.8, "heightMetres": 1.8, "widthMetres": 1.6, "sizeClass": "human", "colour": "#7b6b4a" },
+      "mesh": {
+        "file": "creatures/gaunt/gaunt.glb",
+        "manifest": "creatures/gaunt/gaunt.manifest.json",
+        "ragdoll": "creatures/gaunt/gaunt.ragdoll.json",
+        "scale": 0.75,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 0.8, "grazeDrift": 0.4, "flee": 5.0, "turnDegrees": 90 },
+      "wariness": { "noticeMetres": 22, "actMetres": 8, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 22, "reachMetres": 2.8, "haltMetres": 2.3, "accuracy": 20, "power": 4, "cooldownTicks": 180, "biteWindupSeconds": 0.6, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 8 }, "display": { "seconds": 1.8 }, "search": { "seconds": 4 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 110, "evasion": 25, "armour": 8, "experience": 340 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "ribbon-stalker",
+      "name": "Ribbon-stalker",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the axe-beak mesh at 0.65, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "ribbon-thicket", "homesPerCave": 2 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 3.0, "heightMetres": 3.0, "widthMetres": 0.6, "sizeClass": "human", "colour": "#5e6e7a" },
+      "mesh": {
+        "file": "creatures/axe-beak/axe-beak.glb",
+        "manifest": "creatures/axe-beak/axe-beak.manifest.json",
+        "ragdoll": "creatures/axe-beak/axe-beak.ragdoll.json",
+        "scale": 0.65,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.4, "grazeDrift": 0.4, "flee": 7.0, "turnDegrees": 180 },
+      "wariness": { "noticeMetres": 30, "actMetres": 10, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 30, "reachMetres": 3.2, "haltMetres": 2.7, "accuracy": 22, "power": 3, "cooldownTicks": 150, "biteWindupSeconds": 0.46, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 10 }, "display": { "seconds": 1.0 }, "search": { "seconds": 8 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 60, "evasion": 55, "armour": 3, "experience": 320 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "stalk-bill",
+      "name": "Stalk-bill",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the axe-beak mesh at 0.5, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "funnel-garden", "homesPerCave": 2 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 2.4, "heightMetres": 2.4, "widthMetres": 0.6, "sizeClass": "human", "colour": "#b7aec0" },
+      "mesh": {
+        "file": "creatures/axe-beak/axe-beak.glb",
+        "manifest": "creatures/axe-beak/axe-beak.manifest.json",
+        "ragdoll": "creatures/axe-beak/axe-beak.ragdoll.json",
+        "scale": 0.5,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.2, "grazeDrift": 0.4, "flee": 6.0, "turnDegrees": 160 },
+      "wariness": { "noticeMetres": 26, "actMetres": 9, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 26, "reachMetres": 3.0, "haltMetres": 2.5, "accuracy": 24, "power": 3, "cooldownTicks": 150, "biteWindupSeconds": 0.4, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 9 }, "display": { "seconds": 1.0 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 50, "evasion": 55, "armour": 2, "experience": 280 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "drop-sloth",
+      "name": "Drop-sloth",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the gaunt mesh at 0.6, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "inverted-grove", "homesPerCave": 2 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 2.2, "heightMetres": 1.8, "widthMetres": 0.9, "sizeClass": "human", "colour": "#6e2a35" },
+      "mesh": {
+        "file": "creatures/gaunt/gaunt.glb",
+        "manifest": "creatures/gaunt/gaunt.manifest.json",
+        "ragdoll": "creatures/gaunt/gaunt.ragdoll.json",
+        "scale": 0.6,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 0.9, "grazeDrift": 0.4, "flee": 4.5, "turnDegrees": 120 },
+      "wariness": { "noticeMetres": 18, "actMetres": 6, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 18, "reachMetres": 2.8, "haltMetres": 2.3, "accuracy": 22, "power": 4, "cooldownTicks": 180, "biteWindupSeconds": 0.5, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 6 }, "display": { "seconds": 1.4 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 90, "evasion": 35, "armour": 5, "experience": 340 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "draft-hound",
+      "name": "Draft-hound",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the drift-runner mesh at 0.55, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "veil-forest", "homesPerCave": 1 },
+      "social": { "shape": "band", "groupMinimum": 3, "groupMaximum": 4, "spacingMetres": 4 },
+      "body": { "lengthMetres": 3.0, "heightMetres": 1.5, "widthMetres": 0.6, "sizeClass": "human", "colour": "#a39b8a" },
+      "mesh": {
+        "file": "creatures/drift-runner/drift-runner.glb",
+        "manifest": "creatures/drift-runner/drift-runner.manifest.json",
+        "ragdoll": "creatures/drift-runner/drift-runner.ragdoll.json",
+        "scale": 0.55,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.4, "grazeDrift": 0.4, "flee": 7.0, "turnDegrees": 240 },
+      "wariness": { "noticeMetres": 36, "actMetres": 12, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 36, "reachMetres": 2.6, "haltMetres": 2.1, "accuracy": 20, "power": 2, "cooldownTicks": 120, "biteWindupSeconds": 0.38, "dodgeMetres": 0.6, "pack": { "alarmMetres": 60, "alarmSeconds": 8, "flankDegrees": 30, "closeMetres": 8 },
+        "rest": { "wakeMetres": 12 }, "display": { "seconds": 1.2 }, "search": { "seconds": 10 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 30, "evasion": 60, "armour": 2, "experience": 140 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "salt-monitor",
+      "name": "Salt-monitor",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the gaunt mesh at 0.7, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "ivory-heath", "homesPerCave": 2 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 3.0, "heightMetres": 1.1, "widthMetres": 0.8, "sizeClass": "human", "colour": "#e6e0d2" },
+      "mesh": {
+        "file": "creatures/gaunt/gaunt.glb",
+        "manifest": "creatures/gaunt/gaunt.manifest.json",
+        "ragdoll": "creatures/gaunt/gaunt.ragdoll.json",
+        "scale": 0.7,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.4, "flee": 5.5, "turnDegrees": 120 },
+      "wariness": { "noticeMetres": 26, "actMetres": 8, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 26, "reachMetres": 2.8, "haltMetres": 2.3, "accuracy": 22, "power": 3, "cooldownTicks": 150, "biteWindupSeconds": 0.5, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 8 }, "display": { "seconds": 1.2 }, "search": { "seconds": 12 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 80, "evasion": 40, "armour": 5, "experience": 320 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "glass-courser",
+      "name": "Glass-courser",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the drift-runner mesh at 0.7, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "glass-steppe", "homesPerCave": 2 },
+      "social": { "shape": "band", "groupMinimum": 1, "groupMaximum": 2, "spacingMetres": 6 },
+      "body": { "lengthMetres": 3.6, "heightMetres": 1.8, "widthMetres": 0.7, "sizeClass": "human", "colour": "#9aa7b3" },
+      "mesh": {
+        "file": "creatures/drift-runner/drift-runner.glb",
+        "manifest": "creatures/drift-runner/drift-runner.manifest.json",
+        "ragdoll": "creatures/drift-runner/drift-runner.ragdoll.json",
+        "scale": 0.7,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.5, "grazeDrift": 0.4, "flee": 8.0, "turnDegrees": 240 },
+      "wariness": { "noticeMetres": 48, "actMetres": 16, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 48, "reachMetres": 2.8, "haltMetres": 2.3, "accuracy": 22, "power": 3, "cooldownTicks": 120, "biteWindupSeconds": 0.38, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 16 }, "display": { "seconds": 1.0 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 50, "evasion": 60, "armour": 3, "experience": 300 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "seep-rat",
+      "name": "Seep-rat",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the drift-runner mesh at 0.3, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "vent-orchard", "homesPerCave": 2 },
+      "social": { "shape": "band", "groupMinimum": 4, "groupMaximum": 6, "spacingMetres": 2 },
+      "body": { "lengthMetres": 1.2, "heightMetres": 0.6, "widthMetres": 0.4, "sizeClass": "small", "colour": "#c9a59a" },
+      "mesh": {
+        "file": "creatures/drift-runner/drift-runner.glb",
+        "manifest": "creatures/drift-runner/drift-runner.manifest.json",
+        "ragdoll": "creatures/drift-runner/drift-runner.ragdoll.json",
+        "scale": 0.3,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.2, "grazeDrift": 0.4, "flee": 6.0, "turnDegrees": 300 },
+      "wariness": { "noticeMetres": 18, "actMetres": 6, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 18, "reachMetres": 1.6, "haltMetres": 1.2, "accuracy": 18, "power": 1, "cooldownTicks": 90, "biteWindupSeconds": 0.3, "dodgeMetres": 0.6, "pack": { "alarmMetres": 30, "alarmSeconds": 6, "flankDegrees": 40, "closeMetres": 5 },
+        "rest": { "wakeMetres": 6 }, "display": { "seconds": 1.0 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 14, "evasion": 60, "armour": 1, "experience": 60 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "plume-neck",
+      "name": "Plume-neck",
+      "$comment": "Cave wildlife (#10876): a stand-in body, the axe-beak mesh at 0.6, until its own mesh is made.",
+      "habitat": {},
+      "cave": { "lives": "vent-orchard", "homesPerCave": 1 },
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 3.0, "heightMetres": 2.6, "widthMetres": 0.6, "sizeClass": "human", "colour": "#e8e2d4" },
+      "mesh": {
+        "file": "creatures/axe-beak/axe-beak.glb",
+        "manifest": "creatures/axe-beak/axe-beak.manifest.json",
+        "ragdoll": "creatures/axe-beak/axe-beak.ragdoll.json",
+        "scale": 0.6,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 1.3, "grazeDrift": 0.4, "flee": 7.0, "turnDegrees": 180 },
+      "wariness": { "noticeMetres": 30, "actMetres": 10, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 30, "reachMetres": 3.2, "haltMetres": 2.7, "accuracy": 22, "power": 3, "cooldownTicks": 150, "biteWindupSeconds": 0.46, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 10 }, "display": { "seconds": 2.0 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 60, "evasion": 50, "armour": 3, "experience": 320 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
     }
   ]
 }

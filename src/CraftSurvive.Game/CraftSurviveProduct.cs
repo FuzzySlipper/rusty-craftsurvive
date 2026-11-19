@@ -207,6 +207,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         lamps = new LampLights(context.Engine, entities, player, frame);
         inventory = new InventoryModule(context.Engine, store, terrain.SaveIdentity, player, discovery, survival, ui, cues);
         dungeons = new DungeonModule(context.Engine, terrain, player, conditions, sky, ui);
+        // The caves under the world hold their own animals (#10876): wildlife places them from what each cave offers.
+        wildlife.CavesNear = dungeons.CaveSitesNear;
         player.PrepareUnderground = at => dungeons.PrepareCaveAt(at);
         walkingUpdates.EngineShare = () => terrain.EngineMs + (horizon?.LastEngineMs ?? 0d)
             + System.Diagnostics.Stopwatch.GetElapsedTime(0, EngineClock.Ticks - savesAtBegin).TotalMilliseconds;

@@ -20,6 +20,9 @@ internal readonly record struct CreatureStrike(int CreatureId, AttackProfile Att
 /// </summary>
 internal static class CreatureSimulation
 {
+    /// <summary>A searching creature goes at this share of its hunting pace.</summary>
+    internal const double SearchPaceShare = 0.5;
+
     /// <summary>
     /// The radius the Engine's visibility query is given. Sight range is a planar rule decided by
     /// the behaviour, so the Engine must never reject a target inside it: its radius covers the
@@ -95,6 +98,14 @@ internal static class CreatureSimulation
             Vector2 offset = waypoint - creature.Position;
             double leg = offset.Length();
             travel = Math.Min(Math.Min(kind.PursueSpeedMetresPerSecond * time.ElapsedSeconds, distance - kind.HaltDistanceMetres), leg);
+            if (move is null && leg > 0) creature.Position += offset * (float)(travel / leg);
+        }
+        else if (creature.Behavior.State == CreatureState.Searching)
+        {
+            // A search walks to where the player was last seen, slower than a hunt, and looks about there (#10876).
+            Vector2 offset = waypoint - creature.Position;
+            double leg = offset.Length();
+            travel = Math.Min(kind.PursueSpeedMetresPerSecond * SearchPaceShare * time.ElapsedSeconds, leg);
             if (move is null && leg > 0) creature.Position += offset * (float)(travel / leg);
         }
 

@@ -67,6 +67,24 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.player.attack", Description = "Swings at the nearest creature, as the attack key does.")]
     public string Attack() => creatures.PlayerAttack();
 
+    [DebugCommand("craft.player.heal", Description = "Test aid (#10876): gives the player back their full health, so a fight can be watched through to its end.")]
+    public string HealPlayer()
+    {
+        player.Vitals.Heal(player.Vitals.MaximumHealth);
+        return $"health {player.Vitals.State.Health}/{player.Vitals.MaximumHealth}";
+    }
+
+    /// <summary>How long a ward lasts: half a minute of fixed steps.</summary>
+    private const long WardSteps = 1800;
+
+    [DebugCommand("craft.player.ward", Description = "Test aid (#10876): heals the player and lets no blow land for half a minute, so a crowd's cost is measured without the player falling.")]
+    public string WardPlayer()
+    {
+        player.Vitals.Heal(player.Vitals.MaximumHealth);
+        player.Vitals.Ward(player.CurrentStep + WardSteps);
+        return $"health {player.Vitals.State.Health}/{player.Vitals.MaximumHealth}, warded until step {player.CurrentStep + WardSteps}";
+    }
+
     [DebugCommand("craft.player.strike", Description = "Deals damage to the player through their vitals, so an encounter can be lost as well as won.")]
     public string StrikePlayer(int damage)
     {

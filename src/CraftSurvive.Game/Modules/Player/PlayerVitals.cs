@@ -58,6 +58,9 @@ internal sealed class PlayerVitals
         return true;
     }
 
+    /// <summary>Test aid (#10876): no blow lands on the player until a step, so a crowd's cost can be watched without the player falling.</summary>
+    internal void Ward(long untilStep) => graceUntilStep = Math.Max(graceUntilStep, untilStep);
+
     /// <summary>Gives back health, up to the maximum. A defeated player regains nothing until respawned.</summary>
     internal void Heal(int amount)
     {

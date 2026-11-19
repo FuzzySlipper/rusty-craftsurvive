@@ -249,7 +249,7 @@ internal sealed class CreatureNavigation
     internal void ResetQueries() { Queries = NoPathQueries = 0; queryMilliseconds = worstQueryMilliseconds = 0; }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"navigation publishes={publishes} walkable={lastPublished.WalkableCellCount} derived={lastPublished.DerivedColumnCount} reused={lastPublished.ReusedColumnCount} lastMs={lastPublishMilliseconds:F2} worstMs={worstPublishMilliseconds:F2} meanMs={(publishes == 0 ? 0 : totalPublishMilliseconds / publishes):F2} {water.Readout()}");
+        $"navigation cell={config.CellSize:F1} radius={config.Character.Shape.Radius:F2} height={config.Character.Shape.StandingHeight:F2} publishes={publishes} walkable={lastPublished.WalkableCellCount} derived={lastPublished.DerivedColumnCount} reused={lastPublished.ReusedColumnCount} lastMs={lastPublishMilliseconds:F2} worstMs={worstPublishMilliseconds:F2} meanMs={(publishes == 0 ? 0 : totalPublishMilliseconds / publishes):F2} {water.Readout()}");
 
     /// <summary>
     /// What publishing this box costs for another body (#10567: wildlife's size classes). A session

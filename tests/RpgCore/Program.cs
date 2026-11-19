@@ -254,6 +254,32 @@ CreatureBehaviorState stillCalm = CreatureBehaviorRules.Step(
 Check.That(stillCalm.State == CreatureState.Alert, "a neutral creature must not start pursuing");
 
 
+// --- resting and searching (#10876): a kind's own wake distance and search, as data --------
+BehaviorTuning ambusher = BehaviorTuning.Hostile with { WakeRange = 8, SearchTicks = 120 };
+CreatureBehaviorState lying = CreatureBehaviorState.SpawnedFor(ambusher);
+Check.That(lying.State == CreatureState.Resting, "a kind that rests starts at rest where it lives");
+Check.That(CreatureBehaviorState.SpawnedFor(hostile).State == CreatureState.Idle, "a kind that does not rest starts idle, as before");
+CreatureBehaviorState unwoken = CreatureBehaviorRules.Step(ambusher, lying, new PerceptionFacts(true, DistanceToPlayer: 20, OwnHealth: 10), tick: 0);
+Check.That(unwoken.State == CreatureState.Resting, "a resting creature holds still for a player it sees beyond its wake distance");
+CreatureBehaviorState stillLying = CreatureBehaviorRules.Step(ambusher, lying, new PerceptionFacts(false, DistanceToPlayer: 2, OwnHealth: 10), tick: 0);
+Check.That(stillLying.State == CreatureState.Resting, "and for one it cannot see, however near");
+CreatureBehaviorState woken = CreatureBehaviorRules.Step(ambusher, lying, new PerceptionFacts(true, DistanceToPlayer: 7, OwnHealth: 10), tick: 1);
+Check.That(woken.State == CreatureState.Alert, "a player seen within its wake distance wakes it to the alarm");
+CreatureBehaviorState chasing = CreatureBehaviorRules.Step(ambusher, woken, new PerceptionFacts(true, DistanceToPlayer: 7, OwnHealth: 10), tick: 2);
+Check.That(chasing.State == CreatureState.Pursuing, "woken, it hunts as any hostile does");
+CreatureBehaviorState searching = CreatureBehaviorRules.Step(ambusher, chasing, new PerceptionFacts(false, DistanceToPlayer: 7, OwnHealth: 10), tick: 10);
+Check.That(searching.State == CreatureState.Searching && searching.SearchUntilTick == 130, "a hunter that searches looks for a player it lost, for its search's ticks");
+CreatureBehaviorState stillSearching = CreatureBehaviorRules.Step(ambusher, searching, new PerceptionFacts(false, DistanceToPlayer: 7, OwnHealth: 10), tick: 129);
+Check.That(stillSearching.State == CreatureState.Searching, "it keeps searching until its search is over");
+CreatureBehaviorState refound = CreatureBehaviorRules.Step(ambusher, searching, new PerceptionFacts(true, DistanceToPlayer: 12, OwnHealth: 10), tick: 50);
+Check.That(refound.State == CreatureState.Pursuing, "a search that finds the player takes up the hunt again, beyond its wake distance");
+CreatureBehaviorState givenUp = CreatureBehaviorRules.Step(ambusher, searching, new PerceptionFacts(false, DistanceToPlayer: 7, OwnHealth: 10), tick: 130);
+Check.That(givenUp.State == CreatureState.Resting, "a search that ends goes back to rest");
+CreatureBehaviorState overworldLost = CreatureBehaviorRules.Step(hostile, pursuing, new PerceptionFacts(false, DistanceToPlayer: 7, OwnHealth: 10), tick: 10);
+Check.That(overworldLost.State == CreatureState.Idle, "a kind without a search still gives up at once, as before");
+Check.That(CreatureBehaviorRules.Step(ambusher, lying, new PerceptionFacts(true, DistanceToPlayer: 1, OwnHealth: CreatureBehaviorRules.DeathHealth), tick: 3).State == CreatureState.Dead,
+    "a resting creature dies like any other");
+
 // --- one encounter end to end, in policy: fight, die, loot, respawn, advance --------
 // The fight uses the same creature kind and character sheet the live module loads, so a changed
 // stat changes this check too.
@@ -459,6 +485,26 @@ Creature nearWaypoint = new(8, CreatureKinds.Hostile, Vector2.Zero) { Behavior =
 CreatureSimulation.Step(nearWaypoint, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(60, 60, FixedDelta), sightScale: 1, waypoint: new Vector2(0, 0.25f));
 Check.That(Vector2.Distance(nearWaypoint.Position, new Vector2(0, 0.25f)) < 1e-5,
     $"a pursuer must stop at its waypoint rather than overshoot it, reached {nearWaypoint.Position}");
+
+// The rules hold in any space (#10876): a creature and player deep in a cave under the world decide and move just as
+// the same pair on the surface, and a searcher walks to where it last saw the player at half its hunting pace.
+static (CreatureState State, Vector2 Position, bool Struck) AtHeight(float height)
+{
+    Creature c = new(20, CreatureKinds.Hostile, new Vector2(3, 0)) { Feet = height, Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
+    CreatureStrike? struck = null;
+    for (long tick = 1; tick <= 120; tick++)
+    {
+        struck ??= CreatureSimulation.Step(c, new CreatureSense(true), new Vector3(0, height + 1.6f, 0), playerCanBeHit: true, new ProductStep(tick, 1, 1.0 / 60.0), sightScale: 1, waypoint: Vector2.Zero);
+    }
+
+    return (c.Behavior.State, c.Position, struck is not null);
+}
+Check.Equal(AtHeight(64f), AtHeight(-48f), "a creature hunts and strikes the same deep in a cave as on the surface");
+Check.That(AtHeight(-48f).Struck, "and it does strike there");
+Creature searcher = new(21, CreatureKinds.Hostile, Vector2.Zero) { Behavior = new CreatureBehaviorState(CreatureState.Searching, -1, SearchUntilTick: 600) };
+CreatureSimulation.Step(searcher, new CreatureSense(false), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta), sightScale: 1, waypoint: new Vector2(0, 5));
+Check.That(Math.Abs(searcher.Position.Y - (expectedOne * CreatureSimulation.SearchPaceShare)) < 1e-5,
+    $"a searcher walks toward where it last saw the player at half pace, moved to {searcher.Position}");
 
 // Only a routed waypoint moves a pursuer: with no route - outside the published grid, a refused
 // start, or no way through - it waits where it is instead of walking at the player.

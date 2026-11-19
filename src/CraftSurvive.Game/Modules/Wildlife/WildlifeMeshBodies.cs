@@ -24,7 +24,8 @@ internal sealed class WildlifeMeshBodies : IDisposable
     private readonly ProductContent content;
     private readonly WorldFrame frame;
     private readonly WildlifeAnimation animation;
-    private readonly Func<double, double, float> groundAt;
+    /// <summary>The ground under a point near a height (#10876): the overworld's, or a cave's floor under a body in a cave.</summary>
+    private readonly Func<double, double, double, float> groundAt;
     private readonly ulong seed;
     private readonly WildlifeRagdolls ragdolls;
     private readonly Dictionary<string, Opened> opened = [];
@@ -86,7 +87,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         internal bool Fell { get; set; }
     }
 
-    internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<double, double, float> groundAt, ulong seed, WildlifeRagdolls ragdolls)
+    internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<double, double, double, float> groundAt, ulong seed, WildlifeRagdolls ragdolls)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
@@ -201,8 +202,8 @@ internal sealed class WildlifeMeshBodies : IDisposable
             Vector2 facing = WildlifeRules.Facing(member.Yaw);
             float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
             double hind = body.Kind.Rig.Rig.HindMetres * scale, fore = body.Kind.Rig.Rig.ForeMetres * scale;
-            float hindGround = groundAt(member.Position.X + (facing.X * hind), member.Position.Y + (facing.Y * hind));
-            float foreGround = groundAt(member.Position.X + (facing.X * fore), member.Position.Y + (facing.Y * fore));
+            float hindGround = groundAt(member.Position.X + (facing.X * hind), member.Position.Y + (facing.Y * hind), feet);
+            float foreGround = groundAt(member.Position.X + (facing.X * fore), member.Position.Y + (facing.Y * fore), feet);
             (wantedHeight, wantedPitch) = WildlifeClips.Stance(feet, hindGround, foreGround, hind, fore, animation);
             float most = (float)(animation.PitchDegreesPerSecond * Math.PI / 180 * seconds);
             body.Pitch = body.Sitting ? body.Pitch + Math.Clamp(wantedPitch - body.Pitch, -most, most) : wantedPitch;
@@ -238,7 +239,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         ReadOnlySpan<JointPose> pose = engine.Animation.SampleJointPose(
             AnimationPoseSampleRequest.OfCurrentPlayback(body.Instance, placement, applyPoseControls: false)).Span;
         long sampled = Stopwatch.GetTimestamp();
-        (TwoBoneIk[] chains, _) = CreatureFeet.Chains(pose, body.Kind.Legs, scale, world, placement.Translation, groundAt, (float)animation.MostFootMetres);
+        (TwoBoneIk[] chains, _) = CreatureFeet.Chains(pose, body.Kind.Legs, scale, world, placement.Translation, (x, z) => groundAt(x, z, world.Y), (float)animation.MostFootMetres);
         long cast = Stopwatch.GetTimestamp();
         engine.Animation.SetPose(new(body.Instance, chains, body.Overrides));
         long posed = Stopwatch.GetTimestamp();
@@ -366,7 +367,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
             for (int index = 0; index < bones.Length; index++)
             {
                 Vector3 at = frame.ToWorld(bones[index].Translation);
-                deepest = MathF.Max(deepest, groundAt(at.X, at.Z) - (at.Y - body.Kind.Ragdoll!.Bones[index].Radius));
+                deepest = MathF.Max(deepest, groundAt(at.X, at.Z, at.Y) - (at.Y - body.Kind.Ragdoll!.Bones[index].Radius));
             }
         }
 

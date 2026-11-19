@@ -28,6 +28,9 @@ internal sealed class WaterAvoidance
     /// <summary>Water at least this deep, short of wading depth, is a ford: crossable, at a cost.</summary>
     internal const double FordDepth = 0.3;
 
+    /// <summary>A standing surface this far under a column's bed is below the water, not in it: a cave floor under the lake.</summary>
+    internal const double UnderBedMetres = 1.0;
+
     /// <summary>What a ford's cell costs against dry ground's one.</summary>
     internal const ulong FordCost = 4;
 
@@ -75,6 +78,8 @@ internal sealed class WaterAvoidance
             foreach (CollisionNavigationSample sample in samples)
             {
                 if (sample.Outcome != CollisionNavigationSampleOutcome.Support || !seen.Add(sample.Cell)) continue;
+                // A floor under the water's bed is not under that water: a cave's passage below a lake (#10876).
+                if (sample.StandingY < water.Top - water.Depth - UnderBedMetres) continue;
                 double depth = water.Top - sample.StandingY;
                 if (depth >= WadingDepth)
                 {
