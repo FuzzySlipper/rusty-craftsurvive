@@ -73,6 +73,8 @@ internal sealed class InventoryModule : IProductModule
         Publish();
     }
 
+    private World.Deferral discoveryDeferral;
+
     public void Update(ProductStep step)
     {
         while (player.Progress.TryTakeDrop(out LootDrop drop))
@@ -84,7 +86,8 @@ internal sealed class InventoryModule : IProductModule
             }
         }
 
-        while (discovery.TryTakeFirstVisit(out PoiSite site))
+        // A place's cache is taken in a light update (#10907): taking it publishes the inventory; a few updates later is the same.
+        while (discoveryDeferral.Runs() && discovery.TryTakeFirstVisit(out PoiSite site))
         {
             ItemCount[] cache = SupplyCache.For(seed, site);
             caches++;

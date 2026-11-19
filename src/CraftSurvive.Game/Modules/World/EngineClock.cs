@@ -13,17 +13,28 @@ internal static class EngineClock
 
     internal static void Add(long elapsed) => Interlocked.Add(ref ticks, elapsed);
 
-    /// <summary>Calls an Engine service, its time counted.</summary>
+    [ThreadStatic]
+    private static int depth;
+
+    /// <summary>
+    /// Calls an Engine service, its time counted. A call made while building another's request (a shader opened for a
+    /// material) is already inside the outer call's time, so only the outermost is counted.
+    /// </summary>
     internal static T Time<T>(Func<T> call)
     {
         long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        depth++;
         try
         {
             return call();
         }
         finally
         {
-            Add(System.Diagnostics.Stopwatch.GetTimestamp() - started);
+            depth--;
+            if (depth == 0)
+            {
+                Add(System.Diagnostics.Stopwatch.GetTimestamp() - started);
+            }
         }
     }
 }

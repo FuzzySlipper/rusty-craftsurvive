@@ -142,8 +142,12 @@ internal sealed class CaveDressing : IDisposable
     private readonly Queue<Action> stages;
 
     /// <summary>Builds the next part of the dressing; true once it is all built.</summary>
+    /// <summary>Moves on whenever the dressing builds anything, so what it draws is gathered again (#10907).</summary>
+    internal int Revision { get; private set; }
+
     internal bool Advance()
     {
+        Revision++;
         // The growths, the kit and the overgrowth build a mesh an update once made.
         long building = Stopwatch.GetTimestamp();
         if (pendingMeshes.TryDequeue(out MeshResourceCreateRequest growth))

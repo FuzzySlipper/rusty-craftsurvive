@@ -123,12 +123,12 @@ internal static class CaveEcology
         List<Material> materials, Dictionary<EcologyKind, (Material Plain, Material Glowing)>? shared = null)
     {
         List<MeshResourceCreateRequest> meshes = [];
-        // The growths' shapes, built off the update when the cave was generated (#10889), or here.
-        Dictionary<EcologyKind, (Builder Plain, Builder Glow, Builder Top)> shapes =
-            Shaped.TryGetValue(growths, out Prepared? prepared) && prepared.Origin == origin ? prepared.Parts : Shapes(growths, origin);
+        // The growths' merged shapes, built off the update when the cave was generated (#10889, #10907), or here.
+        Dictionary<EcologyKind, MergedShape> shapes =
+            Shaped.TryGetValue(growths, out Prepared? prepared) && prepared.Origin == origin ? prepared.Merged : MergeAll(Shapes(growths, origin));
         foreach (EcologyKind kind in Enum.GetValues<EcologyKind>())
         {
-            if (!shapes.TryGetValue(kind, out (Builder Plain, Builder Glow, Builder Top) shape))
+            if (!shapes.TryGetValue(kind, out MergedShape? shape))
             {
                 continue;
             }
@@ -150,15 +150,15 @@ internal static class CaveEcology
             }
             else
             {
-                plain = engine.Graphics.CreateMaterial(new MaterialRequest(body, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
+                plain = World.EngineClock.Time(() => engine.Graphics.CreateMaterial(new MaterialRequest(body, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false)));
                 Color lit = kind switch
                 {
                     EcologyKind.VaultBloom => VaultCrystalAlbedo,
                     EcologyKind.GiantFungus => GiantGillAlbedo,
                     _ => new Color(glow.X * 0.3f, glow.Y * 0.3f, glow.Z * 0.3f, 1f),
                 };
-                glowing = engine.Graphics.CreateMaterial(new MaterialRequest(lit, default,
-                    GrowthRoughness, new Color(1f, 1f, 1f, 1f), glow, strength, false));
+                glowing = World.EngineClock.Time(() => engine.Graphics.CreateMaterial(new MaterialRequest(lit, default,
+                    GrowthRoughness, new Color(1f, 1f, 1f, 1f), glow, strength, false)));
                 materials.Add(plain);
                 materials.Add(glowing);
                 if (shared is not null)
@@ -166,28 +166,41 @@ internal static class CaveEcology
                     shared[kind] = (plain, glowing);
                 }
             }
-            (Builder plainPart, Builder glowPart, Builder topPart) = shape;
-            List<(Builder, Material)> parts = [(plainPart, plain), (glowPart, glowing)];
-            if (topPart.Indices.Count > 0)
+            Material? top = null;
+            if (shape.Parts.Contains(TopPart))
             {
-                Material top = engine.Graphics.CreateMaterial(new MaterialRequest(GiantCapTop, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
+                top = World.EngineClock.Time(() => engine.Graphics.CreateMaterial(new MaterialRequest(GiantCapTop, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false)));
                 materials.Add(top);
-                parts.Add((topPart, top));
             }
 
-            meshes.Add(Merge(parts));
+            Material[] byPart = [plain, glowing, top ?? plain];
+            MeshMaterialBinding[] bindings = [.. shape.Parts.Select((part, slot) => new MeshMaterialBinding((uint)slot, byPart[part]))];
+            meshes.Add(new MeshResourceCreateRequest(shape.Positions, shape.Normals, shape.Uvs, ReadOnlyMemory<Color>.Empty, shape.Indices, shape.Groups, bindings));
         }
 
         return meshes;
     }
 
-    private sealed record Prepared(Vector3 Origin, Dictionary<EcologyKind, (Builder Plain, Builder Glow, Builder Top)> Parts);
+    private sealed record Prepared(Vector3 Origin, Dictionary<EcologyKind, MergedShape> Merged);
+
+    /// <summary>
+    /// A kind's growths as one mesh's geometry (#10907): its groups in order, each naming its part (<see cref="PlainPart"/>,
+    /// <see cref="GlowPart"/> or <see cref="TopPart"/>), so making the mesh on the update only binds the materials.
+    /// </summary>
+    private sealed record MergedShape(Vector3[] Positions, Vector3[] Normals, Vector2[] Uvs, uint[] Indices, MeshGroup[] Groups, int[] Parts);
+
+    private const int PlainPart = 0, GlowPart = 1, TopPart = 2;
+
+    private static Dictionary<EcologyKind, MergedShape> MergeAll(Dictionary<EcologyKind, (Builder Plain, Builder Glow, Builder Top)> shapes) =>
+        shapes.ToDictionary(pair => pair.Key, pair => MergeGeometry(pair.Value.Top.Indices.Count > 0
+            ? [(pair.Value.Plain, PlainPart), (pair.Value.Glow, GlowPart), (pair.Value.Top, TopPart)]
+            : [(pair.Value.Plain, PlainPart), (pair.Value.Glow, GlowPart)]));
 
     // The shapes built ahead for a cave's growths, kept with its list of placements while it lives.
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IReadOnlyList<EcologyPlacement>, Prepared> Shaped = new();
 
     /// <summary>Builds a cave's growths' shapes off the update (#10889), so making their meshes later is quick.</summary>
-    internal static void Prepare(IReadOnlyList<EcologyPlacement> growths, Vector3 origin) => Shaped.AddOrUpdate(growths, new Prepared(origin, Shapes(growths, origin)));
+    internal static void Prepare(IReadOnlyList<EcologyPlacement> growths, Vector3 origin) => Shaped.AddOrUpdate(growths, new Prepared(origin, MergeAll(Shapes(growths, origin))));
 
     /// <summary>Each kind's shapes: a plain part, a glowing part and a giant fungus's cap tops. Pure.</summary>
     private static Dictionary<EcologyKind, (Builder Plain, Builder Glow, Builder Top)> Shapes(IReadOnlyList<EcologyPlacement> growths, Vector3 origin)
@@ -409,13 +422,13 @@ internal static class CaveEcology
     }
 
     /// <summary>The parts of a kind's mesh, each drawn in its own material; empty parts are left out (the Engine refuses empty groups).</summary>
-    private static MeshResourceCreateRequest Merge(IReadOnlyList<(Builder Part, Material Material)> parts)
+    private static MergedShape MergeGeometry(IReadOnlyList<(Builder Part, int Which)> parts)
     {
         List<Vector3> positions = [], normals = [];
         List<uint> indices = [];
         List<MeshGroup> groups = [];
-        List<MeshMaterialBinding> bindings = [];
-        foreach ((Builder part, Material material) in parts)
+        List<int> which = [];
+        foreach ((Builder part, int partWhich) in parts)
         {
             if (part.Indices.Count == 0)
             {
@@ -425,14 +438,13 @@ internal static class CaveEcology
             uint offset = (uint)positions.Count;
             uint slot = (uint)groups.Count;
             groups.Add(new MeshGroup(slot, (uint)indices.Count, (uint)part.Indices.Count));
-            bindings.Add(new MeshMaterialBinding(slot, material));
+            which.Add(partWhich);
             positions.AddRange(part.Positions);
             normals.AddRange(part.Normals);
             indices.AddRange(part.Indices.Select(i => i + offset));
         }
 
-        return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), new Vector2[positions.Count], ReadOnlyMemory<Color>.Empty, indices.ToArray(),
-            groups.ToArray(), bindings.ToArray());
+        return new MergedShape(positions.ToArray(), normals.ToArray(), new Vector2[positions.Count], indices.ToArray(), groups.ToArray(), [.. which]);
     }
 
     /// <summary>Flat-shaded low-poly pieces gathered into one vertex list.</summary>

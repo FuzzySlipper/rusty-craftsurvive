@@ -171,6 +171,8 @@ internal sealed class PlaceMeshes : IDisposable
 
         List<PoiSite> near = [.. sites.Where(site => HorizonLandmarkRules.OnNearGround(site.X + 0.5 - player.X, site.Z + 0.5 - player.Z, nearEdgeMetres))];
         if (!double.IsNaN(laidOutAt.X) && near.Count == standingSites.Count && near.All(site => standingSites.Contains(site.Id))) return;
+        // A layout waits for a light update (#10907): it binds and makes its pieces' meshes and lays their moss cards.
+        if (!double.IsNaN(laidOutAt.X) && !layoutDeferral.Runs()) return;
         laidOutAt = (player.X, player.Z);
         long layingOut = System.Diagnostics.Stopwatch.GetTimestamp(), loading = 0;
         int loadsMade = loaded.Count;
@@ -270,6 +272,7 @@ internal sealed class PlaceMeshes : IDisposable
     }
 
     private Task? shaping;
+    private Deferral layoutDeferral;
 
     private Loaded Load(PlaceKitPiece piece, float extra)
     {

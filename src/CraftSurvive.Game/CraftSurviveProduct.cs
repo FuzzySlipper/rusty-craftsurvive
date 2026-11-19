@@ -210,7 +210,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         player.PrepareUnderground = at => dungeons.PrepareCaveAt(at);
         walkingUpdates.EngineShare = () => terrain.EngineMs + (horizon?.LastEngineMs ?? 0d)
             + System.Diagnostics.Stopwatch.GetElapsedTime(0, EngineClock.Ticks - savesAtBegin).TotalMilliseconds;
-        walkingUpdates.Detail = () => string.Join(" ", new[] { terrain.SyncTiming, horizon?.LastTiming ?? "", chemistry is null ? "" : $"chemistry({chemistry.LastTiming})", dungeons?.CaveTiming ?? "", player?.LastTiming ?? "" }.Where(part => part.Length > 0));
+        walkingUpdates.Detail = () => string.Join(" ", new[] { terrain.SyncTiming, horizon?.LastTiming ?? "", chemistry is null ? "" : $"chemistry({chemistry.LastTiming})", dungeons?.CaveTiming ?? "", player?.LastTiming ?? "",
+            snapshotParts.Count > 0 ? $"snapshotParts({string.Join(" ", snapshotParts)})" : "" }.Where(part => part.Length > 0));
         actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, dungeons, ui, cues, frame);
         feedback = new FeedbackModule(cues, new SoundPlayer(context.Engine), new BurstEmitter(context.Engine, () => terrain.AtlasSprite),
             () => new Surroundings(player.InSeparateSpace, player.HeadSubmerged, WorldClock.Daylight(conditions.Time.DayFraction)),
@@ -479,6 +480,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
         ProductStep step = ProductStep.From(update.Facts);
         walkingUpdates.Begin();
+        UpdateBudget.Begin();
         terrain.ClearEngineTime();
         savesAtBegin = EngineClock.Ticks;
 
@@ -517,6 +519,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         PublishAppearanceSnapshot();
         walkingUpdates.Mark("snapshot");
         walkingUpdates.End(step.Step);
+        UpdateBudget.End();
         return ProductUpdateResult.None;
     }
 
@@ -648,7 +651,37 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     }
 
     /// <summary>The overworld's water, studies, places, build pieces and wildlife, unless the player is in a separate space (a dungeon or a study).</summary>
-    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts(), .. chemistry.OverlayFacts, .. wildlife.AppearanceFacts, .. birds.AppearanceFacts, .. parties.AppearanceFacts];
+    /// <summary>The open world's facts, added to the snapshot's list (#10907); none in a separate space.</summary>
+    private void AddOverworldFacts(List<AppearanceFact> into)
+    {
+        if (player.InSeparateSpace) return;
+        Gather("water", () => terrain.WaterFacts);
+        Gather("study", () => terrain.StudyFacts);
+        Gather("places", () => terrain.PlaceFacts);
+        Gather("pieces", pieces.Facts);
+        Gather("chemistry", () => chemistry.OverlayFacts);
+        Gather("wildlife", () => wildlife.AppearanceFacts);
+        Gather("birds", () => birds.AppearanceFacts);
+        Gather("parties", () => parties.AppearanceFacts);
+    }
+
+    /// <summary>Adds an owner's facts to the snapshot's list, noting a slow one's time and count (#10907).</summary>
+    private void Gather(string owner, Func<IEnumerable<AppearanceFact>> facts)
+    {
+        long started = System.Diagnostics.Stopwatch.GetTimestamp(), allocated = GC.GetAllocatedBytesForCurrentThread();
+        int before = snapshotFacts.Count;
+        snapshotFacts.AddRange(facts());
+        double ms = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        if (ms >= SlowSnapshotPartMs || bytes >= LargeSnapshotPartBytes)
+        {
+            snapshotParts.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{owner}={ms:F1}x{snapshotFacts.Count - before}/{bytes / 1024}KB"));
+        }
+    }
+
+    private const double SlowSnapshotPartMs = 1d;
+    private const long LargeSnapshotPartBytes = 32 * 1024;
+    private readonly List<string> snapshotParts = [];
 
     /// <summary>The style tests' travellers and creatures and the place study's variants, unless the player is in a separate space.</summary>
     private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : [.. styleTest.Facts, .. creatureStyle.Facts, .. placeStudy.Facts];
@@ -662,10 +695,31 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return;
         }
 
-        AppearanceFact[] facts = town.Open || !mapOpen || mapView is null
-            ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. BoatFacts(), .. OverworldFacts(), .. horizon.Facts, .. TownFacts(), .. StyleFacts()]
-            : mapView.Facts;
+        // The facts are gathered into one list kept across updates (#10907): a new array of a few thousand every update went to
+        // the large object heap and brought on the collector's slow collections.
+        ReadOnlySpan<AppearanceFact> facts;
+        if (town.Open || !mapOpen || mapView is null)
+        {
+            snapshotFacts.Clear();
+            snapshotParts.Clear();
+            Gather("creatures", () => creatures.AppearanceFacts);
+            Gather("dungeons", () => dungeons.AppearanceFacts);
+            Gather("sled", SledFacts);
+            Gather("boat", BoatFacts);
+            AddOverworldFacts(snapshotFacts);
+            Gather("horizon", () => horizon.Facts);
+            Gather("town", TownFacts);
+            Gather("style", StyleFacts);
+            facts = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(snapshotFacts);
+        }
+        else
+        {
+            facts = mapView.Facts;
+        }
+
         mapView?.Profile.Mark("snapshot.facts");
+        // The Engine's publish, and the retired resources the owners let go after it, are the Engine's share (#10907).
+        long publishing = System.Diagnostics.Stopwatch.GetTimestamp();
         engine.Graphics.PublishSnapshot(facts);
         mapView?.Profile.Mark("snapshot.publish");
         creatures.AfterAppearanceSnapshot();
@@ -680,8 +734,11 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         styleTest.AfterAppearanceSnapshot();
         creatureStyle.AfterAppearanceSnapshot();
         if (mapOpen) mapView?.AfterAppearanceSnapshot();
+        EngineClock.Add(System.Diagnostics.Stopwatch.GetTimestamp() - publishing);
         mapView?.Profile.Mark("snapshot.after");
     }
+
+    private readonly List<AppearanceFact> snapshotFacts = [];
 
     private enum ProductLifecycleState
     {

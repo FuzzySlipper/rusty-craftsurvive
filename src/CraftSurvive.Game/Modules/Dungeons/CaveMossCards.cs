@@ -41,10 +41,10 @@ internal sealed class CaveMossCards : IDisposable
             return known;
         }
 
-        RenderResource texture = engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
+        RenderResource texture = World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.NearestMipmapped, TextureWrap.Repeat))).Handle;
         textures.Add(texture);
-        Material material = engine.Graphics.CreateMaterial(new MaterialRequest(Tint, texture, Roughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false)
-            with { AlphaMode = MaterialAlphaMode.Mask, AlphaCutoff = AlphaCutoff });
+        Material material = World.EngineClock.Time(() => engine.Graphics.CreateMaterial(new MaterialRequest(Tint, texture, Roughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false)
+            with { AlphaMode = MaterialAlphaMode.Mask, AlphaCutoff = AlphaCutoff }));
         materials.Add(material);
         made[path] = material;
         return material;

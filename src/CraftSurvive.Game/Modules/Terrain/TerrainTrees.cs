@@ -187,7 +187,9 @@ internal sealed class TerrainTrees : IDisposable
             || builtAround is not (long x, long z) || Math.Abs(center.X - x) >= RebuildMetres || Math.Abs(center.Z - z) >= RebuildMetres;
         if (nearStale)
         {
-            BuildNear(center, recipe, materialAt, resident, editRevision);
+            // Built again from here, a slice an update (#10907); the canopies built before stand until it is done.
+            rebuilding?.Dispose();
+            rebuilding = BuildNear(center, recipe, materialAt, resident, editRevision);
             builtAround = (center.X, center.Z);
             builtRevision = editRevision;
             builtResidents = residentChunks;
@@ -195,9 +197,37 @@ internal sealed class TerrainTrees : IDisposable
             sinceBuilt = 0;
         }
 
+        if (rebuilding is not null && rebuildDeferral.Runs())
+        {
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            while (System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds < RebuildSliceMs)
+            {
+                if (!rebuilding.MoveNext())
+                {
+                    rebuilding.Dispose();
+                    rebuilding = null;
+                    break;
+                }
+            }
+        }
     }
 
-    private void BuildNear(VoxelAddress center, TerrainRecipe recipe, Func<VoxelAddress, ushort> materialAt,
+    /// <summary>
+    /// The near trees' rebuild under way (#10907): a walk's every 8 m rebuilt them whole on one update, 2 to 9 ms; now a slice
+    /// of it runs each light update within <see cref="RebuildSliceMs"/>.
+    /// </summary>
+    private IEnumerator<bool>? rebuilding;
+    private const double RebuildSliceMs = 1.5d;
+
+    /// <summary>The trees are read from the recipe a strip of this many metres at a time while rebuilding.</summary>
+    private const long RebuildStripMetres = 8;
+
+    /// <summary>Canopies checked between the rebuild's chances to stop for the update.</summary>
+    private const int RebuildTreesPerStep = 16;
+
+    private Deferral rebuildDeferral;
+
+    private IEnumerator<bool> BuildNear(VoxelAddress center, TerrainRecipe recipe, Func<VoxelAddress, ushort> materialAt,
         Func<VoxelAddress, bool> resident, ulong editRevision)
     {
         if (nearStandsRevision != editRevision)
@@ -213,10 +243,21 @@ internal sealed class TerrainTrees : IDisposable
         }
 
         candidates.Clear();
-        recipe.TreesIn(center.X - drawMetres, center.Z - drawMetres, center.X + drawMetres, center.Z + drawMetres, candidates);
+        for (long z = center.Z - drawMetres; z <= center.Z + drawMetres; z += RebuildStripMetres)
+        {
+            recipe.TreesIn(center.X - drawMetres, z, center.X + drawMetres, Math.Min(center.Z + drawMetres, z + RebuildStripMetres - 1), candidates);
+            yield return false;
+        }
+
         List<SpatialEntityCollider> crowned = new(candidates.Count);
+        int checkedTrees = 0;
         foreach (TerrainTree tree in candidates)
         {
+            if (++checkedTrees % RebuildTreesPerStep == 0)
+            {
+                yield return false;
+            }
+
             VoxelAddress core = new(tree.X, tree.GroundY, tree.Z);
             if (crowned.Count >= ProductIds.TreeCanopyLimit || !resident(core))
             {

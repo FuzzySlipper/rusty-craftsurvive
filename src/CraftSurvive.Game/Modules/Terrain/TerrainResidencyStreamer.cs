@@ -48,6 +48,21 @@ internal sealed class TerrainResidencyStreamer(
     /// <summary>A chunk a worker finished, if it was generated against the world as it stands under that chunk now.</summary>
     private TerrainChunk? FromWorker(TerrainResidencyPlan plan, TerrainChunkAddress address)
     {
+        long adopting = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            return FromWorkerTimed(plan, address);
+        }
+        finally
+        {
+            adoptTicks += System.Diagnostics.Stopwatch.GetTimestamp() - adopting;
+        }
+    }
+
+    private long adoptTicks, askTicks;
+
+    private TerrainChunk? FromWorkerTimed(TerrainResidencyPlan plan, TerrainChunkAddress address)
+    {
         if (!preparer.TryTake(address, out TerrainChunkPreparer.Prepared? prepared))
         {
             return null;
@@ -75,19 +90,25 @@ internal sealed class TerrainResidencyStreamer(
     /// <summary>Hands a chunk to the workers, its draws made first, if there is room and the update's time for it lasts.</summary>
     private void Ask(TerrainResidencyPlan plan, TerrainChunkAddress address, long asking)
     {
-        if (preparer.Holds(address) || !preparer.CanQueue
+        if (!askingNow || preparer.Holds(address) || !preparer.CanQueue
             || System.Diagnostics.Stopwatch.GetElapsedTime(asking).TotalMilliseconds >= TerrainConstants.ResidencyAskBudgetMs)
         {
             return;
         }
 
+        long asking0 = System.Diagnostics.Stopwatch.GetTimestamp();
         TerrainRecipe recipe = generator.Recipe;
         recipe.PrepareDraws(address);
         preparer.Queue(address, plan.Overlay, plan.OverlayRevision, recipe.Caves.Revision);
         asked++;
+        askTicks += System.Diagnostics.Stopwatch.GetTimestamp() - asking0;
     }
 
     private long asked;
+
+    /// <summary>Whether this update hands chunks to the workers: in a light one (#10907), as their draws are made here.</summary>
+    private bool askingNow;
+    private World.Deferral askDeferral, warmDeferral;
 
     /// <summary>Whether a chunk is generated on the update thread now rather than on a worker.</summary>
     private bool HereNow(TerrainResidencyPlan plan, TerrainChunkAddress address, TerrainChunkAddress center) =>
@@ -199,13 +220,41 @@ internal sealed class TerrainResidencyStreamer(
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
         $"workers=[{(Workers ? "on" : "off")} asked={asked} hereAfterWorker={generateHere.Count} {preparer.Readout()}] cached={cache.Count} pendingWrites={pendingCacheWrites.Count} writesDropped={cacheWritesDropped} resident={resident.Count} admissions={admissions} evictions={evictions} replaced={replacements} stale={stale.Count} batches={urgentBatches}+{deferredBatches}deferred undrawn={deferredUndrawn} staleDropped={cache.StaleDropped} cacheHits={generator.CacheHits} cacheWrites={(cache.Failure is null ? "on" : "off")}{(cache.Failure is null ? "" : $" cacheFailure=\"{cache.Failure}\"")}");
 
-    // A transaction's operations and payloads.
+    // A transaction's operations and payloads, kept across updates (#10907): eight chunks' payloads made afresh each update were
+    // arrays of 128 KB and more, which went to the large object heap and brought on the collector's slow collections. The
+    // Engine reads a transaction's payload during the call.
     private sealed class Batch
     {
         internal List<VoxelResidencyOperation> Operations { get; } = [];
-        internal List<uint> Materials { get; } = [];
-        internal List<float> Densities { get; } = [];
+        private uint[] materials = new uint[TerrainConstants.ChunkVolume];
+        private float[] densities = new float[TerrainConstants.ChunkVolume];
+        internal int MaterialCount { get; private set; }
+        internal int DensityCount { get; private set; }
+
+        internal ReadOnlyMemory<uint> Materials => new(materials, 0, MaterialCount);
+
+        internal ReadOnlyMemory<float> Densities => new(densities, 0, DensityCount);
+
+        internal void Clear()
+        {
+            Operations.Clear();
+            MaterialCount = 0;
+            DensityCount = 0;
+        }
+
+        internal void Append(ReadOnlySpan<ushort> chunkMaterials, ReadOnlySpan<float> chunkDensities)
+        {
+            if (MaterialCount + chunkMaterials.Length > materials.Length) Array.Resize(ref materials, Math.Max(materials.Length * 2, MaterialCount + chunkMaterials.Length));
+            if (DensityCount + chunkDensities.Length > densities.Length) Array.Resize(ref densities, Math.Max(densities.Length * 2, DensityCount + chunkDensities.Length));
+            Span<uint> into = materials.AsSpan(MaterialCount, chunkMaterials.Length);
+            for (int i = 0; i < chunkMaterials.Length; i++) into[i] = chunkMaterials[i];
+            chunkDensities.CopyTo(densities.AsSpan(DensityCount));
+            MaterialCount += chunkMaterials.Length;
+            DensityCount += chunkDensities.Length;
+        }
     }
+
+    private readonly Batch urgentBatch = new(), deferredBatch = new();
 
     /// <summary>
     /// The scene revision the last deferred transaction installs at, while the presentation has not drawn it (0 when it
@@ -229,7 +278,13 @@ internal sealed class TerrainResidencyStreamer(
         bool result = SynchronizeTimed(session, center, t0);
         // What the next plans will ask, worked out ahead with what is left of a small budget (#10889 R10889-2).
         double spent = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
-        policy.WarmAhead(center, Math.Max(TerrainConstants.ResidencyWarmMinimumMs, TerrainConstants.ResidencyGenerationBudgetMs - spent));
+        // Warming ahead waits for a light update too (#10907).
+        if (warmDeferral.Runs())
+        {
+            long warming = System.Diagnostics.Stopwatch.GetTimestamp();
+            policy.WarmAhead(center, Math.Max(TerrainConstants.ResidencyWarmMinimumMs, TerrainConstants.ResidencyGenerationBudgetMs - spent));
+            LastTiming += string.Create(CultureInfo.InvariantCulture, $" warm={Ms(warming, System.Diagnostics.Stopwatch.GetTimestamp()):F1}");
+        }
         return result;
     }
 
@@ -260,6 +315,8 @@ internal sealed class TerrainResidencyStreamer(
         tCache = t0;
         generatedNow = 0;
         engineTicks = 0;
+        adoptTicks = 0;
+        askTicks = 0;
         bool done = SynchronizeInner(session, center);
         long end = System.Diagnostics.Stopwatch.GetTimestamp();
         // An evicted chunk is written only while the player is not streaming and in a quiet update (#10907).
@@ -273,7 +330,7 @@ internal sealed class TerrainResidencyStreamer(
         long written = System.Diagnostics.Stopwatch.GetTimestamp();
         LastEngineMs = System.Diagnostics.Stopwatch.GetElapsedTime(0, engineTicks).TotalMilliseconds + (lastCacheWrite.Length > 0 ? cache.LastWriteEngineMs : 0d);
         LastTiming = string.Create(CultureInfo.InvariantCulture,
-            $"plan={Ms(tCache, tPlan):F1}{(Ms(tCache, tPlan) >= 5 ? $"[{policy.LastPlanTiming}]" : "")} generate={Ms(tPlan, tGenerate):F1}x{generatedNow} apply={Ms(tGenerate, tApply == 0 ? end : tApply):F1} readback={Ms(tApply == 0 ? end : tApply, end):F1} cacheWrite={Ms(end, written):F1}{(lastCacheWrite.Length > 0 ? $"({lastCacheWrite}{cache.LastWriteTiming})" : "")}");
+            $"adopt={Ms(0, adoptTicks):F1} ask={Ms(0, askTicks):F1} plan={Ms(tCache, tPlan):F1}{(Ms(tCache, tPlan) >= 5 ? $"[{policy.LastPlanTiming}]" : "")} generate={Ms(tPlan, tGenerate):F1}x{generatedNow} apply={Ms(tGenerate, tApply == 0 ? end : tApply):F1} readback={Ms(tApply == 0 ? end : tApply, end):F1} cacheWrite={Ms(end, written):F1}{(lastCacheWrite.Length > 0 ? $"({lastCacheWrite}{cache.LastWriteTiming})" : "")}");
         tApply = 0;
         return done;
     }
@@ -301,8 +358,11 @@ internal sealed class TerrainResidencyStreamer(
         }
 
         long asking = System.Diagnostics.Stopwatch.GetTimestamp();
+        askingNow = askDeferral.Runs();
         tGenerate = tPlan;
-        Batch urgent = new(), deferred = new();
+        Batch urgent = urgentBatch, deferred = deferredBatch;
+        urgent.Clear();
+        deferred.Clear();
         int Count() => urgent.Operations.Count + deferred.Operations.Count;
         // Generating chunks is the update's cost: past a time budget no more are generated this update (at least one is), so
         // streaming through caves, where more chunks come in per metre walked, keeps the frame (#10889).
@@ -428,7 +488,7 @@ internal sealed class TerrainResidencyStreamer(
         if (urgent.Operations.Count > 0)
         {
             VoxelResidencyTransaction transaction = new(ReadOnlyMemory<uint>.Empty,
-                session, urgent.Operations.ToArray(), urgent.Materials.ToArray(), urgent.Densities.ToArray());
+                session, urgent.Operations.ToArray(), urgent.Materials, urgent.Densities);
             Engine(() => engine.Voxel.ApplyResidency(transaction));
             urgentBatches++;
             // Every deferred hand-off before it is installed now too.
@@ -439,7 +499,7 @@ internal sealed class TerrainResidencyStreamer(
         if (deferred.Operations.Count > 0)
         {
             VoxelResidencyTransaction transaction = new(ReadOnlyMemory<uint>.Empty,
-                session, deferred.Operations.ToArray(), deferred.Materials.ToArray(), deferred.Densities.ToArray(), true);
+                session, deferred.Operations.ToArray(), deferred.Materials, deferred.Densities, true);
             VoxelResidencyReceipt receipt = Engine(() => engine.Voxel.ApplyResidency(transaction));
             deferredUndrawn = Math.Max(deferredUndrawn, receipt.AcceptedRevision);
             deferredBatches++;
@@ -507,21 +567,10 @@ internal sealed class TerrainResidencyStreamer(
 
     private static void AddAdmission(TerrainChunk chunk, Batch batch, VoxelResidencyOperationKind kind = VoxelResidencyOperationKind.Admit)
     {
-        List<VoxelResidencyOperation> operations = batch.Operations;
-        List<uint> materialSlots = batch.Materials;
-        List<float> densities = batch.Densities;
-        uint offset = checked((uint)materialSlots.Count);
-        uint densityOffset = checked((uint)densities.Count);
-        foreach (ushort material in chunk.Materials.Span)
-        {
-            materialSlots.Add(material);
-        }
-        foreach (float density in chunk.Densities.Span)
-        {
-            densities.Add(density);
-        }
-
-        operations.Add(new VoxelResidencyOperation(
+        uint offset = checked((uint)batch.MaterialCount);
+        uint densityOffset = checked((uint)batch.DensityCount);
+        batch.Append(chunk.Materials.Span, chunk.Densities.Span);
+        batch.Operations.Add(new VoxelResidencyOperation(
             kind,
             ToEngine(chunk.Address),
             offset,

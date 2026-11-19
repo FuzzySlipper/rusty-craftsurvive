@@ -494,6 +494,7 @@ internal sealed class ChemistryModule : IProductModule
 
     /// <summary>The last update's chunk loads and their time (#10907), for a slow update's breakdown.</summary>
     private readonly List<string> lastLoads = [];
+    private Deferral loadDeferral;
 
     /// <summary>
     /// Loads the chunks around the player, and beside a fire out to the burning reach, a few at a time; lets go of
@@ -514,7 +515,8 @@ internal sealed class ChemistryModule : IProductModule
             }
         }
 
-        int loads = 0;
+        // A chunk's load waits for a light update (#10907): a few milliseconds of reading and converting its cells.
+        int loads = loadDeferral.Runs() ? 0 : settings.Field.LoadsPerUpdate;
         foreach (Cell chunk in wanted)
         {
             if (loads >= settings.Field.LoadsPerUpdate)

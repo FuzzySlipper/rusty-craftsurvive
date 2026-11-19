@@ -100,6 +100,7 @@ internal sealed class HorizonWeather : IDisposable
     private int listedRevision = -1;
     /// <summary>The listing under way, a little each update (#10907), with the fronts near enough so far and the hour it lists at.</summary>
     private IEnumerator<WeatherFront?>? listing;
+    private World.Deferral listDeferral;
     private readonly List<(WeatherFront Front, double Strength, double Distance)> listingNear = [];
     private double listingHours;
     private Vector2 listingAt;
@@ -153,6 +154,12 @@ internal sealed class HorizonWeather : IDisposable
             listingAt = here;
             listingNear.Clear();
             listing = field.AliveByRows(here.X, here.Y, now, RangeMetres).GetEnumerator();
+        }
+
+        // A slice of the listing waits for a light update (#10907).
+        if (!listDeferral.Runs())
+        {
+            return;
         }
 
         long started = System.Diagnostics.Stopwatch.GetTimestamp();

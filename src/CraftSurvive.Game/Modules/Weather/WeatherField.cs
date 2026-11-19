@@ -56,6 +56,7 @@ internal sealed class WeatherField
     private readonly Func<double, double, MapSample> geography;
     private readonly double peakMetres;
     private readonly Dictionary<FrontKey, WeatherFront?> fronts = [];
+    private readonly Queue<FrontKey> frontOrder = new();
     private readonly List<WeatherFront> summoned = [];
 
     /// <param name="peakMetres">The world's highest elevation, which <see cref="WeatherGround.Height"/> is a share of.</param>
@@ -171,7 +172,12 @@ internal sealed class WeatherField
     internal WeatherFront? Front(FrontKey key)
     {
         if (fronts.TryGetValue(key, out WeatherFront? known)) return known;
-        if (fronts.Count >= CacheLimit) fronts.Clear();
+        // A full memory lets go of its oldest quarter, not all of it (#10907): cleared whole, the next look at the weather over
+        // the player worked out every front near it again in one update (23 ms), while the horizon's listing kept filling it.
+        if (fronts.Count >= CacheLimit)
+        {
+            for (int i = 0; i < CacheLimit / 4 && frontOrder.TryDequeue(out FrontKey oldest); i++) fronts.Remove(oldest);
+        }
         WeatherKind kind = Kinds[key.Kind];
         ulong draws = seed ^ (KindSalt * (ulong)(key.Kind + 1)) ^ unchecked((ulong)key.Slot * SlotSalt);
         double cell = kind.SpawnCellMetres * Scale.Lengths;
@@ -185,6 +191,7 @@ internal sealed class WeatherField
         }
 
         fronts[key] = front;
+        frontOrder.Enqueue(key);
         return front;
     }
 

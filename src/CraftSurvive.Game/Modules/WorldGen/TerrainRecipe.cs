@@ -75,7 +75,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
             for (long anchorZ = GridMath.FloorDivide(z0, place) - 1; anchorZ <= GridMath.FloorDivide(z1, place) + 1; anchorZ++)
             {
                 pois.SiteAt(anchorX, anchorZ);
-                crossings.SiteAt(anchorX, anchorZ);
+                crossings.DrawOffsets(anchorX, anchorZ);
             }
         }
 
@@ -869,7 +869,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
     internal void PrepareAnchor(long anchorX, long anchorZ)
     {
         pois.SiteAt(anchorX, anchorZ);
-        crossings.SiteAt(anchorX, anchorZ);
+        // The crossing's draws only: its scan of the ground is a worker's, where the cell is first needed (#10907).
+        crossings.DrawOffsets(anchorX, anchorZ);
     }
 
     private TreeShape? DecideTree(long anchorX, long anchorZ) => DecideTree(anchorX, anchorZ, TreeCellDraw(anchorX, anchorZ));

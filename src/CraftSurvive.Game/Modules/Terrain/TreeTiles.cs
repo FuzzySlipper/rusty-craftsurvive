@@ -255,6 +255,7 @@ internal sealed class TreeTiles : IDisposable
     }
 
     private readonly Queue<TileAsk> asks = new();
+    private World.Deferral askDeferral;
 
     /// <summary>
     /// How long an update spends making the asked tiles' draws (#10907): a tile's thousand tree cells are a fraction of a
@@ -285,6 +286,11 @@ internal sealed class TreeTiles : IDisposable
     /// </summary>
     private void MakeAskedDraws()
     {
+        if (asks.Count == 0 || !askDeferral.Runs())
+        {
+            return;
+        }
+
         long started = System.Diagnostics.Stopwatch.GetTimestamp();
         while (asks.TryPeek(out TileAsk? ask) && System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds < AskBudgetMs)
         {

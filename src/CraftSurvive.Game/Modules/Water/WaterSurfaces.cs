@@ -60,6 +60,13 @@ internal sealed class WaterSurfaces : IDisposable
     private readonly SeaState sea = new();
     /// <summary>The tile being sampled, a few rows an update (#10907); null while none is.</summary>
     private TileSampling? sampling;
+
+    /// <summary>
+    /// The one buffer a tile is sampled into (#10907): a tile's samples are some 230 KB, which made afresh for every tile went to
+    /// the large object heap. A tile's samples are drawn before the next tile is sampled, and nothing keeps them after.
+    /// </summary>
+    private readonly WaterSample[] sampleBuffer = new WaterSample[Side * Side];
+    private Deferral sampleDeferral;
     private int built, retired, refreshed;
     /// <summary>Dry shore corners last built lower than their water (into their own ground), over the tiles built so far.</summary>
     private long sunkCorners;
@@ -197,6 +204,13 @@ internal sealed class WaterSurfaces : IDisposable
         bool urgent = missing.Any(key => Math.Max(Math.Abs(key.X - cx), Math.Abs(key.Z - cz)) <= 1)
             || (sampling is { Refresh: false } now && Math.Max(Math.Abs(now.Key.X - cx), Math.Abs(now.Key.Z - cz)) <= 1);
         double budget = urgent ? UrgentSampleBudgetMs : SampleBudgetMs;
+        // Rows wait for a light update (#10907), unless the player's own tile is missing.
+        if (!urgent && !sampleDeferral.Runs())
+        {
+            LastTiming = "";
+            return;
+        }
+
         long started = System.Diagnostics.Stopwatch.GetTimestamp(), finishing = 0;
         int rows = 0, placed = 0, missingAt = 0;
         double Spent() => System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -204,11 +218,11 @@ internal sealed class WaterSurfaces : IDisposable
         {
             if (sampling is null)
             {
-                if (missingAt < missing.Length) sampling = new(missing[missingAt++], revision, false);
+                if (missingAt < missing.Length) sampling = new(missing[missingAt++], revision, false, sampleBuffer);
                 // Nothing new to sample: sample again the nearest tile the stage has moved on under.
                 else if (sampled.Where(pair => pair.Value.Staged && pair.Value.Revision != revision).Select(pair => pair.Key)
                     .OrderBy(key => Distance(key, centre.X, centre.Z)).ThenBy(key => key.X).ThenBy(key => key.Z)
-                    .Cast<(long X, long Z)?>().FirstOrDefault() is { } stale) sampling = new(stale, revision, true);
+                    .Cast<(long X, long Z)?>().FirstOrDefault() is { } stale) sampling = new(stale, revision, true, sampleBuffer);
                 else break;
             }
 
@@ -318,7 +332,7 @@ internal sealed class WaterSurfaces : IDisposable
     private const int Side = Cells + 1;
 
     /// <summary>A tile being sampled (#10907): its rows so far, and the stage revision it began at.</summary>
-    private sealed class TileSampling((long X, long Z) key, long revision, bool refresh)
+    private sealed class TileSampling((long X, long Z) key, long revision, bool refresh, WaterSample[] samples)
     {
         internal (long X, long Z) Key { get; } = key;
 
@@ -327,7 +341,8 @@ internal sealed class WaterSurfaces : IDisposable
         /// <summary>Whether the tile is drawn already and sampled again because the stage moved on.</summary>
         internal bool Refresh { get; } = refresh;
 
-        internal WaterSample[] Samples { get; } = new WaterSample[Side * Side];
+        /// <summary>The samples so far, in the one buffer every tile is sampled into: a tile is sampled at a time, and drawn before the next.</summary>
+        internal WaterSample[] Samples { get; } = samples;
 
         internal int Rows { get; set; }
     }

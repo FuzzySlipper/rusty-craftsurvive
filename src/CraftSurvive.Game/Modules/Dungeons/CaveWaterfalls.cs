@@ -64,13 +64,13 @@ internal sealed class CaveWaterfalls : IDisposable
             return;
         }
 
-        strands = engine.Graphics.OpenResource(new RenderResourceRequest(StrandsContentPath, TextureFilter.Linear, TextureWrap.Repeat)).Handle;
+        strands = World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(StrandsContentPath, TextureFilter.Linear, TextureWrap.Repeat))).Handle;
         foreach (Waterfall fall in falls)
         {
-            sheetMaterials.Add(engine.Graphics.CreateMaterial(SheetLook(0f)));
+            sheetMaterials.Add(World.EngineClock.Time(() => engine.Graphics.CreateMaterial(SheetLook(0f))));
         }
 
-        RenderResourceInfo sprite = engine.Graphics.OpenResource(new RenderResourceRequest(SprayContentPath, TextureFilter.Linear, TextureWrap.Clamp));
+        RenderResourceInfo sprite = World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(SprayContentPath, TextureFilter.Linear, TextureWrap.Clamp)));
         spray = sprite.Handle;
         try
         {

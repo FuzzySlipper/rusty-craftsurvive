@@ -36,6 +36,7 @@ internal sealed class UpdateTimes
 
     // The garbage collector's pauses and collections during this update (#10907: whether a slow update was the collector's).
     private TimeSpan gcPauseAtBegin;
+    private long allocatedAtBegin, totalAllocatedAtReset = -1;
     private int gen0AtBegin, gen2AtBegin;
     private readonly List<(double Ms, long Step, string Breakdown)> slowest = [];
     private readonly List<(double Ms, long Step, string Breakdown)> slowestOwn = [];
@@ -54,6 +55,8 @@ internal sealed class UpdateTimes
     internal void Begin()
     {
         gcPauseAtBegin = GC.GetTotalPauseDuration();
+        allocatedAtBegin = GC.GetAllocatedBytesForCurrentThread();
+        if (totalAllocatedAtReset < 0) totalAllocatedAtReset = GC.GetTotalAllocatedBytes();
         gen0AtBegin = GC.CollectionCount(0);
         gen2AtBegin = GC.CollectionCount(2);
         started = marked = Stopwatch.GetTimestamp();
@@ -89,7 +92,7 @@ internal sealed class UpdateTimes
         {
             string breakdown = string.Join(" ", phases.Select(p => string.Create(CultureInfo.InvariantCulture, $"{p.Phase}={p.Ms:F1}")))
                 + string.Create(CultureInfo.InvariantCulture,
-                    $" engine={engine:F1} gc={(GC.GetTotalPauseDuration() - gcPauseAtBegin).TotalMilliseconds:F1}ms/{GC.CollectionCount(0) - gen0AtBegin}+{GC.CollectionCount(2) - gen2AtBegin}gen2 pool={ThreadPool.PendingWorkItemCount}pending/{ThreadPool.ThreadCount}threads");
+                    $" engine={engine:F1} alloc={(GC.GetAllocatedBytesForCurrentThread() - allocatedAtBegin) / 1024}KB gc={(GC.GetTotalPauseDuration() - gcPauseAtBegin).TotalMilliseconds:F1}ms/{GC.CollectionCount(0) - gen0AtBegin}+{GC.CollectionCount(2) - gen2AtBegin}gen2 pool={ThreadPool.PendingWorkItemCount}pending/{ThreadPool.ThreadCount}threads");
             string kept = $"{breakdown} [{Detail?.Invoke()}]";
             if (slowAll)
             {
@@ -123,6 +126,7 @@ internal sealed class UpdateTimes
         next = 0;
         lastBegin = 0;
         lastOwn = double.NaN;
+        totalAllocatedAtReset = -1;
         slowest.Clear();
         slowestOwn.Clear();
         workingLeast = managedLeast = long.MaxValue;
@@ -146,8 +150,11 @@ internal sealed class UpdateTimes
         const double Mb = 1024d * 1024d;
         string memory = workingMost == 0 ? "memory=unsampled" : string.Create(CultureInfo.InvariantCulture,
             $"workingSet={workingLeast / Mb:F0}-{workingMost / Mb:F0}MB managed={managedLeast / Mb:F0}-{managedMost / Mb:F0}MB");
+        double windowSeconds = count < 2 ? 0d : Stopwatch.GetElapsedTime(begins[count < Kept ? 0 : next], begins[(next + Kept - 1) % Kept]).TotalSeconds;
+        string allocation = totalAllocatedAtReset < 0 || windowSeconds <= 0d ? "" : string.Create(CultureInfo.InvariantCulture,
+            $" allocated={(GC.GetTotalAllocatedBytes() - totalAllocatedAtReset) / Mb / Math.Max(windowSeconds, 1e-3):F1}MB/s gcPauses={GC.GetTotalPauseDuration().TotalMilliseconds:F0}ms");
         return string.Create(CultureInfo.InvariantCulture,
-            $"updates={count} median={Percentile(0.5):F2}ms p95={Percentile(0.95):F2}ms p99={Percentile(0.99):F2}ms max={sorted[^1]:F1}ms (step {steps[worst]}) overBudget={sorted.Count(t => t > FrameBudgetMs)} budget={FrameBudgetMs:F1}ms {Frames()} {memory}");
+            $"updates={count} median={Percentile(0.5):F2}ms p95={Percentile(0.95):F2}ms p99={Percentile(0.99):F2}ms max={sorted[^1]:F1}ms (step {steps[worst]}) overBudget={sorted.Count(t => t > FrameBudgetMs)} budget={FrameBudgetMs:F1}ms {Frames()} {memory}{allocation}");
     }
 
     /// <summary>

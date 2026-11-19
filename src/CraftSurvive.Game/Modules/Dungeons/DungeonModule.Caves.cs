@@ -333,7 +333,8 @@ internal sealed partial class DungeonModule
     /// <summary>Builds the next part of the dressed cave's dressing; once its kit is built, it joins the walking session's collision.</summary>
     private void AdvanceDressing()
     {
-        if (caveDressing is not CaveDressing dressing || dressedCave is not UnderCave dressed || dressing.Built)
+        // A step waits for a light update (#10907): it may make a mesh, a material or open a shader.
+        if (caveDressing is not CaveDressing dressing || dressedCave is not UnderCave dressed || dressing.Built || !dressingDeferral.Runs())
         {
             return;
         }
@@ -373,6 +374,8 @@ internal sealed partial class DungeonModule
     }
 
     private CaveDressing? retiringDressing;
+
+    private Deferral dressingDeferral;
 
     /// <summary>Where the separate space's frame lies for a cave under the world, in world metres: its box's corner, turned to its facing.</summary>
     private static Transform WorldPlace(CavePlacement cave) =>
@@ -419,13 +422,14 @@ internal sealed partial class DungeonModule
             if (caveProbeCentre is not Vector3 centre || Vector3.Distance(centre, here) >= TerrainConstants.ChunkEdgeLength)
             {
                 ProbeSpacing = ProbeSpacingMetres;
-                engine.CameraView.SetIndirectLight(new IndirectLightRequest(here, CaveProbeExtent, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));
+                // The Engine lays the probe volume out again here (#10907): counted as its share.
+                EngineClock.Time(() => { engine.CameraView.SetIndirectLight(new IndirectLightRequest(here, CaveProbeExtent, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor)); return 0; });
                 caveProbeCentre = here;
             }
         }
         else if (caveProbeCentre is not null)
         {
-            engine.CameraView.SetIndirectLight(new IndirectLightRequest(Vector3.Zero, Vector3.Zero, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));
+            EngineClock.Time(() => { engine.CameraView.SetIndirectLight(new IndirectLightRequest(Vector3.Zero, Vector3.Zero, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor)); return 0; });
             caveProbeCentre = null;
         }
     }
@@ -470,8 +474,29 @@ internal sealed partial class DungeonModule
         // The eye in the separate space's frame, for the overgrowth's distance thinning.
         Vector3 eye = Vector3.Transform(terrain.Frame.ToLocal(player.WorldEyePosition.X, player.WorldEyePosition.Y, player.WorldEyePosition.Z) - place.Translation,
             Quaternion.Inverse(place.Rotation));
-        return dressing.Facts(eye, place);
+        // Gathered again only when the dressing built more, the cave's placement moved (a rebase) or the eye moved on (#10907):
+        // some 700 facts placed afresh every update were a few milliseconds of every update near a cave.
+        if (!ReferenceEquals(dressing, factsDressing) || dressing.Revision != factsRevision || !place.Equals(factsPlace)
+            || Vector3.Distance(eye, factsEye) >= CaveFactsEyeStepMetres)
+        {
+            caveFacts = [.. dressing.Facts(eye, place)];
+            factsDressing = dressing;
+            factsRevision = dressing.Revision;
+            factsPlace = place;
+            factsEye = eye;
+        }
+
+        return caveFacts;
     }
+
+    /// <summary>The cave's facts are gathered again once the eye has moved this far (the overgrowth thins with distance).</summary>
+    private const float CaveFactsEyeStepMetres = 1f;
+
+    private AppearanceFact[] caveFacts = [];
+    private CaveDressing? factsDressing;
+    private int factsRevision;
+    private Transform factsPlace;
+    private Vector3 factsEye;
 
     /// <summary>The caves under the world: those asked for and admitted, the one dressed, and how deep the player is.</summary>
     internal string CavesReadout() => string.Create(CultureInfo.InvariantCulture,

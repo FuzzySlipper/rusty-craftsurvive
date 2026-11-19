@@ -79,10 +79,10 @@ internal sealed class CaveWaterSurfaces : IDisposable
         }
     }
 
-    private Material Material() => material ??= engine.Graphics.CreateMaterial(Request(Vector3.Zero, 0f));
+    private Material Material() => material ??= World.EngineClock.Time(() => engine.Graphics.CreateMaterial(Request(Vector3.Zero, 0f)));
 
     /// <summary>The water look glowing from within, for a luminous pool (#10129): the water is the source the eye traces its light to.</summary>
-    private Material Luminous() => luminous ??= engine.Graphics.CreateMaterial(Request(CaveEcology.PoolGlow, LuminousGlow));
+    private Material Luminous() => luminous ??= World.EngineClock.Time(() => engine.Graphics.CreateMaterial(Request(CaveEcology.PoolGlow, LuminousGlow)));
 
     private MaterialRequest Request(Vector3 glow, float glowIntensity)
     {

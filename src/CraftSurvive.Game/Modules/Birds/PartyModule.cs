@@ -38,6 +38,7 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
     private CyclingSlots? slots;
     private bool started;
     private double nextPartyIn;
+    private World.Deferral sendDeferral;
     private AppearanceFact[] facts = [];
     private (long Updates, double Spent, double Worst) cost;
 
@@ -95,7 +96,8 @@ internal sealed class PartyModule(IEngineContext engine, ProductContent content,
         Vector3 at = player.WorldPosition;
         Vector2 here = new(at.X, at.Z);
         nextPartyIn -= seconds;
-        if (nextPartyIn <= 0)
+        // A party is sent in a light update (#10907): sending one places its birds; a few updates later is the same party.
+        if (nextPartyIn <= 0 && (parties.Count >= Catalog.MostParties || sendDeferral.Runs()))
         {
             nextPartyIn = Catalog.EverySeconds.At(draws.NextDouble());
             if (parties.Count < Catalog.MostParties) Send(here);
