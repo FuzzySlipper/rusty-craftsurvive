@@ -322,17 +322,8 @@ internal static class WildlifeRules
         if (period != herd.Period)
         {
             herd.Period = period;
-            herd.Activity = herd.HeldActivity ?? schedule.Steps[step].Activity;
+            herd.Activity = schedule.Steps[step].Activity;
             herd.GoalSerial = 0;
-            herd.Goal = Goal(herd, facts, catalog);
-            return;
-        }
-
-        // A test aid holds the herd to an activity (#10926): it takes it up at once.
-        if (herd.HeldActivity is WildlifeActivity held && herd.Activity != held)
-        {
-            herd.Activity = held;
-            herd.GoalSerial++;
             herd.Goal = Goal(herd, facts, catalog);
             return;
         }
@@ -512,13 +503,20 @@ internal static class WildlifeRules
 
             // The leader sets the pace; it is the others who keep their distance from it.
             if (shuffles && member != leader) velocity = Cap(velocity + Separation(member, herd, behaviour), Math.Max(kind.Speeds.Walk, velocity.Length()));
-            // A test aid's hold (#10926): a frozen animal stands as it is; one sent somewhere walks there.
+            // A test aid's hold (#10926): a frozen animal stands as it is; one held at rest stands where it is, its herd going
+            // on without it; one sent somewhere walks there.
             if (member.Hold is WildlifeHold hold)
             {
                 if (hold.Frozen)
                 {
                     member.Velocity = Vector2.Zero;
                     continue;
+                }
+
+                if (hold.Rest)
+                {
+                    velocity = Vector2.Zero;
+                    face = null;
                 }
 
                 if (hold.GoTo is Vector2 to)

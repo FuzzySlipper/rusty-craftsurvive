@@ -75,7 +75,8 @@ internal static class WildlifeClips
 
         if (member.Stage == Wariness.Warn) return WildlifeClipRole.Warn;
         if (member.Stage is Wariness.Look or Wariness.Respond) return WildlifeClipRole.Look;
-        return herd.Activity is WildlifeActivity.Graze or WildlifeActivity.Drink ? WildlifeClipRole.Graze : WildlifeClipRole.Idle;
+        // One a test aid holds at rest (#10926) idles as a resting herd does, whatever its herd is about.
+        return herd.Activity is WildlifeActivity.Graze or WildlifeActivity.Drink && member.Hold?.Rest != true ? WildlifeClipRole.Graze : WildlifeClipRole.Idle;
     }
 
     /// <summary>Whether a moving animal springs now: the ground ahead rises more than a walk takes, and it has landed from the last.</summary>

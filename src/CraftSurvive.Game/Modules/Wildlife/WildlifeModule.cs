@@ -731,9 +731,7 @@ internal sealed partial class WildlifeModule : IProductModule
 
         double day = Day(clock());
         herd.Remove(member);
-        lastKilled = member.Id;
-        // A test aid's hold on its herd's activity (#10926) goes with the last animal held.
-        if (member.Hold is not null && herd.Members.All(mate => mate.Hold is null)) herd.HeldActivity = null;
+        lastKilled = member;
         member.Velocity = Vector2.Zero;
         fallen.Add(new WildlifeFallen(herd.Kind, member, BlowOn(member)));
         herd.Record.Kill(day, herd.Kind.Population.RecoveryDays);

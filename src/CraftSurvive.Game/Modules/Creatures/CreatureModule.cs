@@ -837,7 +837,7 @@ internal sealed partial class CreatureModule : IProductModule
             string.Create(CultureInfo.InvariantCulture, $"creature:{target.Id}"),
             KeyedDraws.For(Seed));
         ProgressionOutcome progression = player.Progress.Award(reward);
-        lastDefeated = target.Id;
+        lastDefeated = target;
         return string.Create(CultureInfo.InvariantCulture,
             $"defeated {target.Id}; xp={progression.Experience} level={progression.Level}{(progression.Advanced ? " advanced" : string.Empty)} drops={string.Join(",", reward.Drops.Select(drop => $"{drop.ItemId}:{drop.Quantity}"))}");
     }

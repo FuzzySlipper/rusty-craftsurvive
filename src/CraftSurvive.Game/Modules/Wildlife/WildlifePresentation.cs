@@ -89,7 +89,7 @@ internal sealed class WildlifePresentation : IDisposable
                 if (member.Under) continue;
                 if (herd.Kind.Mesh is null)
                 {
-                    Pose(herd.Kind.Body, herd.Kind.Pressed, herd.Activity, member, feet(member), false, Appearances(herd.Kind.Id, herd.Kind.Body), next);
+                    Pose(herd.Kind.Body, herd.Kind.Pressed, member.Hold?.Rest == true ? WildlifeActivity.Rest : herd.Activity, member, feet(member), false, Appearances(herd.Kind.Id, herd.Kind.Body), next);
                     continue;
                 }
 

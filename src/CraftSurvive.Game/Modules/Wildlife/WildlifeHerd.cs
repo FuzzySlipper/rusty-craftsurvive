@@ -193,9 +193,6 @@ internal sealed class WildlifeHerd
     /// <summary>Which way the herd bolts when it flees: away from the player from where it stands.</summary>
     internal Vector2 FleeHeading { get; set; }
 
-    /// <summary>Test aid (#10926): the activity a live-debug override holds the herd to, whatever its schedule says.</summary>
-    internal WildlifeActivity? HeldActivity { get; set; }
-
     internal Vector2 Centre
     {
         get
@@ -235,6 +232,9 @@ internal sealed class WildlifeHold
     /// <summary>Pressed, it runs from the player whatever its kind does.</summary>
     internal bool Flee { get; set; }
 
+    /// <summary>It rests where it stands, as at its herd's rest, while its herd keeps to its own day (R10926-5).</summary>
+    internal bool Rest { get; set; }
+
     /// <summary>A point it walks to, and stands at once there.</summary>
     internal Vector2? GoTo { get; set; }
 
@@ -244,14 +244,33 @@ internal sealed class WildlifeHold
     /// <summary>No rules, no move, its clip's playback paused and its pose held.</summary>
     internal bool Frozen { get; set; }
 
-    internal bool Empty => Stage is null && !Flee && GoTo is null && Clip is null && !Frozen;
+    internal bool Empty => Stage is null && !Flee && !Rest && GoTo is null && Clip is null && !Frozen;
 
     internal string Readout() => string.Join(",", new[]
     {
         Stage is Wariness stage ? $"stage={stage}" : null,
         Flee ? "flee" : null,
+        Rest ? "rest" : null,
         GoTo is Vector2 to ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"goto={to.X:F1},{to.Y:F1}") : null,
         Clip is WildlifeClipRole clip ? $"clip={clip}" : null,
         Frozen ? "frozen" : null,
     }.Where(part => part is not null));
+}
+
+/// <summary>
+/// A herd animal a test aid picked (#10926): its id and kind as shown, and the animal itself, so an id given out again to
+/// another animal is never taken for it (R10926-4).
+/// </summary>
+internal readonly record struct HerdPick(int Id, string Kind, object Animal)
+{
+    /// <summary>The very animal picked, with its herd, while it is awake among these herds; null once it is gone.</summary>
+    internal static (WildlifeHerd Herd, WildlifeMember Member)? Find(IEnumerable<WildlifeHerd> herds, HerdPick pick)
+    {
+        foreach (WildlifeHerd herd in herds.Where(herd => herd.Kind.Id == pick.Kind))
+        {
+            if (herd.Members.FirstOrDefault(member => ReferenceEquals(member, pick.Animal)) is WildlifeMember member) return (herd, member);
+        }
+
+        return null;
+    }
 }

@@ -12,7 +12,7 @@ namespace CraftSurvive.Game.Modules.Wildlife;
 internal sealed partial class WildlifeModule
 {
     /// <summary>The animal the player last killed, so a watch can tell a kill from a herd let go.</summary>
-    private int? lastKilled;
+    private WildlifeMember? lastKilled;
 
     /// <summary>A test's herd finds each animal's floor from this far above the height asked for, and as far below it.</summary>
     private const double SpawnFloorReachMetres = 1.5d;
@@ -56,27 +56,22 @@ internal sealed partial class WildlifeModule
         return (Readout(herd), [.. herd.Members.Select(member => member.Id)]);
     }
 
-    /// <summary>Every awake herd animal above water, for a test aid choosing one: its id, kind and feet.</summary>
-    internal IEnumerable<(int Id, string Kind, Vector3 Feet)> HerdMembers() =>
+    /// <summary>Every awake herd animal above water, for a test aid choosing one: which animal, and its feet.</summary>
+    internal IEnumerable<(HerdPick Pick, Vector3 Feet)> HerdMembers() =>
         awake.SelectMany(herd => herd.Members.Where(member => !member.Under)
-            .Select(member => (member.Id, herd.Kind.Id, new Vector3(member.Position.X, FeetOf(member), member.Position.Y))));
+            .Select(member => (new HerdPick(member.Id, herd.Kind.Id, member), new Vector3(member.Position.X, FeetOf(member), member.Position.Y))));
 
-    /// <summary>An awake herd animal by id and kind: an id reused by another kind is not it.</summary>
-    private (WildlifeHerd Herd, WildlifeMember Member)? FindMember(int id, string kind)
-    {
-        foreach (WildlifeHerd herd in awake.Where(herd => herd.Kind.Id == kind))
-        {
-            if (herd.Members.FirstOrDefault(member => member.Id == id) is WildlifeMember member) return (herd, member);
-        }
+    /// <summary>
+    /// The very herd animal picked, while it is awake (R10926-4): ids are given out again as animals go, so an animal woken
+    /// later under the same id, of whatever kind, is not it.
+    /// </summary>
+    private (WildlifeHerd Herd, WildlifeMember Member)? FindMember(HerdPick pick) => HerdPick.Find(awake, pick);
 
-        return null;
-    }
-
-    /// <summary>How a selected herd animal went, once it is no longer awake: killed by the player, or let go with its herd.</summary>
-    internal string HowGone(int id) => lastKilled == id ? "killed by the player" : "released";
+    /// <summary>How a picked herd animal went, once it is no longer awake: killed by the player, or let go with its herd.</summary>
+    internal string HowGone(HerdPick pick) => ReferenceEquals(lastKilled, pick.Animal) ? "killed by the player" : "released";
 
     /// <summary>One line naming a herd animal, or null when it is gone.</summary>
-    internal string? DescribeMember(int id, string kind) => FindMember(id, kind) is (WildlifeHerd herd, WildlifeMember member)
+    internal string? DescribeMember(HerdPick pick) => FindMember(pick) is (WildlifeHerd herd, WildlifeMember member)
         ? string.Create(CultureInfo.InvariantCulture,
             $"id=herd:{member.Id} kind={herd.Kind.Id} at={member.Position.X:F1},{FeetOf(member):F1},{member.Position.Y:F1} state={member.Stage}/{herd.Activity}")
         : null;
@@ -86,16 +81,16 @@ internal sealed partial class WildlifeModule
     /// it answers when pressed; where it is going and how it moves; its body; the clip it wants and why, and what its mesh
     /// plays; any hold.
     /// </summary>
-    internal string InspectMember(int id, string kind)
+    internal string InspectMember(HerdPick pick)
     {
-        if (FindMember(id, kind) is not (WildlifeHerd herd, WildlifeMember member)) return $"herd:{id} ({kind}) is gone";
+        if (FindMember(pick) is not (WildlifeHerd herd, WildlifeMember member)) return $"herd:{pick.Id} ({pick.Kind}) is gone";
         StringBuilder text = new();
         void Part(string name, string value) => text.Append(name).Append(": ").Append(value).Append(" | ");
         WildlifeKind k = herd.Kind;
         Part("creature", string.Create(CultureInfo.InvariantCulture,
             $"id=herd:{member.Id} kind={k.Id} herd={herd.Key} of {herd.Members.Count} leader={member == herd.Leader} young={member.Young} size={member.Size:F2} hp={member.Combat.Health}/{member.Combat.MaximumHealth} home={herd.Home.X:F0},{herd.Home.Y:F0}"));
         Part("state", string.Create(CultureInfo.InvariantCulture,
-            $"{member.Stage} for {member.StageSeconds:F1}s activity={herd.Activity}{(herd.HeldActivity is null ? "" : " (held)")} herdAlarm={herd.Alarm} alarmFor={herd.AlarmSeconds:F1}s following={member.Following} regroupOrFlee={(member.Stage is Wariness.Respond or Wariness.Regroup)}"));
+            $"{member.Stage} for {member.StageSeconds:F1}s activity={herd.Activity} herdAlarm={herd.Alarm} alarmFor={herd.AlarmSeconds:F1}s following={member.Following} regroupOrFlee={(member.Stage is Wariness.Respond or Wariness.Regroup)}"));
         Part("perception", string.Create(CultureInfo.InvariantCulture,
             $"d={member.PlayerDistance:F2} notice={k.Senses.NoticeMetres:F0}m act={k.Senses.ActMetres:F0}m pressed={k.Pressed} answers={WildlifeRules.Response(member, k)} struck={member.Struck}"));
         bool stepped = bodies.TryGetValue(member.Id, out MemberBody? body) && body.Body is not null;
@@ -106,14 +101,14 @@ internal sealed partial class WildlifeModule
         Part("animation", k.Mesh is null
             ? $"no mesh (posed boxes) shows={member.Clip}"
             : $"wants={WildlifeClips.Want(member, herd, RigOf(k))} ({member.Stage}, {herd.Activity}, {(member.Velocity.Length() < 0.05f ? "standing" : "moving")}) shows={member.Clip} {BodyReadout(member)}");
-        Part("override", member.Hold is WildlifeHold hold && !hold.Empty ? hold.Readout() + (herd.HeldActivity is WildlifeActivity a ? $",herd={a}" : "") : "none");
+        Part("override", member.Hold is WildlifeHold hold && !hold.Empty ? hold.Readout() : "none");
         return text.ToString().TrimEnd(' ', '|');
     }
 
     /// <summary>What a watch compares for a herd animal from one update to the next, with the facts that go with a change; null when it is gone.</summary>
-    internal (string State, string Clip, string Route, bool Sees, bool Alerted, int Health, string Context)? MemberFacts(int id, string kind)
+    internal (string State, string Clip, string Route, bool Sees, bool Alerted, int Health, string Context)? MemberFacts(HerdPick pick)
     {
-        if (FindMember(id, kind) is not (WildlifeHerd herd, WildlifeMember member)) return null;
+        if (FindMember(pick) is not (WildlifeHerd herd, WildlifeMember member)) return null;
         bool stepped = bodies.TryGetValue(member.Id, out MemberBody? body) && body.Body is not null;
         return ($"{member.Stage}/{herd.Activity}", member.Clip.ToString(), stepped ? "body" : "glide",
             member.PlayerDistance <= herd.Kind.Senses.NoticeMetres, herd.Alarm >= Wariness.Look, member.Combat.Health,
@@ -122,19 +117,19 @@ internal sealed partial class WildlifeModule
     }
 
     /// <summary>A herd animal's label over its body, and where: id, kind, wariness and activity, clip, any hold.</summary>
-    internal IEnumerable<(int Id, Vector3 At, string Text)> MemberLabels(Func<int, bool> wanted, float gapMetres) =>
-        awake.SelectMany(herd => herd.Members.Where(member => !member.Under && wanted(member.Id)).Select(member => (member.Id,
+    internal IEnumerable<(object Animal, Vector3 At, string Text)> MemberLabels(Func<object, bool> wanted, float gapMetres) =>
+        awake.SelectMany(herd => herd.Members.Where(member => !member.Under && wanted(member)).Select(member => ((object)member,
             new Vector3(member.Position.X, FeetOf(member) + (float)(herd.Kind.Body.HeightMetres * member.Size) + gapMetres, member.Position.Y),
             $"herd:{member.Id} {herd.Kind.Id} {member.Stage}/{herd.Activity} {member.Clip}" + (member.Hold is WildlifeHold hold && !hold.Empty ? $" [{hold.Readout()}]" : ""))));
 
     /// <summary>
-    /// Test aid (#10926): holds a herd animal - <c>state &lt;rest|idle|look|warn|flee&gt;</c> (rest holds its herd at rest
-    /// too; flee runs from the player whatever its kind does), <c>clip &lt;role&gt;</c>, <c>goto &lt;x&gt;,&lt;z&gt;</c> (it walks
+    /// Test aid (#10926): holds a herd animal - <c>state &lt;rest|idle|look|warn|flee&gt;</c> (rest stands it calm where it is
+    /// while its herd keeps to its day; flee runs from the player whatever its kind does), <c>clip &lt;role&gt;</c>, <c>goto &lt;x&gt;,&lt;z&gt;</c> (it walks
     /// there), <c>freeze</c> (no rules, no move, playback paused), <c>health &lt;n&gt;</c>, or <c>release</c>.
     /// </summary>
-    internal string ForceMember(int id, string kind, string what, string value)
+    internal string ForceMember(HerdPick pick, string what, string value)
     {
-        if (FindMember(id, kind) is not (WildlifeHerd herd, WildlifeMember member)) return $"herd:{id} ({kind}) is gone";
+        if (FindMember(pick) is not (WildlifeHerd herd, WildlifeMember member)) return $"herd:{pick.Id} ({pick.Kind}) is gone";
         WildlifeHold hold = member.Hold ?? new WildlifeHold();
         switch (what)
         {
@@ -147,7 +142,7 @@ internal sealed partial class WildlifeModule
                     _ => Wariness.Calm,
                 };
                 hold.Flee = value == "flee";
-                herd.HeldActivity = value == "rest" ? WildlifeActivity.Rest : herd.HeldActivity;
+                hold.Rest = value == "rest";
                 if (value == "flee") herd.AlarmOrigin = Here;
                 break;
             case "clip" when Enum.TryParse(value, ignoreCase: true, out WildlifeClipRole role):
@@ -163,16 +158,15 @@ internal sealed partial class WildlifeModule
                 break;
             case "health" when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int health):
                 member.Combat = member.Combat with { Health = Math.Clamp(health, 1, member.Combat.MaximumHealth) };
-                return $"{DescribeMember(id, kind)} health set to {member.Combat.Health}/{member.Combat.MaximumHealth}";
+                return $"{DescribeMember(pick)} health set to {member.Combat.Health}/{member.Combat.MaximumHealth}";
             case "release":
                 member.Hold = null;
-                herd.HeldActivity = null;
-                return $"released {DescribeMember(id, kind)}";
+                return $"released {DescribeMember(pick)}";
             default:
                 return $"force {what} {value}: for a herd animal, state <rest|idle|look|warn|flee>, clip <role>, goto <x>,<z>, freeze, health <n> or release";
         }
 
         member.Hold = hold.Empty ? null : hold;
-        return $"{DescribeMember(id, kind)} held: {hold.Readout()}{(herd.HeldActivity is WildlifeActivity a ? $"; its herd held to {a}" : "")}";
+        return $"{DescribeMember(pick)} held: {hold.Readout()}";
     }
 }

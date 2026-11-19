@@ -1530,11 +1530,31 @@ Check.Section("debug holds", () =>
     Run(walker, 30, Morning, _ => null);
     Check.That(Vector2.Distance(walker.Members[1].Position, there) <= catalog.Behaviour.GoalArrivalMetres + 0.5, "an animal sent somewhere walks there");
 
+    // R10926-5: one animal held at rest rests alone; its herd keeps to its day, and release leaves nothing behind.
+    WildlifeHerd grazing = Herd("hipparion", Vector2.Zero, 3, "graze");
+    WildlifeRules.Begin(grazing, WildlifeActivity.Drift, Morning);
+    grazing.Goal = new Vector2(0, -60);
+    WildlifeMember sitter = grazing.Members[1];
+    sitter.Hold = new WildlifeHold { Stage = Wariness.Calm, Rest = true };
+    Vector2 sat = sitter.Position;
+    Run(grazing, 4, Morning, _ => null);
+    Check.Equal(WildlifeActivity.Drift, grazing.Activity, "holding one animal at rest leaves its herd's activity alone");
+    Check.That(sitter.Position == sat && sitter.Velocity == Vector2.Zero, "the held animal stands where it was");
+    Check.That(grazing.Members.Where(member => member != sitter).Any(member => member.Velocity != Vector2.Zero), "while the rest of its herd moves on");
+    long period = grazing.Period;
+    sitter.Hold = null;
+    Run(grazing, 2, Morning, _ => null);
+    Check.That(grazing.Period == period && grazing.Activity == WildlifeActivity.Drift, "release changes nothing of the herd's, in the same period");
+    Check.That(sitter.Position != sat, "and the animal released goes with its herd again");
+
+    // R10926-4: a pick is the animal itself, not its id: an animal woken later under a freed id is not it.
+    WildlifeHerd first = WildlifeRules.Wake(new HerdRecord("pick-a", "hipparion", Vector2.Zero, 1), catalog.Kind("hipparion"), catalog, Seed, Vector2.Zero, 1, () => 77);
+    HerdPick pick = new(77, "hipparion", first.Leader);
+    Check.That(HerdPick.Find([first], pick) is not null, "a picked animal is found while it is awake");
+    WildlifeHerd second = WildlifeRules.Wake(new HerdRecord("pick-b", "hipparion", new Vector2(50, 0), 1), catalog.Kind("hipparion"), catalog, Seed, new Vector2(50, 0), 1, () => 77);
+    Check.That(HerdPick.Find([second], pick) is null, "once its herd has gone, another hipparion given its id is not it");
+
     WildlifeHerd resting = Herd("hipparion", Vector2.Zero, 3, "rest");
-    resting.HeldActivity = WildlifeActivity.Rest;
-    Run(resting, 2, Morning, _ => null);
-    Check.Equal(WildlifeActivity.Rest, resting.Activity, "a herd held at rest rests, whatever its schedule says");
-    resting.HeldActivity = null;
     WildlifeRules.Begin(resting, WildlifeActivity.Rest, Morning);
     Run(resting, 10, Morning, _ => null);
     Check.Equal(WildlifeActivity.Rest, resting.Activity, "a herd placed to start at rest rests out its schedule's period");
