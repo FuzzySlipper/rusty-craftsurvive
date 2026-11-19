@@ -252,3 +252,21 @@ Its capsule is its size class's, centred between its feet with the mesh drawn ah
 creatures are routed for the largest body hunting, on cells that fit it.
 Wildlife seeds it, draws it and counts its losses; `CreatureModule` hunts with it (`HunterRules`).
 `craft.creatures.hunter <kind> <east> <south>` places one.
+
+### Cave hunters on the plantigrade rig (#10877)
+
+The mouldback and the drop-sloth came through Tripo's web studio, whose GLBs face `-y`, so `prepare_mesh.py --head -y`.
+Their reference sheets draw fine parts as solid masses (the mouldback's nose as thick nubs joined into one rosette,
+the drop-sloth's coat as clumps hugging the limbs), and both came out with separate jaws and modelled teeth.
+
+- **Hunter clips on the plantigrade family:** `threat` rears up on the hind legs with the forelimbs spread and the
+  claws out (`pitchDegrees`, `armDegrees`, `spreadDegrees`); `bite` lunges and snaps, raking down with the right
+  forelimb too under `"swipe": true`; `hurt`; and `lie`, the body sunk between feet that stay put, for a hunter
+  that rests flat (the mouldback, as one more patch of fungus).
+- **`hang` and `drop`** are for a hunter that rests hanging from a ceiling (the drop-sloth). `hang` turns the body
+  over about the ground plane, so the feet's rest height becomes the grip at the origin, and the product draws the
+  origin at the ceiling. `drop` turns it back over as the product lowers it to the floor. In `kinds.json`,
+  `"hang": true` in a hunt's `rest` block turns this on: a ceiling between 2.8 m and 14 m over its floor is hung
+  from, and the animal falls under gravity when it wakes (`HunterRules.Hang`).
+- **`aboveMetres` under `"mouth"`** keeps anything lower than that height out of the jaw parting. The drop-sloth's
+  long forelimbs reach past its hinge, and without it the claw tips went with the jaw.

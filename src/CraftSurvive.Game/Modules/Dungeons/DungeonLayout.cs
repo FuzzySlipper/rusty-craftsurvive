@@ -10,6 +10,19 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 /// </summary>
 internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 Arrival, Vector3 Exit, IReadOnlyList<Vector3> Lights)
 {
+    /// <summary>The floor under a point of the volume (#10877): the top of the first block below it that is not air, in the layout's own metres; the point itself where there is none.</summary>
+    internal Vector3 FloorUnder(Vector3 canonical)
+    {
+        double size = VoxelSize;
+        int x = (int)Math.Floor(canonical.X / size), z = (int)Math.Floor(canonical.Z / size);
+        for (int y = (int)Math.Floor(canonical.Y / size); y >= 0; y--)
+        {
+            if (Volume.At(x, y, z) != BlockId.Air) return new Vector3(canonical.X, (float)((y + 1) * size), canonical.Z);
+        }
+
+        return canonical;
+    }
+
     /// <summary>The rock as a smooth surface, or null when the rock is voxels.</summary>
     internal RockDensity? Rock { get; init; }
 

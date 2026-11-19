@@ -1354,6 +1354,12 @@ foreach (string faceted in (string[])["b", "c"])
     Check.That(accepted.All(index => index >= 0), $"every faceted {faceted} entrance must have a dungeon the Engine walks within {DungeonCandidates.MaximumCandidates} candidates");
 }
 
+// A grove's sites are taken under its hangers, at the ceiling; its animals' homes stand on the floor beneath (#10877).
+DungeonVolume groveRock = new(1, 2, 1, BlockId.Stone);
+groveRock.Fill(new DungeonCell(2, 6, 2), new DungeonCell(13, 25, 13), BlockId.Air);
+System.Numerics.Vector3 groveFloor = new DungeonLayout("grove", groveRock, default, default, []).FloorUnder(new System.Numerics.Vector3(8.5f, 24.2f, 8.5f));
+Check.That(groveFloor == new System.Numerics.Vector3(8.5f, 6f, 8.5f), $"a site under a grove's ceiling stands on the chamber's floor, got {groveFloor}");
+
 return Check.Finish("DungeonBank");
 
 static (DungeonVolume, DungeonPlan, DungeonVerdict) Carved(ulong seed)

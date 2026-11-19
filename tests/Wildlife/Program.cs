@@ -1390,6 +1390,35 @@ Check.Section("cave animals", () =>
     Hunter overworld = Of(catalog.Kind("gaunt"));
     HunterRules.Advance(overworld, CreatureState.Attacking, 1, 9, 1d / 60);
     Check.That(!overworld.Holding && !overworld.Threatened, "an overworld hunter in reach bites without a threat, as before");
+
+    // The drop-sloth (#10877): it hangs from a ceiling high enough, drops under gravity when woken, and only climbs back unseen.
+    WildlifeKind dropSloth = catalog.Kind("drop-sloth");
+    Check.That(dropSloth.Hunt!.Rest!.Hangs, "the drop-sloth rests hanging");
+    Hunter hanger = Of(dropSloth);
+    hanger.CeilingLift = 5f;
+    HunterRules.Hang(hanger, CreatureState.Resting, playerOutOfSight: true, Tick);
+    Check.That(hanger.Hangs && Math.Abs(hanger.Member.Lift - 5f) < 1e-6, "under a high ceiling it hangs from it");
+    Check.Equal(WildlifeClipRole.Hang, HunterRules.Want(hanger, CreatureState.Resting, 0, 3), "hanging, it shows its hang");
+    HunterRules.Hang(hanger, CreatureState.Alert, playerOutOfSight: false, Tick);
+    Check.That(!hanger.Hangs && hanger.Member.Lift < 5f && hanger.Member.Lift > 0, "woken, it lets go");
+    Check.Equal(WildlifeClipRole.Drop, HunterRules.Want(hanger, CreatureState.Alert, 0, 3), "falling, it shows its drop");
+    Check.That(hanger.Holding, "falling, it does not walk");
+    int fallTicks = 1;
+    while (hanger.Member.Lift > 0 && fallTicks < 600) { HunterRules.Hang(hanger, CreatureState.Pursuing, false, Tick); fallTicks++; }
+    double fallSeconds = fallTicks * Tick, freeFall = Math.Sqrt(2 * 5 / HunterRules.FallAcceleration);
+    Check.That(hanger.Member.Lift == 0 && Math.Abs(fallSeconds - freeFall) < 0.05, $"it lands in about the time a fall from 5 m takes ({fallSeconds:F2} s)");
+    Check.That(!hanger.Holding && HunterRules.Want(hanger, CreatureState.Pursuing, 0, 3) != WildlifeClipRole.Drop, "landed, it hunts");
+    HunterRules.Hang(hanger, CreatureState.Resting, playerOutOfSight: false, Tick);
+    Check.That(!hanger.Hangs && hanger.Member.Lift == 0, "at rest again in the player's sight, it stays on the floor");
+    HunterRules.Hang(hanger, CreatureState.Resting, playerOutOfSight: true, Tick);
+    Check.That(hanger.Hangs, "out of their sight, it is back up");
+    Hunter low = Of(dropSloth);
+    low.CeilingLift = HunterRules.LowestHangMetres - 0.5f;
+    HunterRules.Hang(low, CreatureState.Resting, playerOutOfSight: true, Tick);
+    Check.That(!low.Hangs && low.Member.Lift == 0, "under a low ceiling it rests on the floor");
+    Hunter mouldback = Of(catalog.Kind("mouldback"));
+    Check.Equal(WildlifeClipRole.Lie, HunterRules.Want(mouldback, CreatureState.Resting, 0, 3), "the mouldback lies flat at rest");
+
 });
 
 return Check.Finish("wildlife");

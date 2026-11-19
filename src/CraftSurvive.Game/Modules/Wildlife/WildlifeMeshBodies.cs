@@ -129,9 +129,10 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
         float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
         // The mesh faces +Z; yaw 0 faces north (-Z) and a quarter turn east (+X). A rising front turns the nose up: a negative turn about the mesh's own X.
-        Quaternion lift = Quaternion.CreateFromAxisAngle(Vector3.UnitX, -body.Pitch);
+        // Hanging or falling (#10877) it is drawn over its feet, level, whatever the ground under it does.
+        Quaternion lift = Quaternion.CreateFromAxisAngle(Vector3.UnitX, member.Lift > 0 ? 0f : -body.Pitch);
         Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI - member.Yaw);
-        Vector3 world = new(member.Position.X, body.Height, member.Position.Y);
+        Vector3 world = new(member.Position.X, body.Height + member.Lift, member.Position.Y);
         Transform placement = new(ToLocal(body, world), Quaternion.Concatenate(lift, turn), new Vector3(scale));
         Plant(body, placement, world, scale, plant: !fallen && distance <= plantWithin);
         return new AppearanceFact(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.Cast);

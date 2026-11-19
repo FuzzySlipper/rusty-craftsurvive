@@ -73,6 +73,15 @@ internal enum WildlifeClipRole
     Threat,
     Bite,
     Hurt,
+
+    /// <summary>Lying flat at rest, hidden among its place (#10877: the mouldback in its fungus).</summary>
+    Lie,
+
+    /// <summary>Hanging upside down from a ceiling, its grip at the body's origin (#10877: the drop-sloth).</summary>
+    Hang,
+
+    /// <summary>Falling from a ceiling and turning over to land on its feet (#10877).</summary>
+    Drop,
 }
 
 /// <summary>A kind's animated body: its mesh and build manifest, which clip plays each role, and how it falls when killed, if it does more than play its death. A kind without one is drawn as a placeholder.</summary>
@@ -120,7 +129,8 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
 }
 
 /// <summary>A hunter that rests (#10876) lies still, showing this clip, until it sees the player within its wake distance.</summary>
-internal sealed record WildlifeRest(double WakeMetres, WildlifeClipRole Clip);
+/// <param name="Hangs">It rests hanging from the ceiling over its home and drops when it wakes (#10877: the drop-sloth).</param>
+internal sealed record WildlifeRest(double WakeMetres, WildlifeClipRole Clip, bool Hangs = false);
 
 /// <summary>A hunter's display before it attacks (#10876): it stands this long showing this clip, however near the player is.</summary>
 internal sealed record WildlifeDisplay(double Seconds, WildlifeClipRole Clip);
@@ -685,7 +695,9 @@ internal static class WildlifeKinds
             block.TryGetProperty("clip", out JsonElement clip) ? Enum<WildlifeClipRole>(clip.GetString()) : otherwise;
         read = read with
         {
-            Rest = hunt.TryGetProperty("rest", out JsonElement rest) ? new WildlifeRest(rest.GetProperty("wakeMetres").GetDouble(), Clip(rest, WildlifeClipRole.Idle)) : null,
+            Rest = hunt.TryGetProperty("rest", out JsonElement rest)
+                ? new WildlifeRest(rest.GetProperty("wakeMetres").GetDouble(), Clip(rest, WildlifeClipRole.Idle), rest.TryGetProperty("hang", out JsonElement hang) && hang.GetBoolean())
+                : null,
             Display = hunt.TryGetProperty("display", out JsonElement display) ? new WildlifeDisplay(display.GetProperty("seconds").GetDouble(), Clip(display, WildlifeClipRole.Threat)) : null,
             Search = hunt.TryGetProperty("search", out JsonElement search) ? new WildlifeSearch(search.GetProperty("seconds").GetDouble(), Clip(search, WildlifeClipRole.Look)) : null,
         };

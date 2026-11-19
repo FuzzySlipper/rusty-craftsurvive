@@ -1,0 +1,84 @@
+{
+  "species": "mouldback",
+  "family": "plantigrade",
+  "body": {
+    "hindMetres": -1.0,
+    "foreMetres": 0.26
+  },
+  "legs": [
+    [
+      "thigh.L",
+      "shin.L",
+      "foot.L"
+    ],
+    [
+      "upperarm.L",
+      "forearm.L",
+      "hand.L"
+    ],
+    [
+      "thigh.R",
+      "shin.R",
+      "foot.R"
+    ],
+    [
+      "upperarm.R",
+      "forearm.R",
+      "hand.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.5,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.7
+    },
+    "run": {
+      "seconds": 0.5333333333333333,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 3.4545
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 2.5,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 2.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "bite": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "hurt": {
+      "seconds": 0.6,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "lie": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": true
+    }
+  }
+}

@@ -1,0 +1,15 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE invented cave predator, the mouldback, in exactly the shape of the first reference image. About 1.4 m high at the top of its back and 2.6 m long from snout to tail tip. It stands in a NEUTRAL STANCE on all four feet: all four legs straight down, feet flat on the ground, head level and pointing straight ahead. Exactly the same creature in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE profile, head pointing to the left, the whole creature from snout to tail. In this view the far legs stand EXACTLY BEHIND the near legs and are hidden by them, so only TWO legs can be seen, one fore and one hind.
+- BOTTOM LEFT: the FRONT view, looking straight at its face, both forelegs apart and visible.
+- BOTTOM RIGHT: the BACK view, from straight behind, both hind legs apart and visible.
+Landscape aspect about 1536x1024. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the first reference image: a heavy, low, bear-and-badger body, short thick legs, huge spade-like forepaws with long pale digging claws, a short tail, a long snout. NO eyes at all. Nearly hairless wrinkled skin, a cold pinkish grey. On the tip of the snout a ring of SHORT, THICK, fleshy pink nubs like a star-nosed mole's, each nub as thick as a thumb and no longer than a finger, all joined at their base into one solid rosette: never thin threads or tentacles. EXACTLY FOUR LEGS.
+
+THE FUNGUS: a crust of living fungus covers its back and upper flanks: a few LARGE solid mushroom caps and shelf brackets, each one chunky and attached flat to the body along its whole underside, with no thin stalks standing free and no gaps under the caps, packed together over a mossy olive crust; tan and cream caps, and three or four small caps of pale blue-green. The fungus is part of the body's silhouette, a lumpy rounded mass.
+
+THE MOUTH: below the snout the jaws stand HALF OPEN at rest, the lower jaw clearly separate from the upper with a dark gap between them, showing a row of blunt yellowish teeth in both jaws and the dark pink mouth inside. Not closed, and not fully gaping.
+
+PAINT - follow the second reference image, a sheet of a giant ground sloth from the same game, only for its treatment and not its colours: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO rocks, NO other objects. NO eyes. NO extra legs. NOT photoreal, NOT a perspective render, NOT anime, NOT cute, NOT cel shading or outlines.

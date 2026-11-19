@@ -358,7 +358,44 @@ internal sealed class CreatureModule : IProductModule
         member.Yaw = HunterRules.Turned(member.Yaw, heading, hunter.Kind.Speeds.TurnDegrees, seconds);
         member.Position = HunterRules.Drawn(creature.Position, member.Yaw, rig.Rig.HindMetres, rig.Rig.ForeMetres, member.Size);
         double runsAbove = (rig.Clip(WildlifeClipRole.Walk).Speed + rig.Clip(WildlifeClipRole.Run).Speed) / 2 * member.Size;
+        if (hunter.Kind.Hunt?.Rest is { Hangs: true })
+        {
+            if ((state == CreatureState.Resting && hunter.CeilingFrom is null) || (hunter.CeilingFrom is Vector2 measured && Vector2.Distance(measured, creature.Position) > CeilingRemeasureMetres))
+            {
+                hunter.CeilingLift = CeilingOver(creature);
+                hunter.CeilingFrom = creature.Position;
+            }
+
+            HunterRules.Hang(hunter, state, distance > hunter.Kind.Hunt.SightMetres, seconds);
+        }
+
         member.Clip = HunterRules.Want(hunter, state, member.Velocity.Length(), runsAbove);
+    }
+
+    /// <summary>A hanging hunter's ceiling and lift for the readout (#10877); nothing for any other.</summary>
+    private static string HangReadout(Hunter hunter) => hunter.Kind.Hunt?.Rest is { Hangs: true }
+        ? string.Create(CultureInfo.InvariantCulture, $" ceiling={(hunter.CeilingLift is float ceiling ? ceiling.ToString("F1", CultureInfo.InvariantCulture) : "none")} lift={hunter.Member.Lift:F1}")
+        : "";
+
+    /// <summary>A hanging animal's ceiling is found again once it stands this far from where it was last found (#10877).</summary>
+    private const float CeilingRemeasureMetres = 0.5f;
+
+    /// <summary>How far up a hanging animal looks for a ceiling to hang from.</summary>
+    private const float CeilingReachMetres = 14f;
+
+    /// <summary>A ceiling is looked for from this far over the feet, clear of the floor's own surface.</summary>
+    private const float CeilingFromMetres = 0.3f;
+
+    /// <summary>How far over a creature's feet the first ceiling above it is (#10877), or null for none within reach: cast straight up through its space.</summary>
+    private float? CeilingOver(Creature creature)
+    {
+        CreatureSpace space = SpaceOf(creature);
+        float feet = StandingAt(creature);
+        SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
+            space.Session, space.ToLocal(creature.Position.X, feet + CeilingFromMetres, creature.Position.Y), Vector3.UnitY, CeilingReachMetres,
+            new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
+            ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty, ReadOnlyMemory<SpatialEntityCollider>.Empty));
+        return hit.Present ? (float)(CeilingFromMetres + hit.Distance) : null;
     }
 
     private double ClipSeconds(Hunter hunter, WildlifeClipRole role) => Wildlife!.RigOf(hunter.Kind).Clip(role).Seconds;
@@ -713,7 +750,7 @@ internal sealed class CreatureModule : IProductModule
         Vector3 playerWorld = player.WorldPosition;
         PlayerDefeatState vitals = player.Vitals.State;
         string rows = string.Join(" | ", roster.All.Select(creature => string.Create(CultureInfo.InvariantCulture,
-            $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} feet={StandingAt(creature):F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}{(hunters.TryGetValue(creature.Id, out Hunter? shown) ? $" shows={shown.Member.Clip} display={shown.ThreatSeconds:F2}" : "")}")));
+            $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} feet={StandingAt(creature):F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}{(hunters.TryGetValue(creature.Id, out Hunter? shown) ? $" shows={shown.Member.Clip} display={shown.ThreatSeconds:F2}{HangReadout(shown)}" : "")}")));
         return string.Create(CultureInfo.InvariantCulture,
             $"step={step}; active={director.ActiveCount}; roster={roster.Count}; awake={roster.All.Count(creature => creature.Awake)}; shown={presentation.Shown}; released={released}; spawnRefusals={spawnRefusals}; space={PlayerSpace?.Name ?? "none"} {NavigationHere.Readout()}; ")
             + string.Create(CultureInfo.InvariantCulture,

@@ -77,6 +77,9 @@ internal sealed class WildlifeMember
 
     internal double ClipSeconds { get; set; }
 
+    /// <summary>How far over its feet its body is drawn, in metres: a drop-sloth hanging from the ceiling or falling from it (#10877).</summary>
+    internal float Lift { get; set; }
+
     /// <summary>Making for the water: having set off, it goes in, however clear of the player it has got.</summary>
     internal bool ToWater { get; set; }
 

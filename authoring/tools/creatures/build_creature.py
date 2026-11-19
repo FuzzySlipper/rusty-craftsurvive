@@ -380,7 +380,10 @@ def pin_mouth(species, mesh):
     data.from_mesh(mesh.data)
     data.verts.ensure_lookup_table()
     forward = mouth["hingeForward"]
-    inside = [v for v in data.verts if -v.co.y >= forward]
+    # Long forelimbs can reach past the hinge (the drop-sloth's claws, #10877): `aboveMetres` keeps them out.
+    above = mouth.get("aboveMetres", float("-inf"))
+    inside = [v for v in data.verts if -v.co.y >= forward and v.co.z >= above]
+    pinned = {v.index for v in inside}
 
     def nearest(point):
         return min(inside, key=lambda v: (-v.co.y - point[0]) ** 2 + (v.co.z - point[1]) ** 2)
@@ -396,7 +399,7 @@ def pin_mouth(species, mesh):
         vertex = data.verts[index]
         for edge in vertex.link_edges:
             other = edge.other_vert(vertex)
-            if -other.co.y >= forward and other.index not in reached:
+            if other.index in pinned and other.index not in reached:
                 heapq.heappush(queue, (distance + edge.calc_length(), other.index, name))
 
     def bite_height(vertex):

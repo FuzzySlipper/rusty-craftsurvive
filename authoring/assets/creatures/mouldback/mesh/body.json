@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/mouldback/mesh/tripo/tripo.glb",
+  "triangles": 6000,
+  "areaSquareMetres": 11.812,
+  "charts": 646,
+  "utilization": 0.7554,
+  "masterTexels": [
+    1020,
+    1020
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.625089168548584,
+      -1.3971736431121826,
+      -0.005078829359263182
+    ],
+    [
+      0.6247447729110718,
+      1.4031177759170532,
+      1.332210898399353
+    ]
+  ]
+}

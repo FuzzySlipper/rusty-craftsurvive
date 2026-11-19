@@ -1,0 +1,51 @@
+{
+  "id": "drop-sloth",
+  "family": "plantigrade",
+  "about": "The drop-sloth (#10877), a predatory tree sloth 2.2 m long on all fours and 1.43 m at the top of its coat, fitted to the Tripo body (authoring/assets/creatures/drop-sloth/mesh). It has no tail: the tail bones sit inside the rump. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [0, 0, 0],
+    "root_tip": [0, 0.5, 0],
+    "hips": [0, -0.72, 0.95],
+    "spine": [0, -0.2, 1.05],
+    "chest": [0, 0.3, 1.1],
+    "neck": [0, 0.58, 1.15],
+    "head": [0, 0.78, 1.17],
+    "nose": [0, 1.08, 1.05],
+    "jaw": [0, 0.86, 1.02],
+    "jaw_tip": [0, 1.03, 0.95],
+    "tail0": [0, -0.92, 1.0],
+    "tail1": [0, -0.97, 0.96],
+    "tail2": [0, -1.0, 0.93],
+    "tail3": [0, -1.02, 0.91],
+    "tail4": [0, -1.04, 0.89],
+    "hip_socket": [0.22, -0.72, 0.88],
+    "knee": [0.24, -0.73, 0.5],
+    "ankle": [0.22, -0.86, 0.12],
+    "toe": [0.22, -0.55, 0.03],
+    "shoulder": [0.4, 0.2, 1.0],
+    "elbow": [0.5, 0.38, 0.58],
+    "wrist": [0.55, 0.6, 0.15],
+    "knuckle": [0.55, 0.74, 0.06],
+    "claw_tip": [0.55, 0.86, 0.0],
+    "eye": [0.08, 0.97, 1.15]
+  },
+  "mouth": {
+    "hingeForward": 0.85,
+    "aboveMetres": 0.75,
+    "upper": [1.07, 1.1],
+    "lower": [1.0, 0.93]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {"seconds": 1.6, "stride": 1.2, "duty": 0.68, "liftHind": 0.14, "liftFore": 0.22, "phases": {"hind.L": 0.0, "fore.L": 0.25, "hind.R": 0.5, "fore.R": 0.75}, "bob": 0.04, "swayDegrees": 5.0},
+    "run": {"seconds": 0.6, "stride": 2.0, "duty": 0.45, "liftHind": 0.2, "liftFore": 0.3, "phases": {"hind.L": 0.0, "fore.L": 0.18, "hind.R": 0.5, "fore.R": 0.68}, "bob": 0.08, "swayDegrees": 5.0},
+    "idle": {"seconds": 4.0},
+    "alert": {"seconds": 3.0},
+    "die": {"seconds": 2.5},
+    "threat": {"seconds": 2.0, "pitchDegrees": 60.0, "armDegrees": 45.0, "spreadDegrees": 65.0, "jawDegrees": 26.0},
+    "bite": {"seconds": 1.1, "lungeMetres": 0.35, "jawDegrees": 26.0, "swipe": true},
+    "hurt": {"seconds": 0.6},
+    "hang": {"seconds": 6.0, "armDegrees": -18.0, "legDegrees": 12.0, "lookDegrees": 30.0},
+    "drop": {"seconds": 0.9}
+  }
+}

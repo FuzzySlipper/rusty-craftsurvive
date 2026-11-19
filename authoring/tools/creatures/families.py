@@ -195,6 +195,117 @@ def clip_rest(c, s, t):
     pass
 
 
+def spread(side, degrees):
+    """Swings a limb out from the body on its own side."""
+    return roll(degrees if side == "L" else -degrees)
+
+
+def plantigrade_threat(c, s, t):
+    """A cave hunter's display (#10877): up on the hind legs, forelimbs raised and spread with the claws out, jaws wide."""
+    settings = s["threat"]
+    up = gait.rise_hold_fall(t, 0.22, 0.8)
+    shake = gait.wave(t, 7)
+    rear(c, up, settings["pitchDegrees"])
+    for side in SIDES:
+        c.leg_influence(f"fore.{side}", 1.0 - gait.ease_in_out(t, 0.0, 0.16) * (1.0 - gait.ease_in_out(t, 0.84, 1.0)))
+        c.bone_rotation(f"upperarm.{side}", pitch(settings.get("armDegrees", 95.0) * up + 6.0 * shake * up) @ spread(side, settings.get("spreadDegrees", 25.0) * up))
+        c.bone_rotation(f"forearm.{side}", pitch(-25.0 * up))
+        c.bone_rotation(f"hand.{side}", pitch(-20.0 * up))
+        c.bone_rotation(f"claw.{side}", pitch(-35.0 * up))
+    c.bone_rotation("neck", pitch(-0.3 * settings["pitchDegrees"] * up + 6.0 * up))
+    c.bone_rotation("head", pitch(8.0 * up) @ yaw(4.0 * up * shake))
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 32.0) * up - 3.0 * up * shake))
+
+
+def plantigrade_bite(c, s, t):
+    """A lunge (#10877): the body draws back, throws itself forward with the jaws wide, they snap shut;
+    with `swipe`, the right forelimb rakes down as it lands."""
+    settings = s["bite"]
+    back = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.32, 0.44))
+    strike = gait.ease_in_out(t, 0.34, 0.46) * (1.0 - gait.ease_in_out(t, 0.7, 1.0))
+    wide = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.44, 0.52))
+    shut = gait.ease_in_out(t, 0.44, 0.52) * (1.0 - gait.ease_in_out(t, 0.8, 1.0))
+    reach = settings.get("lungeMetres", 0.35)
+    c.bone_offset("hips", (0, 0.4 * reach * back - reach * strike, -0.06 * strike))
+    c.bone_rotation("spine", pitch(3.0 * back - 4.0 * strike))
+    c.bone_rotation("chest", pitch(5.0 * back - 8.0 * strike))
+    c.bone_rotation("neck", pitch(8.0 * back - 8.0 * strike))
+    c.bone_rotation("head", pitch(6.0 * back - 6.0 * strike))
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 32.0) * wide + 4.0 * shut))
+    if settings.get("swipe"):
+        lift = gait.ease_in_out(t, 0.05, 0.34) * (1.0 - gait.ease_in_out(t, 0.4, 0.5))
+        rake = gait.ease_in_out(t, 0.4, 0.5) * (1.0 - gait.ease_in_out(t, 0.75, 0.95))
+        c.leg_influence("fore.R", 1.0 - gait.ease_in_out(t, 0.02, 0.15) * (1.0 - gait.ease_in_out(t, 0.8, 0.95)))
+        c.bone_rotation("upperarm.R", pitch(85.0 * lift + 20.0 * rake) @ spread("R", 15.0 * lift))
+        c.bone_rotation("forearm.R", pitch(25.0 * lift - 15.0 * rake))
+        c.bone_rotation("claw.R", pitch(-30.0 * lift + 30.0 * rake))
+
+
+def plantigrade_hurt(c, s, t):
+    """A blow lands (#10877): it flinches back and away and shudders."""
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    c.bone_offset("hips", (0, 0.12 * hit, -0.04 * hit))
+    c.bone_rotation("chest", roll(6.0 * hit))
+    c.bone_rotation("neck", pitch(8.0 * hit) @ yaw(-14.0 * hit))
+    c.bone_rotation("head", pitch(8.0 * hit) @ yaw(-8.0 * hit))
+    c.bone_rotation("jaw", pitch(-22.0 * hit))
+
+
+def plantigrade_lie(c, s, t):
+    """At rest, flat to the ground (#10877): the body sinks between feet that stay put, the head down on its
+    forepaws, breathing slowly, so a mouldback lies as one more patch of fungus."""
+    settings = s["lie"]
+    sink = settings["sinkMetres"]
+    breathe = gait.wave(t)
+    for leg in c.targets:
+        c.place(leg, side=settings.get("sprawlMetres", 0.08))
+    c.bone_offset("hips", (0, 0, -sink))
+    c.bone_rotation("spine", pitch(-2.0 + 0.6 * breathe))
+    c.bone_rotation("chest", pitch(-settings.get("chestDegrees", 4.0)) @ pitch(0.6 * breathe))
+    c.bone_rotation("neck", pitch(-settings.get("headDegrees", 12.0)))
+    c.bone_rotation("head", pitch(-0.4 * settings.get("headDegrees", 12.0)))
+    c.bone_rotation("jaw", pitch(1.5 * (0.5 + 0.5 * breathe)))
+
+
+def hanging(c, s, amount, t):
+    """Upside down from the ground plane, back to the floor: the feet's rest height becomes the grip, at the origin,
+    which the product sets at the ceiling (#10877). The limbs go free of their targets and reach straight up."""
+    settings = s["hang"]
+    c.bone_rotation("root", roll(180.0 * amount))
+    for leg in c.targets:
+        c.leg_influence(leg, 1.0 - amount)
+    sway = gait.wave(t)
+    for side in SIDES:
+        c.bone_rotation(f"upperarm.{side}", pitch(settings.get("armDegrees", -18.0) * amount))
+        c.bone_rotation(f"thigh.{side}", pitch(settings.get("legDegrees", 12.0) * amount))
+        c.bone_rotation(f"claw.{side}", pitch(-50.0 * amount))
+    c.bone_rotation("hips", roll(2.5 * sway * amount))
+    c.bone_rotation("chest", roll(-2.0 * sway * amount))
+    c.bone_rotation("neck", pitch(settings.get("lookDegrees", 30.0) * amount) @ yaw(10.0 * gait.wave(t, lag=0.3) * amount))
+    c.bone_rotation("head", pitch(0.5 * settings.get("lookDegrees", 30.0) * amount))
+
+
+def plantigrade_hang(c, s, t):
+    """At rest hanging from the ceiling (#10877: the drop-sloth), swaying a little, looking down at the floor."""
+    hanging(c, s, 1.0, t)
+
+
+def plantigrade_drop(c, s, t):
+    """Letting go (#10877): it turns over as the product lowers it from the ceiling, the limbs flailing, and lands on all
+    fours. The turn is done by 0.6 of the clip, the feet back on their targets by 0.9."""
+    turn = gait.ease_in_out(t, 0.0, 0.6)
+    c.bone_rotation("root", roll(180.0 + 180.0 * turn))
+    land = gait.ease_in_out(t, 0.5, 0.9)
+    for leg in c.targets:
+        c.leg_influence(leg, land)
+    flail = gait.wave(t, 3) * (1.0 - land)
+    for side in SIDES:
+        c.bone_rotation(f"upperarm.{side}", spread(side, 30.0 * (1.0 - land)) @ pitch(20.0 * flail))
+        c.bone_rotation(f"thigh.{side}", pitch(-15.0 * flail))
+        c.bone_rotation(f"claw.{side}", pitch(-30.0 * (1.0 - land)))
+    c.bone_rotation("jaw", pitch(-20.0 * (1.0 - land)))
+
+
 # clip id: (pose function, loops, feet planted). Planted clips keep every foot on the ground, so
 # the product may move their feet onto uneven ground with IK; the others lift or fold their legs.
 PLANTIGRADE_CLIPS = {
@@ -207,6 +318,12 @@ PLANTIGRADE_CLIPS = {
     "rear-browse": (clip_rear_browse, False, False),
     "defend-swipe": (clip_defend_swipe, False, False),
     "die": (clip_die, False, False),
+    "threat": (plantigrade_threat, False, False),
+    "bite": (plantigrade_bite, False, False),
+    "hurt": (plantigrade_hurt, False, True),
+    "lie": (plantigrade_lie, True, True),
+    "hang": (plantigrade_hang, True, False),
+    "drop": (plantigrade_drop, False, False),
 }
 
 

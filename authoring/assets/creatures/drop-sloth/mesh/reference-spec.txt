@@ -1,0 +1,15 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE invented cave predator, the drop-sloth, a predatory tree sloth, in exactly the shape and colours of the first reference image. About 1.3 m high at the shoulder and 2.2 m long when it stands on all fours. It stands in a NEUTRAL STANCE on all four limbs, walking on its knuckles with the long hook claws of its forefeet curled in under its knuckles, hind feet flat: all four limbs straight down and slightly apart, head level and looking straight ahead, no tail. Exactly the same creature in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE profile, head pointing to the left, the whole creature. In this view the far limbs stand EXACTLY BEHIND the near limbs and are hidden by them, so only TWO limbs can be seen, one fore and one hind.
+- BOTTOM LEFT: the FRONT view, looking straight at its face, both forelimbs apart and visible.
+- BOTTOM RIGHT: the BACK view, from straight behind, both hind limbs apart and visible.
+Landscape aspect about 1536x1024. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the first reference image: long, strong, gangly arms longer than its legs, three long curved ivory hook claws on each foot, a short body with no tail, a short-muzzled bear-like head with small forward-facing amber eyes under a heavy brow. EXACTLY FOUR LIMBS.
+
+THE COAT: a shaggy coat of long wine-red and maroon hair hanging down from the back, arms and legs like the reference, drawn as LARGE SOLID CLUMPS and thick tapering locks that hug the body and limbs, each lock as thick as a hand and joined to the body along its length, with pale glowing amber tips: never thin strands, never loose hair standing apart from the body. A pale tan bare face and a pale tan chest and belly with darker stripes.
+
+THE MOUTH: the jaws stand HALF OPEN at rest, the lower jaw clearly separate from the upper with a dark gap between them, showing two long upper fangs, the other teeth in both jaws and the dark red mouth inside. Not closed, and not fully gaping.
+
+PAINT - follow the second reference image, a sheet of a giant ground sloth from the same game, only for its treatment and not its colours: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO bar, NO rocks, NO other objects. NO tail. NO extra limbs. NOT photoreal, NOT a perspective render, NOT anime, NOT cute, NOT cel shading or outlines.

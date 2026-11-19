@@ -80,9 +80,12 @@ internal sealed partial class DungeonModule
         Dictionary<CaveHabitat, IReadOnlyList<Vector3>> communities = [];
         foreach (CaveCommunity community in layout.Communities)
         {
+            // A grove's hangers grow down from the ceiling: its animals' homes are on the fallfield under them (#10877).
+            bool overhead = community == CaveCommunity.InvertedGrove;
             communities[HabitatOf(community)] = [.. layout.Overgrowth
                 .Where(growth => CaveCommunities.Signature(community, growth.Kind))
-                .Select(growth => cave.ToWorld(growth.At + (growth.Out * SiteOffGrowthMetres)))];
+                .Select(growth => growth.At + (growth.Out * SiteOffGrowthMetres))
+                .Select(site => overhead ? Over(layout.FloorUnder(site)) : cave.ToWorld(site))];
         }
 
         return new CaveSites(key, mouth, [.. layout.FungalPockets.Select(Over)], pools, deep, communities);

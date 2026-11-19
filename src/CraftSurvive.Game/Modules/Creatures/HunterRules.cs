@@ -41,8 +41,20 @@ internal sealed class Hunter(WildlifeKind kind, HerdRecord record, WildlifeMembe
     /// <summary>Where it stood when last read, to tell how fast it is going.</summary>
     internal Vector2 LastPosition { get; set; } = member.Position;
 
-    /// <summary>It stands to show its threat or bite: it does not walk meanwhile.</summary>
-    internal bool Holding => ThreatSeconds > 0 || BiteSeconds > 0;
+    /// <summary>How far over its feet the ceiling it hangs from is (#10877), measured while it rests; null where there is none to hang from.</summary>
+    internal float? CeilingLift { get; set; }
+
+    /// <summary>Where its ceiling was measured from: it is measured again once it stands somewhere else.</summary>
+    internal Vector2? CeilingFrom { get; set; }
+
+    /// <summary>Falling from its ceiling, how fast, in metres a second; 0 when not falling.</summary>
+    internal float FallSpeed { get; set; }
+
+    /// <summary>It stands to show its threat or bite, or is still falling: it does not walk meanwhile.</summary>
+    internal bool Holding => ThreatSeconds > 0 || BiteSeconds > 0 || (Member.Lift > 0 && !Hangs);
+
+    /// <summary>It hangs from its ceiling now, at rest.</summary>
+    internal bool Hangs { get; set; }
 }
 
 
@@ -190,6 +202,39 @@ internal static class HunterRules
         return alerted;
     }
 
+    /// <summary>A ceiling lower than this over its floor is too low to hang from: it rests on the floor instead (#10877).</summary>
+    internal const float LowestHangMetres = 2.8f;
+
+    /// <summary>How fast a dropping animal gains speed, in metres a second each second.</summary>
+    internal const float FallAcceleration = 9.81f;
+
+    /// <summary>
+    /// A hanging animal's lift (#10877): at rest under a ceiling high enough, it hangs from it, its body drawn that far over
+    /// its feet; woken, it lets go and falls under gravity to land on its feet; at rest again, out of the player's sight, it is
+    /// back up. Its capsule stays on the floor throughout, so routes and blows are the floor's.
+    /// </summary>
+    /// <param name="playerOutOfSight">The player is further off than it sees: it may climb back up unseen.</param>
+    internal static void Hang(Hunter hunter, CreatureState state, bool playerOutOfSight, double seconds)
+    {
+        ArgumentNullException.ThrowIfNull(hunter);
+        WildlifeMember member = hunter.Member;
+        if (hunter.Kind.Hunt?.Rest is not { Hangs: true }) return;
+        bool resting = state == CreatureState.Resting;
+        if (resting && hunter.CeilingLift is float ceiling && ceiling >= LowestHangMetres && (hunter.Hangs || (member.Lift <= 0 && playerOutOfSight)))
+        {
+            hunter.Hangs = true;
+            hunter.FallSpeed = 0;
+            member.Lift = ceiling;
+            return;
+        }
+
+        hunter.Hangs = false;
+        if (member.Lift <= 0) return;
+        hunter.FallSpeed += (float)(FallAcceleration * seconds);
+        member.Lift = Math.Max(0f, member.Lift - (float)(hunter.FallSpeed * seconds));
+        if (member.Lift <= 0) hunter.FallSpeed = 0;
+    }
+
     internal static Vector2 Drawn(Vector2 capsule, float yaw, double hindMetres, double foreMetres, float size) =>
         capsule + (WildlifeRules.Facing(yaw) * (float)(-(hindMetres + foreMetres) / 2 * size));
 
@@ -199,6 +244,8 @@ internal static class HunterRules
     internal static WildlifeClipRole Want(Hunter hunter, CreatureState state, float speed, double runsAbove)
     {
         ArgumentNullException.ThrowIfNull(hunter);
+        if (hunter.Hangs) return WildlifeClipRole.Hang;
+        if (hunter.Member.Lift > 0) return WildlifeClipRole.Drop;
         if (hunter.HurtSeconds > 0) return WildlifeClipRole.Hurt;
         if (hunter.BiteSeconds > 0) return WildlifeClipRole.Bite;
         WildlifeHunt hunt = hunter.Kind.Hunt!;

@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/drop-sloth/mesh/tripo/tripo.glb",
+  "triangles": 6000,
+  "areaSquareMetres": 10.701,
+  "charts": 812,
+  "utilization": 0.7377,
+  "masterTexels": [
+    1113,
+    1111
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.6578953266143799,
+      -1.0941755771636963,
+      -0.007735085673630238
+    ],
+    [
+      0.6592377424240112,
+      1.1026639938354492,
+      1.4303646087646484
+    ]
+  ]
+}
