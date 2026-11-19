@@ -76,8 +76,19 @@ internal sealed class PlaceMossCards : IDisposable
     private readonly SurfaceMoss moss;
     private readonly PropMaterials materials, ice;
     private readonly Material material, tuftMaterial, icicles;
-    private readonly Dictionary<MeshResource, (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces, Anchor[] Tops)> anchors = [];
-    private readonly Dictionary<MeshResource, StoneTufts> tufts = [];
+    // Each piece's anchors and stone tufts, a pure function of its geometry (#10907): kept for the process by the piece's
+    // positions, and worked out on the places' worker as a place is gathered (Prepare), so laying the cards is light.
+    private sealed record AnchorSet(Anchor[] Lips, Anchor[] Feet, Anchor[] Faces, Anchor[] Tops);
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Vector3[], AnchorSet> Anchors = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Vector3[], StoneTufts> Tufts = new();
+    private int piecesSeen;
+
+    /// <summary>Works out a piece's anchors and stone tufts ahead, off the update (#10907); safe on a worker.</summary>
+    internal static void Prepare(Vector3[] positions, Vector3[] normals, Triangle[] triangles, float sink)
+    {
+        Anchors.GetValue(positions, _ => ComputeAnchors(positions, triangles, sink));
+        Tufts.GetValue(positions, _ => new StoneTufts(positions, normals, triangles));
+    }
 
     /// <summary>What a card is; a cave grows the first five on its rock (#10092), and a place only the curtains, cushions, icicles and tufts.</summary>
     internal enum Kind
@@ -143,7 +154,7 @@ internal sealed class PlaceMossCards : IDisposable
             bool mossy = moss.Strength + piece.Overgrowth > 0;
             if (cards >= MaximumCards) break;
             (Anchor[] lips, Anchor[] feet, Anchor[] faces, Anchor[] tops) = AnchorsOf(piece);
-            if (!tufts.TryGetValue(piece.Key, out StoneTufts? onStone)) tufts[piece.Key] = onStone = new StoneTufts(piece.Positions, piece.Normals, piece.Triangles);
+            StoneTufts onStone = Tufts.GetValue(piece.Positions, _ => new StoneTufts(piece.Positions, piece.Normals, piece.Triangles));
             if (moss.Snow >= IciclesFromMetres)
             {
                 // Icicles (#10068) along the lips wherever they freeze, moss or none.
@@ -400,14 +411,20 @@ internal sealed class PlaceMossCards : IDisposable
     /// <summary>A piece's lips, feet, side faces and tops, found once from its triangles.</summary>
     private (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces, Anchor[] Tops) AnchorsOf(Piece piece)
     {
-        if (anchors.TryGetValue(piece.Key, out var found)) return found;
-        Vector3[] p = piece.Positions;
+        piecesSeen++;
+        AnchorSet set = Anchors.GetValue(piece.Positions, _ => ComputeAnchors(piece.Positions, piece.Triangles, piece.Sink));
+        return (set.Lips, set.Feet, set.Faces, set.Tops);
+    }
+
+    private static AnchorSet ComputeAnchors(Vector3[] positions, Triangle[] pieceTriangles, float pieceSink)
+    {
+        Vector3[] p = positions;
         // Edges by their ends' positions (rounded to a millimetre), so faces that share an edge but not vertices still meet.
         Dictionary<(long, long, long, long, long, long), List<int>> edges = [];
-        Vector3[] faceNormal = new Vector3[piece.Triangles.Length];
-        for (int t = 0; t < piece.Triangles.Length; t++)
+        Vector3[] faceNormal = new Vector3[pieceTriangles.Length];
+        for (int t = 0; t < pieceTriangles.Length; t++)
         {
-            Triangle tri = piece.Triangles[t];
+            Triangle tri = pieceTriangles[t];
             uint[] v = [tri.A, tri.B, tri.C];
             Vector3 cross = Vector3.Cross(p[v[1]] - p[v[0]], p[v[2]] - p[v[0]]);
             // A degenerate triangle has no normal; NaN would slip through every facing test below, so it faces nowhere.
@@ -436,13 +453,13 @@ internal sealed class PlaceMossCards : IDisposable
             lips.Add(new(mid, Vector3.Normalize(flat), faceNormal[top]));
         }
 
-        for (int t = 0; t < piece.Triangles.Length; t++)
+        for (int t = 0; t < pieceTriangles.Length; t++)
         {
             Vector3 n = faceNormal[t];
             if (n == Vector3.Zero || Math.Abs(n.Y) > SideRise) continue;
-            Triangle tri = piece.Triangles[t];
+            Triangle tri = pieceTriangles[t];
             Vector3 c = (p[tri.A] + p[tri.B] + p[tri.C]) / 3;
-            float above = c.Y - piece.Sink;
+            float above = c.Y - pieceSink;
             if (above < 0) continue;
             Vector3 flat = Vector3.Normalize(new Vector3(n.X, 0, n.Z));
             if (above > FootHeight)
@@ -453,25 +470,24 @@ internal sealed class PlaceMossCards : IDisposable
                 continue;
             }
 
-            Vector3 foot = new(c.X, piece.Sink, c.Z);
+            Vector3 foot = new(c.X, pieceSink, c.Z);
             if (!taken.Add(Cell(foot))) continue;
             feet.Add(new(foot, flat, n));
         }
 
-        for (int t = 0; t < piece.Triangles.Length; t++)
+        for (int t = 0; t < pieceTriangles.Length; t++)
         {
             Vector3 n = faceNormal[t];
             if (n.Y < TopRise) continue;
-            Triangle tri = piece.Triangles[t];
+            Triangle tri = pieceTriangles[t];
             Vector3 c = (p[tri.A] + p[tri.B] + p[tri.C]) / 3;
-            if (c.Y < piece.Sink) continue;
+            if (c.Y < pieceSink) continue;
             (int, int, int) cell = ((int)Math.Floor(c.X / MatSpacing), (int)Math.Floor(c.Y / MatSpacing), (int)Math.Floor(c.Z / MatSpacing));
             if (topTaken.Add(cell)) tops.Add(new(c, Vector3.UnitX, n));
         }
 
         var result = (lips.ToArray(), feet.ToArray(), onFaces.ToArray(), tops.ToArray());
-        anchors[piece.Key] = result;
-        return result;
+        return new AnchorSet(result.Item1, result.Item2, result.Item3, result.Item4);
     }
 
     private static (long, long, long, long, long, long) EdgeKey(Vector3 a, Vector3 b)
@@ -520,7 +536,7 @@ internal sealed class PlaceMossCards : IDisposable
         retiring.Clear();
     }
 
-    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} tufts={byKind[6]}/{faceAnchors} icicles={byKind[5]} vertices={vertices} layMs={layMilliseconds:F1} pieces={anchors.Count}");
+    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} tufts={byKind[6]}/{faceAnchors} icicles={byKind[5]} vertices={vertices} layMs={layMilliseconds:F1} pieces={piecesSeen}");
 
     public void Dispose()
     {

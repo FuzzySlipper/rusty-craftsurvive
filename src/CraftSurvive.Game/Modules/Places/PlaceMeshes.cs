@@ -166,6 +166,7 @@ internal sealed class PlaceMeshes : IDisposable
             gatheredEdge = nearEdgeMetres;
             sites.Clear();
             placement.CollectSitesNear((long)Math.Floor(player.X), (long)Math.Floor(player.Z), (nearEdgeMetres + LayoutStepMetres) * Math.Sqrt(2), sites);
+            ShapeAhead(sites);
         }
 
         List<PoiSite> near = [.. sites.Where(site => HorizonLandmarkRules.OnNearGround(site.X + 0.5 - player.X, site.Z + 0.5 - player.Z, nearEdgeMetres))];
@@ -216,25 +217,81 @@ internal sealed class PlaceMeshes : IDisposable
 
     internal void AfterAppearanceSnapshot() => cards?.AfterAppearanceSnapshot();
 
-    private Loaded Load(PlaceKitPiece piece, float extra)
+    /// <summary>
+    /// A piece as read and shaped once for the process (#10907), its materials not yet bound: its mesh with the stone's
+    /// moisture in the vertex alpha, its parts' roles and textures, its triangles and its ivy blanket's geometry. Made off the
+    /// update when its place is gathered, so laying it out only binds materials and makes its meshes.
+    /// </summary>
+    private sealed record Shaped(MeshResourceCreateRequest Mesh, Vector3[] Positions, Vector3[] Normals, (string Role, string? Texture)[] Parts, Triangle[] Triangles,
+        MeshResourceCreateRequest Blanket);
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Shaped> ShapedPieces = new();
+
+    private Shaped Shape(PlaceKitPiece piece) => ShapedPieces.GetOrAdd(piece.Name, _ =>
     {
-        if (loaded.TryGetValue((piece.Name, extra), out Loaded? found)) return found;
-        PropMaterials stone = MaterialsFor(extra);
-        MeshResourceCreateRequest read = PropMesh.Read(content, piece.Model,
-            (role, texture) => stone.For(role, texture ?? throw new InvalidOperationException($"CraftSurvive place piece '{piece.Name}' part '{role}' names no texture.")));
+        List<(string Role, string? Texture)> parts = [];
+        MeshResourceCreateRequest read = PropMesh.Read(content, piece.Model, (role, texture) =>
+        {
+            parts.Add((role, texture));
+            return null!;
+        });
         // The stone's vertex alpha carries its moisture (#10044): wet at the ground, drier up the piece (in its own metres
         // above its sunk base, as PlaceMossCards reads it). Nothing about stone moves in the wind, so the alpha is free.
         ReadOnlySpan<Vector3> at = read.Positions.Span;
         Color[] colours = read.Colors.ToArray();
         for (int i = 0; i < colours.Length; i++) colours[i] = colours[i] with { A = SurfaceMoss.HeightMoisture(at[i].Y - piece.Sink) / SurfaceMoss.MoistureScale };
         MeshResourceCreateRequest request = read with { Colors = colours };
-        MeshResource mesh = engine.Graphics.CreateMeshResource(request);
         ReadOnlySpan<uint> indices = request.Indices.Span;
         Triangle[] triangles = new Triangle[indices.Length / 3];
         for (int i = 0; i < triangles.Length; i++) triangles[i] = new Triangle(indices[3 * i], indices[(3 * i) + 1], indices[(3 * i) + 2]);
-        MeshResource? blanketMesh = extra > 0 && moss is not null ? engine.Graphics.CreateMeshResource(Blanket(request, BlanketMaterial(extra))) : null;
-        Loaded result = new(mesh, engine.Graphics.CreateMeshAppearance(mesh), request.Positions.ToArray(), request.Normals.ToArray(), triangles, CollisionAssetBase + (ulong)loaded.Count,
-            extra, blanketMesh, blanketMesh is null ? null : engine.Graphics.CreateMeshAppearance(blanketMesh));
+        Vector3[] positions = request.Positions.ToArray(), normals = request.Normals.ToArray();
+        // The moss cards' anchors and tufts on the piece, worked out here too (#10907), keyed by these same arrays.
+        PlaceMossCards.Prepare(positions, normals, triangles, piece.Sink);
+        return new Shaped(request with { Positions = positions, Normals = normals }, positions, normals, [.. parts], triangles, Blanket(request, null));
+    });
+
+    /// <summary>Shapes the pieces of the places gathered round the player on a worker, ahead of their layout (#10907).</summary>
+    private void ShapeAhead(IEnumerable<PoiSite> gathered)
+    {
+        PlaceKitPiece[] pieces = [.. gathered.SelectMany(PlaceLayouts.For).Select(part => kit.TryGetValue(part.Piece, out PlaceKitPiece? piece) ? piece : null)
+            .OfType<PlaceKitPiece>().DistinctBy(piece => piece.Name).Where(piece => !ShapedPieces.ContainsKey(piece.Name))];
+        if (pieces.Length == 0 || shaping is { IsCompleted: false })
+        {
+            return;
+        }
+
+        shaping = Task.Run(() =>
+        {
+            foreach (PlaceKitPiece piece in pieces)
+            {
+                Shape(piece);
+            }
+        });
+    }
+
+    private Task? shaping;
+
+    private Loaded Load(PlaceKitPiece piece, float extra)
+    {
+        if (loaded.TryGetValue((piece.Name, extra), out Loaded? found)) return found;
+        PropMaterials stone = MaterialsFor(extra);
+        Shaped shaped = Shape(piece);
+        MeshMaterialBinding[] bindings = [.. shaped.Parts.Select((part, slot) => new MeshMaterialBinding((uint)slot,
+            stone.For(part.Role, part.Texture ?? throw new InvalidOperationException($"CraftSurvive place piece '{piece.Name}' part '{part.Role}' names no texture."))))];
+        MeshResourceCreateRequest request = new(shaped.Mesh.Positions, shaped.Mesh.Normals, shaped.Mesh.Uvs, shaped.Mesh.Colors, shaped.Mesh.Indices,
+            shaped.Mesh.Groups, bindings);
+        MeshResource mesh = EngineClock.Time(() => engine.Graphics.CreateMeshResource(request));
+        MeshResource? blanketMesh = null;
+        if (extra > 0 && moss is not null)
+        {
+            MeshResourceCreateRequest blanket = shaped.Blanket;
+            MeshResourceCreateRequest bound = new(blanket.Positions, blanket.Normals, blanket.Uvs, blanket.Colors, blanket.Indices, blanket.Groups,
+                new MeshMaterialBinding[] { new(0, BlanketMaterial(extra)) });
+            blanketMesh = EngineClock.Time(() => engine.Graphics.CreateMeshResource(bound));
+        }
+
+        Loaded result = new(mesh, EngineClock.Time(() => engine.Graphics.CreateMeshAppearance(mesh)), shaped.Positions, shaped.Normals, shaped.Triangles,
+            CollisionAssetBase + (ulong)loaded.Count, extra, blanketMesh, blanketMesh is null ? null : EngineClock.Time(() => engine.Graphics.CreateMeshAppearance(blanketMesh)));
         loaded[(piece.Name, extra)] = result;
         return result;
     }
@@ -257,7 +314,7 @@ internal sealed class PlaceMeshes : IDisposable
     /// <see cref="BlanketOffset"/>, with the ivy tile projected on each triangle's dominant plane (in the piece's metres).
     /// The blanket shader shows it only where the moss field is strong.
     /// </summary>
-    private static MeshResourceCreateRequest Blanket(MeshResourceCreateRequest piece, Material material)
+    private static MeshResourceCreateRequest Blanket(MeshResourceCreateRequest piece, Material? material)
     {
         ReadOnlySpan<Vector3> p = piece.Positions.Span, n = piece.Normals.Span;
         ReadOnlySpan<Color> col = piece.Colors.Span;
@@ -288,7 +345,7 @@ internal sealed class PlaceMeshes : IDisposable
         }
 
         return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), uvs.ToArray(), colours.ToArray(), indices.ToArray(),
-            new MeshGroup[] { new(0, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(0, material) });
+            new MeshGroup[] { new(0, 0, (uint)indices.Count) }, material is null ? [] : new MeshMaterialBinding[] { new(0, material) });
     }
 
     /// <summary>The overgrown places' ivy blankets, standing with their pieces.</summary>

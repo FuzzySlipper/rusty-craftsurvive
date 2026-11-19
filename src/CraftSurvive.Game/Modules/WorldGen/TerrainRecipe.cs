@@ -843,15 +843,33 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>Makes ahead the place and crossing decisions over a rectangle of columns and the anchor cells about it (#10907).</summary>
     internal void PrepareDrawsOver(long minimumX, long minimumZ, long maximumX, long maximumZ)
     {
+        foreach ((long X, long Z) anchor in PlaceAnchorsOver(minimumX, minimumZ, maximumX, maximumZ))
+        {
+            PrepareAnchor(anchor.X, anchor.Z);
+        }
+    }
+
+    /// <summary>The place and crossing anchor cells whose structures can reach a rectangle of columns, not yet decided (#10907).</summary>
+    internal IEnumerable<(long X, long Z)> PlaceAnchorsOver(long minimumX, long minimumZ, long maximumX, long maximumZ)
+    {
         long place = PoiConstants.CellSize;
         for (long anchorX = GridMath.FloorDivide(minimumX, place) - 1; anchorX <= GridMath.FloorDivide(maximumX, place) + 1; anchorX++)
         {
             for (long anchorZ = GridMath.FloorDivide(minimumZ, place) - 1; anchorZ <= GridMath.FloorDivide(maximumZ, place) + 1; anchorZ++)
             {
-                pois.SiteAt(anchorX, anchorZ);
-                crossings.SiteAt(anchorX, anchorZ);
+                if (!pois.Knows(anchorX, anchorZ) || !crossings.Knows(anchorX, anchorZ))
+                {
+                    yield return (anchorX, anchorZ);
+                }
             }
         }
+    }
+
+    /// <summary>Decides one anchor cell's place and crossing here, their keyed draws the update thread's (#10907).</summary>
+    internal void PrepareAnchor(long anchorX, long anchorZ)
+    {
+        pois.SiteAt(anchorX, anchorZ);
+        crossings.SiteAt(anchorX, anchorZ);
     }
 
     private TreeShape? DecideTree(long anchorX, long anchorZ) => DecideTree(anchorX, anchorZ, TreeCellDraw(anchorX, anchorZ));

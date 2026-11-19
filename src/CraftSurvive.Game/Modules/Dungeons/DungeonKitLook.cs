@@ -81,7 +81,7 @@ internal sealed class DungeonKitLook : IDisposable
         ArgumentNullException.ThrowIfNull(content);
         this.look = look;
         ownsShader = sharedShader is null;
-        shader = sharedShader ?? engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
+        shader = sharedShader ?? World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath))).Handle;
         building = Build(content, placements, paint);
     }
 
@@ -151,20 +151,30 @@ internal sealed class DungeonKitLook : IDisposable
         }
 
         StepLabel = "placements";
+        long stepStarted = System.Diagnostics.Stopwatch.GetTimestamp(), blanketTicks = 0;
+        int index = 0;
+        string Since() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"placements[{index} blanket={System.Diagnostics.Stopwatch.GetElapsedTime(0, blanketTicks).TotalMilliseconds:F1} all={System.Diagnostics.Stopwatch.GetElapsedTime(stepStarted).TotalMilliseconds:F1}]");
         foreach (KitPlacement p in placements.Take(ProductIds.DungeonKitObjects))
         {
+            index++;
             (Vector3 at, Quaternion turn, Vector3 scale) = DungeonKit.Place(p);
             bool litHere = p.Lit && pieces.ContainsKey((p.Piece, true));
             int wet = Math.Clamp((int)MathF.Round(KitMoss.Dampness(p.Wet) / KitMoss.MostDampness * (WetSteps - 1)), 0, WetSteps - 1);
             placed.Add((p.Piece, litHere, wet, new Transform(at, turn, scale)));
             if (Blanketed(p.Piece) && KitMoss.Dampness(p.Wet) >= BlanketFrom && blanketed.Count < ProductIds.DungeonKitObjects)
             {
+                long blanketing = System.Diagnostics.Stopwatch.GetTimestamp();
                 bool made = Blanket(content, entries[DungeonKit.Name(p.Piece)].GetProperty("model").GetString()!, p.Piece, wet);
+                blanketTicks += System.Diagnostics.Stopwatch.GetTimestamp() - blanketing;
                 blanketed.Add((p.Piece, wet, new Transform(at, turn, scale)));
                 if (made)
                 {
                     // One new shell an update (#10907).
+                    StepLabel = Since();
                     yield return false;
+                    stepStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+                    blanketTicks = 0;
                 }
             }
             if (!damp.ContainsKey((p.Piece, litHere, wet)) && pieces[(p.Piece, litHere)] is { Mossy: true } drawn)
@@ -176,9 +186,14 @@ internal sealed class DungeonKitLook : IDisposable
                 World.EngineClock.Time(() => { engine.Graphics.UpdateStaticMeshMaterialFactors(new StaticMeshMaterialFactorsRequest(wetLook,
                     Enumerable.Range(0, drawn.Slots).Select(slot => new MeshMaterialFactors((uint)slot, false, default, false, Vector3.Zero, 0f, true, dampness)).ToArray())); return 0; });
                 damp[(p.Piece, litHere, wet)] = wetLook;
+                StepLabel = Since();
                 yield return false;
+                stepStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+                blanketTicks = 0;
             }
         }
+
+        StepLabel = Since();
     }
 
     // The pieces' collision meshes (a manifest's collider: the shape decimated), by piece; a piece without one collides as drawn.
@@ -264,8 +279,8 @@ internal sealed class DungeonKitLook : IDisposable
         {
             if (blanketMaterial is null)
             {
-                blanketShader = engine.Graphics.OpenResource(new RenderResourceRequest(BlanketShaderPath)).Handle;
-                blanketTexture = engine.Graphics.OpenResource(new RenderResourceRequest(BlanketTexturePath, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
+                blanketShader = World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(BlanketShaderPath))).Handle;
+                blanketTexture = World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(BlanketTexturePath, TextureFilter.NearestMipmapped, TextureWrap.Repeat))).Handle;
                 Color white = new(1f, 1f, 1f, 1f);
                 blanketMaterial = World.EngineClock.Time(() => engine.Graphics.CreateMaterial(new MaterialRequest(white, blanketTexture, Roughness, white, Vector3.Zero, 0f, false)
                 {

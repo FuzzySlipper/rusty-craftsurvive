@@ -79,7 +79,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         ArgumentNullException.ThrowIfNull(content);
         ownsShader = sharedShader is null;
-        shader = sharedShader ?? engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
+        shader = sharedShader ?? World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath))).Handle;
         building = Build(content, placements);
     }
 
@@ -317,7 +317,7 @@ internal sealed class DungeonOvergrowth : IDisposable
     }
 
     /// <summary>The kit stone shader under its SWAY keyword, opened when a swaying kind is first drawn.</summary>
-    private RenderResource SwayShader => swayShader ??= engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath) { ShaderKeywords = SwayKeyword }).Handle;
+    private RenderResource SwayShader => swayShader ??= World.EngineClock.Time(() => engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath) { ShaderKeywords = SwayKeyword })).Handle;
 
     /// <summary>Whether a dungeon loaded from now draws its overgrowth (a study's before and after; on by default).</summary>
     internal static bool Shown { get; set; } = true;

@@ -36,6 +36,15 @@ internal sealed class TerrainTrees : IDisposable
     }
     /// <summary>The near set is rebuilt when the player has moved this far, or the terrain changed.</summary>
     private const long RebuildMetres = 8;
+
+    /// <summary>
+    /// When only the resident chunks changed (streaming), the near trees are built again at most this often (#10907): while
+    /// the world streams the count changes every few updates, and each build is 2 to 14 ms. An edit or the player moving on
+    /// builds them at once.
+    /// </summary>
+    private const int ResidencyRebuildUpdates = 30;
+
+    private int sinceBuilt;
     /// <summary>How far a trunk is sunk below its ground's surface, so a slope never shows its base.</summary>
     internal const float Sink = 0.25f;
 
@@ -172,7 +181,9 @@ internal sealed class TerrainTrees : IDisposable
             stale = true;
         }
 
-        bool nearStale = stale || builtRevision != editRevision || builtResidents != residentChunks
+        sinceBuilt++;
+        bool nearStale = stale || builtRevision != editRevision
+            || (builtResidents != residentChunks && sinceBuilt >= ResidencyRebuildUpdates)
             || builtAround is not (long x, long z) || Math.Abs(center.X - x) >= RebuildMetres || Math.Abs(center.Z - z) >= RebuildMetres;
         if (nearStale)
         {
@@ -181,6 +192,7 @@ internal sealed class TerrainTrees : IDisposable
             builtRevision = editRevision;
             builtResidents = residentChunks;
             stale = false;
+            sinceBuilt = 0;
         }
 
     }

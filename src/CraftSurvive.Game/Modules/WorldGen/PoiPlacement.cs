@@ -69,6 +69,9 @@ internal sealed class PoiPlacement
     /// <summary>Each anchor cell's decision, read by the chunk workers too (#10907).</summary>
     private readonly SharedCache<(long X, long Z), PoiSite?> cells = new(PoiConstants.SiteCacheLimit);
 
+    /// <summary>Whether an anchor cell is decided already (#10907).</summary>
+    internal bool Knows(long cellX, long cellZ) => cells.ContainsKey((cellX, cellZ));
+
     internal PoiPlacement(TerrainGeneratorContract contract, ITerrainDraws draws, ITerrainColumns columns, long radius)
     {
         this.contract = contract;

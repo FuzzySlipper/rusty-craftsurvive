@@ -702,7 +702,11 @@ internal sealed class TerrainWorld : IDisposable
             }
         }
 
-        engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(Session, assets.ToArray(), vertices.ToArray(), triangles.ToArray(), instances.ToArray()));
+        CollisionReplaceRequest replacing = new(Session, assets.ToArray(), vertices.ToArray(), triangles.ToArray(), instances.ToArray());
+        // The Engine builds the walking session's one static collision on this thread (#10907): counted as its share.
+        long replaced = System.Diagnostics.Stopwatch.GetTimestamp();
+        engine.Spatial.ReplaceCollision(replacing);
+        EngineMs += System.Diagnostics.Stopwatch.GetElapsedTime(replaced).TotalMilliseconds;
         DeadwoodColliders = deadwood;
         StaticCollisionRevision++;
         IcePatches = (int)patch;
