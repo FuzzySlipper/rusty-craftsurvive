@@ -506,6 +506,66 @@ CreatureSimulation.Step(searcher, new CreatureSense(false), playerAt, playerCanB
 Check.That(Math.Abs(searcher.Position.Y - (expectedOne * CreatureSimulation.SearchPaceShare)) < 1e-5,
     $"a searcher walks toward where it last saw the player at half pace, moved to {searcher.Position}");
 
+// A swing reaches only a creature on the player's own floor (R10876-2): one in a cave on the player's column, 20 m below,
+// is never a target, and never takes the swing from one on the player's floor a little further across the ground.
+Vector3 swingerFeet = new(0, 40, 0);
+Creature underneath = new(30, CreatureKinds.Hostile, new Vector2(0, 0)) { Feet = 20 };
+Creature level = new(31, CreatureKinds.Hostile, new Vector2(1.5f, 0)) { Feet = 40.4f };
+Check.That(CreatureSimulation.MeleeTarget([(underneath, 20f), (level, 40.4f)], swingerFeet)?.Creature == level,
+    "a swing goes for the creature on the player's floor, not the one under the player's feet");
+Check.That(CreatureSimulation.MeleeTarget([(underneath, 20f)], swingerFeet) is null, "with only one 20 m below, a swing finds no creature");
+Creature belowAttacking = new(32, CreatureKinds.Hostile, new Vector2(0.5f, 0)) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Attacking } };
+Check.That(CreatureSimulation.MeleeTarget([(belowAttacking, 30f), (level, 40.4f)], swingerFeet)?.Creature == level,
+    "even one attacking from another floor does not draw the swing");
+Creature ledge = new(33, CreatureKinds.Hostile, new Vector2(1, 0)) { Feet = 42 };
+Check.That(CreatureSimulation.MeleeTarget([(ledge, 42f)], swingerFeet)?.Creature == ledge, "one on a ledge a step above is reached");
+
+// The same rules in any space (#10876, Do 1): the walking session's open ground and a separate space's cave, each its own
+// ground provider with its own coordinates, wake, ground and hunt a creature alike; a space that is not live sleeps its own.
+FakeGround open = new(floor: 64f, underRock: false);
+FakeGround cave = new(floor: -2040f, underRock: true);
+foreach (FakeGround space in new[] { open, cave })
+{
+    Check.That(CreatureSpaceRules.Awake(space, new Vector3(3, space.Floor, 0)), $"a creature on loaded floor in a live space is awake ({space})");
+    space.Live = false;
+    Check.That(!CreatureSpaceRules.Awake(space, new Vector3(3, space.Floor, 0)), $"and asleep while its space is not live ({space})");
+    space.Live = true;
+    space.Resident = false;
+    Check.That(!CreatureSpaceRules.Awake(space, new Vector3(3, space.Floor, 0)), $"and dormant on unloaded floor ({space})");
+    space.Resident = true;
+    space.Floor -= 1f;
+    Check.Equal((float?)space.Floor, CreatureSpaceRules.Followed(space, new Vector3(3, space.Floor + 1f, 0), 1.05), $"a creature drops to a floor that falls away under it ({space})");
+    space.Floor += 1f;
+}
+
+open.Floor += 0.5f;
+Check.Equal((float?)64.5f, CreatureSpaceRules.Followed(open, new Vector3(3, 64f, 0), 1.05), "on open ground it steps up onto a floor raised under it, as before (#9734)");
+cave.Floor += 0.5f;
+Check.That(CreatureSpaceRules.Followed(cave, new Vector3(3, -2040f, 0), 1.05) is null, "under rock a surface above its feet is a ceiling: it does not rise onto it");
+open.Floor -= 0.5f;
+cave.Floor -= 0.5f;
+
+static (CreatureState State, Vector2 Position, bool Struck, int Steps) HuntIn(FakeGround space)
+{
+    Creature c = new(40, CreatureKinds.Hostile, new Vector2(3, 0), space) { Feet = space.Floor, Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
+    CreatureStrike? struck = null;
+    int steps = 0;
+    for (long tick = 1; tick <= 120; tick++)
+    {
+        // As the module does: only an awake creature, in a live space on loaded floor, senses and steps.
+        if (!CreatureSpaceRules.Awake(c.Space, new Vector3(c.Position.X, c.Feet!.Value, c.Position.Y))) continue;
+        steps++;
+        struck ??= CreatureSimulation.Step(c, new CreatureSense(true), new Vector3(0, space.Floor + 1.6f, 0), playerCanBeHit: true, new ProductStep(tick, 1, 1.0 / 60.0), sightScale: 1, waypoint: Vector2.Zero);
+    }
+
+    return (c.Behavior.State, c.Position, struck is not null, steps);
+}
+Check.Equal(HuntIn(open), HuntIn(cave), "a creature hunts, closes and strikes the same in a separate space as on the walking session's ground");
+Check.That(HuntIn(cave).Struck && HuntIn(cave).Steps == 120, "and does strike there, every step simulated");
+cave.Live = false;
+Check.That(HuntIn(cave).Steps == 0, "a space that is not live simulates none of its creatures");
+cave.Live = true;
+
 // Only a routed waypoint moves a pursuer: with no route - outside the published grid, a refused
 // start, or no way through - it waits where it is instead of walking at the player.
 Creature unrouted = new(9, CreatureKinds.Hostile, new Vector2(3, 4)) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
@@ -943,3 +1003,21 @@ Check.That(packed == 0 && marchShort.Lost > 0 && marchShort.Lost < SurvivalRules
 Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame, spawn spread, the climbing rule, footfalls, ambience, the world's clock and survival passed.");
 
 return Check.Finish("RpgCore");
+
+/// <summary>A space's ground for the rule checks (#10876): one flat floor at a height, loaded or not, live or not, open or under rock.</summary>
+internal sealed class FakeGround(float floor, bool underRock) : ICreatureGround
+{
+    internal float Floor { get; set; } = floor;
+
+    public bool Live { get; set; } = true;
+
+    internal bool Resident { get; set; } = true;
+
+    public bool IsResident(Vector3 world) => Resident;
+
+    public float? FloorBelow(double x, double z, double feet, double climb) => Resident && Floor <= feet + climb ? Floor : null;
+
+    public bool UnderRock(Vector3 feet) => underRock;
+
+    public override string ToString() => underRock ? "a separate space's cave" : "the walking session's open ground";
+}

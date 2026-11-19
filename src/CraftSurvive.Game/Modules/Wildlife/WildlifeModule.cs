@@ -53,7 +53,11 @@ internal sealed class WildlifeModule : IProductModule
     private WildlifePresentation? presentation;
     private readonly List<WildlifeHerd> awake = [];
     private readonly List<WildlifeFallen> fallen = [];
-    private WildlifeRagdolls? ragdolls;
+    /// <summary>The walking session as a space (#10876): the overworld and its caves, where the herds live.</summary>
+    private readonly Creatures.WalkingCreatureSpace walking;
+
+    /// <summary>Each space's physics world for its dead (#10876): the walking session's, and any separate space's a hunter fell in.</summary>
+    private readonly Dictionary<Creatures.CreatureSpace, WildlifeRagdolls> ragdolls = [];
     private readonly Dictionary<int, MemberBody> bodies = [];
     private readonly Dictionary<(string Kind, WildlifeSizeClass SizeClass), CharacterControllerConfig> configs = [];
     private readonly Dictionary<string, Vector2?> waters = [];
@@ -87,8 +91,9 @@ internal sealed class WildlifeModule : IProductModule
     }
 
     internal WildlifeModule(IEngineContext engine, ProductContent content, ProductStore store, SaveIdentity identity, TerrainWorld terrain,
-        PlayerController player, WorldFrame frame, Func<WorldTime> clock, Cues cues)
+        PlayerController player, WorldFrame frame, Creatures.WalkingCreatureSpace walking, Func<WorldTime> clock, Cues cues)
     {
+        this.walking = walking ?? throw new ArgumentNullException(nameof(walking));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
@@ -136,8 +141,7 @@ internal sealed class WildlifeModule : IProductModule
         catalog ??= WildlifeKinds.Parse(content.ReadText(WildlifeKinds.ContentPath));
         if (presentation is null)
         {
-            ragdolls = new WildlifeRagdolls(engine, frame, () => terrain.Session, catalog.Animation.Ragdoll);
-            WildlifeMeshBodies meshes = new(engine, content, frame, catalog.Animation, GroundNear, Seed, ragdolls);
+            WildlifeMeshBodies meshes = new(engine, content, frame, catalog.Animation, GroundIn, Seed, RagdollsIn);
             foreach (WildlifeKind kind in catalog.Kinds.Where(kind => kind.Mesh is not null)) meshes.Prepare(kind);
             presentation = new WildlifePresentation(engine, frame, meshes);
         }
@@ -198,13 +202,21 @@ internal sealed class WildlifeModule : IProductModule
     public void Update(ProductStep time)
     {
         if (!started) return;
-        if (player.InSeparateSpace)
+        if (!walking.Live)
         {
-            // The open world's herds sleep while the player is in a dungeon: nothing draws them there.
-            if (awake.Count > 0 || fallen.Count > 0 || AppearanceFacts.Count > 0 || Ambience.Creatures.Count > 0) SleepAll();
-            ragdolls?.Update(time);
+            // The herds live in the walking session (#10876, Do 2) and sleep with it while the player is in another space;
+            // hostile animals living in that space are drawn there, with their dead.
+            if (awake.Count > 0 || Ambience.Creatures.Count > 0 || fallen.Any(body => body.Space is null)) SleepAll(overworldOnly: true);
+            Vector3 elsewhere = player.WorldPosition;
+            Vector2 standing = new(elsewhere.X, elsewhere.Z);
+            Decay(standing, time.ElapsedSeconds);
+            Presentation.Sync([], fallen, Hunters?.Invoke() ?? [], FeetOf, standing, time.ElapsedSeconds);
+            UpdateRagdolls(time);
             return;
         }
+
+        // Back in the walking session, the dead of a space it left go with it.
+        if (fallen.Any(body => body.Space is not null)) ForgetFallen(body => body.Space is not null);
 
         long began = Stopwatch.GetTimestamp();
         step = time.Step;
@@ -232,7 +244,7 @@ internal sealed class WildlifeModule : IProductModule
         Decay(here, time.ElapsedSeconds);
         Ambience.Update(at, time.ElapsedSeconds);
         Presentation.Sync(awake, fallen, Hunters?.Invoke() ?? [], FeetOf, here, time.ElapsedSeconds, Ambience.Creatures);
-        ragdolls?.Update(time);
+        UpdateRagdolls(time);
         double milliseconds = Stopwatch.GetElapsedTime(began).TotalMilliseconds;
         cost = (cost.Total + milliseconds, cost.Count + 1, Math.Max(cost.Worst, milliseconds), cost.Steps, cost.Refused, cost.Glides);
     }
@@ -250,7 +262,8 @@ internal sealed class WildlifeModule : IProductModule
         fallen.Clear();
         bodies.Clear();
         presentation?.Dispose();
-        ragdolls?.Dispose();
+        foreach (WildlifeRagdolls world in ragdolls.Values) world.Dispose();
+        ragdolls.Clear();
         started = false;
     }
 
@@ -341,6 +354,44 @@ internal sealed class WildlifeModule : IProductModule
     /// <summary>Ground this near a body's height is the overworld's under it; further, the body is somewhere below it.</summary>
     private const double OverworldGroundMetres = 4d;
 
+    /// <summary>The dead that go: their ids are freed and their bodies retired with the next sync.</summary>
+    private void ForgetFallen(Func<WildlifeFallen, bool> going)
+    {
+        foreach (WildlifeFallen body in fallen.Where(going).ToArray())
+        {
+            Forget(body.Member);
+            fallen.Remove(body);
+        }
+    }
+
+    /// <summary>The ground under a point near a height in a space (#10876): the walking session's as the herds' own, a separate space's floor below.</summary>
+    private float GroundIn(Creatures.CreatureSpace? space, double x, double z, double near) =>
+        space is null || space == walking ? GroundNear(x, z, near) : space.FloorBelow(x, z, near, AmbientReachMetres) ?? (float)near;
+
+    /// <summary>A space's physics world for its dead, made the first time one falls there.</summary>
+    private WildlifeRagdolls RagdollsIn(Creatures.CreatureSpace? space)
+    {
+        Creatures.CreatureSpace owner = space ?? walking;
+        if (ragdolls.TryGetValue(owner, out WildlifeRagdolls? world)) return world;
+        return ragdolls[owner] = new WildlifeRagdolls(engine, owner, Catalog.Animation.Ragdoll);
+    }
+
+    /// <summary>Steps each space's dead; a separate space's world goes once that space is let go and none lie in it.</summary>
+    private void UpdateRagdolls(ProductStep time)
+    {
+        foreach ((Creatures.CreatureSpace space, WildlifeRagdolls world) in ragdolls.ToArray())
+        {
+            if (space.Gone && world.Lying == 0)
+            {
+                world.Dispose();
+                ragdolls.Remove(space);
+                continue;
+            }
+
+            if (space.Live) world.Update(time);
+        }
+    }
+
     private static double Day(WorldTime time) => time.Day + time.DayFraction;
 
     /// <summary>Herds whose leader has gone beyond the sleep distance sleep.</summary>
@@ -408,12 +459,13 @@ internal sealed class WildlifeModule : IProductModule
     internal void ForgetHunter(WildlifeMember member) => Forget(member);
 
     /// <summary>A hostile animal is dead: it falls where it stood, and its record counts the loss as a herd's does.</summary>
-    internal void HunterFell(Creatures.Hunter hunter, float feet)
+    /// <param name="space">The space it fell in (#10876): it lies there, and falls as a ragdoll on that space's collision.</param>
+    internal void HunterFell(Creatures.Hunter hunter, float feet, Creatures.CreatureSpace space)
     {
         WildlifeMember member = hunter.Member;
         member.Velocity = Vector2.Zero;
         bodies[member.Id] = new MemberBody { Feet = feet };
-        fallen.Add(new WildlifeFallen(hunter.Kind, member, BlowOn(member)));
+        fallen.Add(new WildlifeFallen(hunter.Kind, member, BlowOn(member)) { Space = space == walking ? null : space });
         double day = Day(clock());
         hunter.Record.Kill(day, hunter.Kind.Population.RecoveryDays);
         slot.Save(Ledger.Losses(day));
@@ -635,7 +687,7 @@ internal sealed class WildlifeModule : IProductModule
     /// </summary>
     internal string? PlayerSwing()
     {
-        if (!started || player.Vitals.IsDown || player.InSeparateSpace) return null;
+        if (!started || player.Vitals.IsDown || !walking.Live) return null;
         Vector3 at = player.WorldPosition;
         Vector2 here = new(at.X, at.Z);
         (WildlifeHerd Herd, WildlifeMember Member, double Gap)? nearest = awake
@@ -703,11 +755,11 @@ internal sealed class WildlifeModule : IProductModule
     }
 
     /// <summary>Puts every awake herd to sleep; the ledger keeps them.</summary>
-    internal string SleepAll()
+    /// <param name="overworldOnly">Only what lives in the walking session sleeps: the dead of a separate space stay where they fell.</param>
+    internal string SleepAll(bool overworldOnly = false)
     {
         foreach (WildlifeHerd herd in awake.ToArray()) Release(herd);
-        foreach (WildlifeFallen body in fallen) Forget(body.Member);
-        fallen.Clear();
+        ForgetFallen(body => !overworldOnly || body.Space is null);
         // The caves' small creatures go too, and come again from their homes when the caves are taken up afresh.
         foreach (WildlifeMember member in Ambience.Remove(_ => true)) Forget(member);
         foreach (string cave in Ledger.Caves.ToArray()) Ledger.RemoveCave(cave, Day(clock()));
@@ -757,7 +809,7 @@ internal sealed class WildlifeModule : IProductModule
         cost = default;
         parts = default;
         return string.Create(CultureInfo.InvariantCulture,
-            $"step={step} day={now.Day} hour={now.DayFraction * WildlifeSchedule.HoursPerDay:F2} herds={awake.Count} animals={awake.Sum(herd => herd.Members.Count)} regions={Ledger.Regions.Count()} player={at.X:F0},{at.Z:F0} {costs} {Presentation.Meshes.Readout()} {ragdolls?.Readout()} {Ambience.Readout()} caves={Ledger.Caves.Count()} fallen={fallen.Count} fallenAt={string.Join("/", fallen.Select(body => string.Create(CultureInfo.InvariantCulture, $"{body.Member.Position.X:F1},{body.Member.Position.Y:F1}")))} last={lastEvent} asleep={Asleep(at, now)} | ")
+            $"step={step} day={now.Day} hour={now.DayFraction * WildlifeSchedule.HoursPerDay:F2} herds={awake.Count} animals={awake.Sum(herd => herd.Members.Count)} regions={Ledger.Regions.Count()} player={at.X:F0},{at.Z:F0} {costs} {Presentation.Meshes.Readout()} {string.Join(" ", ragdolls.Select(world => $"{world.Key.Name}:{world.Value.Readout()}"))} {Ambience.Readout()} caves={Ledger.Caves.Count()} fallen={fallen.Count} fallenAt={string.Join("/", fallen.Select(body => string.Create(CultureInfo.InvariantCulture, $"{body.Member.Position.X:F1},{body.Member.Position.Y:F1}")))} last={lastEvent} asleep={Asleep(at, now)} | ")
             + string.Join(" | ", awake.Select(Readout));
     }
 

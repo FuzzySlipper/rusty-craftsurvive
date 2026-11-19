@@ -184,8 +184,10 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         riverStage = new Modules.Water.RiverStageModule(worlds.Current.Map, () => weather.Hours, terrain.RefreshWater,
             new Modules.Water.RiverStageStore(context.Engine, store, terrain.SaveIdentity));
         terrain.Water.Stages = riverStage;
-        creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
-        wildlife = new Modules.Wildlife.WildlifeModule(context.Engine, context.Content, store, terrain.SaveIdentity, terrain, player, frame, () => conditions.Time, cues);
+        // The walking session as a space creatures live in (#10876): the overworld and its caves, live while the player walks it.
+        Modules.Creatures.WalkingCreatureSpace walking = new(terrain, frame, () => !player.InSeparateSpace);
+        creatures = new CreatureModule(context.Engine, terrain, player, frame, walking, () => conditions.IsNight, cues);
+        wildlife = new Modules.Wildlife.WildlifeModule(context.Engine, context.Content, store, terrain.SaveIdentity, terrain, player, frame, walking, () => conditions.Time, cues);
         birds = new Modules.Birds.BirdModule(context.Engine, context.Content, terrain, player, frame, () => conditions.Time);
         parties = new Modules.Birds.PartyModule(context.Engine, context.Content, terrain, player, frame, () => conditions.Time);
         creatures.SwingElsewhere = wildlife.PlayerSwing;
@@ -209,6 +211,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         dungeons = new DungeonModule(context.Engine, terrain, player, conditions, sky, ui);
         // The caves under the world hold their own animals (#10876): wildlife places them from what each cave offers.
         wildlife.CavesNear = dungeons.CaveSitesNear;
+        // A loaded dungeon is a space of its own that creatures can live in (#10876).
+        creatures.SeparateSpace = () => dungeons.CreatureSpace;
         player.PrepareUnderground = at => dungeons.PrepareCaveAt(at);
         walkingUpdates.EngineShare = () => terrain.EngineMs + (horizon?.LastEngineMs ?? 0d)
             + System.Diagnostics.Stopwatch.GetElapsedTime(0, EngineClock.Ticks - savesAtBegin).TotalMilliseconds;
@@ -662,7 +666,6 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         Gather("places", () => terrain.PlaceFacts);
         Gather("pieces", pieces.Facts);
         Gather("chemistry", () => chemistry.OverlayFacts);
-        Gather("wildlife", () => wildlife.AppearanceFacts);
         Gather("birds", () => birds.AppearanceFacts);
         Gather("parties", () => parties.AppearanceFacts);
     }
@@ -705,6 +708,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             snapshotFacts.Clear();
             snapshotParts.Clear();
             Gather("creatures", () => creatures.AppearanceFacts);
+            // Wildlife draws its herds in the walking session and hostile animals in whatever space they live in (#10876).
+            Gather("wildlife", () => wildlife.AppearanceFacts);
             Gather("dungeons", () => dungeons.AppearanceFacts);
             Gather("sled", SledFacts);
             Gather("boat", BoatFacts);
@@ -725,7 +730,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         engine.Graphics.PublishSnapshot(facts);
         mapView?.Profile.Mark("snapshot.publish");
         creatures.AfterAppearanceSnapshot();
-        wildlife.AfterAppearanceSnapshot(drawn: !player.InSeparateSpace && (town.Open || !mapOpen || mapView is null));
+        wildlife.AfterAppearanceSnapshot(drawn: town.Open || !mapOpen || mapView is null);
         birds.AfterAppearanceSnapshot();
         parties.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();

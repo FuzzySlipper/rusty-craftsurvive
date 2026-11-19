@@ -73,20 +73,19 @@ internal sealed class CreatureNavigation
 
     private readonly IEngineContext engine;
     private CollisionNavigationConfig config;
-    private readonly TerrainWorld terrain;
-    private readonly WorldFrame frame;
+    /// <summary>The space it routes in (#10876): its session, frame, collision and water.</summary>
+    private readonly CreatureSpace space;
     /// <summary>Deep water closed to creatures, laid over each publication (#9879 follow-up).</summary>
     private readonly WaterAvoidance water = new();
     /// <summary>The water over each world column as last sampled, kept until the water's stage moves on.</summary>
-    private readonly Dictionary<(long X, long Z), Water.WaterSample> waterSamples = [];
+    private readonly Dictionary<(long X, long Z), (double Top, double Depth, bool Ice)?> waterSamples = [];
     private long sampledWaterRevision = -1;
 
     /// <summary>Kept water samples past this many are dropped together (the box moves with the player).</summary>
     private const int MostWaterSamples = 65_536;
     private Vector3? publishedAround;
-    private ulong publishedEditRevision;
-    /// <summary>The built pieces' collision revision the publication saw (#9734): built work changes what is walkable.</summary>
-    private long publishedStaticRevision = -1;
+    /// <summary>The space's collision revision the publication saw (#9734: built work and edits change what is walkable).</summary>
+    private object? publishedCollision;
     private float? publishedBottom;
     private CollisionNavigationReplaceReceipt lastPublished;
     private long publishes;
@@ -94,14 +93,16 @@ internal sealed class CreatureNavigation
     private double worstPublishMilliseconds;
     private double totalPublishMilliseconds;
 
-    internal CreatureNavigation(IEngineContext engine, TerrainWorld terrain, WorldFrame frame)
+    internal CreatureNavigation(IEngineContext engine, CreatureSpace space)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
-        this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
+        this.space = space ?? throw new ArgumentNullException(nameof(space));
         config = Configure(engine.Spatial);
-        frame.Rebased += _ => publishedAround = null;
+        space.Rebased += () => publishedAround = null;
     }
+
+    /// <summary>The space it routes in.</summary>
+    internal CreatureSpace Space => space;
 
     /// <summary>
     /// A creature's body as navigation stands and steps it: a capsule the player's width and a little
@@ -151,14 +152,13 @@ internal sealed class CreatureNavigation
         bool stale = force
             || publishedAround is not Vector3 centre
             || Vector2.Distance(new Vector2(centre.X, centre.Z), new Vector2(playerFeetWorld.X, playerFeetWorld.Z)) > RepublishDistanceMetres
-            || publishedEditRevision != terrain.EditRevision
-            || publishedStaticRevision != terrain.StaticCollisionRevision;
+            || !Equals(publishedCollision, space.CollisionRevision);
         if (!stale)
         {
             return;
         }
 
-        Vector3 local = frame.ToLocal(playerFeetWorld);
+        Vector3 local = space.ToLocal(playerFeetWorld);
         float bottom = publishedBottom is float kept
             && local.Y - kept >= DepthBelow && local.Y - kept <= DepthBelow + VerticalSlackMetres
                 ? kept
@@ -168,40 +168,38 @@ internal sealed class CreatureNavigation
         float cellZ = MathF.Floor(local.Z / cell) * cell;
         long started = Stopwatch.GetTimestamp();
         lastPublished = engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(
-            terrain.Session,
+            space.Session,
             new Vector3(cellX - HalfExtent, bottom, cellZ - HalfExtent),
             new Vector3(cellX + HalfExtent, bottom + DepthBelow + HeightAbove + VerticalSlackMetres, cellZ + HalfExtent),
             config));
         // Creatures keep out of deep water: the overlay goes on after every publication, which clears it.
         (long X, long Z) minCell = ((long)MathF.Floor((cellX - HalfExtent) / cell), (long)MathF.Floor((cellZ - HalfExtent) / cell));
         (long X, long Z) maxCell = ((long)MathF.Floor((cellX + HalfExtent) / cell), (long)MathF.Floor((cellZ + HalfExtent) / cell));
-        water.Apply(engine.Spatial, terrain.Session, minCell, maxCell, WaterAt,
-            (terrain.EditRevision, terrain.StaticCollisionRevision, frame.Origin, bottom));
+        water.Apply(engine.Spatial, space.Session, minCell, maxCell, WaterAt, (space.CollisionRevision, bottom));
         lastPublishMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         worstPublishMilliseconds = Math.Max(worstPublishMilliseconds, lastPublishMilliseconds);
         totalPublishMilliseconds += lastPublishMilliseconds;
         publishes++;
         publishedAround = playerFeetWorld;
         publishedBottom = bottom;
-        publishedEditRevision = terrain.EditRevision;
-        publishedStaticRevision = terrain.StaticCollisionRevision;
+        publishedCollision = space.CollisionRevision;
     }
 
     /// <summary>The water over a local cell column, in the local frame, or null where it is dry.</summary>
     private ColumnWater? WaterAt(long x, long z)
     {
         double cell = config.CellSize;
-        Vector3 world = frame.ToWorld(new Vector3((float)((x + 0.5) * cell), 0f, (float)((z + 0.5) * cell)));
-        if (sampledWaterRevision != terrain.WaterRevision || waterSamples.Count > MostWaterSamples)
+        Vector3 world = space.ToWorld(new Vector3((float)((x + 0.5) * cell), 0f, (float)((z + 0.5) * cell)));
+        if (sampledWaterRevision != space.WaterRevision || waterSamples.Count > MostWaterSamples)
         {
             waterSamples.Clear();
-            sampledWaterRevision = terrain.WaterRevision;
+            sampledWaterRevision = space.WaterRevision;
         }
 
         (long X, long Z) column = ((long)Math.Floor(world.X), (long)Math.Floor(world.Z));
-        if (!waterSamples.TryGetValue(column, out Water.WaterSample sample)) waterSamples[column] = sample = terrain.Water.Sample(column.X, column.Z);
-        if (!sample.Wet) return null;
-        return new ColumnWater(frame.ToLocal(world.X, sample.Top, world.Z).Y, sample.Depth, sample.Ice);
+        if (!waterSamples.TryGetValue(column, out (double Top, double Depth, bool Ice)? sample)) waterSamples[column] = sample = space.WaterAt(column.X, column.Z);
+        if (sample is not (double top, double depth, bool ice)) return null;
+        return new ColumnWater(space.ToLocal(world.X, top, world.Z).Y, depth, ice);
     }
 
     /// <summary>One bounded step of the route from a creature's feet to the player's, in world coordinates.</summary>
@@ -209,9 +207,9 @@ internal sealed class CreatureNavigation
     {
         long started = Stopwatch.GetTimestamp();
         NavigationStepResult result = engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(
-            terrain.Session,
-            frame.ToLocal(creatureFeetWorld),
-            frame.ToLocal(playerFeetWorld),
+            space.Session,
+            space.ToLocal(creatureFeetWorld),
+            space.ToLocal(playerFeetWorld),
             MaximumStepMetres,
             maximumVisitedCells));
         double milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -232,7 +230,7 @@ internal sealed class CreatureNavigation
         Vector2[] centres = new Vector2[path.Length];
         for (int i = 0; i < path.Length; i++)
         {
-            Vector3 world = frame.ToWorld(new Vector3((float)((path[i].X + 0.5) * cell), 0f, (float)((path[i].Z + 0.5) * cell)));
+            Vector3 world = space.ToWorld(new Vector3((float)((path[i].X + 0.5) * cell), 0f, (float)((path[i].Z + 0.5) * cell)));
             centres[i] = new Vector2(world.X, world.Z);
         }
         return centres;
@@ -258,7 +256,7 @@ internal sealed class CreatureNavigation
     /// </summary>
     internal string MeasureBody(Vector3 playerFeetWorld, CharacterControllerConfig character)
     {
-        Vector3 local = frame.ToLocal(playerFeetWorld);
+        Vector3 local = space.ToLocal(playerFeetWorld);
         const float cell = (float)TerrainConstants.VoxelSize;
         float cellX = MathF.Floor(local.X / cell) * cell;
         float cellZ = MathF.Floor(local.Z / cell) * cell;
@@ -267,7 +265,7 @@ internal sealed class CreatureNavigation
         double cellSize = Math.Max(TerrainConstants.VoxelSize, Math.Ceiling(2 * character.Shape.Radius));
         long started = Stopwatch.GetTimestamp();
         CollisionNavigationReplaceReceipt receipt = engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(
-            terrain.Session,
+            space.Session,
             new Vector3(cellX - HalfExtent, bottom, cellZ - HalfExtent),
             new Vector3(cellX + HalfExtent, bottom + DepthBelow + HeightAbove + VerticalSlackMetres, cellZ + HalfExtent),
             config with { Character = character, CellSize = cellSize }));

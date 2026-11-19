@@ -112,6 +112,9 @@ internal sealed class WildlifeFallen(WildlifeKind kind, WildlifeMember member, V
     internal Vector2 Blow { get; } = blow;
 
     internal double Seconds { get; set; }
+
+    /// <summary>The space it lies in (#10876): its position is that space's world metres.</summary>
+    internal Creatures.ICreatureGround? Space { get; init; }
 }
 
 /// <summary>

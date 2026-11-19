@@ -45,8 +45,6 @@ internal sealed class Hunter(WildlifeKind kind, HerdRecord record, WildlifeMembe
     internal bool Holding => ThreatSeconds > 0 || BiteSeconds > 0;
 }
 
-/// <summary>A hostile animal as wildlife's bodies draw it this update.</summary>
-internal readonly record struct WildlifeHunter(WildlifeKind Kind, WildlifeMember Member, float Feet);
 
 /// <summary>What a hostile animal does with its body, as Engine-free rules: the presentation applies these and decides nothing.</summary>
 internal static class HunterRules

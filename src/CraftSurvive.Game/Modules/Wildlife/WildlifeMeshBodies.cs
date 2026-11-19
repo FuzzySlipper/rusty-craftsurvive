@@ -24,10 +24,12 @@ internal sealed class WildlifeMeshBodies : IDisposable
     private readonly ProductContent content;
     private readonly WorldFrame frame;
     private readonly WildlifeAnimation animation;
-    /// <summary>The ground under a point near a height (#10876): the overworld's, or a cave's floor under a body in a cave.</summary>
-    private readonly Func<double, double, double, float> groundAt;
+    /// <summary>The ground under a point near a height in a body's space (#10876): the overworld's, a cave's floor under a body in a cave, or a separate space's floor.</summary>
+    private readonly Func<Creatures.CreatureSpace?, double, double, double, float> groundAt;
+
+    /// <summary>The physics world the dead of a space fall in (#10876: each space its own).</summary>
+    private readonly Func<Creatures.CreatureSpace?, WildlifeRagdolls> ragdollsIn;
     private readonly ulong seed;
-    private readonly WildlifeRagdolls ragdolls;
     private readonly Dictionary<string, Opened> opened = [];
     private readonly OwnedBodies<Body> bodies = new();
     private readonly CyclingSlots slots = new(WildlifePresentation.MostMembers);
@@ -83,11 +85,14 @@ internal sealed class WildlifeMeshBodies : IDisposable
         /// <summary>Its body in the physics world, once it has fallen as one.</summary>
         internal DynamicsRagdoll? Ragdoll { get; set; }
 
+        /// <summary>The space it stands or lies in (#10876); null for the walking session's frame.</summary>
+        internal Creatures.CreatureSpace? Space { get; set; }
+
         /// <summary>Its death has begun, as a ragdoll or a clip: a body that could not fall at once plays its clip and stays with it.</summary>
         internal bool Fell { get; set; }
     }
 
-    internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<double, double, double, float> groundAt, ulong seed, WildlifeRagdolls ragdolls)
+    internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<Creatures.CreatureSpace?, double, double, double, float> groundAt, ulong seed, Func<Creatures.CreatureSpace?, WildlifeRagdolls> ragdollsIn)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
@@ -95,7 +100,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         this.animation = animation;
         this.groundAt = groundAt ?? throw new ArgumentNullException(nameof(groundAt));
         this.seed = seed;
-        this.ragdolls = ragdolls ?? throw new ArgumentNullException(nameof(ragdolls));
+        this.ragdollsIn = ragdollsIn ?? throw new ArgumentNullException(nameof(ragdollsIn));
     }
 
     internal WildlifeAnimation Animation => animation;
@@ -104,9 +109,12 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <param name="fallen">It is dead: it falls as a ragdoll or plays its death, and stays where it fell.</param>
     /// <param name="blow">The way the killing blow drove it.</param>
     /// <param name="plantWithin">How near it must be for its feet to be planted.</param>
-    internal AppearanceFact Pose(WildlifeHerd? herd, WildlifeKind kind, WildlifeMember member, float feet, double distance, double seconds, double plantWithin, bool fallen, Vector2 blow = default)
+    /// <param name="space">The space it is in (#10876): its position and feet are that space's world metres; null for the walking session.</param>
+    internal AppearanceFact Pose(WildlifeHerd? herd, WildlifeKind kind, WildlifeMember member, float feet, double distance, double seconds, double plantWithin, bool fallen, Vector2 blow = default,
+        Creatures.CreatureSpace? space = null)
     {
         Body body = bodies.Take(member, () => Create(kind, member), Retire);
+        body.Space = space;
         body.Tier = WildlifeClips.Tier(distance, body.Tier, animation);
         if (fallen && !body.Fell) Fall(body, kind, member, blow);
         if (body.Ragdoll is not null)
@@ -124,7 +132,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Quaternion lift = Quaternion.CreateFromAxisAngle(Vector3.UnitX, -body.Pitch);
         Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI - member.Yaw);
         Vector3 world = new(member.Position.X, body.Height, member.Position.Y);
-        Transform placement = new(frame.ToLocal(world.X, world.Y, world.Z), Quaternion.Concatenate(lift, turn), new Vector3(scale));
+        Transform placement = new(ToLocal(body, world), Quaternion.Concatenate(lift, turn), new Vector3(scale));
         Plant(body, placement, world, scale, plant: !fallen && distance <= plantWithin);
         return new AppearanceFact(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.Cast);
     }
@@ -135,7 +143,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         body.Fell = true;
         if (body.Kind.Ragdoll is not { } rig || !body.Published || !engine.Animation.ReadJointPose(body.Instance).Reported) return;
         float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
-        body.Ragdoll = ragdolls.Fall(body.Instance, rig, body.Kind.Joint, scale, blow);
+        body.Ragdoll = ragdollsIn(body.Space).Fall(body.Instance, rig, body.Kind.Joint, scale, blow);
         if (body.Playing is not null && !body.Paused)
             engine.Animation.SetPlayback(new(body.Instance, AnimationPlaybackKind.Pause, "", AnimationLoopMode.Once, 0, 0, false, 0, false, 0));
         body.Paused = true;
@@ -147,7 +155,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// </summary>
     private void Follow(Body body, WildlifeMember member)
     {
-        Vector3 hips = frame.ToWorld(engine.Dynamics.ReadRagdoll(body.Ragdoll!).Bones.Span[0].Translation);
+        Vector3 hips = ToWorld(body, engine.Dynamics.ReadRagdoll(body.Ragdoll!).Bones.Span[0].Translation);
         member.Position = new Vector2(hips.X, hips.Z);
     }
 
@@ -202,8 +210,8 @@ internal sealed class WildlifeMeshBodies : IDisposable
             Vector2 facing = WildlifeRules.Facing(member.Yaw);
             float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
             double hind = body.Kind.Rig.Rig.HindMetres * scale, fore = body.Kind.Rig.Rig.ForeMetres * scale;
-            float hindGround = groundAt(member.Position.X + (facing.X * hind), member.Position.Y + (facing.Y * hind), feet);
-            float foreGround = groundAt(member.Position.X + (facing.X * fore), member.Position.Y + (facing.Y * fore), feet);
+            float hindGround = groundAt(body.Space, member.Position.X + (facing.X * hind), member.Position.Y + (facing.Y * hind), feet);
+            float foreGround = groundAt(body.Space, member.Position.X + (facing.X * fore), member.Position.Y + (facing.Y * fore), feet);
             (wantedHeight, wantedPitch) = WildlifeClips.Stance(feet, hindGround, foreGround, hind, fore, animation);
             float most = (float)(animation.PitchDegreesPerSecond * Math.PI / 180 * seconds);
             body.Pitch = body.Sitting ? body.Pitch + Math.Clamp(wantedPitch - body.Pitch, -most, most) : wantedPitch;
@@ -239,7 +247,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         ReadOnlySpan<JointPose> pose = engine.Animation.SampleJointPose(
             AnimationPoseSampleRequest.OfCurrentPlayback(body.Instance, placement, applyPoseControls: false)).Span;
         long sampled = Stopwatch.GetTimestamp();
-        (TwoBoneIk[] chains, _) = CreatureFeet.Chains(pose, body.Kind.Legs, scale, world, placement.Translation, (x, z) => groundAt(x, z, world.Y), (float)animation.MostFootMetres);
+        (TwoBoneIk[] chains, _) = CreatureFeet.Chains(pose, body.Kind.Legs, scale, world, placement.Translation, (x, z) => groundAt(body.Space, x, z, world.Y), (float)animation.MostFootMetres);
         long cast = Stopwatch.GetTimestamp();
         engine.Animation.SetPose(new(body.Instance, chains, body.Overrides));
         long posed = Stopwatch.GetTimestamp();
@@ -319,13 +327,18 @@ internal sealed class WildlifeMeshBodies : IDisposable
         return opened[kind.Id] = new Opened(resource, rig, legs, joints, ragdoll);
     }
 
+    /// <summary>A point of a body's space's world metres in that space's local frame.</summary>
+    private Vector3 ToLocal(Body body, Vector3 world) => body.Space?.ToLocal(world) ?? frame.ToLocal(world);
+
+    private Vector3 ToWorld(Body body, Vector3 local) => body.Space?.ToWorld(local) ?? frame.ToWorld(local);
+
     /// <summary>Retires every body not owned by these animals. Call before the snapshot built without them.</summary>
     internal void Keep(HashSet<WildlifeMember> owners) => bodies.Keep(owners, Retire);
 
     /// <summary>The instance goes now, before the snapshot that drops its fact; its appearance after that snapshot.</summary>
     private void Retire(Body body)
     {
-        if (body.Ragdoll is { } ragdoll) ragdolls.Release(ragdoll);
+        if (body.Ragdoll is { } ragdoll) ragdollsIn(body.Space).Release(ragdoll);
         body.Instance.Dispose();
         retiring.Add(body.Appearance);
         slots.Release(body.Slot);
@@ -363,11 +376,11 @@ internal sealed class WildlifeMeshBodies : IDisposable
             DynamicsRagdollResult read = engine.Dynamics.ReadRagdoll(body.Ragdoll!);
             if (read.Resting) resting++;
             ReadOnlySpan<Transform> bones = read.Bones.Span;
-            hips = frame.ToWorld(bones[0].Translation);
+            hips = ToWorld(body, bones[0].Translation);
             for (int index = 0; index < bones.Length; index++)
             {
-                Vector3 at = frame.ToWorld(bones[index].Translation);
-                deepest = MathF.Max(deepest, groundAt(at.X, at.Z, at.Y) - (at.Y - body.Kind.Ragdoll!.Bones[index].Radius));
+                Vector3 at = ToWorld(body, bones[index].Translation);
+                deepest = MathF.Max(deepest, groundAt(body.Space, at.X, at.Z, at.Y) - (at.Y - body.Kind.Ragdoll!.Bones[index].Radius));
             }
         }
 

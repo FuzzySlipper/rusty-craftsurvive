@@ -6,11 +6,12 @@ namespace CraftSurvive.Game.Modules.Creatures;
 /// <summary>One creature: where it is in the world, what it can take, and what it is doing.</summary>
 internal sealed class Creature
 {
-    internal Creature(int id, CreatureKind kind, Vector2 position)
+    internal Creature(int id, CreatureKind kind, Vector2 position, ICreatureGround? space = null)
     {
         Id = id;
         Kind = kind;
         Position = position;
+        Space = space ?? AnyGround.Instance;
         Combat = CombatantState.Fresh(kind.MaximumHealth, kind.Defence);
         Behavior = CreatureBehaviorState.SpawnedFor(kind.Tuning);
     }
@@ -18,6 +19,12 @@ internal sealed class Creature
     internal int Id { get; }
 
     internal CreatureKind Kind { get; }
+
+    /// <summary>
+    /// The space it lives in (#10876): the walking session, or a separate space. Its position and feet are that space's
+    /// world metres, it is awake only while that space is live, and its body, routes and sight are on that space's session.
+    /// </summary>
+    internal ICreatureGround Space { get; }
 
     /// <summary>World X and Z. Height follows the ground the creature stands on.</summary>
     internal Vector2 Position { get; set; }

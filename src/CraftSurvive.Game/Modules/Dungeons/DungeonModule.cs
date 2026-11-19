@@ -81,6 +81,12 @@ internal sealed partial class DungeonModule : IProductModule
     private const float FireBelowLight = 0.35f;
     private DungeonSpace? space;
 
+    /// <summary>The loaded dungeon as a space its creatures live in (#10876), while the player is inside it.</summary>
+    private DungeonCreatureSpace? creatureSpace;
+
+    /// <summary>The space creatures live in inside the dungeon the player is in; null outside one.</summary>
+    internal Creatures.CreatureSpace? CreatureSpace => creatureSpace is { Gone: false } held ? held : null;
+
     /// <summary>A closed dungeon waiting for one snapshot without its rock before it is released.</summary>
     private DungeonSpace? retiring;
     private DungeonPlan? plan;
@@ -205,6 +211,8 @@ internal sealed partial class DungeonModule : IProductModule
                 if (loading.Loaded)
                 {
                     player.EnterSeparateSpace(loading.Session, DungeonSpace.InSession(loading.Layout.Arrival), loading.Layout.Natural);
+                    creatureSpace?.Let();
+                    creatureSpace = new DungeonCreatureSpace(engine, loading, () => state == DungeonState.Inside && player.InSeparateSpace);
                     // The open world is not drawn while away: it costs nothing and cannot show through an opening to the sky.
                     terrain.DrawOpenWorld(false);
                     sky.Underground(true, conditions.Time, loading.Layout.SkyOpen, loading.Layout.GreatHall, mist: loading.Layout.Mist.Count > 0);
@@ -1891,6 +1899,9 @@ internal sealed partial class DungeonModule : IProductModule
     /// <summary>Lets the current space go. Its rock may be in the snapshot already published: it leaves the next one, then goes.</summary>
     private void Retire()
     {
+        // Its creatures go with it (#10876).
+        creatureSpace?.Let();
+        creatureSpace = null;
         retiring?.Dispose();
         retiring = space;
         space = null;

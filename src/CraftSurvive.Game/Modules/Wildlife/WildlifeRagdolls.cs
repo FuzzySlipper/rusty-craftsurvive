@@ -7,8 +7,8 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Wildlife;
 
 /// <summary>
-/// The physics world the dead fall in (#10621). It exists only while one lies in it: created with
-/// the first, over the terrain's collision, and gone with the last. The Engine binds a changed
+/// The physics world the dead of one space fall in (#10621; #10876: each space its own, over its own collision). It exists
+/// only while one lies in it: created with the first, and gone with the last. The Engine binds a changed
 /// scene and passes over an unchanged one, so binding every update costs nothing until terrain
 /// streams. The world moves with the origin, as Dynamics does not hear of a rebase by itself.
 /// </summary>
@@ -21,8 +21,7 @@ internal sealed class WildlifeRagdolls : IDisposable
     private const float FullBlend = 1;
 
     private readonly IEngineContext engine;
-    private readonly WorldFrame frame;
-    private readonly Func<SpatialSession> session;
+    private readonly Creatures.CreatureSpace space;
     private readonly WildlifeRagdollFeel feel;
     private DynamicsWorld? world;
     private int lying;
@@ -30,14 +29,19 @@ internal sealed class WildlifeRagdolls : IDisposable
     /// <summary>What has been spent since the last readout: updates, and the time binding and stepping, with the worst of each.</summary>
     private (long Updates, double Bind, double WorstBind, double Step, double WorstStep) spent;
 
-    internal WildlifeRagdolls(IEngineContext engine, WorldFrame frame, Func<SpatialSession> session, WildlifeRagdollFeel feel)
+    internal WildlifeRagdolls(IEngineContext engine, Creatures.CreatureSpace space, WildlifeRagdollFeel feel)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
-        this.session = session ?? throw new ArgumentNullException(nameof(session));
+        this.space = space ?? throw new ArgumentNullException(nameof(space));
         this.feel = feel;
-        frame.Committed += Rebase;
+        space.Committed += Rebase;
     }
+
+    /// <summary>The space its dead lie in.</summary>
+    internal Creatures.CreatureSpace Space => space;
+
+    /// <summary>How many lie in it now.</summary>
+    internal int Lying => lying;
 
     /// <summary>Lets the body fall from the pose it was last drawn in, moving as it moved.</summary>
     /// <param name="scale">How large this animal is against the mesh.</param>
@@ -78,7 +82,7 @@ internal sealed class WildlifeRagdolls : IDisposable
 
         if (time.AdmittedSteps == 0) return;
         long began = Stopwatch.GetTimestamp();
-        engine.Dynamics.BindWorldCollision(new(world, session()));
+        engine.Dynamics.BindWorldCollision(new(world, space.Session));
         long bound = Stopwatch.GetTimestamp();
         engine.Dynamics.Step(new(world, (float)time.FixedDeltaSeconds, time.AdmittedSteps, ReadOnlyMemory<DynamicsAction>.Empty));
         double binding = Stopwatch.GetElapsedTime(began, bound).TotalMilliseconds, stepping = Stopwatch.GetElapsedTime(bound).TotalMilliseconds;
@@ -97,7 +101,7 @@ internal sealed class WildlifeRagdolls : IDisposable
 
     public void Dispose()
     {
-        frame.Committed -= Rebase;
+        space.Committed -= Rebase;
         Close();
     }
 
@@ -105,7 +109,7 @@ internal sealed class WildlifeRagdolls : IDisposable
     {
         long began = Stopwatch.GetTimestamp();
         DynamicsWorld opened = engine.Dynamics.CreateWorld(new DynamicsWorldConfig(new Vector3(0, Gravity, 0)));
-        engine.Dynamics.BindWorldCollision(new(opened, session()));
+        engine.Dynamics.BindWorldCollision(new(opened, space.Session));
         double binding = Stopwatch.GetElapsedTime(began).TotalMilliseconds;
         spent = spent with { WorstBind = Math.Max(spent.WorstBind, binding) };
         return opened;
@@ -119,7 +123,7 @@ internal sealed class WildlifeRagdolls : IDisposable
 
     private void Rebase(WorldOriginCommitReceipt receipt)
     {
-        if (world is not null) engine.Dynamics.RebaseWorldOrigin(new(world, session(), receipt));
+        if (world is not null) engine.Dynamics.RebaseWorldOrigin(new(world, space.Session, receipt));
     }
 
     private static DynamicsRagdollBone Bone(WildlifeRagdollBone bone, Func<string, uint> joint, float scale)

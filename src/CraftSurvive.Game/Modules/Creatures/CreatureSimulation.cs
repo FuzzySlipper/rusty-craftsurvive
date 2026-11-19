@@ -49,6 +49,32 @@ internal static class CreatureSimulation
         && playerDistance > haltDistance + progressMetres
         && Vector2.Distance(before, heading) - Vector2.Distance(position, heading) < progressMetres;
 
+    /// <summary>A swing reaches a creature whose feet stand within this height of the player's: on the player's own floor, a step or a ledge about it.</summary>
+    internal const double MeleeHeightMetres = 2.5;
+
+    /// <summary>
+    /// The creature a swing goes for (R10876-2): of those it can reach in height (feet within <see cref="MeleeHeightMetres"/>
+    /// of the player's), one already attacking first, then the nearest across the ground. A creature on another floor, however
+    /// near across the ground, is never a target and never takes a swing from one that is. Returns the creature and how far
+    /// across the ground it stands, or null when none stands within reach in height.
+    /// </summary>
+    /// <param name="candidates">The awake creatures in the player's space, each with the height of its feet.</param>
+    internal static (Creature Creature, double Distance)? MeleeTarget(IEnumerable<(Creature Creature, float Feet)> candidates, Vector3 playerFeet)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        (Creature Creature, double Distance)? best = null;
+        foreach ((Creature creature, float feet) in candidates)
+        {
+            if (Math.Abs(feet - playerFeet.Y) > MeleeHeightMetres) continue;
+            double distance = PlanarDistance(creature.Position, playerFeet);
+            bool engaged = creature.Behavior.State == CreatureState.Attacking;
+            bool bestEngaged = best?.Creature.Behavior.State == CreatureState.Attacking;
+            if (best is null || (engaged && !bestEngaged) || (engaged == bestEngaged && distance < best.Value.Distance)) best = (creature, distance);
+        }
+
+        return best;
+    }
+
     internal static double PlanarDistance(Vector2 creature, Vector3 player)
     {
         double dx = player.X - creature.X;

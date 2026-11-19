@@ -36,7 +36,8 @@ internal sealed class CreaturePresentation : IDisposable
     private static readonly Color NeutralColor = Color.FromSrgbHex(0xb3a681);
 
     private readonly IEngineContext engine;
-    private readonly WorldFrame frame;
+    /// <summary>A creature's point of its space's world metres in that space's local frame (#10876).</summary>
+    private readonly Func<Creature, Vector3, Vector3> toLocal;
     private readonly Func<Creature, float> groundAt;
     private readonly Func<Creature, bool> drawnElsewhere;
     private readonly Dictionary<int, (Appearance Appearance, EntityId Entity)> shown = [];
@@ -51,11 +52,11 @@ internal sealed class CreaturePresentation : IDisposable
     private AppearanceFact[] facts = [];
 
     /// <param name="drawnElsewhere">Whether a creature has a body of its own (#10615): it keeps its entity row, and shows no box.</param>
-    internal CreaturePresentation(IEngineContext engine, WorldFrame frame, Func<Creature, float> groundAt, Func<Creature, bool> drawnElsewhere)
+    internal CreaturePresentation(IEngineContext engine, Func<Creature, Vector3, Vector3> toLocal, Func<Creature, float> groundAt, Func<Creature, bool> drawnElsewhere)
     {
         this.drawnElsewhere = drawnElsewhere ?? throw new ArgumentNullException(nameof(drawnElsewhere));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
+        this.toLocal = toLocal ?? throw new ArgumentNullException(nameof(toLocal));
         this.groundAt = groundAt ?? throw new ArgumentNullException(nameof(groundAt));
     }
 
@@ -116,7 +117,7 @@ internal sealed class CreaturePresentation : IDisposable
                 false,
                 0,
                 new Transform(
-                    frame.ToLocal(creature.Position.X, ground + BodyCentreHeight, creature.Position.Y),
+                    toLocal(creature, new Vector3(creature.Position.X, ground + BodyCentreHeight, creature.Position.Y)),
                     Quaternion.Identity,
                     BodyScale),
                 entry.Appearance,
