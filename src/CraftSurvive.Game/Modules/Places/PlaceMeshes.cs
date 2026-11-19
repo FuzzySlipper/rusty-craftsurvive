@@ -171,6 +171,8 @@ internal sealed class PlaceMeshes : IDisposable
         List<PoiSite> near = [.. sites.Where(site => HorizonLandmarkRules.OnNearGround(site.X + 0.5 - player.X, site.Z + 0.5 - player.Z, nearEdgeMetres))];
         if (!double.IsNaN(laidOutAt.X) && near.Count == standingSites.Count && near.All(site => standingSites.Contains(site.Id))) return;
         laidOutAt = (player.X, player.Z);
+        long layingOut = System.Diagnostics.Stopwatch.GetTimestamp(), loading = 0;
+        int loadsMade = loaded.Count;
         standing.Clear();
         standingSites.Clear();
         standingAt.Clear();
@@ -185,13 +187,23 @@ internal sealed class PlaceMeshes : IDisposable
                 if (!kit.TryGetValue(part.Piece, out PlaceKitPiece? piece)) continue;
                 double ground = part.OnSiteGround ? siteGround : groundTop(part.X, part.Z);
                 // The sink scales with the piece: a stele scaled to its height carries its skirt along.
-                standing.Add(new(site.Id, Load(piece, extra), piece.Sink, new Vector3((float)part.X, (float)(ground + part.Rise - (piece.Sink * part.Scale.Y)), (float)part.Z), part.Rotation, part.Scale));
+                long loadStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+                Loaded load = Load(piece, extra);
+                loading += System.Diagnostics.Stopwatch.GetTimestamp() - loadStarted;
+                standing.Add(new(site.Id, load, piece.Sink, new Vector3((float)part.X, (float)(ground + part.Rise - (piece.Sink * part.Scale.Y)), (float)part.Z), part.Rotation, part.Scale));
             }
         }
 
         layoutRevision++;
+        long laying = System.Diagnostics.Stopwatch.GetTimestamp();
         LayCards(player);
+        static double Ms(long ticks) => System.Diagnostics.Stopwatch.GetElapsedTime(0, ticks).TotalMilliseconds;
+        LastTiming = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"placesLaid(sites={near.Count} parts={standing.Count} load={Ms(loading):F1}x{loaded.Count - loadsMade} layout={Ms(laying - layingOut - loading):F1} cards={System.Diagnostics.Stopwatch.GetElapsedTime(laying).TotalMilliseconds:F1})");
     }
+
+    /// <summary>Where the last layout's time went (#10907): the pieces loaded, the layout, the moss cards.</summary>
+    internal string LastTiming { get; private set; } = "";
 
     /// <summary>Lays the hanging moss cards again over the pieces standing (#10044): after a layout, or when the moss changed.</summary>
     internal void LayCards(Vector3 about) => cards?.Lay([.. standing.Select(s => new PlaceMossCards.Piece(s.Piece.Mesh, s.Piece.Positions, s.Piece.Normals, s.Piece.Triangles,

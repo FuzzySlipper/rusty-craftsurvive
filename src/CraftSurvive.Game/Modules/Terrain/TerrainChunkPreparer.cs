@@ -51,6 +51,9 @@ internal sealed class TerrainChunkPreparer : IDisposable
     /// <summary>Chunks queued or generating now.</summary>
     internal int Queued => queued.Count;
 
+    /// <summary>Chunks finished and not yet taken.</summary>
+    internal int Ready => ready.Count;
+
     /// <summary>Whether another chunk may be queued now.</summary>
     internal bool CanQueue => queued.Count < MostQueued;
 

@@ -86,6 +86,9 @@ internal sealed class DungeonOvergrowth : IDisposable
     private IEnumerator<bool>? building;
 
     /// <summary>Builds the next kind; true once it is all built.</summary>
+    /// <summary>What the step just built was, for a slow step's readout (#10907).</summary>
+    internal string StepLabel { get; private set; } = "";
+
     internal bool Advance()
     {
         if (building is not null && !building.MoveNext())
@@ -109,20 +112,21 @@ internal sealed class DungeonOvergrowth : IDisposable
     {
         foreach (OvergrowthKind kind in placements.Select(p => p.Kind).Distinct())
         {
+            StepLabel = $"kind {kind}";
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
             float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat or OvergrowthKind.CushionGreat or OvergrowthKind.IvoryBulbGreat ? GiantTextureTexels : TextureTexels;
             bool glows = kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeSpire or OvergrowthKind.GroveHanger or OvergrowthKind.GroveHangerSmall;
             MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels, glows ? Emission(texture) : null, Sways(kind))))];
             MeshResource mesh = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
                 model.Indices, model.Groups, bindings)));
-            kinds[kind] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
+            kinds[kind] = (mesh, World.EngineClock.Time(() => engine.Graphics.CreateMeshAppearance(mesh)));
             if (FarLevel(kind) is (string farPath, float from))
             {
                 // The far level is cut from the near piece's painted mesh: its own uvs into the same texture, so the same materials.
                 MeshResourceCreateRequest farModel = Model(content, farPath).Mesh;
                 MeshResource farMesh = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(farModel.Positions, farModel.Normals, farModel.Uvs,
                     farModel.Colors, farModel.Indices, farModel.Groups, bindings)));
-                far[kind] = (farMesh, engine.Graphics.CreateMeshAppearance(farMesh), from);
+                far[kind] = (farMesh, World.EngineClock.Time(() => engine.Graphics.CreateMeshAppearance(farMesh)), from);
             }
 
             yield return false;
@@ -295,7 +299,7 @@ internal sealed class DungeonOvergrowth : IDisposable
 
         DungeonKitLook.Look look = DungeonKitLook.Look.Default;
         Color white = new(1f, 1f, 1f, 1f);
-        Material material = engine.Graphics.CreateMaterial(new MaterialRequest(white, texture, Roughness, white, emission is null ? Vector3.Zero : Vector3.One,
+        Material material = World.EngineClock.Time(() => engine.Graphics.CreateMaterial(new MaterialRequest(white, texture, Roughness, white, emission is null ? Vector3.Zero : Vector3.One,
             emission is null ? 0f : TipGlow, false)
         {
             EmissionMap = emission is null ? default(RenderResourceReference) : emission,
@@ -307,7 +311,7 @@ internal sealed class DungeonOvergrowth : IDisposable
                 : new MaterialShader(shader, new Vector4(texels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
                     new Vector4(look.CalmFrom, look.CalmFull, look.CalmMip, look.Calm), new Vector4(0f, 0f, 0f, MossStrength),
                     new Vector4(StainDepth, SideShare, LowestFacing, 0f), texture, default(RenderResourceReference)),
-        });
+        }));
         materials.Add(material);
         return material;
     }

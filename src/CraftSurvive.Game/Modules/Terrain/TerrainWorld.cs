@@ -498,7 +498,7 @@ internal sealed class TerrainWorld : IDisposable
         trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, EditRevision, streamer.ResidentCount);
         SyncMark("trees");
         places.Follow(new Vector3(centerVoxel.X + 0.5f, centerVoxel.Y, centerVoxel.Z + 0.5f), NearEdgeMetres);
-        SyncMark("places");
+        SyncMark($"places{places.LastTiming}");
         // The field stones' scatter copies keep the moss origin they were grown with (#10044 review): after a rebase they
         // are grown again from the refreshed materials, so the stain and lichen stay put on the stones.
         if (Moss.Follow(frame.Origin)) RegrowMossCopies();
@@ -1003,16 +1003,36 @@ internal sealed class TerrainWorld : IDisposable
     /// for its residency: a reader of a whole chunk (the chemistry field, #10407) then copies it instead of asking for
     /// each of its 4,096 cells. False when the chunk is not held; ask <see cref="MaterialAt"/> instead.
     /// </summary>
-    internal bool TryReadChunkMaterials(TerrainChunkAddress address, Span<ushort> materials)
+    internal bool TryReadChunkMaterials(TerrainChunkAddress address, Span<ushort> materials) => TryReadChunkMaterials(address, materials, out _);
+
+    /// <summary>
+    /// A chunk's materials, edits included, without reading it a cell at a time where that can be avoided (#10907): produced by
+    /// the plan, resident as admitted, empty, or generated on a worker. False with <paramref name="pending"/> while a worker
+    /// generates it (come back later); false without it when only a cell-by-cell read will do (an edit reaches it).
+    /// </summary>
+    internal bool TryReadChunkMaterials(TerrainChunkAddress address, Span<ushort> materials, out bool pending)
     {
+        pending = false;
         if (!policy.TryProduced(address, overlayStore.Overlay.Revision, out TerrainChunk? chunk))
         {
+            // A resident chunk no edit has reached since it came in is read as it was admitted (#10907).
+            if (streamer.TryAdmittedMaterials(address, materials))
+            {
+                return true;
+            }
+
             // A chunk the generator leaves empty (the open air over the ground) is air throughout unless an edit reaches it
             // (#10907): read a cell at a time it would ask the recipe for its columns' ground thousands of times.
             if (!overlayStore.Overlay.TouchesChunk(address) && !recipe.ChunkHasContent(address))
             {
                 materials[..TerrainConstants.ChunkVolume].Fill(TerrainConstants.EmptyMaterial);
                 return true;
+            }
+
+            // Any other chunk no edit reaches is generated on a worker (#10907): rock buried round a cave, say.
+            if (!overlayStore.Overlay.TouchesChunk(address))
+            {
+                return streamer.TryWorkerMaterials(address, overlayStore.Overlay.Snapshot(), overlayStore.Overlay.Revision, materials, out pending);
             }
 
             return false;

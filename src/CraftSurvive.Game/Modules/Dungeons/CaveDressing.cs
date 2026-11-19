@@ -153,17 +153,32 @@ internal sealed class CaveDressing : IDisposable
             return false;
         }
 
+        long engineBefore = World.EngineClock.Ticks;
         if (kit is not null && !kitBuilt)
         {
+            string label = kit.StepLabel;
             kitBuilt = kit.Advance();
-            slowestKit = Math.Max(slowestKit, Spent(building));
+            double ms = Spent(building);
+            if (ms > slowestKit)
+            {
+                slowestKit = ms;
+                slowestKitStep = $"{label}>{kit.StepLabel} engine={Stopwatch.GetElapsedTime(0, World.EngineClock.Ticks - engineBefore).TotalMilliseconds:F0}";
+            }
+
             return false;
         }
 
         if (overgrowth is not null && !overgrowthBuilt)
         {
+            string label = overgrowth.StepLabel;
             overgrowthBuilt = overgrowth.Advance();
-            slowestOvergrowth = Math.Max(slowestOvergrowth, Spent(building));
+            double ms = Spent(building);
+            if (ms > slowestOvergrowth)
+            {
+                slowestOvergrowth = ms;
+                slowestOvergrowthStep = $"{label}>{overgrowth.StepLabel} engine={Stopwatch.GetElapsedTime(0, World.EngineClock.Ticks - engineBefore).TotalMilliseconds:F0}";
+            }
+
             return false;
         }
 
@@ -186,10 +201,11 @@ internal sealed class CaveDressing : IDisposable
 
     /// <summary>What the dressing came to once built, and each part's time (growth, water, kit made, overgrowth made, moss and forest).</summary>
     internal string BuiltReadout => string.Create(CultureInfo.InvariantCulture,
-        $"kit={kit?.Count ?? 0} overgrowth={overgrowth?.Count ?? 0} meshes={meshes.Count} parts=[{string.Join(" ", stageTimes.Select(t => $"{t:F0}"))}]ms slowest growth={slowestGrowth:F0} kit={slowestKit:F0} overgrowth={slowestOvergrowth:F0}ms");
+        $"kit={kit?.Count ?? 0} overgrowth={overgrowth?.Count ?? 0} meshes={meshes.Count} parts=[{string.Join(" ", stageTimes.Select(t => $"{t:F0}"))}]ms slowest growth={slowestGrowth:F0} kit={slowestKit:F0}({slowestKitStep}) overgrowth={slowestOvergrowth:F0}({slowestOvergrowthStep})ms");
 
     // The slowest update of each part built a piece at a time (#10907): a growth's mesh, a kit piece kind, an overgrowth kind.
     private double slowestGrowth, slowestKit, slowestOvergrowth;
+    private string slowestKitStep = "", slowestOvergrowthStep = "";
 
     private double Spent(long from)
     {
@@ -319,7 +335,7 @@ internal sealed class CaveDressing : IDisposable
     private void Add(MeshResourceCreateRequest request)
     {
         MeshResource mesh = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(request));
-        meshes.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+        meshes.Add((mesh, World.EngineClock.Time(() => engine.Graphics.CreateMeshAppearance(mesh))));
     }
 
     private MeshResourceCreateRequest AbyssFloor(Vector3 centre, float radius)

@@ -210,7 +210,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         player.PrepareUnderground = at => dungeons.PrepareCaveAt(at);
         walkingUpdates.EngineShare = () => terrain.EngineMs + (horizon?.LastEngineMs ?? 0d)
             + System.Diagnostics.Stopwatch.GetElapsedTime(0, EngineClock.Ticks - savesAtBegin).TotalMilliseconds;
-        walkingUpdates.Detail = () => string.Join(" ", new[] { terrain.SyncTiming, horizon?.LastTiming ?? "", chemistry is null ? "" : $"chemistry({chemistry.LastTiming})", dungeons?.CaveTiming ?? "" }.Where(part => part.Length > 0));
+        walkingUpdates.Detail = () => string.Join(" ", new[] { terrain.SyncTiming, horizon?.LastTiming ?? "", chemistry is null ? "" : $"chemistry({chemistry.LastTiming})", dungeons?.CaveTiming ?? "", player?.LastTiming ?? "" }.Where(part => part.Length > 0));
         actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, dungeons, ui, cues, frame);
         feedback = new FeedbackModule(cues, new SoundPlayer(context.Engine), new BurstEmitter(context.Engine, () => terrain.AtlasSprite),
             () => new Surroundings(player.InSeparateSpace, player.HeadSubmerged, WorldClock.Daylight(conditions.Time.DayFraction)),

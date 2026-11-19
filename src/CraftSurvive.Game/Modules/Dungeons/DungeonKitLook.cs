@@ -87,6 +87,9 @@ internal sealed class DungeonKitLook : IDisposable
 
     private IEnumerator<bool>? building;
 
+    /// <summary>What the step just built was, for a slow step's readout (#10907).</summary>
+    internal string StepLabel { get; private set; } = "";
+
     /// <summary>Builds the next piece; true once the kit is all built.</summary>
     internal bool Advance()
     {
@@ -109,6 +112,7 @@ internal sealed class DungeonKitLook : IDisposable
 
     private IEnumerator<bool> Build(ProductContent content, IReadOnlyList<KitPlacement> placements, string? paint)
     {
+        StepLabel = "manifest";
         using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
         Dictionary<string, JsonElement> entries = manifest.RootElement.GetProperty("pieces").EnumerateArray()
             .ToDictionary(p => p.GetProperty("name").GetString()!, p => p.Clone());
@@ -134,6 +138,7 @@ internal sealed class DungeonKitLook : IDisposable
                 continue;
             }
 
+            StepLabel = $"piece {piece}";
             (MeshResourceCreateRequest model, (string Role, string? Texture)[] parts) = Model(content, entry.GetProperty("model").GetString()!);
             MeshMaterialBinding[] bindings = [.. parts.Select((part, slot) => new MeshMaterialBinding((uint)slot,
                 glow is Vector3 light ? Glowing(light)
@@ -141,10 +146,11 @@ internal sealed class DungeonKitLook : IDisposable
                         piece is KitPiece.WallRoundel or KitPiece.WallTallRoundel)))];
             MeshResource mesh = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
                 model.Indices, model.Groups, bindings)));
-            pieces[(piece, lit)] = (mesh, engine.Graphics.CreateMeshAppearance(mesh), bindings.Length, glow is null);
+            pieces[(piece, lit)] = (mesh, World.EngineClock.Time(() => engine.Graphics.CreateMeshAppearance(mesh)), bindings.Length, glow is null);
             yield return false;
         }
 
+        StepLabel = "placements";
         foreach (KitPlacement p in placements.Take(ProductIds.DungeonKitObjects))
         {
             (Vector3 at, Quaternion turn, Vector3 scale) = DungeonKit.Place(p);
@@ -153,17 +159,22 @@ internal sealed class DungeonKitLook : IDisposable
             placed.Add((p.Piece, litHere, wet, new Transform(at, turn, scale)));
             if (Blanketed(p.Piece) && KitMoss.Dampness(p.Wet) >= BlanketFrom && blanketed.Count < ProductIds.DungeonKitObjects)
             {
-                Blanket(content, entries[DungeonKit.Name(p.Piece)].GetProperty("model").GetString()!, p.Piece, wet);
+                bool made = Blanket(content, entries[DungeonKit.Name(p.Piece)].GetProperty("model").GetString()!, p.Piece, wet);
                 blanketed.Add((p.Piece, wet, new Transform(at, turn, scale)));
+                if (made)
+                {
+                    // One new shell an update (#10907).
+                    yield return false;
+                }
             }
             if (!damp.ContainsKey((p.Piece, litHere, wet)) && pieces[(p.Piece, litHere)] is { Mossy: true } drawn)
             {
                 // The piece's mesh again, its every slot's texture tint carrying this dampness in its alpha.
-                Appearance wetLook = engine.Graphics.CreateMeshAppearance(drawn.Mesh);
+                Appearance wetLook = World.EngineClock.Time(() => engine.Graphics.CreateMeshAppearance(drawn.Mesh));
                 // The dampness in the tint's blue (kit-stone.wgsl's WET_IN_BLUE): an alpha below 1 would draw it transparent.
                 Color dampness = new(1f, 1f, 1f - (WetInBlue * KitMoss.MostDampness * wet / (float)(WetSteps - 1)), 1f);
-                engine.Graphics.UpdateStaticMeshMaterialFactors(new StaticMeshMaterialFactorsRequest(wetLook,
-                    Enumerable.Range(0, drawn.Slots).Select(slot => new MeshMaterialFactors((uint)slot, false, default, false, Vector3.Zero, 0f, true, dampness)).ToArray()));
+                World.EngineClock.Time(() => { engine.Graphics.UpdateStaticMeshMaterialFactors(new StaticMeshMaterialFactorsRequest(wetLook,
+                    Enumerable.Range(0, drawn.Slots).Select(slot => new MeshMaterialFactors((uint)slot, false, default, false, Vector3.Zero, 0f, true, dampness)).ToArray())); return 0; });
                 damp[(p.Piece, litHere, wet)] = wetLook;
                 yield return false;
             }
@@ -196,6 +207,11 @@ internal sealed class DungeonKitLook : IDisposable
             if (entry.TryGetProperty("collider", out JsonElement collider))
             {
                 Collision(content, collider.GetString()!);
+            }
+
+            if (Blanketed(piece))
+            {
+                ShellOf(content, entry.GetProperty("model").GetString()!);
             }
         }
     }
@@ -241,8 +257,9 @@ internal sealed class DungeonKitLook : IDisposable
     }
 
     /// <summary>The ivy blanket of a piece at a dampness: its shell (built once) drawn through an appearance carrying the dampness.</summary>
-    private void Blanket(ProductContent content, string model, KitPiece piece, int wet)
+    private bool Blanket(ProductContent content, string model, KitPiece piece, int wet)
     {
+        bool made = false;
         if (!blankets.TryGetValue(piece, out MeshResource? shell))
         {
             if (blanketMaterial is null)
@@ -250,33 +267,50 @@ internal sealed class DungeonKitLook : IDisposable
                 blanketShader = engine.Graphics.OpenResource(new RenderResourceRequest(BlanketShaderPath)).Handle;
                 blanketTexture = engine.Graphics.OpenResource(new RenderResourceRequest(BlanketTexturePath, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
                 Color white = new(1f, 1f, 1f, 1f);
-                blanketMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(white, blanketTexture, Roughness, white, Vector3.Zero, 0f, false)
+                blanketMaterial = World.EngineClock.Time(() => engine.Graphics.CreateMaterial(new MaterialRequest(white, blanketTexture, Roughness, white, Vector3.Zero, 0f, false)
                 {
                     Shader = new MaterialShader(blanketShader, new Vector4(BlanketThreshold, 0f, 0f, 0f), Vector4.Zero, Vector4.Zero,
                         new Vector4(0f, SideShare, LowestFacing, 0f)),
-                });
+                }));
             }
 
-            shell = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(Shell(Model(content, model).Mesh, blanketMaterial)));
+            MeshResourceCreateRequest request = ShellRequest(ShellOf(content, model), blanketMaterial);
+            shell = World.EngineClock.Time(() => engine.Graphics.CreateMeshResource(request));
+            made = true;
             blankets[piece] = shell;
         }
 
         if (!blanketLooks.ContainsKey((piece, wet)))
         {
-            Appearance look = engine.Graphics.CreateMeshAppearance(shell);
+            Appearance look = World.EngineClock.Time(() => engine.Graphics.CreateMeshAppearance(shell));
             Color dampness = new(1f, 1f, 1f - (WetInBlue * KitMoss.MostDampness * wet / (float)(WetSteps - 1)), 1f);
-            engine.Graphics.UpdateStaticMeshMaterialFactors(new StaticMeshMaterialFactorsRequest(look,
-                new MeshMaterialFactors[] { new(0, false, default, false, Vector3.Zero, 0f, true, dampness) }));
+            World.EngineClock.Time(() => { engine.Graphics.UpdateStaticMeshMaterialFactors(new StaticMeshMaterialFactorsRequest(look,
+                new MeshMaterialFactors[] { new(0, false, default, false, Vector3.Zero, 0f, true, dampness) })); return 0; });
             blanketLooks[(piece, wet)] = look;
         }
+
+        return made;
     }
+
+    /// <summary>A piece's ivy blanket shell (#10907): its geometry, a pure function of the piece's mesh.</summary>
+    private sealed record ShellGeometry(Vector3[] Positions, Vector3[] Normals, Vector2[] Uvs, Color[] Colors, uint[] Indices);
+
+    // Each piece's shell, kept for the process and made off the update with its model (Preload), so a cave's dressing only
+    // makes its mesh (#10907: building one was some 10 to 60 ms of an update).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, ShellGeometry> Shells = new();
+
+    private static ShellGeometry ShellOf(ProductContent content, string model) => Shells.GetOrAdd(model, path => Shell(Model(content, path).Mesh));
+
+    private static MeshResourceCreateRequest ShellRequest(ShellGeometry shell, Material material) =>
+        new(shell.Positions, shell.Normals, shell.Uvs, shell.Colors, shell.Indices,
+            new MeshGroup[] { new(0, 0, (uint)shell.Indices.Length) }, new MeshMaterialBinding[] { new(0, material) });
 
     /// <summary>
     /// A piece's ivy blanket (as the places' PlaceMeshes.Blanket): its own triangles that do not face down, each vertex pushed
     /// out along its normal, the ivy tile projected on each triangle's dominant plane in the piece's metres; its vertex colours
     /// (the rising damp) kept.
     /// </summary>
-    private static MeshResourceCreateRequest Shell(MeshResourceCreateRequest piece, Material material)
+    private static ShellGeometry Shell(MeshResourceCreateRequest piece)
     {
         ReadOnlySpan<Vector3> p = piece.Positions.Span, n = piece.Normals.Span;
         ReadOnlySpan<Color> col = piece.Colors.Span;
@@ -310,8 +344,7 @@ internal sealed class DungeonKitLook : IDisposable
             indices.AddRange([first, first + 1, first + 2]);
         }
 
-        return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), uvs.ToArray(), colours.ToArray(), indices.ToArray(),
-            new MeshGroup[] { new(0, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(0, material) });
+        return new ShellGeometry(positions.ToArray(), normals.ToArray(), uvs.ToArray(), colours.ToArray(), indices.ToArray());
     }
 
     /// <summary>A material for a kit texture: the texture as its base colour, nearest with mipmaps, under the kit stone shader.</summary>
@@ -319,7 +352,7 @@ internal sealed class DungeonKitLook : IDisposable
     {
         RenderResource texture = Texture(path);
         RenderResource? emission = emissionPath is null ? null : Texture(emissionPath);
-        Material material = engine.Graphics.CreateMaterial(Request(texture, emission, mosaic));
+        Material material = World.EngineClock.Time(() => engine.Graphics.CreateMaterial(Request(texture, emission, mosaic)));
         materials.Add((material, texture, emission, mosaic));
         return material;
     }
@@ -350,7 +383,7 @@ internal sealed class DungeonKitLook : IDisposable
     /// <summary>A plain emissive material, for a piece that is a light's visible source.</summary>
     private Material Glowing(Vector3 emission)
     {
-        Material material = engine.Graphics.CreateMaterial(GlowRequest(emission));
+        Material material = World.EngineClock.Time(() => engine.Graphics.CreateMaterial(GlowRequest(emission)));
         glowing.Add((material, emission));
         return material;
     }

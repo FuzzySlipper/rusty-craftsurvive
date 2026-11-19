@@ -39,7 +39,11 @@ internal sealed class TerrainResidencyStreamer(
     internal bool Workers { get; set; } = true;
 
     /// <summary>Lets the workers go: what they are generating is dropped.</summary>
-    internal void Stop() => preparer.Dispose();
+    internal void Stop()
+    {
+        preparer.Dispose();
+        reads.Dispose();
+    }
 
     /// <summary>A chunk a worker finished, if it was generated against the world as it stands under that chunk now.</summary>
     private TerrainChunk? FromWorker(TerrainResidencyPlan plan, TerrainChunkAddress address)
@@ -101,6 +105,71 @@ internal sealed class TerrainResidencyStreamer(
         {
             admittedMaterials[address] = materials;
         }
+    }
+
+    /// <summary>The workers generating chunks other owners read and residency does not hold (the chemistry's window, #10907).</summary>
+    private readonly TerrainChunkPreparer reads = new(generator);
+
+    /// <summary>Finished reads held at most for owners that may not come back for them.</summary>
+    private const int MostReadsHeld = 64;
+
+    /// <summary>
+    /// A chunk's generated materials from a worker (#10907), for an owner reading a chunk residency does not hold and no edit
+    /// reaches: true once a worker has generated it against the caves as they stand; otherwise it is asked for (its draws
+    /// made here first) and <paramref name="pending"/> says to come back, unless a worker gave it back, when the owner reads
+    /// it itself.
+    /// </summary>
+    internal bool TryWorkerMaterials(TerrainChunkAddress address, TerrainOverlaySnapshot snapshot, ulong overlayRevision, Span<ushort> materials, out bool pending)
+    {
+        pending = false;
+        reads.Collect();
+        TerrainRecipe recipe = generator.Recipe;
+        if (reads.TryTake(address, out TerrainChunkPreparer.Prepared? prepared))
+        {
+            if (prepared.Chunk is null)
+            {
+                return false;
+            }
+
+            if (prepared.CavesRevision == recipe.Caves.Revision || !recipe.Caves.Touches(address))
+            {
+                prepared.Chunk.Materials.Span.CopyTo(materials);
+                return true;
+            }
+        }
+
+        pending = true;
+        if (!reads.Holds(address) && reads.CanQueue)
+        {
+            recipe.PrepareDraws(address);
+            reads.Queue(address, snapshot, overlayRevision, recipe.Caves.Revision);
+        }
+
+        return false;
+    }
+
+    /// <summary>Lets go of finished reads no owner came back for.</summary>
+    private void TrimReads()
+    {
+        if (reads.Ready > MostReadsHeld)
+        {
+            reads.Keep(_ => false);
+        }
+    }
+
+    /// <summary>
+    /// A resident chunk's materials as it was admitted, while no edit has reached it since (#10907): what the chemistry's window
+    /// reads of a chunk the plan no longer holds (a cave's, as the plans move with the descent), not cell by cell.
+    /// </summary>
+    internal bool TryAdmittedMaterials(TerrainChunkAddress address, Span<ushort> materials)
+    {
+        if (!resident.ContainsKey(address) || overlay.TouchesChunk(address) || !admittedMaterials.TryGetValue(address, out ReadOnlyMemory<ushort> kept))
+        {
+            return false;
+        }
+
+        kept.Span.CopyTo(materials);
+        return true;
     }
 
     /// <summary>Marks resident chunks to be generated again and replaced in the Engine (the rest come in with the plan).</summary>
@@ -225,6 +294,7 @@ internal sealed class TerrainResidencyStreamer(
         // What the workers finished since the last update; what the player has left behind meanwhile is let go.
         preparer.Collect();
         preparer.Keep(address => plan.Retains(address) && (!resident.ContainsKey(address) || stale.Contains(address)));
+        TrimReads();
         if (generateHere.Count > TerrainConstants.MaximumResidentChunks)
         {
             generateHere.Clear();

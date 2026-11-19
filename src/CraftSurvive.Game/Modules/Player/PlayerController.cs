@@ -256,6 +256,7 @@ internal sealed class PlayerController : IDisposable
 
     internal void Update(ProductUpdate update)
     {
+        long updateStarted = System.Diagnostics.Stopwatch.GetTimestamp();
         EnsureStarted();
         updateCount = checked(updateCount + 1UL);
         ProductStep step = ProductStep.From(update.Facts);
@@ -323,7 +324,9 @@ internal sealed class PlayerController : IDisposable
         }
         jumpHeld = frame.JumpHeld;
         impulseHeld = frame.ImpulseHeld;
+        long stepping = System.Diagnostics.Stopwatch.GetTimestamp();
         StepCharacter(frame, lookReceipt, step.ElapsedSeconds);
+        long stepped = System.Diagnostics.Stopwatch.GetTimestamp();
         lastUpdatePositionAfter = playerLocal;
         diagnostics.RecordMovement(updateCount, frame, lastControllerStepCount, lastStepReceipt,
             lastUpdatePositionBefore, lastUpdatePositionAfter);
@@ -340,6 +343,7 @@ internal sealed class PlayerController : IDisposable
             camera.Cut();
         }
 
+        long syncing = System.Diagnostics.Stopwatch.GetTimestamp();
         if (away is null)
         {
             terrain.SynchronizeAround(playerGlobal.FloorVoxel());
@@ -358,11 +362,20 @@ internal sealed class PlayerController : IDisposable
                 OverlapsVoxel);
         }
 
+        long publishing = System.Diagnostics.Stopwatch.GetTimestamp();
         camera.Publish(EyePosition(), look, cameraSampleTimeSeconds, updateCount);
         ui.PublishPlayer(ToUiFacts());
         PublishRuntimeComponent();
         continuation.SaveIfDue(step.Step, Continuation());
+        long done = System.Diagnostics.Stopwatch.GetTimestamp();
+        static double Ms(long from, long to) => System.Diagnostics.Stopwatch.GetElapsedTime(from, to).TotalMilliseconds;
+        LastTiming = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"playerParts(before={Ms(updateStarted, stepping):F1} step={Ms(stepping, stepped):F1} rebase={Ms(stepped, syncing):F1} sync+edit={Ms(syncing, publishing):F1} publish={Ms(publishing, done):F1})");
     }
+
+    /// <summary>Where the last update's time went (#10907): before the step, the character's step, the rebase, the terrain, publishing.</summary>
+    internal string LastTiming { get; private set; } = "";
+
 
     /// <summary>The player's facts for playtest observation: pose, vitals and how much input arrived.</summary>
     internal PlayerObservation Observe() => new(

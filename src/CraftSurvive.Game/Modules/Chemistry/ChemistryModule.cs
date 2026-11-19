@@ -492,12 +492,13 @@ internal sealed class ChemistryModule : IProductModule
     private ChemistryField NewField() => new(pack, new ChemistryFieldSettings(pack.Materials[blocks.Air].Id, settings.Field.StepSeconds,
         terrain.Recipe.Configuration.Seed));
 
+    /// <summary>The last update's chunk loads and their time (#10907), for a slow update's breakdown.</summary>
+    private readonly List<string> lastLoads = [];
+
     /// <summary>
     /// Loads the chunks around the player, and beside a fire out to the burning reach, a few at a time; lets go of
     /// those left behind.
     /// </summary>
-    private readonly List<string> lastLoads = [];
-
     private void Follow(Vector3 player)
     {
         lastLoads.Clear();
@@ -524,9 +525,9 @@ internal sealed class ChemistryModule : IProductModule
             if (!field.IsLoaded(chunk))
             {
                 long loading = Stopwatch.GetTimestamp();
-                bool whole = Load(chunk);
+                bool? whole = Load(chunk);
                 lastLoads.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture,
-                    $"{(whole ? "whole" : "cells")}={Stopwatch.GetElapsedTime(loading).TotalMilliseconds:F1}"));
+                    $"{(whole switch { true => "whole", false => "cells", null => "pending" })}={Stopwatch.GetElapsedTime(loading).TotalMilliseconds:F1}"));
                 loads++;
             }
         }
@@ -558,11 +559,17 @@ internal sealed class ChemistryModule : IProductModule
     /// from the terrain's own chunk when it holds one (a chemistry chunk is a terrain chunk), else cell by cell; a
     /// column's water is read only if it has open air to fill (#10407).
     /// </summary>
-    private bool Load(Cell origin)
+    private bool? Load(Cell origin)
     {
         const int Size = ChemistryField.ChunkSize;
         bool whole = terrain.TryReadChunkMaterials(
-            new TerrainChunkAddress(origin.X >> ChunkShift, origin.Y >> ChunkShift, origin.Z >> ChunkShift), chunkBlocks);
+            new TerrainChunkAddress(origin.X >> ChunkShift, origin.Y >> ChunkShift, origin.Z >> ChunkShift), chunkBlocks, out bool pending);
+        if (pending)
+        {
+            // A worker is generating the chunk (#10907): it is loaded on a later update, not read here a cell at a time.
+            return null;
+        }
+
         for (int z = 0; z < Size; z++)
         {
             for (int x = 0; x < Size; x++)
