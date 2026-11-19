@@ -1,0 +1,17 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE invented cave predator, the draft-hound, a gaunt pack hunter with a leaf-nosed bat's face, in exactly the shape and colours of the first reference image. About 1.1 m high at the shoulder and 2.2 m long from nose to tail tip. It stands in a NEUTRAL STANCE on all four feet: all four long legs straight down and slightly apart, feet flat on the ground, head level and looking straight ahead. Exactly the same creature in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE profile, head pointing to the left, the whole creature from nose to tail. In this view the far legs stand EXACTLY BEHIND the near legs and are hidden by them, so only TWO legs can be seen, one fore and one hind.
+- BOTTOM LEFT: the FRONT view, looking straight at its face, both forelegs apart and visible.
+- BOTTOM RIGHT: the BACK view, from straight behind, both hind legs apart and visible.
+Landscape aspect about 1536x1024. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the first reference image: a long-legged, narrow, deep-chested body with knobbly joints and visible ribs, long thin legs with clawed feet, a short bare tail held straight out, a long neck. The head of a giant leaf-nosed bat: a short muzzle with a wrinkled, upturned leaf-shaped nose and tiny sunken pale eyes. EXACTLY FOUR LEGS, NO wings.
+
+THE EARS, THE MOST IMPORTANT PART: two enormous round ear-fans, each wider than the head, standing out to the LEFT and RIGHT of the top of the head and held square to the front, so in the FRONT view both are seen face-on as two big round discs either side of the head, and in the SIDE view the near ear is seen almost edge-on as a thin upright sliver. Each ear is ONE THIN FLAT SHEET, as thin as a leaf, joined to the head only by a narrow base, with clear grey space between the ear and the neck: pale pink membrane with darker red veins and a scalloped lace edge.
+
+THE MANE: a short, stiff straw-coloured mane lying flat and close along the neck and shoulders, one smooth solid mass, not loose strands.
+
+THE MOUTH: the jaws stand HALF OPEN at rest, the lower jaw clearly separate from the upper with a dark gap between them, showing long thin pale fangs and the dark red mouth inside. Not closed, and not fully gaping.
+
+PAINT - follow the second reference image, a sheet of a giant ground sloth from the same game, only for its treatment and not its colours: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Pale bone-grey wrinkled skin, darker bark-brown down the legs. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO rocks, NO other objects. EXACTLY TWO EARS, NO wings, NO extra legs. NOT photoreal, NOT a perspective render, NOT anime, NOT cute, NOT cel shading or outlines.

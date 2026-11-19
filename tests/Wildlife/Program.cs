@@ -392,6 +392,19 @@ Check.Section("hostile animals", () =>
         Check.That(Math.Abs(walking.X) > 2 && Math.Sign(walking.X) != Math.Sign(far.X) || walking.X != 0, $"an animal on side {side} arrives away from the straight line");
     }
 
+    // #10878: near the player a pack rings it, each at striking distance in its own place, rather than piling onto one spot.
+    const double Halt = 2.1;
+    Vector2 leaderSpot = new(0, 2.1f);
+    Check.That(HunterRules.Ring(near, player, leaderSpot, 0, pack, Halt) is null, "the first of a pack goes straight in");
+    Check.That(HunterRules.Ring(far, player, leaderSpot, 1, pack, Halt) is null, "out past the close, a pack animal swings wide instead");
+    Vector2[] places = [.. new[] { 1, -1, 2, -2 }.Select(side => HunterRules.Ring(near, player, leaderSpot, side, pack, Halt)!.Value)];
+    Check.That(places.All(place => Math.Abs(place.Length() - Halt) < 1e-4), "each place is at striking distance");
+    Check.That(places.Append(leaderSpot).SelectMany((a, i) => places.Append(leaderSpot).Skip(i + 1).Select(b => Vector2.Distance(a, b))).Min() > 1.0,
+        "no two of a pack of five share a place");
+    Check.That(places[0].X * places[1].X < 0, "the first two either side of the first take opposite sides");
+    Vector2 pairPlace = HunterRules.Ring(near, player, leaderSpot, 1, null, Halt)!.Value;
+    Check.That(Vector2.Distance(pairPlace, leaderSpot) > 1.0 && Math.Abs(pairPlace.Length() - Halt) < 1e-4, "a pair with no pack stands apart too");
+
     HerdRecord den = new("runners", runner.Id, Vector2.Zero, 3), other = new("others", runner.Id, Vector2.Zero, 1);
     WildlifeMember Runner(int id) => WildlifeRules.Wake(den, runner, catalog, 7, Vector2.Zero, 1, () => id).Leader;
     Dictionary<int, Hunter> packed = new()
@@ -1427,6 +1440,10 @@ Check.Section("cave animals", () =>
     Check.That(!low.Hangs && low.Member.Lift == 0, "under a low ceiling it rests on the floor");
     Hunter mouldback = Of(catalog.Kind("mouldback"));
     Check.Equal(WildlifeClipRole.Lie, HunterRules.Want(mouldback, CreatureState.Resting, 0, 3), "the mouldback lies flat at rest");
+    WildlifeKind draftHound = catalog.Kind("draft-hound");
+    Check.Equal(WildlifeClipRole.Search, HunterRules.Want(Of(draftHound), CreatureState.Searching, 0, 3), "a searching draft-hound flares its ear-fans (#10878)");
+    Check.That(draftHound.Mesh!.Clips.ContainsKey(WildlifeClipRole.Search), "the draft-hound's body has a search clip");
+    Check.Equal(WildlifeClipRole.Lie, HunterRules.Want(Of(catalog.Kind("glass-courser")), CreatureState.Resting, 0, 3), "the glass-courser lies flat at rest (#10878)");
 
 });
 

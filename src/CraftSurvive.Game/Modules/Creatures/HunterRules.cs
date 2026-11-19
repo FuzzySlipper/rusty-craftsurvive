@@ -17,6 +17,9 @@ internal sealed class Hunter(WildlifeKind kind, HerdRecord record, WildlifeMembe
     /// <summary>It met something as it swung wide, so it is routed in like any other from here.</summary>
     internal bool FlankBlocked { get; set; }
 
+    /// <summary>It met something going to its place round the player, so it closes in like any other from here (#10878).</summary>
+    internal bool RingBlocked { get; set; }
+
     internal WildlifeKind Kind { get; } = kind ?? throw new ArgumentNullException(nameof(kind));
 
     internal HerdRecord Record { get; } = record ?? throw new ArgumentNullException(nameof(record));
@@ -166,6 +169,29 @@ internal static class HunterRules
     }
 
     private const double MostFlankDegrees = 75;
+
+    /// <summary>
+    /// Where one of a group of hunters from one home goes once it is near enough to go straight in (#10878), or null for
+    /// the group's first and for one still out past the close: its own place at striking distance from the player, turned
+    /// out to its side from the way the first came in, so a pack or a pair rings the player instead of piling onto one spot.
+    /// A pack turns by its flank; a group with no pack by <see cref="RingDegrees"/>, within <see cref="RingCloseMetres"/>.
+    /// </summary>
+    internal static Vector2? Ring(Vector2 from, Vector2 player, Vector2 first, int side, WildlifePack? pack, double halt)
+    {
+        Vector2 bearing = first - player;
+        double close = pack?.CloseMetres ?? RingCloseMetres;
+        if (side == 0 || Vector2.Distance(from, player) > close || bearing.LengthSquared() < 1e-4f) return null;
+        double turn = Math.Clamp(side * (pack?.FlankDegrees ?? RingDegrees), -MostRingDegrees, MostRingDegrees) * Math.PI / 180;
+        return player + (Vector2.Transform(Vector2.Normalize(bearing), Matrix3x2.CreateRotation((float)turn)) * (float)halt);
+    }
+
+    /// <summary>How far round from its first a hunter in a group with no pack stands, by its place in the group.</summary>
+    internal const double RingDegrees = 35;
+
+    /// <summary>How near the player a group with no pack goes to its places round it.</summary>
+    internal const double RingCloseMetres = 8;
+
+    private const double MostRingDegrees = 150;
 
     /// <summary>How far ahead a flanking animal's next waypoint is set: more than a step takes it.</summary>
     private const float FlankLeadMetres = 4;

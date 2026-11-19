@@ -1,0 +1,15 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE invented cave predator, the glass-courser, a lean cheetah-built runner, in exactly the body shape and colours of the first reference image. About 1.2 m high at the shoulder and 3 m long from nose to tail tip. It stands in a NEUTRAL STANCE on all four feet: all four long legs straight down and slightly apart, feet flat on the ground, head level and looking straight ahead, the long tail held straight out behind and drooping slightly. Exactly the same creature in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE profile, head pointing to the left, the whole creature from nose to tail tip. In this view the far legs stand EXACTLY BEHIND the near legs and are hidden by them, so only TWO legs can be seen, one fore and one hind.
+- BOTTOM LEFT: the FRONT view, looking straight at its face, both forelegs apart and visible.
+- BOTTOM RIGHT: the BACK view, from straight behind, both hind legs apart and visible.
+Landscape aspect about 1536x1024. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the first reference image: a lean, long-legged, deep-chested runner with a narrow waist, a small head on a long neck, huge dark round eyes, a long thin jaw, and a long tapering tail. EXACTLY FOUR LEGS.
+
+NO CREST: draw it WITHOUT the glowing filaments and beads of the reference. Along its spine and tail there is only a low, smooth, slate-blue ridge lying flat on the body, with nothing standing up from it. The filaments are added to the model separately.
+
+THE MOUTH: the jaws stand HALF OPEN at rest, the lower jaw clearly separate from the upper with a dark gap between them, showing rows of small sharp teeth and the dark mouth inside. Not closed, and not fully gaping.
+
+PAINT - follow the second reference image, a sheet of a giant ground sloth from the same game, only for its treatment and not its colours: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Smooth hairless milky skin, pale blue-grey and glassy, darker slate along the back and down the top of the tail, paler on the belly. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO rocks, NO other objects. NO crest filaments, NO glowing beads, NO spines. NO extra legs. NOT photoreal, NOT a perspective render, NOT anime, NOT cute, NOT cel shading or outlines.

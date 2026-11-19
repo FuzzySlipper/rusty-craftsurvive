@@ -499,9 +499,13 @@ def ungulate_gape(c, s, t):
 
 
 def ungulate_threat(c, s, t):
-    """A hunter's threat: the head rears up and back and the jaws gape as far as they go, shaking."""
+    """A hunter's threat: the head rears up and back and the jaws gape as far as they go, shaking.
+    With `headLow` (#10878) it crouches instead: forequarters sunk, head low and thrust out, jaws wide."""
     up = gait.rise_hold_fall(t, 0.18, 0.85)
     shake = 0.5 + 0.5 * gait.wave(t, 8)
+    if s["threat"].get("headLow"):
+        crouch_threat(c, up, shake, t)
+        return
     c.bone_rotation("chest", pitch(5.0 * up))
     c.bone_rotation("neck", pitch(16.0 * up) @ yaw(5.0 * up * gait.wave(t, 2)))
     c.bone_rotation("neck2", pitch(20.0 * up))
@@ -589,6 +593,50 @@ def ungulate_ledge_hop(c, s, t):
     ungulate_tail(c, t, 2.0, droop=-10.0 * air)
 
 
+def crouch_threat(c, up, shake, t):
+    """A low threat (#10878): the forequarters sink and the head comes down and forward, jaws gaping, shaking."""
+    c.bone_offset("hips", (0, -0.04 * up, -0.04 * up))
+    c.bone_rotation("spine", pitch(-3.0 * up))
+    c.bone_rotation("chest", pitch(-7.0 * up))
+    c.bone_rotation("neck", pitch(-14.0 * up) @ yaw(4.0 * up * gait.wave(t, 2)))
+    c.bone_rotation("neck2", pitch(6.0 * up))
+    c.bone_rotation("head", pitch(16.0 * up) @ yaw(3.0 * up * gait.wave(t, 8)))
+    c.bone_rotation("jaw", pitch((-44.0 - 5.0 * shake) * up))
+    for leg in ("fore.L", "fore.R"):
+        c.place(leg, forward=0.05 * up, side=0.04 * up)
+    ungulate_tail(c, t, 1.0, droop=10.0 * up)
+
+
+def fold_leg(c, side, bones, degrees):
+    """Keys a leg's bones to pitches from hanging straight down (positive swings forward), each turned from its own rest
+    direction and less what the bone above has turned, for a pose IK cannot fold."""
+    turned = 0.0
+    for bone, angle in zip(bones, degrees):
+        rest = c.rig.data.bones[f"{bone}.{side}"]
+        along = rest.tail_local - rest.head_local
+        rest_angle = math.degrees(math.atan2(-along.y, -along.z))
+        c.bone_rotation(f"{bone}.{side}", pitch(angle - rest_angle - turned))
+        turned = angle - rest_angle
+
+
+def ungulate_lie(c, s, t):
+    """At rest, lying flat (#10878, the glass-courser): the body down on the ground, hind legs folded under it and the
+    forelegs stretched out in front, head up and watching, breathing slowly. The legs are keyed, not IK'd: `hind` and
+    `fore` give each segment's pitch from hanging straight down (positive swings forward), top to toe."""
+    settings = s["lie"]
+    breathe = gait.wave(t)
+    for leg in c.targets:
+        c.leg_influence(leg, 0.0)
+    c.bone_offset("hips", (0, 0, -settings["sinkMetres"]))
+    for side in SIDES:
+        fold_leg(c, side, ("thigh", "shin", "cannon", "hoof"), settings["hind"])
+        fold_leg(c, side, ("upperarm", "forearm", "fcannon", "fhoof"), settings["fore"])
+    c.bone_rotation("spine", pitch(0.8 * breathe))
+    c.bone_rotation("neck", pitch(settings.get("neckDegrees", 6.0)) @ yaw(4.0 * gait.wave(t, lag=0.2)))
+    c.bone_rotation("head", pitch(-settings.get("neckDegrees", 6.0)) @ yaw(5.0 * gait.wave(t, lag=0.3)))
+    ungulate_tail(c, t, 2.0, droop=settings.get("tailDroop", 4.0))
+
+
 UNGULATE_CLIPS = {
     "rest": (clip_rest, False, True),
     "idle": (ungulate_idle, True, True),
@@ -607,7 +655,85 @@ UNGULATE_CLIPS = {
     "shove": (ungulate_shove, False, True),
     "spar": (ungulate_spar, False, True),
     "ledge-hop": (ungulate_ledge_hop, False, False),
+    "lie": (ungulate_lie, True, False),
 }
+
+
+# ---------------------------------------------------------------- ungulate with ear-fans: the draft-hound (#10878)
+
+def ungulate_eared_bones():
+    bones = ungulate_bones()
+    for side, sign in SIDES.items():
+        bones.append((f"ear.{side}", "head", "ear", "ear_tip", sign))
+    return bones
+
+
+def set_fan(c, back=0.0, down=0.0, forward=0.0, swivel=(0.0, 0.0)):
+    """Poses both ear-fans from their rest, held into the draft: `back` swings each back towards the neck (flattened at
+    about 50), `down` droops it, `forward` flares it to face ahead, and `swivel` turns each on its own (left, right)."""
+    for (side, sign), turn in zip(SIDES.items(), swivel):
+        c.bone_rotation(f"ear.{side}", yaw(sign * (back - forward + turn)) @ pitch(down))
+
+
+def fan_still(c, s, t):
+    set_fan(c, swivel=(3.0 * gait.wave(t, 2), -3.0 * gait.wave(t, 2, lag=0.3)))
+
+
+def fan_run(c, s, t):
+    set_fan(c, back=32.0, down=6.0)
+
+
+def fan_flat(c, s, t):
+    up = gait.rise_hold_fall(t, 0.15, 0.85)
+    set_fan(c, back=52.0 * up, down=16.0 * up)
+
+
+def fan_bite(c, s, t):
+    set_fan(c, back=52.0, down=16.0)
+
+
+def fan_hurt(c, s, t):
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    set_fan(c, back=40.0 * hit, down=10.0 * hit)
+
+
+def fan_die(c, s, t):
+    fall = gait.ease_in_out(t, 0.2, 0.8)
+    set_fan(c, back=30.0 * fall, down=34.0 * fall)
+
+
+def eared_search(c, s, t):
+    """The draft-hound's search (#10878): it stands and flares its ear-fans wide and forward, turning each on its own,
+    while the head comes up and sweeps slowly from side to side, nose lifted, testing the draft."""
+    flare = gait.rise_hold_fall(t, 0.12, 0.9)
+    sweep = gait.wave(t)
+    c.bone_rotation("chest", pitch(3.0 * flare))
+    c.bone_rotation("neck", pitch(14.0 * flare) @ yaw(14.0 * flare * sweep))
+    c.bone_rotation("neck2", pitch(6.0 * flare) @ yaw(10.0 * flare * gait.wave(t, lag=0.08)))
+    c.bone_rotation("head", pitch((10.0 + 4.0 * gait.wave(t, 6)) * flare) @ yaw(8.0 * flare * gait.wave(t, lag=0.15)))
+    c.bone_rotation("jaw", pitch(-4.0 * flare * (0.5 + 0.5 * gait.wave(t, 6))))
+    set_fan(c, forward=22.0 * flare, down=-6.0 * flare,
+            swivel=(16.0 * flare * gait.wave(t, 2), -16.0 * flare * gait.wave(t, 2, lag=0.35)))
+    ungulate_tail(c, t, 2.0, droop=-4.0 * flare)
+
+
+EAR_POSES = {
+    "rest": lambda c, s, t: None, "run": fan_run, "threat": fan_flat, "bite": fan_bite, "hurt": fan_hurt, "die": fan_die, "lie": fan_run,
+}
+
+
+def with_ears(pose, ears):
+    def posed(c, s, t):
+        pose(c, s, t)
+        ears(c, s, t)
+    return posed
+
+
+UNGULATE_EARED_CLIPS = {
+    name: (with_ears(pose, EAR_POSES.get(name, fan_still)), loops, plants)
+    for name, (pose, loops, plants) in UNGULATE_CLIPS.items()
+}
+UNGULATE_EARED_CLIPS["search"] = (eared_search, True, True)
 
 
 # ---------------------------------------------------------------- what two-bone families share
@@ -1205,6 +1331,9 @@ FAMILIES = {
     "ungulate": Family(ungulate_bones, UNGULATE_LEGS, UNGULATE_CLIPS,
                        (("shin", "cannon", "hoof"), ("forearm", "fcannon", "fhoof")), "fetlock", "ffetlock",
                        ("thigh", "shin", "cannon", "upperarm", "forearm", "fcannon"), ("hoof", "fhoof")),
+    "ungulate-eared": Family(ungulate_eared_bones, UNGULATE_LEGS, UNGULATE_EARED_CLIPS,
+                             (("shin", "cannon", "hoof"), ("forearm", "fcannon", "fhoof")), "fetlock", "ffetlock",
+                             ("thigh", "shin", "cannon", "upperarm", "forearm", "fcannon"), ("hoof", "fhoof")),
     "graviportal": Family(graviportal_bones, PLANTIGRADE_LEGS, GRAVIPORTAL_CLIPS,
                           (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                           ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand")),

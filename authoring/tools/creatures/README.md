@@ -35,6 +35,8 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `preview.py` (Blender) | Renders an exported GLB's clips: still frames, or every frame with `--sequence` |
 | `montage.py` | Lays `preview.py` stills out as one sheet |
 | `sequence.py` | Animates `--sequence` frames: smooth beside a stepped rate, as one GIF |
+| `add_crest.py` (Blender) | Grows a crest of filaments with glowing beads onto a prepared body (#10878) |
+| `keep_band.py` | Keeps one hue band of a master paint through pixel reduction, with its own palette (#10878) |
 
 ```sh
 blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/build_creature.py -- \
@@ -276,3 +278,35 @@ the drop-sloth's coat as clumps hugging the limbs), and both came out with separ
   (`HunterRules.BodyOffFloor`: its lift less its height), and it lands no bite until it is down (R10877-2).
 - **`aboveMetres` under `"mouth"`** keeps anything lower than that height out of the jaw parting. The drop-sloth's
   long forelimbs reach past its hinge, and without it the claw tips went with the jaw.
+
+### Cave hunters on the ungulate rig (#10878)
+
+The draft-hound and the glass-courser came through the Tripo web studio as the #10877 pair did.
+
+- **Ear-fans: the `ungulate-eared` family.** The ungulate's bones with an `ear.L`/`ear.R` pair on the head (`ear` and
+  `ear_tip` points). Every clip of the ungulate family gets an ear layer (`EAR_POSES` in `families.py`): held into the
+  draft at rest and walking, swept back running, flattened back in `threat` and `bite`, drooping as it dies. The
+  family's own clip is `search`: the fans flare wide and forward and each turns on its own while the head sweeps,
+  nose up. Tripo made the fans thin, separate sheets from a sheet that draws them that way.
+- **`"ears"` in a species file** (`pin_ears` in `build_creature.py`) pins every vertex out past `sideMetres`, above
+  `aboveMetres` and between the `forward` pair to its side's ear bone, and gives those faces a second material,
+  `membrane`: alpha blended at `membrane.alpha` (0.8 by default) and drawn from both sides. The Engine imports a GLB's
+  alphaMode and doubleSided; it has no transmission or back-lighting term, so a fan lets the cave show through it
+  but does not glow when the lantern is behind it.
+- **`keep_band.py <master> <reduced> <out> --hue lo hi`** repaints one hue band of the master into the reduced paint
+  with its own small palette. `pixel_reduce.py` spends its palette on what covers most of a body, so the hound's pink,
+  red-veined fans came out tan without it.
+- **Crests: `add_crest.py`.** Tripo fuses thin filaments into the body, so the courser's reference sheet is drawn
+  without its crest and the crest is grown onto the prepared body from the species' `"crest"` block: three-sided
+  shafts rooted on the back's midline, swept back and splayed, each with a bead. It adds a three-row strip to the
+  paint for the shafts' and beads' colours (the body's UVs move up to keep their texels); `emission_mask.py --hue`
+  on the bead's amber then makes the beads glow. The pieces move with the body surface nearest them (`pin_islands`).
+- **New ungulate clips.** `lie` keys the legs folded (`hind` and `fore` give each segment's pitch from hanging straight
+  down, top to toe; `fold_leg` turns each bone from its own rest direction): the courser lies with its hind legs
+  under it and its forelegs out in front. `threat` with `"headLow": true` crouches, head low and jaws wide, instead
+  of rearing.
+- **`preview.py`** shows the base colour's image: Workbench draws a material's active image, which for a body with an
+  emissive texture was the black emission map.
+- **In game.** The hound searches with its `search` clip (`"search": { "clip": "search" }`, the `Search` clip role);
+  the courser rests on `lie`. Near the player, the hunters from one home ring it, each at striking distance in its
+  own place (`HunterRules.Ring`: a pack turns by its flank, others by 35 degrees), rather than piling onto one spot.

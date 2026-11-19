@@ -33,6 +33,13 @@ def main(argv):
         bpy.data.objects.remove(obj)
     bpy.ops.import_scene.gltf(filepath=str(glb))
     rig = next(o for o in bpy.context.scene.objects if o.type == "ARMATURE")
+    # Workbench draws a material's active image: make it the base colour's, not an emissive texture's (#10878).
+    for material in bpy.data.materials:
+        if material.node_tree:
+            shader = next((n for n in material.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+            links = shader.inputs["Base Color"].links if shader else ()
+            if links:
+                material.node_tree.nodes.active = links[0].from_node
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.display.shading.light = "STUDIO"

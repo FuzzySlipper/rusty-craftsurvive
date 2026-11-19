@@ -436,6 +436,34 @@ internal sealed class CreatureModule : IProductModule
         return true;
     }
 
+    /// <summary>
+    /// Near the player, a hunter other than the first of those from its home goes to its own place round the player
+    /// (#10878, <see cref="HunterRules.Ring"/>), straight there over the little ground left. Stopped by what it meets, it
+    /// gives that up and closes in like any other.
+    /// </summary>
+    private bool Rings(Creature creature, Hunter? hunter, Vector2 playerGround)
+    {
+        if (hunter is null || hunter.RingBlocked || hunter.Side == 0) return false;
+        WildlifePack? pack = hunter.Kind.Hunt!.Pack;
+        Creature? first = roster.All.FirstOrDefault(other => other.Awake && other.Space == creature.Space
+            && hunters.TryGetValue(other.Id, out Hunter? its) && its.Side == 0 && its.Record.Key == hunter.Record.Key);
+        if (first is null || HunterRules.Ring(creature.Position, playerGround, first.Position, hunter.Side, pack, creature.Kind.HaltDistanceMetres) is not Vector2 place) return false;
+        bool stuck = CreatureSimulation.NotClosing(creature.Waypoint is null ? null : creature.RoutedFrom, creature.Position, place,
+            Vector2.Distance(creature.Position, place) + creature.Kind.HaltDistanceMetres, creature.Kind.HaltDistanceMetres, ProgressMetres);
+        creature.StuckSteps = stuck ? creature.StuckSteps + 1 : 0;
+        if (creature.StuckSteps >= StuckSteps)
+        {
+            hunter.RingBlocked = true;
+            creature.StuckSteps = 0;
+            return false;
+        }
+
+        creature.Path = null;
+        creature.RoutedFrom = creature.Position;
+        creature.Waypoint = place;
+        return true;
+    }
+
     /// <summary>A hostile animal going this slowly turns to face the player, not the way it is drifting.</summary>
     private const float HunterTurnsAboveMetres = 0.3f;
 
@@ -835,6 +863,7 @@ internal sealed class CreatureModule : IProductModule
                 // A hostile animal standing to show its threat or bite is not walking, so it is not stuck either.
                 if (hunters.TryGetValue(creature.Id, out Hunter? hunter) && hunter.Holding) continue;
                 if (!searching && Flanks(creature, hunter, playerGround)) continue;
+                if (!searching && Rings(creature, hunter, playerGround)) continue;
                 if (step < creature.BackoffUntil)
                 {
                     creature.Waypoint = BeyondNavigation(creature, playerGround);

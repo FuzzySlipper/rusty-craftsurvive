@@ -433,6 +433,41 @@ def pin_mouth(species, mesh):
           f"{sum(end == 'lower' for end in side.values())} the jaw")
 
 
+def pin_ears(species, mesh):
+    """
+    Ear-fans (#10878) are thin sheets: every vertex out past `sideMetres`, above `aboveMetres` and between the `forward`
+    pair follows its side's ear bone outright, and the faces made of them take a second material, alpha blended and
+    drawn from both sides (`membrane.alpha`, the share of light it stops), so the cave shows through them.
+    """
+    ears = species.get("ears")
+    if not ears:
+        return
+    low, high = ears["forward"]
+    side = {}
+    for v in mesh.data.vertices:
+        if abs(v.co.x) >= ears["sideMetres"] and v.co.z >= ears["aboveMetres"] and low <= -v.co.y <= high:
+            side[v.index] = "L" if v.co.x > 0 else "R"
+    for group in mesh.vertex_groups:
+        group.remove(list(side))
+    for name in ("L", "R"):
+        group = mesh.vertex_groups.get(f"ear.{name}") or mesh.vertex_groups.new(name=f"ear.{name}")
+        group.add([index for index, s in side.items() if s == name], 1.0, "REPLACE")
+    body = mesh.data.materials[0]
+    membrane = body.copy()
+    membrane.name = "membrane"
+    membrane.surface_render_method = "BLENDED"
+    membrane.use_backface_culling = False
+    shader = next(node for node in membrane.node_tree.nodes if node.type == "BSDF_PRINCIPLED")
+    shader.inputs["Alpha"].default_value = ears.get("membrane", {}).get("alpha", 0.8)
+    mesh.data.materials.append(membrane)
+    slot = len(mesh.data.materials) - 1
+    faces = [f for f in mesh.data.polygons if all(v in side for v in f.vertices)]
+    for face in faces:
+        face.material_index = slot
+    print(f"ears: {sum(s == 'L' for s in side.values())} vertices follow ear.L, {sum(s == 'R' for s in side.values())} ear.R; "
+          f"{len(faces)} faces are membrane")
+
+
 # ---------------------------------------------------------------- IK controls
 
 class Controls:
@@ -666,6 +701,7 @@ def main(argv):
     pin_shell(species, mesh)
     pin_islands(mesh)
     pin_mouth(species, mesh)
+    pin_ears(species, mesh)
     controls = Controls(rig, family)
     points = species["points"]
     manifest = {

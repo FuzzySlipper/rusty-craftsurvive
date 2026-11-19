@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/glass-courser/mesh/tripo/tripo.glb",
+  "triangles": 5999,
+  "areaSquareMetres": 3.052,
+  "charts": 232,
+  "utilization": 0.7598,
+  "masterTexels": [
+    579,
+    582
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.22494317591190338,
+      -1.4979854822158813,
+      -0.0004840965266339481
+    ],
+    [
+      0.2247772067785263,
+      1.497018575668335,
+      1.1318405866622925
+    ]
+  ]
+}

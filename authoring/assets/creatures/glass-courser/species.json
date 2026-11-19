@@ -1,0 +1,305 @@
+{
+ "id": "glass-courser",
+ "family": "ungulate",
+ "about": "The glass-courser (#10878), an invented cheetah-built sight hunter of the glass steppe with milky blue-grey glassy skin, about 1.0 m at the shoulder and 3 m long with its tail, fitted to the Tripo body (authoring/assets/creatures/glass-courser/mesh); its crest of glassy filaments with glowing beads is added by add_crest.py. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+ "mouth": {
+  "hingeForward": 1.29,
+  "upper": [
+   1.47,
+   0.99
+  ],
+  "lower": [
+   1.45,
+   0.93
+  ],
+  "biteHeight": 0.965
+ },
+ "points": {
+  "root": [
+   0,
+   0,
+   0
+  ],
+  "root_tip": [
+   0,
+   0.5,
+   0
+  ],
+  "hips": [
+   0,
+   -0.3,
+   0.78
+  ],
+  "spine": [
+   0,
+   0.15,
+   0.8
+  ],
+  "chest": [
+   0,
+   0.55,
+   0.84
+  ],
+  "neck": [
+   0,
+   0.78,
+   0.87
+  ],
+  "neck2": [
+   0,
+   0.98,
+   0.98
+  ],
+  "head": [
+   0,
+   1.18,
+   1.05
+  ],
+  "nose": [
+   0,
+   1.5,
+   1.0
+  ],
+  "jaw": [
+   0,
+   1.28,
+   0.99
+  ],
+  "jaw_tip": [
+   0,
+   1.47,
+   0.93
+  ],
+  "tail0": [
+   0,
+   -0.38,
+   0.78
+  ],
+  "tail1": [
+   0,
+   -0.72,
+   0.71
+  ],
+  "tail2": [
+   0,
+   -1.08,
+   0.62
+  ],
+  "tail3": [
+   0,
+   -1.5,
+   0.56
+  ],
+  "hip_socket": [
+   0.1,
+   -0.22,
+   0.75
+  ],
+  "stifle": [
+   0.14,
+   -0.08,
+   0.5
+  ],
+  "hock": [
+   0.15,
+   -0.25,
+   0.3
+  ],
+  "fetlock": [
+   0.15,
+   -0.23,
+   0.07
+  ],
+  "toe": [
+   0.16,
+   -0.06,
+   0.02
+  ],
+  "shoulder": [
+   0.1,
+   0.62,
+   0.8
+  ],
+  "elbow": [
+   0.13,
+   0.6,
+   0.55
+  ],
+  "carpus": [
+   0.14,
+   0.72,
+   0.15
+  ],
+  "ffetlock": [
+   0.14,
+   0.73,
+   0.06
+  ],
+  "ftoe": [
+   0.15,
+   0.88,
+   0.02
+  ],
+  "eye": [
+   0.07,
+   1.37,
+   1.07
+  ]
+ },
+ "clips": {
+  "fps": 30,
+  "walk": {
+   "seconds": 0.9,
+   "stride": 1.35,
+   "duty": 0.62,
+   "liftHind": 0.12,
+   "liftFore": 0.14,
+   "phases": {
+    "hind.L": 0.0,
+    "fore.L": 0.25,
+    "hind.R": 0.5,
+    "fore.R": 0.75
+   },
+   "bob": 0.02,
+   "swayDegrees": 2.0,
+   "nodDegrees": 3.0
+  },
+  "run": {
+   "seconds": 0.42,
+   "stride": 3.4,
+   "duty": 0.28,
+   "liftHind": 0.2,
+   "liftFore": 0.24,
+   "phases": {
+    "hind.L": 0.0,
+    "hind.R": 0.1,
+    "fore.L": 0.5,
+    "fore.R": 0.6
+   },
+   "bob": 0.06,
+   "swayDegrees": 1.5,
+   "nodDegrees": 4.0,
+   "spineFlex": 12.0,
+   "tailLift": -4.0
+  },
+  "idle": {
+   "seconds": 4.0
+  },
+  "alert": {
+   "seconds": 3.0
+  },
+  "die": {
+   "seconds": 2.0,
+   "restShare": 0.2
+  },
+  "threat": {
+   "seconds": 2.0,
+   "headLow": true
+  },
+  "bite": {
+   "seconds": 0.8
+  },
+  "hurt": {
+   "seconds": 0.6
+  },
+  "lie": {
+   "seconds": 4.0,
+   "sinkMetres": 0.52,
+   "hind": [
+    60,
+    -72,
+    90,
+    95
+   ],
+   "fore": [
+    -30,
+    80,
+    90,
+    95
+   ],
+   "neckDegrees": 14.0
+  }
+ },
+ "crest": {
+  "from": 1.1,
+  "to": -1.42,
+  "count": 38,
+  "lengths": [
+   [
+    1.1,
+    0.12
+   ],
+   [
+    0.85,
+    0.24
+   ],
+   [
+    0.55,
+    0.28
+   ],
+   [
+    0.0,
+    0.22
+   ],
+   [
+    -0.4,
+    0.2
+   ],
+   [
+    -1.0,
+    0.14
+   ],
+   [
+    -1.42,
+    0.07
+   ]
+  ],
+  "sweep": [
+   [
+    1.1,
+    18
+   ],
+   [
+    0.55,
+    24
+   ],
+   [
+    0.0,
+    30
+   ],
+   [
+    -0.4,
+    40
+   ],
+   [
+    -1.42,
+    58
+   ]
+  ],
+  "splayDegrees": 14,
+  "radius": 0.007,
+  "bead_radius": 0.018,
+  "shaft": [
+   [
+    96,
+    110,
+    130
+   ],
+   [
+    168,
+    184,
+    200
+   ],
+   [
+    214,
+    226,
+    234
+   ]
+  ],
+  "bead": [
+   255,
+   178,
+   62
+  ]
+ }
+}

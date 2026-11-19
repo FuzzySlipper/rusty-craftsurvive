@@ -82,6 +82,9 @@ internal enum WildlifeClipRole
 
     /// <summary>Falling from a ceiling and turning over to land on its feet (#10877).</summary>
     Drop,
+
+    /// <summary>Standing and searching for what it lost (#10878: the draft-hound flaring its ear-fans and turning them).</summary>
+    Search,
 }
 
 /// <summary>A kind's animated body: its mesh and build manifest, which clip plays each role, and how it falls when killed, if it does more than play its death. A kind without one is drawn as a placeholder.</summary>
