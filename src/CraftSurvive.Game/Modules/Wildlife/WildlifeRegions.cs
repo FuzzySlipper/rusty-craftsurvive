@@ -189,6 +189,12 @@ internal sealed class WildlifeLedger
     /// <summary>The homes of the caves near the player (#10876), by cave: a cave's animals are seeded once it is known.</summary>
     private readonly Dictionary<string, IReadOnlyList<HerdRecord>> caves = [];
 
+    /// <summary>
+    /// The homes of caves let go this session (R10876-3), kept so a hunter still holding one of their records, and the cave
+    /// taken up again, share the one record that counts its losses. Not found near the player; their losses are saved.
+    /// </summary>
+    private readonly Dictionary<string, IReadOnlyList<HerdRecord>> dormantCaves = [];
+
     /// <summary>Saved losses of herds whose regions have not been seeded this session; each is taken up when its region is.</summary>
     private readonly Dictionary<ulong, HerdLoss> waiting = [];
     private readonly WildlifeCatalog catalog;
@@ -224,29 +230,27 @@ internal sealed class WildlifeLedger
 
     /// <summary>
     /// A cave's homes (#10876), seeded once: each takes up any loss saved for it, and its losses are saved with the regions'.
-    /// A cave already held keeps the homes it has, with their losses.
+    /// A cave already held keeps the homes it has; one let go earlier this session takes back the very records it had
+    /// (R10876-3), so an animal still holding one counts its death against the record the ledger saves.
     /// </summary>
-    internal void AddCave(string key, IReadOnlyList<HerdRecord> homes)
+    /// <returns>The homes the ledger holds for the cave: those given, or those it already had.</returns>
+    internal IReadOnlyList<HerdRecord> AddCave(string key, IReadOnlyList<HerdRecord> homes)
     {
         ArgumentNullException.ThrowIfNull(homes);
-        if (caves.ContainsKey(key)) return;
+        if (caves.TryGetValue(key, out IReadOnlyList<HerdRecord>? held)) return held;
+        if (dormantCaves.Remove(key, out IReadOnlyList<HerdRecord>? kept)) return caves[key] = kept;
         foreach (HerdRecord herd in homes)
         {
             if (waiting.Remove(HerdLoss.IdOf(herd.Key), out HerdLoss loss)) herd.Restore(loss);
         }
 
-        caves[key] = homes;
+        return caves[key] = homes;
     }
 
-    /// <summary>A cave the player has left far behind: its homes go, and their losses wait for it as a region's do.</summary>
-    internal void RemoveCave(string key, double day)
+    /// <summary>A cave the player has left: its homes are no longer found near them, and keep their records and losses for its return.</summary>
+    internal void RemoveCave(string key)
     {
-        if (!caves.Remove(key, out IReadOnlyList<HerdRecord>? homes)) return;
-        foreach (HerdRecord herd in homes)
-        {
-            herd.Settle(day, catalog.Kind(herd.KindId).Population.RecoveryDays);
-            if (herd.Lost > 0) waiting[HerdLoss.IdOf(herd.Key)] = new HerdLoss(HerdLoss.IdOf(herd.Key), herd.Lost, herd.RecoveringSince);
-        }
+        if (caves.Remove(key, out IReadOnlyList<HerdRecord>? homes)) dormantCaves[key] = homes;
     }
 
     /// <summary>The caves whose homes are held.</summary>
@@ -266,7 +270,7 @@ internal sealed class WildlifeLedger
     internal IReadOnlyList<HerdLoss> Losses(double day)
     {
         List<HerdLoss> losses = [.. waiting.Values];
-        foreach (HerdRecord herd in regions.Values.SelectMany(region => region.Herds).Concat(caves.Values.SelectMany(homes => homes)))
+        foreach (HerdRecord herd in regions.Values.SelectMany(region => region.Herds).Concat(caves.Values.SelectMany(homes => homes)).Concat(dormantCaves.Values.SelectMany(homes => homes)))
         {
             herd.Settle(day, catalog.Kind(herd.KindId).Population.RecoveryDays);
             if (herd.Lost > 0) losses.Add(new HerdLoss(HerdLoss.IdOf(herd.Key), herd.Lost, herd.RecoveringSince));

@@ -172,7 +172,7 @@ internal sealed class WildlifeModule : IProductModule
         HashSet<string> keys = [.. near.Select(sites => sites.Key)];
         foreach (string gone in Ledger.Caves.Where(key => !keys.Contains(key)).ToArray())
         {
-            Ledger.RemoveCave(gone, Day(now));
+            Ledger.RemoveCave(gone);
             ambientWaiting.Remove(gone);
             foreach (WildlifeMember member in Ambience.Remove(creature => creature.Home.Cave == gone))
                 Forget(member);
@@ -762,7 +762,7 @@ internal sealed class WildlifeModule : IProductModule
         ForgetFallen(body => !overworldOnly || body.Space is null);
         // The caves' small creatures go too, and come again from their homes when the caves are taken up afresh.
         foreach (WildlifeMember member in Ambience.Remove(_ => true)) Forget(member);
-        foreach (string cave in Ledger.Caves.ToArray()) Ledger.RemoveCave(cave, Day(clock()));
+        foreach (string cave in Ledger.Caves.ToArray()) Ledger.RemoveCave(cave);
         ambientWaiting.Clear();
         Presentation.Sync(awake, fallen, [], FeetOf, Here, 0);
         return "all herds asleep";

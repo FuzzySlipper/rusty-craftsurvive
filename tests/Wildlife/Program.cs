@@ -1325,14 +1325,28 @@ Check.Section("cave animals", () =>
     WildlifeLedger ledger = new(catalog, Seed, (_, _) => MapBiome.Grassland);
     ledger.AddCave(sites.Key, homes);
     Check.That(ledger.HomesWithin(30, 10, 40).Any(home => home.KindId == "draft-hound"), "a cave home is found near the player");
+    // R10876-3: a hunter still holds its home's record while its cave is let go (the player in a dungeon, or gone far off) and
+    // taken up again from a fresh seeding. Its death must count against the record the ledger finds and saves.
     HerdRecord hound = homes.First(home => home.KindId == "draft-hound");
-    hound.Kill(10, catalog.Kind("draft-hound").Population.RecoveryDays);
-    ledger.RemoveCave(sites.Key, 10);
-    Check.That(!ledger.HomesWithin(30, 10, 40).Any(home => home.KindId == "draft-hound"), "a cave let go holds no homes");
+    double recovery = catalog.Kind("draft-hound").Population.RecoveryDays;
+    ledger.RemoveCave(sites.Key);
+    Check.That(!ledger.HomesWithin(30, 10, 40).Any(home => home.KindId == "draft-hound"), "a cave let go holds no homes near the player");
     IReadOnlyList<HerdRecord> again = CaveFauna.Homes(sites, catalog, Seed);
-    ledger.AddCave(sites.Key, again);
-    Check.Equal(hound.Founding - 1, again.First(home => home.Key == hound.Key).Alive(10, catalog.Kind("draft-hound").Population.RecoveryDays), "a cave taken up again keeps its losses");
-    Check.That(ledger.Losses(10).Any(loss => loss.Herd == HerdLoss.IdOf(hound.Key)), "and saves them with the regions'");
+    IReadOnlyList<HerdRecord> held = ledger.AddCave(sites.Key, again);
+    Check.That(held.Contains(hound) && !held.Intersect(again).Any(), "a cave taken up again takes back its own records, not the fresh seeding's");
+    HerdRecord found = ledger.HomesWithin(30, 10, 40).First(home => home.Key == hound.Key);
+    Check.That(ReferenceEquals(found, hound), "the home found near the player is the very record its hunter holds");
+    for (int i = 0; i < hound.Founding; i++) hound.Kill(10, recovery);
+    Check.Equal(0, found.Alive(10, recovery), "the hunter's deaths count against the ledger's record: none left, so no replacement wakes");
+    Check.That(ledger.Losses(10).Any(loss => loss.Herd == HerdLoss.IdOf(hound.Key) && loss.Lost == hound.Founding), "and the saved losses carry them");
+    ledger.RemoveCave(sites.Key);
+    Check.That(ledger.Losses(10).Any(loss => loss.Herd == HerdLoss.IdOf(hound.Key) && loss.Lost == hound.Founding), "a cave let go still has its losses saved");
+    HerdRecord dormantKill = homes.First(home => home.KindId == "mouldback");
+    dormantKill.Kill(10, catalog.Kind("mouldback").Population.RecoveryDays);
+    Check.That(ledger.Losses(10).Any(loss => loss.Herd == HerdLoss.IdOf(dormantKill.Key)), "a death while its cave is let go is saved too");
+    ledger.AddCave(sites.Key, CaveFauna.Homes(sites, catalog, Seed));
+    Check.Equal(dormantKill.Founding - 1, ledger.HomesWithin(5, 40, 40).First(home => home.Key == dormantKill.Key).Alive(10, catalog.Kind("mouldback").Population.RecoveryDays),
+        "and the cave taken up again counts it");
 
     // The small creatures (#10876; Patch: no colliders, no combat): none is a wildlife kind, so no body, capsule or swing finds one.
     Check.That(catalog.CaveAmbient.Select(kind => kind.Id).Order().SequenceEqual(new[] { "blindfish", "drift-grazer", "mound-shrew" }), "the three small cave creatures load");
