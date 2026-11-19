@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Text;
 using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
@@ -785,6 +786,52 @@ internal sealed class CreatureModule : IProductModule
     }
 
     /// <summary>Test aid: leaves every creature one health.</summary>
+    /// <summary>
+    /// Why creatures cannot route (#10924), on the navigation published around the player now: for <c>all</c> every awake
+    /// creature whose last route was not reached (or one by id), how its feet and the player's read; for <c>homes</c>, how
+    /// each held cave home's floor reads, flagging those no creature could start a route from.
+    /// </summary>
+    internal string WhyReadout(string which)
+    {
+        CreatureSpace here = walking;
+        CreatureNavigation navigation = NavigationIn(here);
+        navigation.EnsurePublished(player.WorldFeetPosition);
+        StringBuilder lines = new();
+        lines.Append("player: ").Append(navigation.Diagnose(player.WorldFeetPosition));
+        if (which == "homes")
+        {
+            foreach (HerdRecord home in Wildlife?.CaveHomes ?? [])
+            {
+                float floor = walking.FloorBelow(home.Home.X, home.Home.Y, home.Floor ?? StandingAtHome(home), HomeFloorSearchMetres) ?? (home.Floor ?? 0f);
+                string reading = navigation.Diagnose(new Vector3(home.Home.X, floor, home.Home.Y));
+                lines.Append(string.Create(CultureInfo.InvariantCulture,
+                    $" | {(reading.StartsWith("its column supports it", StringComparison.Ordinal) ? "ok" : "UNROUTABLE")} {home.Key} at {home.Home.X:F1},{floor:F1},{home.Home.Y:F1}: {reading}"));
+            }
+
+            return lines.ToString();
+        }
+
+        IEnumerable<Creature> asked = which == "all"
+            ? roster.All.Where(creature => creature.Awake && SpaceOf(creature) == here && creature.RouteOutcome is not ("Reached" or "none"))
+            : int.TryParse(which, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id) ? roster.All.Where(creature => creature.Id == id) : [];
+        foreach (Creature creature in asked)
+        {
+            Vector3 feet = Feet(creature);
+            string reading = navigation.Diagnose(feet);
+            // A start that is walkable but finds no way: how near the search got says whether the floors are joined.
+            string reach = reading.StartsWith("its column supports it", StringComparison.Ordinal) ? $"; {navigation.Reach(feet, player.WorldFeetPosition)}" : "";
+            lines.Append(string.Create(CultureInfo.InvariantCulture,
+                $" | id={creature.Id} kind={creature.Kind.Name} route={creature.RouteOutcome} feet={feet.X:F1},{feet.Y:F1},{feet.Z:F1}: {reading}{reach}"));
+        }
+
+        return lines.ToString();
+    }
+
+    /// <summary>A home's floor is looked for this far under its site.</summary>
+    private const double HomeFloorSearchMetres = 1.5;
+
+    private float StandingAtHome(HerdRecord home) => GroundAt(home.Home);
+
     /// <summary>The step until which the test aid hides the player from every creature (#10878).</summary>
     private long unseenUntil;
 

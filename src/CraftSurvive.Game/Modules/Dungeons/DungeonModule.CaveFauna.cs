@@ -52,7 +52,7 @@ internal sealed partial class DungeonModule
     /// <summary>A cave's sites, from its layout and its tendril.</summary>
     internal static CaveSites SitesOf(CavePlacement cave, DungeonLayout layout)
     {
-        string key = string.Create(CultureInfo.InvariantCulture, $"cave:{cave.Site.CellX},{cave.Site.CellZ}");
+        string key = CaveKey(cave);
         Vector3 Over(Vector3 canonical) => cave.ToWorld(canonical) + (Vector3.UnitY * SiteOverFloorMetres);
 
         // The twilight: the tendril's centre line a few metres in from the mouth, which the overworld's generator carves.

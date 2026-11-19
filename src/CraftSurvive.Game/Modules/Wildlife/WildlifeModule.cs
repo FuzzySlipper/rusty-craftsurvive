@@ -768,6 +768,84 @@ internal sealed class WildlifeModule : IProductModule
         return "all herds asleep";
     }
 
+    /// <summary>The homes of the caves held near the player (#10876), for diagnosis.</summary>
+    internal IEnumerable<HerdRecord> CaveHomes => Ledger.CaveHomes;
+
+    /// <summary>
+    /// Test aid (#10924): forgets a cave's animals - its home records in the ledger, kept or held, and its small creatures -
+    /// so a cave regenerated afresh seeds the homes its new layout gives. The creatures forget its hunters themselves.
+    /// </summary>
+    internal void ForgetCave(string key)
+    {
+        Ledger.ForgetCave(key);
+        ambientWaiting.Remove(key);
+        foreach (WildlifeMember member in Ambience.Remove(creature => creature.Home.Cave == key)) Forget(member);
+        lastEvent = $"cave {key} forgotten";
+    }
+
+    /// <summary>
+    /// Test aid (#10924): stands the player on a floor where their body fits, about <paramref name="metres"/> from a cave
+    /// home at a bearing, facing the home. The home is named by its key, or by a kind (its home nearest the player). The
+    /// bearing is <c>upwind</c> or <c>downwind</c> of a home that faces a draft, a heading in degrees (0 faces -z, 90 +x),
+    /// or <c>any</c>; spots are tried out from it, nearer and farther, on the home's own floor. Says why spots failed.
+    /// </summary>
+    internal string StandAtHome(string which, double metres, string bearing)
+    {
+        Vector3 feet = player.WorldFeetPosition;
+        HerdRecord? home = Ledger.CaveHomes.FirstOrDefault(h => h.Key == which)
+            ?? Ledger.CaveHomes.Where(h => h.KindId == which).MinBy(h => Vector2.Distance(h.Home, new Vector2(feet.X, feet.Z)));
+        if (home is null) return $"no cave home '{which}' held near the player; craft.wildlife.caves lists them";
+        double siteY = home.Floor ?? feet.Y;
+        double floor = terrain.GroundBelow(home.Home.X, home.Home.Y, siteY, StandSearchMetres) ?? siteY;
+        double? wanted = bearing switch
+        {
+            "upwind" or "downwind" when home.Upwind is not Vector2 => null,
+            "upwind" => Creatures.HunterRules.HeadingDegrees(home.Upwind!.Value),
+            "downwind" => Creatures.HunterRules.HeadingDegrees(-home.Upwind!.Value),
+            "any" => 0,
+            _ => double.TryParse(bearing, NumberStyles.Float, CultureInfo.InvariantCulture, out double degrees) ? degrees : null,
+        };
+        if (wanted is not double around) return $"bearing '{bearing}' is not upwind, downwind (for a home facing a draft), any or degrees";
+        double[] turns = bearing == "any" ? [.. Enumerable.Range(0, 24).Select(i => i * 15d)] : [0, 15, -15, 30, -30, 45, -45, 60, -60];
+        double[] distances = [.. new[] { 0, -0.5, 0.5, -1, 1, 1.5, -1.5, 2 }.Select(d => metres + d).Where(d => d >= 1)];
+        int noFloor = 0, offLevel = 0, noRoom = 0, taken = 0;
+        // Not on top of an animal: the hunters about stand where they are drawn, the length of their bodies.
+        (Vector2 At, double Clear)[] animals = [.. (Hunters?.Invoke() ?? []).Select(h => (h.Member.Position, (h.Kind.Body.LengthMetres / 2) + StandClearMetres))];
+        foreach (double distance in distances)
+        foreach (double turn in turns)
+        {
+            double radians = (around + turn) * Math.PI / 180;
+            double x = home.Home.X + (Math.Sin(radians) * distance), z = home.Home.Y - (Math.Cos(radians) * distance);
+            if (animals.Any(a => Vector2.Distance(a.At, new Vector2((float)x, (float)z)) < a.Clear)) { taken++; continue; }
+            if (terrain.GroundBelow(x, z, floor, StandSearchMetres) is not float ground) { noFloor++; continue; }
+            if (Math.Abs(ground - floor) > StandLevelMetres) { offLevel++; continue; }
+            double? stood = StandHeights.Cast<double?>().FirstOrDefault(dy => player.TeleportExact(x, ground + dy!.Value, z) is not null);
+            if (stood is not double above) { noRoom++; continue; }
+            double eye = ground + above + StandEyeMetres;
+            player.LookTo(Math.Atan2(home.Home.X - x, -(home.Home.Y - z)), Math.Atan2(floor + StandLookAboveFloor - eye, distance));
+            return string.Create(CultureInfo.InvariantCulture,
+                $"stood at {x:F2},{ground + above:F2},{z:F2} (floor {ground:F2}), {distance:F1} m from {home.Key} at {around + turn:F0} degrees (asked {bearing}), facing it; passed over {taken} spots by an animal, {noFloor} with no floor, {offLevel} off the home's level, {noRoom} with no room to stand");
+        }
+
+        return string.Create(CultureInfo.InvariantCulture,
+            $"no spot near {home.Key} at {metres:F1} m {bearing}: {taken} were by an animal, {noFloor} had no floor, {offLevel} were off the home's level (floor {floor:F2}), {noRoom} had no room to stand");
+    }
+
+    /// <summary>How far above and below the home's floor <see cref="StandAtHome"/> looks for the floor a spot stands on.</summary>
+    private const double StandSearchMetres = 1.5;
+
+    /// <summary>A spot's floor stands within this of the home's, so the player is on the animal's own floor.</summary>
+    private const double StandLevelMetres = 1.2;
+
+    /// <summary>A spot stands at least this far clear of an animal's body, past half its length.</summary>
+    private const double StandClearMetres = 0.6;
+
+    /// <summary>The heights over a spot's floor a standing body is tried at.</summary>
+    private static readonly double[] StandHeights = [0.6, 0.9, 1.2, 0.3, 1.5];
+
+    /// <summary>The eye over the feet, and how far over the home's floor the view aims, so an animal lying there is in view.</summary>
+    private const double StandEyeMetres = 1.6, StandLookAboveFloor = 0.5;
+
     /// <summary>The floor a small creature finds at a point and half a metre to each side, from a little over the point.</summary>
     internal string FloorReadout(double x, double y, double z)
     {

@@ -262,6 +262,19 @@ internal sealed class WildlifeLedger
     /// <summary>The caves whose homes are held.</summary>
     internal IEnumerable<string> Caves => caves.Keys;
 
+    /// <summary>The homes of the caves held near the player (#10876).</summary>
+    internal IEnumerable<HerdRecord> CaveHomes => caves.Values.SelectMany(homes => homes);
+
+    /// <summary>
+    /// Test aid (#10924): forgets a cave's home records outright, held or kept from earlier this session, so the cave taken
+    /// up again seeds the homes its layout gives now. Their losses go too.
+    /// </summary>
+    internal void ForgetCave(string key)
+    {
+        caves.Remove(key);
+        dormantCaves.Remove(key);
+    }
+
     /// <summary>Takes up saved losses. Call before any region is seeded.</summary>
     internal void Restore(IEnumerable<HerdLoss> losses)
     {

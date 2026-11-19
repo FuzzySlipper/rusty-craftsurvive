@@ -42,6 +42,9 @@ public sealed class WildlifeDebugModule : IDebugCommandModule
     [DebugCommand("craft.wildlife.caves", Description = "Cave wildlife (#10876): each held cave's hunters' homes (kind, home and floor, alive, distance) and its small creatures (where, height, hidden).")]
     public string Caves() => wildlife.CavesReadout();
 
+    [DebugCommand("craft.cave.stand", Description = "Test aid (#10924): stands the player where a body fits on a cave home's own floor (home key, or kind for its home nearest), about this many metres away at a bearing - upwind or downwind of a home facing a draft, degrees (0 faces -z, 90 +x) or any - facing the home; says why other spots failed.")]
+    public string Stand(string home, double metres, string bearing) => wildlife.StandAtHome(home, metres, bearing);
+
     [DebugCommand("craft.wildlife.floor", Description = "Cave wildlife (#10876): the floor a small creature finds at a point (x y z) and a step to each side, for diagnosis.")]
     public string Floor(double x, double y, double z) => wildlife.FloorReadout(x, y, z);
 

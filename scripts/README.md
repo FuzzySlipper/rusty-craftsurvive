@@ -122,6 +122,41 @@ are for the lane:
 A command earns its place by serving one of these; one whose experiment has ended is retired
 with it.
 
+**Testing in the caves under the world (#10924).**
+
+A cave under a mouth is generated in the background when the player comes near, then kept by the cave store; the
+session's wildlife ledger keeps each cave's home records even after the cave is let go. A study switch such as
+`craft.dungeon.veilforest 1` therefore does nothing for a cave already asked for (a restored player position asks
+for it on startup), and every build regenerates caves without the switches. Use the aids instead:
+
+```sh
+node scripts/live.mjs exec craft.cave.fresh veilforest,glasssteppe   # regenerate the nearest cave now, afresh
+node scripts/live.mjs exec craft.cave.readout                        # wait for ready=1; communities=[...]
+node scripts/live.mjs exec craft.cave.walk 110                       # into the cave; its animals wake as homes
+node scripts/live.mjs exec craft.wildlife.caves                      # the homes it seeded
+node scripts/live.mjs exec craft.cave.stand draft-hound 4.5 downwind # stand on its floor, facing the home
+node scripts/live.mjs capture --until 'draft-hound.*shows=Search' --out /tmp/search.rscene --keep ward --render /tmp/search.png
+```
+
+- `craft.cave.fresh <communities>` stands the player outside the nearest mouth with a cave under it, lets the cave
+  go, forgets its animals (hunters, home records, small creatures) and asks for it again with those communities
+  grown (`none`, `auto`, or names such as `veilforest,glasssteppe`). It never reads the store or the generator's kept
+  copy and is not stored, so it holds across builds and restarts.
+- `craft.cave.stand <home key | kind> <metres> <upwind | downwind | degrees | any>` stands the player where a body
+  fits on that home's own floor, about that far at that bearing (upwind and downwind of a home resting into a draft),
+  facing it, and says how many spots had no floor, were off the home's level or had no room.
+- `craft.creatures.why <all | id | homes>` says why creatures cannot route on the navigation published around the
+  player: outside the published box (32 m about where the player stood), or how the creature's column reads at its
+  feet (a support, a capsule overlapping collision and with what, too steep, nothing) and the nearest support on its
+  level; `homes` flags each held cave home no route could start from as `UNROUTABLE`.
+- `node scripts/live.mjs capture --until <regex> --out <file.rscene>` polls a readout (`--readout`, by default
+  `craft.creatures.readout`) until the pattern matches and snapshots the renderer at once, so a short state (a
+  search, a display, a bite) is caught. `--keep ward|heal` keeps the player standing meanwhile; `--hold yes` (the
+  default) holds time from the match until `--render <file.png>` has drawn the frame with the pair's
+  `rusty-scene-render`.
+- `craft.creatures.unseen <seconds>` hides the player from every creature, so hunters lose them where they stand and
+  search there by the player's own light; `craft.creatures.rouse` wakes every creature to the player.
+
 **Vegetation reach and forests.**
 
 Ground cover grows on the voxels to 40 m, then on two Engine vegetation tile fields out to the

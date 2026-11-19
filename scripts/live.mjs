@@ -15,6 +15,11 @@
 //                                        --minimum metres and the product received the key events
 //   discovery [--kind StandingStones]    stand at an unvisited place and check the journal noticed,
 //                                        saved and counted it as a first visit
+//   capture --until <regex> --out <file.rscene> [--readout craft.creatures.readout] [--keep none|ward|heal]
+//           [--timeout 120] [--poll 100] [--hold yes|no] [--render <file.png>] [--width 1280] [--height 720]
+//                                        poll a readout until the pattern matches, then snapshot the renderer at
+//                                        once (#10924): a short state (a search, a display, a bite) is caught, the
+//                                        player kept warded or healed meanwhile, time held while the frame renders
 //
 // Input goes through the Engine's harness lane (control/claim, runtime/input, control/release; see
 // the Engine's playtest-inspection guide): it reaches the product exactly as a page's key would,
@@ -144,6 +149,57 @@ async function walk(argv) {
   if (distance < minimum) throw new Error(`walked ${distance.toFixed(3)} m, less than --minimum ${minimum}`);
 }
 
+/** The scene renderer of the pinned pair's runtime pack, unless RUSTY_SCENE_RENDER names one. */
+async function sceneRenderer() {
+  if (process.env.RUSTY_SCENE_RENDER) return process.env.RUSTY_SCENE_RENDER;
+  const { readFile } = await import('node:fs/promises');
+  const props = await readFile(new URL('../Directory.Build.props', import.meta.url), 'utf8');
+  const pin = props.match(/<RustyEnginePackageVersion>([^<]+)</)?.[1];
+  if (!pin) throw new Error('no RustyEnginePackageVersion in Directory.Build.props; set RUSTY_SCENE_RENDER');
+  return `${process.env.HOME}/.cache/rusty-engine/pairs/${pin}/runtime-pack/bin/rusty-scene-render`;
+}
+
+/**
+ * Waits for a state and snapshots it (#10924). Polls a readout (by default every creature) until the pattern matches,
+ * keeping the player warded or healed while it waits if asked, then takes the renderer's snapshot straight away. With
+ * --hold yes, time is held (manual mode) from the match until the frame is rendered, so the player is not bitten to
+ * death while a slow render runs; --render writes the PNG with the pair's rusty-scene-render.
+ */
+async function capture(argv) {
+  const o = options(argv, { until: '', out: '', readout: 'craft.creatures.readout', keep: 'none', timeout: 120, poll: 100, hold: 'yes', render: '', width: 1280, height: 720, frames: 3 });
+  if (!o.until || !o.out) throw new Error('capture needs --until <regex> and --out <file.rscene>');
+  const pattern = new RegExp(o.until);
+  const started = Date.now();
+  let readout = '';
+  let polls = 0;
+  while (true) {
+    if (o.keep !== 'none' && polls % 10 === 0) await exec(o.keep === 'ward' ? 'craft.player.ward' : 'craft.player.heal');
+    readout = await exec(o.readout);
+    polls++;
+    if (pattern.test(readout)) break;
+    if (Date.now() - started > o.timeout * 1000) throw new Error(`no match for /${o.until}/ in ${o.timeout} s (${polls} polls); last: ${readout.slice(0, 300)}`);
+    await sleep(o.poll);
+  }
+
+  const before = o.hold === 'yes' ? JSON.parse(await exec('engine.time')) : null;
+  if (before) await exec('engine.time.mode manual');
+  try {
+    const snapshot = await exec(`engine.renderer.snapshot ${o.out}`);
+    const matched = readout.split(/\s*\|\s*/).filter((part) => pattern.test(part));
+    const report = { waitedMs: Date.now() - started, polls, matched, snapshot: snapshot.slice(0, 200), out: o.out };
+    if (o.render) {
+      const { execFile } = await import('node:child_process');
+      const renderer = await sceneRenderer();
+      await new Promise((resolve, reject) => execFile(renderer, [o.out, o.render, '--width', String(o.width), '--height', String(o.height), '--frames', String(o.frames)],
+        { maxBuffer: 1 << 24 }, (error, stdout, stderr) => (error ? reject(new Error(`${renderer} failed: ${stderr || error.message}`)) : resolve(stdout))));
+      report.png = o.render;
+    }
+    console.log(JSON.stringify(report));
+  } finally {
+    if (before && before.mode !== 'manual') await exec(`engine.time.mode ${before.mode}`);
+  }
+}
+
 async function discovery(argv) {
   const { kind } = options(argv, { kind: 'StandingStones' });
   // The journal looks around every few steps; let it catch up with wherever the player already is.
@@ -174,6 +230,7 @@ const commands = {
   exec: async (argv) => console.log(await exec(argv.join(' '))),
   walk,
   discovery,
+  capture,
 };
 try {
   if (!(command in commands)) throw new Error(`usage: node scripts/live.mjs <${Object.keys(commands).join('|')}> [options]`);

@@ -19,6 +19,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.cave.goto", Description = "Assisted, for captures (#10889): stands the player outside the nearest cave mouth with a cave under it (within reach metres), facing in, asking for its cave; the walk starts there.")]
     public string CaveGoTo(double reach = 3000) => dungeons.CaveGoTo(reach);
 
+    [DebugCommand("craft.cave.fresh", Description = "Test aid (#10924): regenerates the nearest cave under the world now, afresh (not from the store or the generator's kept copy, and not stored), growing the named communities (veilforest,glasssteppe ...; none; auto), and forgets its animals so its homes come from the new layout; stands the player outside its mouth.")]
+    public string CaveFresh(string communities) => dungeons.CaveFresh(communities);
+
     [DebugCommand("craft.cave.walk", Description = "Assisted, for captures (#10889): moves the player this many metres on along the chosen cave's way in - down its tendril, then its main route once the cave is ready - facing the way on; negative walks back out.")]
     public string CaveWalk(float metres) => dungeons.CaveWalk(metres);
 

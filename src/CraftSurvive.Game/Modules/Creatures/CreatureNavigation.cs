@@ -167,11 +167,10 @@ internal sealed class CreatureNavigation
         float cellX = MathF.Floor(local.X / cell) * cell;
         float cellZ = MathF.Floor(local.Z / cell) * cell;
         long started = Stopwatch.GetTimestamp();
+        publishedMinimum = new Vector3(cellX - HalfExtent, bottom, cellZ - HalfExtent);
+        publishedMaximum = new Vector3(cellX + HalfExtent, bottom + DepthBelow + HeightAbove + VerticalSlackMetres, cellZ + HalfExtent);
         lastPublished = engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(
-            space.Session,
-            new Vector3(cellX - HalfExtent, bottom, cellZ - HalfExtent),
-            new Vector3(cellX + HalfExtent, bottom + DepthBelow + HeightAbove + VerticalSlackMetres, cellZ + HalfExtent),
-            config));
+            space.Session, publishedMinimum, publishedMaximum, config));
         // Creatures keep out of deep water: the overlay goes on after every publication, which clears it.
         (long X, long Z) minCell = ((long)MathF.Floor((cellX - HalfExtent) / cell), (long)MathF.Floor((cellZ - HalfExtent) / cell));
         (long X, long Z) maxCell = ((long)MathF.Floor((cellX + HalfExtent) / cell), (long)MathF.Floor((cellZ + HalfExtent) / cell));
@@ -234,6 +233,95 @@ internal sealed class CreatureNavigation
             centres[i] = new Vector2(world.X, world.Z);
         }
         return centres;
+    }
+
+    /// <summary>The box last published, in the session's local frame.</summary>
+    private Vector3 publishedMinimum, publishedMaximum;
+
+    /// <summary>A support this near the feet, up or down, counts as theirs; others are searched for this many cells about them.</summary>
+    private const double DiagnoseLevelMetres = 1.5;
+    private const int DiagnoseRingCells = 4;
+
+    /// <summary>
+    /// Why a point (a creature's feet, a home's floor or the player's) is or is not walkable on the navigation published now
+    /// (#10924): outside the published box, or how its column reads at that height - a support it stands on, a standing
+    /// capsule overlapping collision (and what), too steep, a higher support holding the cell, nothing sampled - and the
+    /// nearest support within a few cells on about the same level.
+    /// </summary>
+    internal string Diagnose(Vector3 feetWorld)
+    {
+        if (publishedAround is null) return "no navigation published";
+        Vector3 local = space.ToLocal(feetWorld);
+        double cell = config.CellSize;
+        float outX = Math.Max(publishedMinimum.X - local.X, local.X - publishedMaximum.X), outZ = Math.Max(publishedMinimum.Z - local.Z, local.Z - publishedMaximum.Z);
+        if (outX > 0 || outZ > 0)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"outside the published box by {Math.Max(outX, outZ):F1} m across (it reaches {HalfExtent:F0} m from where the player stood)");
+        }
+
+        if (local.Y < publishedMinimum.Y || local.Y > publishedMaximum.Y)
+        {
+            return string.Create(CultureInfo.InvariantCulture,
+                $"outside the published box by {(local.Y < publishedMinimum.Y ? publishedMinimum.Y - local.Y : local.Y - publishedMaximum.Y):F1} m {(local.Y < publishedMinimum.Y ? "below" : "above")}");
+        }
+
+        long cx = (long)Math.Floor(local.X / cell), cz = (long)Math.Floor(local.Z / cell);
+        CollisionNavigationColumnResult column = engine.Spatial.ExplainCollisionNavigationColumn(new CollisionNavigationColumnRequest(space.Session, cx, cz, GridId));
+        CollisionNavigationSample[] samples = column.Samples.ToArray();
+        string here;
+        if (samples.Any(s => s.Outcome == CollisionNavigationSampleOutcome.Support && Math.Abs(s.StandingY - local.Y) <= FeetSnapMetres))
+        {
+            here = "its column supports it there (walkable)";
+        }
+        else if (samples.Where(s => Math.Abs(s.StandingY - local.Y) <= DiagnoseLevelMetres).OrderBy(s => Math.Abs(s.StandingY - local.Y)).FirstOrDefault() is { } near
+            && Math.Abs(near.StandingY - local.Y) <= DiagnoseLevelMetres)
+        {
+            here = string.Create(CultureInfo.InvariantCulture,
+                $"its column reads {near.Outcome}{(near.Outcome == CollisionNavigationSampleOutcome.CapsuleOverlap ? $" ({near.OverlapKind})" : "")} {near.StandingY - local.Y:+0.00;-0.00} m from it");
+        }
+        else
+        {
+            here = samples.Length == 0
+                ? $"its column samples nothing in the box's height{(column.BudgetExhausted ? " (budget exhausted)" : "")}"
+                : string.Create(CultureInfo.InvariantCulture, $"its column has no surface within {DiagnoseLevelMetres:F1} m (nearest {samples.Min(s => Math.Abs(s.StandingY - local.Y)):F1} m)");
+        }
+
+        (double Distance, Vector3 At)? nearest = null;
+        for (long dz = -DiagnoseRingCells; dz <= DiagnoseRingCells; dz++)
+        for (long dx = -DiagnoseRingCells; dx <= DiagnoseRingCells; dx++)
+        {
+            if (dx == 0 && dz == 0) continue;
+            foreach (CollisionNavigationSample s in engine.Spatial.ExplainCollisionNavigationColumn(new CollisionNavigationColumnRequest(space.Session, cx + dx, cz + dz, GridId)).Samples.Span)
+            {
+                if (s.Outcome != CollisionNavigationSampleOutcome.Support || Math.Abs(s.StandingY - local.Y) > DiagnoseLevelMetres) continue;
+                Vector3 at = new((float)((cx + dx + 0.5) * cell), (float)s.StandingY, (float)((cz + dz + 0.5) * cell));
+                double distance = Vector3.Distance(at, local);
+                if (nearest is null || distance < nearest.Value.Distance) nearest = (distance, at);
+            }
+        }
+
+        string beside = nearest is (double d, Vector3 support)
+            ? string.Create(CultureInfo.InvariantCulture, $"nearest support {d:F1} m away at {space.ToWorld(support).X:F1},{space.ToWorld(support).Y:F1},{space.ToWorld(support).Z:F1}")
+            : $"no support within {DiagnoseRingCells} cells on its level";
+        return $"{here}; {beside}";
+    }
+
+    /// <summary>
+    /// How near a route from one point gets to another (#10924): the outcome, and for a search that ran out (no path, or its
+    /// budget spent) the cell it reached nearest the goal - how far from the goal across the ground and how far above or
+    /// below it - which says whether the floors are joined by steps a body can take.
+    /// </summary>
+    internal string Reach(Vector3 fromWorld, Vector3 toWorld)
+    {
+        NavigationStepResult step = Step(fromWorld, toWorld);
+        if (step.Outcome == NavigationPathOutcome.Reached) return "a route reaches it";
+        if (!step.NearestPresent) return $"{step.Outcome}: no cell visited";
+        double cell = config.CellSize;
+        PlanarNavCell nearest = step.NearestCell;
+        Vector3 at = space.ToWorld(new Vector3((float)((nearest.X + 0.5) * cell), (float)(nearest.Y * cell), (float)((nearest.Z + 0.5) * cell)));
+        float across = Vector2.Distance(new Vector2(at.X, at.Z), new Vector2(toWorld.X, toWorld.Z));
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{step.Outcome}: its search got within {across:F1} m of the player across the ground, {at.Y - toWorld.Y:+0.0;-0.0} m from their feet, at {at.X:F1},{at.Y:F1},{at.Z:F1}");
     }
 
     /// <summary>How many navigation queries have run, for the routing readout.</summary>

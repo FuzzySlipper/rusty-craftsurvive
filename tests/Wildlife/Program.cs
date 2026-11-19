@@ -1377,6 +1377,13 @@ Check.Section("cave animals", () =>
     ledger.AddCave(sites.Key, CaveFauna.Homes(sites, catalog, Seed));
     Check.Equal(dormantKill.Founding - 1, ledger.HomesWithin(5, 40, 40).First(home => home.Key == dormantKill.Key).Alive(10, catalog.Kind("mouldback").Population.RecoveryDays),
         "and the cave taken up again counts it");
+    // #10924: a cave regenerated afresh for a test forgets its records, held or kept, and takes the fresh seeding's.
+    ledger.RemoveCave(sites.Key);
+    ledger.ForgetCave(sites.Key);
+    IReadOnlyList<HerdRecord> fresh = CaveFauna.Homes(sites, catalog, Seed);
+    Check.That(ReferenceEquals(ledger.AddCave(sites.Key, fresh), fresh), "a cave forgotten while let go takes the fresh homes when taken up again");
+    ledger.ForgetCave(sites.Key);
+    Check.That(!ledger.Caves.Contains(sites.Key) && !ledger.CaveHomes.Any(), "a held cave forgotten holds no homes");
 
     // The small creatures (#10876; Patch: no colliders, no combat): none is a wildlife kind, so no body, capsule or swing finds one.
     Check.That(catalog.CaveAmbient.Select(kind => kind.Id).Order().SequenceEqual(new[] { "blindfish", "drift-grazer", "mound-shrew" }), "the three small cave creatures load");
