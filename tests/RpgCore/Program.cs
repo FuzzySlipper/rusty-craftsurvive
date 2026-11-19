@@ -486,6 +486,13 @@ CreatureSimulation.Step(nearWaypoint, new CreatureSense(true), playerAt, playerC
 Check.That(Vector2.Distance(nearWaypoint.Position, new Vector2(0, 0.25f)) < 1e-5,
     $"a pursuer must stop at its waypoint rather than overshoot it, reached {nearWaypoint.Position}");
 
+// A test aid's forced state (#10926) holds a creature whatever the rules decide, and once released the rules take it back.
+Creature held = new(9, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
+CreatureSimulation.Step(held, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta), sightScale: 1, waypoint: new Vector2(playerAt.X, playerAt.Z), forced: CreatureState.Idle);
+Check.That(held.Behavior.State == CreatureState.Idle && held.Position == Vector2.Zero, "a creature held idle stays idle and does not move, though it sees the player");
+CreatureSimulation.Step(held, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(2, 1, FixedDelta), sightScale: 1, waypoint: new Vector2(playerAt.X, playerAt.Z));
+Check.That(held.Behavior.State is CreatureState.Alert or CreatureState.Pursuing, $"released, the rules take it back: seeing the player it is {held.Behavior.State}, not held idle");
+
 // The rules hold in any space (#10876): a creature and player deep in a cave under the world decide and move just as
 // the same pair on the surface, and a searcher walks to where it last saw the player at half its hunting pace.
 static (CreatureState State, Vector2 Position, bool Struck) AtHeight(float height)

@@ -358,6 +358,12 @@ internal sealed class WildlifeMeshBodies : IDisposable
     }
 
     /// <summary>How the bodies stand, and what planting has cost since the last readout (which it resets).</summary>
+    /// <summary>What an animal's mesh plays now (#10926): the clip and its rate, its detail tier, whether its feet are planted, its pitch.</summary>
+    internal string BodyReadout(WildlifeMember member) => bodies.Find(member) is Body body
+        ? string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"playing={body.Playing?.ToString() ?? "none"} rate={body.Rate:F2} tier={body.Tier} planted={body.Planted} pitch={body.Pitch * 180 / MathF.PI:F1} fell={body.Fell}")
+        : "no mesh body";
+
     internal string Readout()
     {
         string text = string.Create(CultureInfo.InvariantCulture,

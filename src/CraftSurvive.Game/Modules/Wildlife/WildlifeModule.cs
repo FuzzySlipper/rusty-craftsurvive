@@ -768,6 +768,9 @@ internal sealed class WildlifeModule : IProductModule
         return "all herds asleep";
     }
 
+    /// <summary>What an animal's mesh plays now, for a creature's inspection (#10926).</summary>
+    internal string BodyReadout(WildlifeMember member) => Presentation.Meshes.BodyReadout(member);
+
     /// <summary>The homes of the caves held near the player (#10876), for diagnosis.</summary>
     internal IEnumerable<HerdRecord> CaveHomes => Ledger.CaveHomes;
 

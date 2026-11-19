@@ -8,6 +8,7 @@ namespace CraftSurvive.Game.Modules.Creatures;
 
 /// <summary>The creature's Engine-side row: where it is and what it is doing.</summary>
 internal readonly record struct CreatureRuntimeComponent(
+    int Id,
     float X,
     float Y,
     float Z,
@@ -106,6 +107,7 @@ internal sealed class CreaturePresentation : IDisposable
 
             float ground = groundAt(creature);
             Entities.Set(entry.Entity, RuntimeComponent, new CreatureRuntimeComponent(
+                creature.Id,
                 creature.Position.X,
                 ground,
                 creature.Position.Y,

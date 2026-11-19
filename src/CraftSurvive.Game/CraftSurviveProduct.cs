@@ -150,6 +150,10 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
                 $"position={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F2};pitch={state.PitchDegrees:F2};grounded={state.Grounded};crouched={state.Crouched}"));
+        // Each creature's row in the Engine's entity inspection (#10926): its id, where it stands, its state and health.
+        entityDebug.RegisterProjection(CreaturePresentation.RuntimeComponent,
+            static (in CreatureRuntimeComponent state) => FormattableString.Invariant(
+                $"creature={state.Id};position={state.X:F2},{state.Y:F2},{state.Z:F2};state={(CraftSurvive.Game.Modules.Rpg.CreatureState)state.State};hp={state.Health}/{state.MaximumHealth}"));
         productDebug = new CraftDebugModule(() => Owner(player), () => Owner(creatures), () => Owner(terrain), context.Debugging);
     }
 

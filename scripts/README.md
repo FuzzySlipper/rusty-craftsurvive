@@ -157,6 +157,32 @@ node scripts/live.mjs capture --until 'draft-hound.*shows=Search' --out /tmp/sea
 - `craft.creatures.unseen <seconds>` hides the player from every creature, so hunters lose them where they stand and
   search there by the player's own light; `craft.creatures.rouse` wakes every creature to the player.
 
+**Spawning, inspecting and overriding one creature (#10926).**
+
+```sh
+node scripts/live.mjs exec craft.creature.spawn draft-hound 1 ahead:12 rest   # any hunter or herd kind; returns ids
+node scripts/live.mjs exec craft.creature.select looked-at                    # or an id, nearest, nearest:<kind>
+node scripts/live.mjs exec craft.creature.inspect                             # state, perception, route, body, animation
+node scripts/live.mjs exec craft.creature.watch 60                            # log its changes; then: watch read
+node scripts/live.mjs exec craft.creature.force state search                  # or clip/goto/freeze/health; release -
+node scripts/live.mjs exec craft.creature.labels all                          # with engine.inspect.overlay show
+node scripts/live.mjs frame --out /tmp/labels.png                             # the live frame, labels included
+```
+
+- `craft.creature.spawn <kind> <count> <where> <start>` places creatures outside any population: `where` is `here`,
+  `ahead:<metres>`, `at:<x>,<y>,<z>` (on the floor under that point, in caves too) or `home:<cave home key>`; `start`
+  is `default`, `rest`, `idle` or `hunt`, or `flee` for a herd (it runs when pressed). Herds are refused underground.
+- `craft.creature.select` picks the one creature the other commands act on and says when it is gone. `inspect` reads
+  it whole, including the clip it wants and why and what its mesh plays. `watch <seconds>` logs each change of state,
+  clip, route, sight, alarm, health or wakefulness with the update step and the facts then, and how it went (killed by
+  the player, or released).
+- `craft.creature.force <what> <value>` holds the selected creature until `release -`: `state`, `clip`, `goto <x>,<z>`
+  (it searches its way there), `freeze -` (no rules, no move, clip held, not woken by a rouse or a pack alarm) or
+  `health <n>`. Pass `-` where no value is needed: debug commands take no defaults.
+- Labels ride the Engine's inspection overlay, which `.rscene` snapshot renders do not carry: save them with
+  `live.mjs frame --out` or `capture --frame <file.png>`, which take the live frame with its overlays. Labels of
+  creatures behind one another overlap.
+
 **Vegetation reach and forests.**
 
 Ground cover grows on the voxels to 40 m, then on two Engine vegetation tile fields out to the

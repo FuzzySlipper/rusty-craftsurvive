@@ -277,23 +277,26 @@ internal static class HunterRules
     /// <summary>The clip its state calls for. Being hit shows over anything; a bite or threat runs its length; then it goes by its speed.</summary>
     /// <param name="speed">Its speed over the ground, in metres a second.</param>
     /// <param name="runsAbove">The speed where its gait changes to a run.</param>
-    internal static WildlifeClipRole Want(Hunter hunter, CreatureState state, float speed, double runsAbove)
+    internal static WildlifeClipRole Want(Hunter hunter, CreatureState state, float speed, double runsAbove) => WantWhy(hunter, state, speed, runsAbove).Role;
+
+    /// <summary>The clip a hunter shows, and why (#10926: what a creature's inspection reports).</summary>
+    internal static (WildlifeClipRole Role, string Why) WantWhy(Hunter hunter, CreatureState state, float speed, double runsAbove)
     {
         ArgumentNullException.ThrowIfNull(hunter);
-        if (hunter.Hangs) return WildlifeClipRole.Hang;
-        if (hunter.Member.Lift > 0) return WildlifeClipRole.Drop;
-        if (hunter.HurtSeconds > 0) return WildlifeClipRole.Hurt;
-        if (hunter.BiteSeconds > 0) return WildlifeClipRole.Bite;
+        if (hunter.Hangs) return (WildlifeClipRole.Hang, "hanging from its ceiling");
+        if (hunter.Member.Lift > 0) return (WildlifeClipRole.Drop, "falling from its ceiling");
+        if (hunter.HurtSeconds > 0) return (WildlifeClipRole.Hurt, "flinching from a blow");
+        if (hunter.BiteSeconds > 0) return (WildlifeClipRole.Bite, "biting");
         WildlifeHunt hunt = hunter.Kind.Hunt!;
-        if (hunter.ThreatSeconds > 0) return hunt.Display?.Clip ?? WildlifeClipRole.Threat;
-        if (speed > StandingSpeed) return speed > runsAbove ? WildlifeClipRole.Run : WildlifeClipRole.Walk;
+        if (hunter.ThreatSeconds > 0) return (hunt.Display?.Clip ?? WildlifeClipRole.Threat, "showing its display");
+        if (speed > StandingSpeed) return speed > runsAbove ? (WildlifeClipRole.Run, "moving faster than its run starts") : (WildlifeClipRole.Walk, "moving");
         return state switch
         {
-            CreatureState.Attacking or CreatureState.Pursuing or CreatureState.Alert => WildlifeClipRole.Look,
+            CreatureState.Attacking or CreatureState.Pursuing or CreatureState.Alert => (WildlifeClipRole.Look, $"standing while {state}"),
             // Searching, it shows its search (a draft-hound's ears flared); resting, its rest (#10876).
-            CreatureState.Searching => hunt.Search?.Clip ?? WildlifeClipRole.Look,
-            CreatureState.Resting => hunt.Rest?.Clip ?? WildlifeClipRole.Idle,
-            _ => WildlifeClipRole.Idle,
+            CreatureState.Searching => (hunt.Search?.Clip ?? WildlifeClipRole.Look, "standing while it searches"),
+            CreatureState.Resting => (hunt.Rest?.Clip ?? WildlifeClipRole.Idle, "at rest"),
+            _ => (WildlifeClipRole.Idle, $"standing while {state}"),
         };
     }
 

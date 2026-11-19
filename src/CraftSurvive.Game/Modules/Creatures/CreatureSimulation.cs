@@ -101,6 +101,7 @@ internal static class CreatureSimulation
     /// Without one the creature is set down along the line, as a point that meets nothing.
     /// </param>
     /// <param name="wakeScale">The share of its kind's wake range a resting creature wakes at now (#10878: from downwind of a draft).</param>
+    /// <param name="forced">A state a test aid holds the creature in (#10926), or null for the rules' own.</param>
     internal static CreatureStrike? Step(
         Creature creature,
         CreatureSense sense,
@@ -110,7 +111,8 @@ internal static class CreatureSimulation
         double sightScale,
         Vector2 waypoint,
         Func<Creature, Vector2, double, double, Vector2>? move = null,
-        double wakeScale = 1)
+        double wakeScale = 1,
+        CreatureState? forced = null)
     {
         ArgumentNullException.ThrowIfNull(creature);
         CreatureKind kind = creature.Kind;
@@ -119,6 +121,8 @@ internal static class CreatureSimulation
         // A resting animal wakes nearer than its kind's range when the player comes from where it is not turned (#10878).
         BehaviorTuning tuning = kind.Tuning with { SightRange = kind.Tuning.SightRange * sightScale, WakeRange = kind.Tuning.WakeRange * wakeScale };
         creature.Behavior = CreatureBehaviorRules.Step(tuning, creature.Behavior, facts, time.Step);
+        // A test aid's override (#10926) holds the state, whatever the rules decided.
+        if (forced is CreatureState held) creature.Behavior = creature.Behavior with { State = held };
 
         double travel = 0;
         if (creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking

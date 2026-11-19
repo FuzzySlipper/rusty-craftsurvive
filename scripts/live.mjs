@@ -19,7 +19,11 @@
 //           [--timeout 120] [--poll 100] [--hold yes|no] [--render <file.png>] [--width 1280] [--height 720]
 //                                        poll a readout until the pattern matches, then snapshot the renderer at
 //                                        once (#10924): a short state (a search, a display, a bite) is caught, the
-//                                        player kept warded or healed meanwhile, time held while the frame renders
+//                                        player kept warded or healed meanwhile, time held while the frame renders;
+//                                        --frame <file.png> also saves the live frame with its overlays (labels)
+//   frame --out <file.png> [--overlays yes|no] [--width 1280] [--height 720]
+//                                        the frame the runtime draws now, with the inspection overlays it shows
+//                                        (craft.creature.labels): what an offline snapshot render cannot carry
 //
 // Input goes through the Engine's harness lane (control/claim, runtime/input, control/release; see
 // the Engine's playtest-inspection guide): it reaches the product exactly as a page's key would,
@@ -149,6 +153,28 @@ async function walk(argv) {
   if (distance < minimum) throw new Error(`walked ${distance.toFixed(3)} m, less than --minimum ${minimum}`);
 }
 
+/**
+ * Saves the frame the runtime draws now as a PNG (#10926), with the inspection overlays it shows when asked: the
+ * creature labels live there, and an offline snapshot render does not carry overlays. The runtime answers a small
+ * RSF1 header before the PNG; the header's frame facts come back in the X-Rusty-Frame-* response headers.
+ */
+async function saveFrame(out, overlays = true, width = 1280, height = 720) {
+  const response = await fetch(`${origin()}/__rusty/product/runtime/frames/capture?overlays=${overlays ? 1 : 0}&width=${width}&height=${height}`);
+  if (!response.ok) throw new Error(`frame capture answered HTTP ${response.status}: ${(await response.text()).slice(0, 200)}`);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  const png = bytes.indexOf(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  if (png < 0) throw new Error('the frame capture held no PNG');
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(out, bytes.subarray(png));
+  return { out, overlays: response.headers.get('x-rusty-frame-overlays') };
+}
+
+async function frame(argv) {
+  const o = options(argv, { out: '', overlays: 'yes', width: 1280, height: 720 });
+  if (!o.out) throw new Error('frame needs --out <file.png>');
+  console.log(JSON.stringify(await saveFrame(o.out, o.overlays === 'yes', o.width, o.height)));
+}
+
 /** The scene renderer of the pinned pair's runtime pack, unless RUSTY_SCENE_RENDER names one. */
 async function sceneRenderer() {
   if (process.env.RUSTY_SCENE_RENDER) return process.env.RUSTY_SCENE_RENDER;
@@ -166,8 +192,8 @@ async function sceneRenderer() {
  * death while a slow render runs; --render writes the PNG with the pair's rusty-scene-render.
  */
 async function capture(argv) {
-  const o = options(argv, { until: '', out: '', readout: 'craft.creatures.readout', keep: 'none', timeout: 120, poll: 100, hold: 'yes', render: '', width: 1280, height: 720, frames: 3 });
-  if (!o.until || !o.out) throw new Error('capture needs --until <regex> and --out <file.rscene>');
+  const o = options(argv, { until: '', out: '', readout: 'craft.creatures.readout', keep: 'none', timeout: 120, poll: 100, hold: 'yes', render: '', frame: '', width: 1280, height: 720, frames: 3 });
+  if (!o.until || (!o.out && !o.frame)) throw new Error('capture needs --until <regex> and --out <file.rscene> or --frame <file.png>');
   const pattern = new RegExp(o.until);
   const started = Date.now();
   let readout = '';
@@ -184,10 +210,14 @@ async function capture(argv) {
   const before = o.hold === 'yes' ? JSON.parse(await exec('engine.time')) : null;
   if (before) await exec('engine.time.mode manual');
   try {
-    const snapshot = await exec(`engine.renderer.snapshot ${o.out}`);
     const matched = readout.split(/\s*\|\s*/).filter((part) => pattern.test(part));
-    const report = { waitedMs: Date.now() - started, polls, matched, snapshot: snapshot.slice(0, 200), out: o.out };
-    if (o.render) {
+    const report = { waitedMs: Date.now() - started, polls, matched };
+    if (o.frame) report.frame = await saveFrame(o.frame, true, o.width, o.height);
+    if (o.out) {
+      report.snapshot = (await exec(`engine.renderer.snapshot ${o.out}`)).slice(0, 200);
+      report.out = o.out;
+    }
+    if (o.render && o.out) {
       const { execFile } = await import('node:child_process');
       const renderer = await sceneRenderer();
       await new Promise((resolve, reject) => execFile(renderer, [o.out, o.render, '--width', String(o.width), '--height', String(o.height), '--frames', String(o.frames)],
@@ -231,6 +261,7 @@ const commands = {
   walk,
   discovery,
   capture,
+  frame,
 };
 try {
   if (!(command in commands)) throw new Error(`usage: node scripts/live.mjs <${Object.keys(commands).join('|')}> [options]`);

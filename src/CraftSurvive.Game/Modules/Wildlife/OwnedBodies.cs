@@ -14,6 +14,10 @@ internal sealed class OwnedBodies<TBody>
 
     internal IEnumerable<TBody> All => bodies.Values.Select(entry => entry.Body);
 
+    /// <summary>The animal's body, if it has one now (#10926).</summary>
+    internal TBody? Find(WildlifeMember member) =>
+        member is not null && bodies.TryGetValue(member.Id, out (WildlifeMember Owner, TBody Body) entry) && entry.Owner == member ? entry.Body : null;
+
     /// <summary>The animal's body, made now if it has none; another animal's body under its id is retired first.</summary>
     internal TBody Take(WildlifeMember member, Func<TBody> create, Action<TBody> retire)
     {

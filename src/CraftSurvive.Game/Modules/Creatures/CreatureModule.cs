@@ -22,7 +22,7 @@ namespace CraftSurvive.Game.Modules.Creatures;
 /// The director owns membership, the roster mirrors it, and the presentation derives from the
 /// roster; world positions reach the Engine only through the <see cref="WorldFrame"/>.
 /// </summary>
-internal sealed class CreatureModule : IProductModule
+internal sealed partial class CreatureModule : IProductModule
 {
     /// <summary>Each travel ambush is its own wilderness region, numbered from here.</summary>
     private const long AmbushRegionBase = 1000;
@@ -275,6 +275,7 @@ internal sealed class CreatureModule : IProductModule
         // rest calls nothing (#10878): it must wake first, at its own wake range, which a draft shortens from downwind.
         HashSet<int> alerted = HunterRules.Alerted(seeing, hunters, packAlarms, time.ElapsedSeconds,
             id => InOwnSight(id, playerWorld) && roster.All.FirstOrDefault(creature => creature.Id == id)?.Behavior.State != CreatureState.Resting);
+        (lastSeeing, lastAlerted) = (seeing, alerted);
         Vector3 playerFeet = player.WorldFeetPosition;
         foreach (Creature creature in roster.All.Where(creature => creature.Awake))
         {
@@ -282,7 +283,8 @@ internal sealed class CreatureModule : IProductModule
             if (seeing.Contains(creature.Id)) creature.LastSeen = playerFeet;
             // One that sees the player itself is still woken by its pack (#10878): its own sight wakes it only within its
             // draft-shortened range, and a pack-mate that has woken calls them all.
-            if (creature.Behavior.State == CreatureState.Resting && hunters.TryGetValue(creature.Id, out Hunter? called) && packAlarms.ContainsKey(called.Record.Key))
+            if (creature.Behavior.State == CreatureState.Resting && hunters.TryGetValue(creature.Id, out Hunter? called) && packAlarms.ContainsKey(called.Record.Key)
+                && !(overrides.Count > 0 && (Frozen(creature) || ForcedState(creature) is not null)))
             {
                 creature.Behavior = creature.Behavior with { State = CreatureState.Alert };
                 creature.LastSeen ??= playerFeet;
@@ -290,6 +292,8 @@ internal sealed class CreatureModule : IProductModule
         }
 
         // With no steps admitted nothing has moved, and a pursuer standing still is not stuck.
+        // A test aid sending a creature somewhere (#10926) has it search its way there.
+        if (overrides.Count > 0) SteerOverrides();
         if (time.AdmittedSteps > 0) Route(player.WorldFeetPosition, here);
         routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, (here is null ? 0 : NavigationIn(here).Queries) - queriesBefore,
             roster.All.Count(creature => creature.Awake && creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking));
@@ -304,12 +308,14 @@ internal sealed class CreatureModule : IProductModule
 
         foreach (Creature creature in roster.All.Where(creature => creature.Awake))
         {
+            // A creature a test aid froze (#10926) does nothing: no rules, no move, its clip held.
+            if (overrides.Count > 0 && Frozen(creature)) continue;
             CreatureSense sense = new(alerted.Contains(creature.Id));
             // An animal showing its display does not bite until it has shown it (#10876).
             // Nor does one still hanging or falling from its ceiling (#10877).
             bool displaying = hunters.TryGetValue(creature.Id, out Hunter? shown) && ((shown.ThreatSeconds > 0 && shown.Kind.Hunt!.Display is not null) || shown.Member.Lift > 0);
             if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit && !displaying, time, SightScale(creature, alerted),
-                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody, WakeShare(shown, creature, playerWorld)) is CreatureStrike strike)
+                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody, WakeShare(shown, creature, playerWorld), ForcedState(creature)) is CreatureStrike strike)
             {
                 if (hunters.TryGetValue(creature.Id, out Hunter? biting)) HunterRules.Bite(biting, strike.Attack, ClipSeconds(biting, WildlifeClipRole.Bite));
                 else ResolveStrike(strike);
@@ -320,11 +326,15 @@ internal sealed class CreatureModule : IProductModule
             if (hunters.TryGetValue(creature.Id, out Hunter? hunter))
             {
                 Show(creature, hunter, playerWorld, playerCanBeHit, seeing.Contains(creature.Id), time.ElapsedSeconds);
+                if (overrides.Count > 0) HoldClip(creature, hunter);
                 playerCanBeHit = playerCanBeHit && !player.Vitals.IsDown;
             }
         }
 
         routing.RecordBodies(System.Diagnostics.Stopwatch.GetElapsedTime(bodiesStarted).TotalMilliseconds, bodiesStepped, bodiesRefused);
+        // The test aids that watch and label creatures (#10926): nothing while none is asked for.
+        if (watchUntil > step) WatchUpdate();
+        PublishLabels(here);
 
         // A creature in another space than the player's is kept while its space sleeps: it is not away from the encounter.
         IReadOnlyList<int> leaving = director.Tick(
@@ -767,6 +777,7 @@ internal sealed class CreatureModule : IProductModule
             string.Create(CultureInfo.InvariantCulture, $"creature:{target.Id}"),
             KeyedDraws.For(Seed));
         ProgressionOutcome progression = player.Progress.Award(reward);
+        lastDefeated = target.Id;
         return string.Create(CultureInfo.InvariantCulture,
             $"defeated {target.Id}; xp={progression.Experience} level={progression.Level}{(progression.Advanced ? " advanced" : string.Empty)} drops={string.Join(",", reward.Drops.Select(drop => $"{drop.ItemId}:{drop.Quantity}"))}");
     }
@@ -777,6 +788,8 @@ internal sealed class CreatureModule : IProductModule
         int roused = 0;
         foreach (Creature creature in roster.All.Where(creature => creature.Behavior.State is CreatureState.Resting or CreatureState.Idle or CreatureState.Searching))
         {
+            // A creature another test aid holds (#10926) keeps what it is held to.
+            if (overrides.Count > 0 && (Frozen(creature) || ForcedState(creature) is not null)) continue;
             creature.Behavior = creature.Behavior with { State = CreatureState.Alert };
             creature.LastSeen = player.WorldFeetPosition;
             roused++;
