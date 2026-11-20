@@ -996,6 +996,252 @@ LOW_SLUNG_CLIPS = {
 }
 
 
+# ---------------------------------------------------------------- saurian: monitors, salamanders (#10879)
+
+def saurian_bones(points):
+    """A sprawling lizard's body: the low-slung trunk with a second spine bone, so the body can bend side to side, and
+    as long a tail as the species places points for (tail1 to tailN)."""
+    bones = [
+        ("root", None, "root", "root_tip", 1.0),
+        ("hips", "root", "hips", "spine", 1.0),
+        ("spine", "hips", "spine", "spine2", 1.0),
+        ("spine2", "spine", "spine2", "chest", 1.0),
+        ("chest", "spine2", "chest", "neck", 1.0),
+        ("neck", "chest", "neck", "head", 1.0),
+        ("head", "neck", "head", "nose", 1.0),
+        ("jaw", "head", "jaw", "jaw_tip", 1.0),
+    ]
+    count = 1
+    while f"tail{count + 1}" in points:
+        count += 1
+    bones += tail_chain(count)
+    if "tongue" in points:
+        # A forked tongue grown into the mouth (add_tongue.py), riding the lower jaw.
+        bones += [("tongue", "jaw", "tongue", "tongue_tip", 1.0)]
+    for side, sign in SIDES.items():
+        bones += plain_legs(side, sign)
+    return bones
+
+
+SAURIAN_SPINE = ("hips", "spine", "spine2", "chest")
+# How long a tongue flick takes, out and back, in seconds.
+FLICK_SECONDS = 0.4
+
+
+def flick(c, s, clip, t, starts):
+    """Tongue flicks at clip-time fractions `starts`: out the species' `tongue.reachMetres` and back, fluttering, the jaw
+    parting a little to let it through. Nothing for a species without a tongue."""
+    if "tongue" not in c.rig.pose.bones:
+        return
+    span = FLICK_SECONDS / s[clip]["seconds"]
+    out = 0.0
+    for start in starts:
+        u = (t - start) / span
+        if 0.0 <= u <= 1.0:
+            out = max(out, math.sin(math.pi * u) * (0.8 + 0.2 * math.sin(6.0 * math.pi * u)))
+    c.bone_offset("tongue", (0, -s["tongue"]["reachMetres"] * out, -0.01 * out))
+    c.bone_rotation("jaw", pitch(-s["tongue"].get("jawDegrees", 5.0) * min(1.0, 3.0 * out)))
+
+
+def bend(c, degrees, sway=0.0):
+    """Bends the trunk side to side as a standing wave: the girdles turn opposite ways, so the body is a C, concave on
+    the left for positive degrees; `sway` rolls the body with it."""
+    c.bone_rotation("hips", yaw(-degrees) @ roll(sway))
+    c.bone_rotation("spine", yaw(0.9 * degrees))
+    c.bone_rotation("spine2", yaw(0.9 * degrees))
+    c.bone_rotation("chest", yaw(0.5 * degrees) @ roll(-sway))
+
+
+def saurian_tail(c, t, swish, cycles=1.0, lag=0.25, droop=0.0, curl=0.0):
+    """A wave running down the tail, each bone a little later than the one before."""
+    for i, name in enumerate(tail_names(c), start=1):
+        c.bone_rotation(name, pitch(droop) @ yaw(curl + swish * gait.wave(t, cycles, lag=lag + 0.09 * i)))
+
+
+def saurian_gait(c, settings, t):
+    """A sprawling walk: diagonal feet together, the trunk bending so each girdle turns its reaching limb forward, the
+    head swinging against the bend, and a wave down the tail."""
+    duty, stride = settings["duty"], settings["stride"]
+    for leg, offset in settings["phases"].items():
+        phase = t + offset
+        forward, up = gait.foot(phase, duty, stride, settings["liftHind" if leg.startswith("hind") else "liftFore"])
+        swing = 0.0 if gait.planted(phase, duty) else math.sin(math.pi * ((phase % 1.0) - duty) / (1.0 - duty))
+        # A sprawled foot swings out to the side as it comes forward.
+        c.place(leg, forward=forward, up=up, side=settings.get("swingOutMetres", 0.04) * swing, toe_pitch=-15.0 * swing)
+    # The bend follows the left hind foot: concave on the left while it reaches forward.
+    lean = gait.wave(t, lag=settings["phases"].get("hind.L", 0.0) + 0.25 - duty / 2)
+    bend(c, settings["bendDegrees"] * lean, sway=settings.get("swayDegrees", 2.0) * lean)
+    c.bone_offset("hips", (0, 0, -settings.get("bob", 0.0) * math.cos(2 * gait.TAU * t)))
+    c.bone_rotation("neck", yaw(-settings.get("headSwingDegrees", 0.6) * settings["bendDegrees"] * lean) @ pitch(-1.5 * gait.wave(t, 2)))
+    c.bone_rotation("head", yaw(-0.4 * settings["bendDegrees"] * lean))
+    saurian_tail(c, t, settings.get("tailDegrees", 6.0), lag=0.3)
+
+
+def saurian_walk(c, s, t):
+    saurian_gait(c, s["walk"], t)
+    flick(c, s, "walk", t, (0.35,))
+
+
+def saurian_run(c, s, t):
+    saurian_gait(c, s["run"], t)
+
+
+def saurian_idle(c, s, t):
+    """Still, breathing, the head turning slowly, the tongue flicking now and then."""
+    breathe = gait.wave(t, 2)
+    c.bone_rotation("spine", pitch(0.6 * breathe))
+    c.bone_rotation("chest", pitch(-0.5 * breathe))
+    c.bone_rotation("neck", pitch(1.5 * gait.wave(t)) @ yaw(10.0 * gait.wave(t, lag=0.25)))
+    c.bone_rotation("head", pitch(2.0 * gait.wave(t, 2, lag=0.1)) @ yaw(6.0 * gait.wave(t, lag=0.35)))
+    saurian_tail(c, t, 1.5)
+    flick(c, s, "idle", t, (0.15, 0.6))
+
+
+def saurian_alert(c, s, t):
+    """Up on its forelegs, neck raised, head turning to find what it heard."""
+    up = s.get("alert", {}).get("raiseMetres", 0.08)
+    c.bone_offset("chest", (0, 0, up))
+    c.bone_rotation("spine2", pitch(4.0))
+    c.bone_rotation("neck", pitch(16.0) @ yaw(14.0 * gait.wave(t)))
+    c.bone_rotation("head", pitch(-8.0) @ yaw(8.0 * gait.wave(t, lag=0.1)))
+    saurian_tail(c, t, 2.0, droop=-2.0)
+    # Tasting the air for what it heard.
+    flick(c, s, "alert", t, (0.1, 0.4, 0.7))
+
+
+def saurian_threat(c, s, t):
+    """A monitor's threat on four legs: the body raised high on straightened legs and bent side-on to the threat, the
+    neck arched, jaws wide, the tail curled ready to lash."""
+    settings = s["threat"]
+    up = gait.rise_hold_fall(t, 0.22, 0.82)
+    shake = gait.wave(t, 6)
+    c.bone_offset("root", (0, 0, settings.get("raiseMetres", 0.15) * up))
+    bend(c, settings.get("bendDegrees", 8.0) * up)
+    c.bone_rotation("neck", pitch(settings.get("neckDegrees", 20.0) * up) @ yaw(-6.0 * up))
+    c.bone_rotation("head", pitch(-settings.get("neckDegrees", 20.0) * 0.6 * up) @ yaw(3.0 * up * shake))
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 30.0) * up - 2.0 * up * shake))
+    saurian_tail(c, t, 4.0 * up, cycles=3.0, curl=settings.get("tailCurlDegrees", 8.0) * up)
+
+
+def saurian_bite(c, s, t):
+    """A lunge and a sideways snap: the head draws back and to one side, the body throws itself forward and the head
+    sweeps across as the jaws shut, then it draws back."""
+    settings = s["bite"]
+    back = gait.ease_in_out(t, 0.0, 0.28) * (1.0 - gait.ease_in_out(t, 0.3, 0.42))
+    strike = gait.ease_in_out(t, 0.32, 0.44) * (1.0 - gait.ease_in_out(t, 0.68, 1.0))
+    wide = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.42, 0.5))
+    shut = gait.ease_in_out(t, 0.42, 0.5) * (1.0 - gait.ease_in_out(t, 0.8, 1.0))
+    reach = settings.get("lungeMetres", 0.4)
+    across = settings.get("sweepDegrees", 18.0)
+    lift = settings.get("liftForeFeet", False)
+    if lift:
+        for side in SIDES:
+            c.leg_influence(f"fore.{side}", 1.0 - strike)
+    c.bone_offset("hips", (0, 0.35 * reach * back - reach * strike, 0.04 * strike))
+    bend(c, 6.0 * back - 4.0 * strike)
+    c.bone_rotation("neck", pitch(10.0 * back - 6.0 * strike) @ yaw(across * back - across * strike))
+    c.bone_rotation("head", pitch(6.0 * back - 4.0 * strike) @ yaw(0.5 * across * back - 0.6 * across * strike))
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 30.0) * wide + 3.0 * shut))
+    saurian_tail(c, t, 3.0 * (back + strike), cycles=2.0)
+
+
+def saurian_hurt(c, s, t):
+    """A blow lands: it flinches back and away, bending, and gapes."""
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    c.bone_offset("hips", (0, 0.1 * hit, 0))
+    bend(c, -10.0 * hit)
+    c.bone_rotation("neck", pitch(8.0 * hit) @ yaw(-16.0 * hit))
+    c.bone_rotation("head", pitch(6.0 * hit))
+    c.bone_rotation("jaw", pitch(-20.0 * hit))
+    saurian_tail(c, t, 6.0 * hit, cycles=2.0)
+
+
+def saurian_lie(c, s, t):
+    """At rest, belly to the ground (#10879): the body sinks between sprawled feet that stay put, chin down, the tail
+    laid in a slow curve, breathing."""
+    settings = s["lie"]
+    breathe = gait.wave(t)
+    for leg in c.targets:
+        c.place(leg, side=settings.get("sprawlMetres", 0.1))
+    c.bone_offset("root", (0, 0, -settings["sinkMetres"]))
+    bend(c, settings.get("bendDegrees", 6.0))
+    c.bone_rotation("spine", yaw(0.9 * settings.get("bendDegrees", 6.0)) @ pitch(0.5 * breathe))
+    c.bone_rotation("neck", pitch(-settings.get("headDegrees", 6.0)))
+    c.bone_rotation("head", pitch(-0.5 * settings.get("headDegrees", 6.0)))
+    saurian_tail(c, 0.0, 0.0, curl=settings.get("tailCurlDegrees", 5.0))
+    flick(c, s, "lie", t, (0.55,))
+
+
+def saurian_die(c, s, t):
+    fall_over(c, t, c.leg_length("hind.L"), thigh=-12.0, knee=18.0)
+
+
+def tuck_legs(c, amount):
+    """Legs folded back along the body, as a salamander swims: IK off, each limb laid back."""
+    for leg in c.targets:
+        c.leg_influence(leg, 1.0 - amount)
+    for side in SIDES:
+        c.bone_rotation(f"thigh.{side}", pitch(-60.0 * amount) @ spread(side, -10.0 * amount))
+        c.bone_rotation(f"shin.{side}", pitch(-30.0 * amount))
+        c.bone_rotation(f"upperarm.{side}", pitch(-70.0 * amount) @ spread(side, -10.0 * amount))
+        c.bone_rotation(f"forearm.{side}", pitch(30.0 * amount))
+
+
+def saurian_swim(c, s, t):
+    """Lying in the shallows (#10879, the drowner): the legs laid back, a slow wave down the body and tail holding it
+    in place, the head up at the surface and turning."""
+    settings = s["swim"]
+    tuck_legs(c, 1.0)
+    c.bone_offset("root", (0, 0, -settings.get("sinkMetres", 0.2)))
+    sweep = settings.get("bendDegrees", 5.0)
+    c.bone_rotation("hips", yaw(-sweep * gait.wave(t, lag=0.5)))
+    c.bone_rotation("spine", yaw(sweep * gait.wave(t, lag=0.35)))
+    c.bone_rotation("spine2", yaw(sweep * gait.wave(t, lag=0.2)))
+    c.bone_rotation("chest", yaw(0.5 * sweep * gait.wave(t, lag=0.1)))
+    c.bone_rotation("neck", pitch(6.0) @ yaw(-0.6 * sweep * gait.wave(t, lag=0.05)))
+    c.bone_rotation("head", pitch(-3.0) @ yaw(5.0 * gait.wave(t, lag=0.4)))
+    saurian_tail(c, t, settings.get("tailDegrees", 10.0), lag=0.55)
+
+
+def saurian_lunge(c, s, t):
+    """The strike from the water's edge (#10879, the drowner): low and drawn back, then the whole body throws forward
+    with the forelegs off the ground and the jaws wide, snaps shut and settles back."""
+    settings = s["lunge"]
+    coil = gait.ease_in_out(t, 0.0, 0.25) * (1.0 - gait.ease_in_out(t, 0.28, 0.36))
+    throw = gait.ease_in_out(t, 0.28, 0.4) * (1.0 - gait.ease_in_out(t, 0.62, 1.0))
+    wide = gait.ease_in_out(t, 0.1, 0.32) * (1.0 - gait.ease_in_out(t, 0.4, 0.46))
+    shut = gait.ease_in_out(t, 0.4, 0.46) * (1.0 - gait.ease_in_out(t, 0.8, 1.0))
+    reach = settings.get("metres", 1.0)
+    for side in SIDES:
+        c.leg_influence(f"fore.{side}", 1.0 - throw)
+        c.bone_rotation(f"upperarm.{side}", pitch(-50.0 * throw))
+    c.bone_offset("root", (0, 0.25 * reach * coil - reach * throw, -0.08 * coil + 0.12 * throw))
+    bend(c, 10.0 * coil * gait.wave(t, 3))
+    c.bone_rotation("chest", pitch(-4.0 * coil + 10.0 * throw))
+    c.bone_rotation("neck", pitch(-6.0 * coil + 8.0 * throw))
+    c.bone_rotation("head", pitch(-4.0 * coil - 6.0 * throw))
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 40.0) * wide + 3.0 * shut))
+    saurian_tail(c, t, 8.0 * (coil + throw), cycles=2.0)
+
+
+SAURIAN_LEGS = PLANTIGRADE_LEGS
+
+SAURIAN_CLIPS = {
+    "rest": (clip_rest, False, True),
+    "idle": (saurian_idle, True, True),
+    "walk": (saurian_walk, True, True),
+    "run": (saurian_run, True, True),
+    "alert": (saurian_alert, True, True),
+    "threat": (saurian_threat, False, True),
+    "bite": (saurian_bite, False, False),
+    "hurt": (saurian_hurt, False, True),
+    "lie": (saurian_lie, True, True),
+    "die": (saurian_die, False, False),
+    "swim": (saurian_swim, True, False),
+    "lunge": (saurian_lunge, False, False),
+}
+
+
 # ---------------------------------------------------------------- bird: two legs and a long neck
 
 def bird_bones():
@@ -1322,6 +1568,8 @@ class Family:
     # Bone name stems drawn as legs and as claw or hoof on a stand-in body.
     leg_bones: tuple = field(default=())
     tip_bones: tuple = field(default=())
+    # Whether the bones depend on the species' points (a tail as long as it is drawn): `bones(points)`.
+    sized: bool = False
 
 
 FAMILIES = {
@@ -1347,4 +1595,8 @@ FAMILIES = {
     "low-slung": Family(low_slung_bones, PLANTIGRADE_LEGS, LOW_SLUNG_CLIPS,
                         (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                         ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand")),
+    # The low-slung legs and feet with a bending trunk and a tail as long as the species draws it (#10879).
+    "saurian": Family(saurian_bones, SAURIAN_LEGS, SAURIAN_CLIPS,
+                      (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
+                      ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand"), sized=True),
 }

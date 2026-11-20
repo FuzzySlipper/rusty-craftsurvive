@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/drowner/mesh/tripo/tripo.glb",
+  "triangles": 6998,
+  "areaSquareMetres": 11.596,
+  "charts": 1001,
+  "utilization": 0.758,
+  "masterTexels": [
+    1134,
+    1132
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.8133706450462341,
+      -2.2536044120788574,
+      0.004468966741114855
+    ],
+    [
+      0.8073237538337708,
+      2.2499024868011475,
+      1.010820984840393
+    ]
+  ]
+}

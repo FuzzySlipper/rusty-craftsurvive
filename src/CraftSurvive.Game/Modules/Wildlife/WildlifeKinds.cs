@@ -91,6 +91,12 @@ internal enum WildlifeClipRole
 
     /// <summary>Standing and searching for what it lost (#10878: the draft-hound flaring its ear-fans and turning them).</summary>
     Search,
+
+    /// <summary>
+    /// Lying low in shallow water, legs laid back, the body sunk to its back and head (#10879: the drowner resting in its
+    /// pool, whose home is the pool's middle over a bed a few tenths of a metre down).
+    /// </summary>
+    Swim,
 }
 
 /// <summary>A kind's animated body: its mesh and build manifest, which clip plays each role, and how it falls when killed, if it does more than play its death. A kind without one is drawn as a placeholder.</summary>

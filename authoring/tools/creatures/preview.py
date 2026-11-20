@@ -1,7 +1,7 @@
 """Renders review frames of a creature GLB's clips, from the exported file itself (#10568).
 
 usage: blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/preview.py -- \
-           <creature.glb> <out dir> [--frames 4] [--size 360] [--view 8] [--sequence walk,graze]
+           <creature.glb> <out dir> [--frames 4] [--size 360] [--view 8] [--sequence walk,graze] [--top] [--clips walk,run]
 
 Writes <out dir>/<clip>-<view>-<n>.png: a side and a three-quarter view at evenly spaced times
 of each clip, on a ground plane with a 1.8 m post for scale, --view metres across. With --sequence, it instead renders
@@ -18,6 +18,8 @@ from mathutils import Vector
 
 # (azimuth from the animal's left towards its front, elevation), degrees. The animal faces -Y.
 VIEWS = {"side": (0.0, 8.0), "quarter": (40.0, 15.0)}
+# From above, with --top: a lizard's side-to-side bend shows only from here (#10879).
+TOP_VIEW = (0.0, 89.0)
 VIEW_METRES = 8.0
 POST_METRES = 1.8
 
@@ -28,6 +30,8 @@ def main(argv):
     size = int(argv[argv.index("--size") + 1]) if "--size" in argv else 360
     across = float(argv[argv.index("--view") + 1]) if "--view" in argv else VIEW_METRES
     sequence = argv[argv.index("--sequence") + 1].split(",") if "--sequence" in argv else None
+    only = argv[argv.index("--clips") + 1].split(",") if "--clips" in argv else None
+    views = dict(VIEWS, top=TOP_VIEW) if "--top" in argv else VIEWS
     out.mkdir(parents=True, exist_ok=True)
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj)
@@ -56,11 +60,11 @@ def main(argv):
     scene.camera = camera
     rig.animation_data_create()
     actions = sorted(bpy.data.actions, key=lambda a: a.name)
-    if sequence:
-        actions = [a for a in actions if a.name in sequence]
+    if sequence or only:
+        actions = [a for a in actions if a.name in (sequence or only)]
 
     def shoot(view, path):
-        azimuth, elevation = VIEWS[view]
+        azimuth, elevation = views[view]
         a, e = math.radians(azimuth), math.radians(elevation)
         distance = 20.0
         camera.location = Vector((distance * math.cos(e) * math.cos(a),
@@ -82,7 +86,7 @@ def main(argv):
             continue
         for n in range(frames):
             scene.frame_set(int(round(start + (end - start) * n / max(frames - 1, 1))))
-            for view in VIEWS:
+            for view in views:
                 shoot(view, out / f"{action.name}-{view}-{n}.png")
     print(f"rendered {len(actions)} clips to {out}")
 

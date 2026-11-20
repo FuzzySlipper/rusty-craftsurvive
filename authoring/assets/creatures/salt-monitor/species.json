@@ -1,0 +1,293 @@
+{
+  "id": "salt-monitor",
+  "family": "saurian",
+  "about": "The salt-monitor (#10879), a Komodo-like monitor of the ivory heath, 3 m long and 0.71 m high, fitted to the Tripo body (authoring/assets/creatures/salt-monitor/mesh). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "mouth": {
+    "hingeForward": 1.12,
+    "upper": [
+      1.4,
+      0.56
+    ],
+    "lower": [
+      1.38,
+      0.48
+    ],
+    "biteHeight": 0.52
+  },
+  "tongue": {
+    "about": "A forked tongue grown into the closed mouth by add_tongue.py; its bone pushes it out reachMetres to flick.",
+    "root": [
+      1.0,
+      0.5
+    ],
+    "length": 0.45,
+    "width": 0.05,
+    "thickness": 0.012,
+    "forkMetres": 0.09,
+    "forkSpread": 0.05,
+    "colour": [
+      196,
+      140,
+      138
+    ]
+  },
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      0.0,
+      0.46
+    ],
+    "spine": [
+      0,
+      0.25,
+      0.5
+    ],
+    "spine2": [
+      0,
+      0.5,
+      0.52
+    ],
+    "chest": [
+      0,
+      0.74,
+      0.53
+    ],
+    "neck": [
+      0,
+      0.92,
+      0.56
+    ],
+    "head": [
+      0,
+      1.08,
+      0.6
+    ],
+    "nose": [
+      0,
+      1.52,
+      0.56
+    ],
+    "jaw": [
+      0,
+      1.1,
+      0.5
+    ],
+    "jaw_tip": [
+      0,
+      1.46,
+      0.49
+    ],
+    "tail0": [
+      0,
+      -0.12,
+      0.4
+    ],
+    "tail1": [
+      0,
+      -0.35,
+      0.36
+    ],
+    "tail2": [
+      0,
+      -0.6,
+      0.33
+    ],
+    "tail3": [
+      0,
+      -0.84,
+      0.3
+    ],
+    "tail4": [
+      0,
+      -1.07,
+      0.28
+    ],
+    "tail5": [
+      0,
+      -1.29,
+      0.26
+    ],
+    "tail6": [
+      0,
+      -1.5,
+      0.24
+    ],
+    "hip_socket": [
+      0.2,
+      0.02,
+      0.4
+    ],
+    "knee": [
+      0.38,
+      0.08,
+      0.3
+    ],
+    "ankle": [
+      0.36,
+      -0.06,
+      0.08
+    ],
+    "toe": [
+      0.38,
+      0.14,
+      0.0
+    ],
+    "shoulder": [
+      0.2,
+      0.78,
+      0.42
+    ],
+    "elbow": [
+      0.37,
+      0.72,
+      0.3
+    ],
+    "wrist": [
+      0.35,
+      0.8,
+      0.08
+    ],
+    "knuckle": [
+      0.37,
+      0.97,
+      0.0
+    ],
+    "eye": [
+      0.1,
+      1.22,
+      0.64
+    ],
+    "tongue": [
+      0,
+      1.0,
+      0.5
+    ],
+    "tongue_tip": [
+      0,
+      1.45,
+      0.5
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.4,
+      "stride": 0.9,
+      "duty": 0.65,
+      "liftHind": 0.07,
+      "liftFore": 0.07,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.R": 0.05,
+        "hind.R": 0.5,
+        "fore.L": 0.55
+      },
+      "bob": 0.01,
+      "bendDegrees": 7.0,
+      "swayDegrees": 2.0,
+      "headSwingDegrees": 0.5,
+      "tailDegrees": 7.0,
+      "swingOutMetres": 0.05
+    },
+    "run": {
+      "seconds": 0.55,
+      "stride": 1.8,
+      "duty": 0.45,
+      "liftHind": 0.1,
+      "liftFore": 0.1,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.R": 0.02,
+        "hind.R": 0.5,
+        "fore.L": 0.52
+      },
+      "bob": 0.02,
+      "bendDegrees": 10.0,
+      "swayDegrees": 3.0,
+      "headSwingDegrees": 0.6,
+      "tailDegrees": 9.0,
+      "swingOutMetres": 0.06
+    },
+    "idle": {
+      "seconds": 5.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "threat": {
+      "seconds": 2.4,
+      "raiseMetres": 0.14,
+      "bendDegrees": 9.0,
+      "neckDegrees": 22.0,
+      "jawDegrees": 32.0,
+      "tailCurlDegrees": 10.0
+    },
+    "bite": {
+      "seconds": 1.1,
+      "lungeMetres": 0.45,
+      "sweepDegrees": 20.0,
+      "jawDegrees": 32.0
+    },
+    "hurt": {
+      "seconds": 0.7
+    },
+    "lie": {
+      "seconds": 6.0,
+      "sinkMetres": 0.24,
+      "sprawlMetres": 0.12,
+      "bendDegrees": 6.0,
+      "headDegrees": 4.0,
+      "tailCurlDegrees": 5.0
+    },
+    "die": {
+      "seconds": 2.4
+    },
+    "tongue": {
+      "reachMetres": 0.32,
+      "jawDegrees": 5.0
+    }
+  },
+  "proxy": {
+    "about": "The stand-in body built from metaball capsules along the bones, until the Tripo body replaces it.",
+    "radii": {
+      "hips": 0.42,
+      "spine": 0.48,
+      "spine2": 0.48,
+      "chest": 0.42,
+      "neck": 0.2,
+      "head": 0.15,
+      "jaw": 0.08,
+      "tail1": 0.2,
+      "tail2": 0.16,
+      "tail3": 0.13,
+      "tail4": 0.1,
+      "tail5": 0.07,
+      "tail6": 0.05,
+      "thigh": 0.12,
+      "shin": 0.09,
+      "foot": 0.07,
+      "upperarm": 0.11,
+      "forearm": 0.08,
+      "hand": 0.07
+    },
+    "resolution": 0.04,
+    "triangles": 5000,
+    "palette": {
+      "coat": "#e6e0d2",
+      "belly": "#d8d2c2",
+      "legs": "#9a948a",
+      "claw": "#d8ccb0",
+      "eye": "#1a1612"
+    }
+  }
+}

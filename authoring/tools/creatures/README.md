@@ -9,7 +9,7 @@ Provenance is in [`content/creatures.sources.json`](../../../content/creatures.s
 Humans borrow UAL's humanoid clips (`authoring/tools/characters/`). Nothing comparable exists for four legs,
 and every animal's proportions differ. So each **family** in `families.py` (plantigrade: sloths and
 bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers;
-bird and theropod: two legs; flyer: wings)
+saurian: monitors, salamanders; bird and theropod: two legs; flyer: wings)
 has a skeleton and a clip generator in code. A species bakes the family clips it has settings for:
 
 - A species file (`<kind>/species.json`) places the family's joints as metres
@@ -37,6 +37,7 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `sequence.py` | Animates `--sequence` frames: smooth beside a stepped rate, as one GIF |
 | `add_crest.py` (Blender) | Grows a crest of filaments with glowing beads onto a prepared body (#10878) |
 | `keep_band.py` | Keeps one hue band of a master paint through pixel reduction, with its own palette (#10878) |
+| `add_tongue.py` (Blender) | Grows a forked tongue inside a prepared body's mouth, on its own bone (#10879) |
 
 ```sh
 blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/build_creature.py -- \
@@ -106,7 +107,8 @@ A species file can also carry what a body needs:
   bone, so a carapace does not flex;
 - limb points named `"elbow.R"` and so on give a body standing with staggered legs its own right limb,
   in left-side metres;
-- `preview.py --view <metres>` frames a small or a very large animal.
+- `preview.py --view <metres>` frames a small or a very large animal; `--top` adds a view from above (a lizard's
+  side-to-side bend shows only there) and `--clips walk,bite` renders only those.
 
 ## In game
 
@@ -318,3 +320,31 @@ The draft-hound and the glass-courser came through the Tripo web studio as the #
   that wakes calls them all. The creature readout shows `upwind=`, `faces=` and `wake=`.
 - **`craft.creatures.unseen <seconds>`** is a test aid for captures: no creature sees the player for that long, so
   hunters lose the player where they stand and search there, by the player's own light (0 ends it).
+
+### Cave hunters on the saurian rig (#10879)
+
+The salt-monitor and the drowner came through the Tripo web studio as the #10877 pair did. Both reference sheets were
+redrawn until the front view stopped smiling: Tripo builds the face from it, and the first draws of both grinned. The
+drowner's gill plumes and flank fringe are drawn as solid fronds and one wavy skirt, which Tripo kept.
+
+- **The `saurian` family.** The low-slung legs (two segments and a foot, sprawled) with a second spine bone and a tail
+  as long as the species places points for (`tail1` to `tailN`; the monitor has six, the drowner eight), so its bones
+  depend on the species (`Family.sized`). Its walk is a sprawling diagonal gait: the trunk bends as a standing wave
+  (`bend`, the girdles turning opposite ways so each reaching limb goes forward), the head swings against it and a wave
+  runs down the tail. Clips:
+  - `threat` raises the body high on the legs, bent side-on, jaws wide and tail curled;
+  - `bite` draws the head back and to one side and sweeps it across as the jaws shut;
+  - `lie` sinks the belly to the ground between sprawled feet;
+  - `swim` (the drowner) lays the legs back along the body and sinks it, a slow wave holding it in place;
+  - `lunge` (the drowner) throws the whole body forward a metre or more, forelegs off the ground, jaws gaping. The
+    drowner's kind plays it as its bite.
+- **Tongue: `add_tongue.py`.** A monitor flicks a forked tongue, which Tripo cannot make, so it is grown from the
+  species' `"tongue"` block: a flat strip from `root` inside the closed mouth, `length` forward, forking for its last
+  `forkMetres`. It adds a two-row strip of its `colour` to the paint. With `tongue` and `tongue_tip` in the points the
+  family has a `tongue` bone on the jaw; `pin_tongue` in build_creature.py gives it every loose piece along that line,
+  and `idle`, `alert`, `walk` and `lie` slide it out `tongue.reachMetres` and back (`flick`).
+- **Paint.** `pixel_reduce.py`'s `--luminance` scales the whole atlas, padding included, to a mean: the salt-monitor's
+  salt-white took 0.72 at saturation 0.7, and the drowner's mostly red atlas 0.4 at 0.75 (0.62 bleached its skin white).
+- **In game.** The drowner's home is the middle of its pool, over a bed a few tenths of a metre under the surface, so
+  it rests there on `swim` (the `Swim` clip role), sunk to its back and head.
+

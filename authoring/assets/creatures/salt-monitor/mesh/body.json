@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/salt-monitor/mesh/tripo/tripo.glb",
+  "triangles": 5999,
+  "areaSquareMetres": 4.006,
+  "charts": 192,
+  "utilization": 0.7698,
+  "masterTexels": [
+    570,
+    573
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.48313966393470764,
+      -1.4983099699020386,
+      -0.0034144544042646885
+    ],
+    [
+      0.4816252887248993,
+      1.5008447170257568,
+      0.7124747633934021
+    ]
+  ]
+}

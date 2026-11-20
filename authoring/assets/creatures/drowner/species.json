@@ -1,0 +1,264 @@
+{
+  "id": "drowner",
+  "family": "saurian",
+  "about": "The drowner (#10879), a 4.5 m pale cave salamander of the pools, fitted to the Tripo body (authoring/assets/creatures/drowner/mesh): sheet 15's head with sheet 16's flank fringe. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "mouth": {
+    "hingeForward": 1.7,
+    "upper": [
+      2.1,
+      0.5
+    ],
+    "lower": [
+      2.05,
+      0.4
+    ],
+    "biteHeight": 0.45
+  },
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -0.42,
+      0.5
+    ],
+    "spine": [
+      0,
+      0.05,
+      0.52
+    ],
+    "spine2": [
+      0,
+      0.55,
+      0.52
+    ],
+    "chest": [
+      0,
+      1.05,
+      0.5
+    ],
+    "neck": [
+      0,
+      1.32,
+      0.5
+    ],
+    "head": [
+      0,
+      1.58,
+      0.52
+    ],
+    "nose": [
+      0,
+      2.25,
+      0.5
+    ],
+    "jaw": [
+      0,
+      1.7,
+      0.42
+    ],
+    "jaw_tip": [
+      0,
+      2.2,
+      0.38
+    ],
+    "hip_socket": [
+      0.26,
+      -0.42,
+      0.42
+    ],
+    "knee": [
+      0.5,
+      -0.36,
+      0.3
+    ],
+    "ankle": [
+      0.48,
+      -0.48,
+      0.07
+    ],
+    "toe": [
+      0.52,
+      -0.3,
+      0.0
+    ],
+    "shoulder": [
+      0.26,
+      1.12,
+      0.42
+    ],
+    "elbow": [
+      0.5,
+      1.08,
+      0.3
+    ],
+    "wrist": [
+      0.48,
+      1.2,
+      0.07
+    ],
+    "knuckle": [
+      0.52,
+      1.38,
+      0.0
+    ],
+    "eye": [
+      0.12,
+      1.85,
+      0.6
+    ],
+    "tail0": [
+      0,
+      -0.62,
+      0.47
+    ],
+    "tail1": [
+      0,
+      -0.82,
+      0.465
+    ],
+    "tail2": [
+      0,
+      -1.02,
+      0.46
+    ],
+    "tail3": [
+      0,
+      -1.22,
+      0.455
+    ],
+    "tail4": [
+      0,
+      -1.42,
+      0.45
+    ],
+    "tail5": [
+      0,
+      -1.62,
+      0.445
+    ],
+    "tail6": [
+      0,
+      -1.82,
+      0.44
+    ],
+    "tail7": [
+      0,
+      -2.02,
+      0.435
+    ],
+    "tail8": [
+      0,
+      -2.22,
+      0.43
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.6,
+      "stride": 0.9,
+      "duty": 0.7,
+      "liftHind": 0.06,
+      "liftFore": 0.06,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.R": 0.05,
+        "hind.R": 0.5,
+        "fore.L": 0.55
+      },
+      "bob": 0.0,
+      "bendDegrees": 9.0,
+      "swayDegrees": 1.5,
+      "headSwingDegrees": 0.4,
+      "tailDegrees": 8.0,
+      "swingOutMetres": 0.06
+    },
+    "run": {
+      "seconds": 0.8,
+      "stride": 1.5,
+      "duty": 0.5,
+      "liftHind": 0.08,
+      "liftFore": 0.08,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.R": 0.03,
+        "hind.R": 0.5,
+        "fore.L": 0.53
+      },
+      "bob": 0.01,
+      "bendDegrees": 13.0,
+      "swayDegrees": 2.0,
+      "headSwingDegrees": 0.5,
+      "tailDegrees": 11.0,
+      "swingOutMetres": 0.07
+    },
+    "idle": {
+      "seconds": 5.0
+    },
+    "alert": {
+      "seconds": 3.0,
+      "raiseMetres": 0.06
+    },
+    "threat": {
+      "seconds": 2.4,
+      "raiseMetres": 0.08,
+      "bendDegrees": 10.0,
+      "neckDegrees": 14.0,
+      "jawDegrees": 38.0,
+      "tailCurlDegrees": 12.0
+    },
+    "bite": {
+      "seconds": 1.1,
+      "lungeMetres": 0.5,
+      "sweepDegrees": 12.0,
+      "jawDegrees": 38.0
+    },
+    "lunge": {
+      "seconds": 1.5,
+      "metres": 1.2,
+      "jawDegrees": 44.0
+    },
+    "hurt": {
+      "seconds": 0.7
+    },
+    "lie": {
+      "seconds": 6.0,
+      "sinkMetres": 0.22,
+      "sprawlMetres": 0.1,
+      "bendDegrees": 8.0,
+      "headDegrees": 3.0,
+      "tailCurlDegrees": 6.0
+    },
+    "swim": {
+      "seconds": 4.0,
+      "sinkMetres": 0.22,
+      "bendDegrees": 5.0,
+      "tailDegrees": 9.0
+    },
+    "die": {
+      "seconds": 2.4
+    }
+  },
+  "proxy": {
+    "about": "Unused: the Tripo body replaces it.",
+    "radii": {},
+    "resolution": 0.05,
+    "triangles": 5000,
+    "palette": {
+      "coat": "#d8cfc6",
+      "belly": "#d8cfc6",
+      "legs": "#c8b8b0",
+      "claw": "#806060",
+      "eye": "#e0e0e0"
+    }
+  }
+}

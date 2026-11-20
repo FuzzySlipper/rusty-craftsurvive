@@ -149,8 +149,7 @@ internal sealed class CreatureNavigation
         }
 
         Vector3 local = space.ToLocal(playerFeetWorld);
-        float bottom = publishedBottom is float kept
-            && local.Y - kept >= DepthBelow && local.Y - kept <= DepthBelow + VerticalSlackMetres
+        float bottom = publishedBottom is float kept && KeepsBottom(local.Y, kept)
                 ? kept
                 : MathF.Floor(local.Y) - DepthBelow - (VerticalSlackMetres / 2f);
         float cell = (float)config.CellSize;
@@ -174,11 +173,20 @@ internal sealed class CreatureNavigation
         publishedCollision = space.CollisionRevision;
     }
 
-    /// <summary>Whether what was published no longer covers the player or the world: never published, the player moved far, or the collision changed.</summary>
+    /// <summary>
+    /// Whether what was published no longer covers the player or the world: never published, the player moved far across
+    /// the ground or out of the box's height (#10879: a box published under a player still falling from a teleport stayed
+    /// 24 m over the ground, so a hunter there read OutsideBox for good), or the collision changed.
+    /// </summary>
     internal bool Stale(Vector3 playerFeetWorld) =>
         publishedAround is not Vector3 centre
         || Vector2.Distance(new Vector2(centre.X, centre.Z), new Vector2(playerFeetWorld.X, playerFeetWorld.Z)) > RepublishDistanceMetres
+        || (publishedBottom is float bottom && !KeepsBottom(space.ToLocal(playerFeetWorld).Y, bottom))
         || !Equals(publishedCollision, space.CollisionRevision);
+
+    /// <summary>Whether a box's bottom still suits a player's feet at this local height: they stand between its depth below and that plus the slack.</summary>
+    private static bool KeepsBottom(float feetLocalY, float bottom) =>
+        feetLocalY - bottom >= DepthBelow && feetLocalY - bottom <= DepthBelow + VerticalSlackMetres;
 
     /// <summary>Whether this grid has been published at all.</summary>
     internal bool Published => publishedAround is not null;

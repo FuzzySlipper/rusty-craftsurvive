@@ -63,7 +63,7 @@ def build_armature(species, family):
     bpy.context.scene.collection.objects.link(rig)
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode="EDIT")
-    for name, parent, head, tail, sign in family.bones():
+    for name, parent, head, tail, sign in (family.bones(points) if family.sized else family.bones()):
         bone = data.edit_bones.new(name)
         bone.head = limb_point(points, head, sign)
         bone.tail = limb_point(points, tail, sign)
@@ -340,11 +340,8 @@ def pin_shell(species, mesh):
     print(f"shell: {len(pinned)} of {len(mesh.data.vertices)} vertices follow {shell['bone']}")
 
 
-def pin_islands(mesh):
-    """
-    A loose piece, such as a claw, moves as one with the surface nearest it. Weights by nearest bone
-    can give a claw at a foot's edge to the bone above the foot, and it hangs in the air when the foot lifts.
-    """
+def mesh_pieces(mesh):
+    """The mesh's loose pieces, each a list of vertex indices, keyed by one of them."""
     verts = mesh.data.vertices
     parent = list(range(len(verts)))
 
@@ -364,6 +361,16 @@ def pin_islands(mesh):
     pieces = {}
     for vertex in verts:
         pieces.setdefault(find(vertex.index), []).append(vertex.index)
+    return pieces
+
+
+def pin_islands(mesh):
+    """
+    A loose piece, such as a claw, moves as one with the surface nearest it. Weights by nearest bone
+    can give a claw at a foot's edge to the bone above the foot, and it hangs in the air when the foot lifts.
+    """
+    verts = mesh.data.vertices
+    pieces = mesh_pieces(mesh)
     body = max(pieces.values(), key=len)
     tree = KDTree(len(body))
     for index in body:
@@ -431,6 +438,39 @@ def pin_mouth(species, mesh):
         group.add([index for index, end in side.items() if end == name], 1.0, "REPLACE")
     print(f"mouth: {sum(end == 'upper' for end in side.values())} vertices follow the head, "
           f"{sum(end == 'lower' for end in side.values())} the jaw")
+
+
+# How far a tongue piece's centre may lie from the tongue's line, in metres.
+TONGUE_REACH = 0.06
+
+
+def pin_tongue(species, mesh):
+    """
+    A tongue grown by add_tongue.py (#10879) is loose pieces inside the mouth (its stem and its two prongs): every loose
+    piece centred within `TONGUE_REACH` of the line from `tongue` to `tongue_tip` follows the `tongue` bone outright, so a
+    clip slides it out of the mouth and back.
+    """
+    points = species["points"]
+    if "tongue_tip" not in points:
+        return
+    root, tip = to_blender(points["tongue"]), to_blender(points["tongue_tip"])
+    verts = mesh.data.vertices
+    pieces = mesh_pieces(mesh)
+    body = max(pieces.values(), key=len)
+
+    def off_line(piece):
+        centre = sum((verts[i].co for i in piece), Vector()) / len(piece)
+        along = max(0.0, min(1.0, (centre - root).dot(tip - root) / (tip - root).length_squared))
+        return (centre - root.lerp(tip, along)).length
+
+    piece = [i for p in pieces.values() if p is not body and off_line(p) <= TONGUE_REACH for i in p]
+    if not piece:
+        raise SystemExit("tongue: the species places one but the body has none (add_tongue.py)")
+    for group in mesh.vertex_groups:
+        group.remove(piece)
+    group = mesh.vertex_groups.get("tongue") or mesh.vertex_groups.new(name="tongue")
+    group.add(piece, 1.0, "REPLACE")
+    print(f"tongue: {len(piece)} vertices follow the tongue bone")
 
 
 def pin_ears(species, mesh):
@@ -702,6 +742,7 @@ def main(argv):
     pin_islands(mesh)
     pin_mouth(species, mesh)
     pin_ears(species, mesh)
+    pin_tongue(species, mesh)
     controls = Controls(rig, family)
     points = species["points"]
     manifest = {

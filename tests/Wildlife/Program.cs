@@ -1496,6 +1496,14 @@ Check.Section("cave animals", () =>
     Check.Equal(WildlifeClipRole.Search, HunterRules.Want(Of(draftHound), CreatureState.Searching, 0, 3), "a searching draft-hound flares its ear-fans (#10878)");
     Check.That(draftHound.Mesh!.Clips.ContainsKey(WildlifeClipRole.Search), "the draft-hound's body has a search clip");
     Check.Equal(WildlifeClipRole.Lie, HunterRules.Want(Of(catalog.Kind("glass-courser")), CreatureState.Resting, 0, 3), "the glass-courser lies flat at rest (#10878)");
+    // #10879: the drowner rests low in its pool's shallows and strikes with its lunge; the salt-monitor rests belly-down.
+    WildlifeKind drowner = catalog.Kind("drowner");
+    Check.Equal(WildlifeClipRole.Swim, HunterRules.Want(Of(drowner), CreatureState.Resting, 0, 3), "the drowner rests lying low in its pool (#10879)");
+    Check.That(drowner.Mesh!.Clips.TryGetValue(WildlifeClipRole.Bite, out string? strike) && strike == "lunge", "the drowner's bite is its lunge from the water");
+    Check.That(drowner.Cave!.Lives == CaveHabitat.Pools, "the drowner lives in pools, whose homes are their middles");
+    WildlifeKind saltMonitor = catalog.Kind("salt-monitor");
+    Check.Equal(WildlifeClipRole.Lie, HunterRules.Want(Of(saltMonitor), CreatureState.Resting, 0, 3), "the salt-monitor lies belly-down at rest (#10879)");
+    Check.That(drowner.Body.SizeClass == WildlifeSizeClass.Broad && saltMonitor.Body.SizeClass == WildlifeSizeClass.Broad, "both route as broad bodies: wide and low");
 
 });
 
