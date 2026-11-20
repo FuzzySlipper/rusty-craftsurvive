@@ -372,7 +372,7 @@
   },
   {
    "mesh": "content/game/creatures/plume-neck/plume-neck.glb",
-   "sha256": "e7e9d2ca31b627acf1a56e32ecdda3556270e67a40b8a5609339da697eba31ac",
+   "sha256": "bfb9f79a4114a084a6f17d02af1b936b1928ccf24412d653f11827c7d89f342d",
    "manifest": "content/game/creatures/plume-neck/plume-neck.manifest.json",
    "built": "authoring/tools/creatures/build_creature.py from authoring/assets/creatures/plume-neck/species.json with --mesh ruffed.glb --texture ruffed-64.png (#10882; the mouth cut open with its inside and teeth by open_mouth.py from the species' mouthCut block, then the ruff's fifteen frills grown by add_ruff.py from its ruff block, each on its own bone)",
    "concept": "authoring/assets/creatures/plume-neck/concept/sheet-26.png: Den #10617's round two sheet 26, picked by Patch 2026-11-16 (den-wiki wandering-years/cave-wildlife; GPT image via ~/.claude/skills/codex-image-gen)",

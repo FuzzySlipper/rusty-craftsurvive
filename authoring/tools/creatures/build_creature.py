@@ -389,6 +389,49 @@ def pin_islands(mesh):
     print(f"islands: {len(pieces) - 1} loose pieces moved with the surface nearest them")
 
 
+def pin_cut_mouth(species, mesh):
+    """
+    A mouth cut open by open_mouth.py (#10882) is parted by its bite line, so each vertex forward of the hinge goes to
+    the side of the cut plane it lies on: above it the head, below it the jaw. A vertex on the plane itself (the lips'
+    edges) goes with the faces it belongs to. The surface cannot decide this: the GLB splits it at every UV seam, the
+    mouth's inside and teeth among them, so a jaw is many loose pieces.
+    """
+    cut = species["mouthCut"]
+    hinge_f, hinge_z = cut["hinge"]
+    tip_f, tip_z = cut["tip"]
+    along = Vector((0.0, -(tip_f - hinge_f), tip_z - hinge_z)).normalized()
+    normal = Vector((1.0, 0.0, 0.0)).cross(along).normalized()
+    if normal.z < 0:
+        normal = -normal
+    origin = Vector((0.0, -hinge_f, hinge_z))
+    forward = species["mouth"]["hingeForward"]
+    verts = mesh.data.vertices
+    above = {v.index: (v.co - origin).dot(normal) for v in verts if -v.co.y >= forward}
+    votes = {}
+    for poly in mesh.data.polygons:
+        inside = [i for i in poly.vertices if i in above]
+        if not inside:
+            continue
+        lean = max((above[i] for i in inside), key=abs)
+        for i in inside:
+            if abs(above[i]) < MOUTH_ON_LINE:
+                votes[i] = votes.get(i, 0.0) + lean
+    side = {i: "upper" if (votes.get(i, d) if abs(d) < MOUTH_ON_LINE else d) > 0 else "lower" for i, d in above.items()}
+    groups = {"upper": "head", "lower": "jaw"}
+    for group in mesh.vertex_groups:
+        group.remove(list(side))
+    for name, bone in groups.items():
+        group = mesh.vertex_groups.get(bone) or mesh.vertex_groups.new(name=bone)
+        group.add([index for index, end in side.items() if end == name], 1.0, "REPLACE")
+    print(f"mouth: cut along its bite line, {sum(e == 'upper' for e in side.values())} vertices follow the head, "
+          f"{sum(e == 'lower' for e in side.values())} the jaw")
+
+
+# How near the cut plane a vertex counts as on it, in metres: open_mouth.py parts the lips by more, so only a
+# vertex the cut made exactly on the line (at the mouth's joined corners) goes by its faces.
+MOUTH_ON_LINE = 0.0004
+
+
 def pin_mouth(species, mesh):
     """
     Teeth interlock, so heat weighting cannot part the jaws, and no line between them can. Upper and
@@ -397,6 +440,9 @@ def pin_mouth(species, mesh):
     """
     mouth = species.get("mouth")
     if not mouth:
+        return
+    if "mouthCut" in species:
+        pin_cut_mouth(species, mesh)
         return
     data = bmesh.new()
     data.from_mesh(mesh.data)

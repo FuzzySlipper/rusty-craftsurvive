@@ -11,13 +11,13 @@ and a clip that drops the jaw stretches that surface into a smear. This opens it
   separate surfaces joined only at the mouth's corners (the last `cornerMetres` before the hinge stay joined).
 - **The inside.** Each jaw's edge of the cut is closed by a fan to a point `depthMetres` inside the jaw on the
   midline: the roof of the mouth and its floor, painted `insideColour`.
-- **The teeth.** Every `toothEvery` metres along each jaw's edge, a pointed triangle `toothMetres` long stands
-  inward from the edge toward the other jaw, painted `toothColour`. Teeth share their roots with the jaw's edge, so
-  they move with their own jaw.
+- **The teeth.** Every `toothEvery` metres along each jaw's edge, a pointed triangle stands just inside it, rooted
+  `toothMetres` within the jaw and pointing to the bite line, painted `toothColour`. Each tooth lies wholly on its own
+  jaw's side of the cut, which is how pin_cut_mouth in build_creature.py tells whose it is.
 
 The paint grows a strip of `STRIP_ROWS` rows along its bottom (the body's UVs move up to keep every texel where it was):
-column 0 the inside, column 1 the teeth. pin_mouth in build_creature.py then gives each jaw its own surface: the
-two meet only at the corners.
+column 0 the inside, column 1 the teeth. pin_cut_mouth in build_creature.py then gives each vertex to the jaw on
+whose side of the cut it lies.
 """
 import json
 import math
@@ -31,6 +31,10 @@ from mathutils import Vector
 
 STRIP_ROWS = 2
 INSIDE_COLUMN, TOOTH_COLUMN = 0, 1
+# How far a tooth's point stops short of the bite line, on its own jaw's side, in metres.
+TOOTH_CLEAR = 0.003
+# How far each lip's edge is moved off the bite line, in metres: enough that no export welds the jaws together again.
+LIP_PART = 0.001
 
 
 def body_mesh(path):
@@ -106,6 +110,11 @@ def main(argv):
         edges[side].append(e)
     if not edges["upper"] or not edges["lower"]:
         raise SystemExit(f"mouthCut: the cut left {len(edges['upper'])} upper and {len(edges['lower'])} lower edges")
+    # Part the lips a hair: a glTF export welds vertices that share a place and a texel, which would join the jaws
+    # again at every point of the cut.
+    for side, sign in (("upper", 1.0), ("lower", -1.0)):
+        for v in {v for e in edges[side] for v in e.verts}:
+            v.co += normal * (sign * LIP_PART)
 
     def face(verts, uv):
         made = data.faces.new(verts)
@@ -128,7 +137,8 @@ def main(argv):
             made.normal_update()
             if made.normal.dot(normal) * sign > 0:
                 made.normal_flip()
-        # Teeth stand from the edge toward the other jaw, every toothEvery metres along it.
+        # Teeth stand inside the jaw's edge, from within the jaw to a point at the bite line, every toothEvery metres:
+        # wholly on their own jaw's side, so the cut decides whose they are, and hidden until the mouth opens.
         ordered = sorted(ring, key=lambda e: -(e.verts[0].co.y + e.verts[1].co.y))
         walked = 0.0
         for e in ordered:
@@ -136,11 +146,13 @@ def main(argv):
             if walked < cut["toothEvery"]:
                 continue
             walked = 0.0
-            a, b = e.verts
-            mid = (a.co + b.co) * 0.5
-            inward = Vector((-mid.x, 0.0, 0.0)).normalized() * cut.get("toothInsetMetres", 0.006)
-            apex = data.verts.new(mid + inward - normal * (sign * cut["toothMetres"]))
-            face([a, b, apex], texel[1])
+            a, b = (v.co.copy() for v in e.verts)
+            mid = (a + b) * 0.5
+            inset = Vector((-mid.x, 0.0, 0.0)).normalized() * cut.get("toothInsetMetres", 0.006)
+            root = normal * (sign * cut["toothMetres"])
+            tip = normal * (sign * TOOTH_CLEAR)
+            face([data.verts.new(a + inset + root), data.verts.new(b + inset + root), data.verts.new(mid + inset + tip)],
+                 texel[1])
             teeth += 1
     data.normal_update()
     data.to_mesh(mesh.data)

@@ -434,10 +434,15 @@ forelegs: its anatomy is a lizard's on four legs, and standing is a clip.
   painted line: dropping the jaw stretched that surface into a smear (Patch, 2026-11-20: it looked like a drawn-open
   texture). The tool cuts the head along the species' `"mouthCut"` bite line (from `hinge` to `tip`, joined only at
   the corners), closes each jaw's edge with a fan into a dark roof or floor, and stands small pointed teeth along both
-  edges, each rooted in its own jaw's edge. Run it before `add_ruff.py`.
-- **`pin_mouth` seeds from both sides.** It used to seed each jaw from the one vertex nearest the species' `upper` and
-  `lower` points, whichever side that lay on. With the mouth cut open the other side's cheek was nearer through the
-  mouth's corner than over the snout, so it went to the jaw and stretched. Each jaw is now seeded on both sides.
+  edges, each wholly on its own jaw's side of the cut. Run it before `add_ruff.py`.
+  - **The lips are parted a millimetre** (`LIP_PART`). A glTF export welds vertices that share a place and a texel,
+    and the first cut's two lips lay on the same line, so the export joined the jaws together again: the jaw dropped
+    and stretched the face as before (Patch saw it still closed).
+  - **`pin_cut_mouth`** gives each vertex forward of the hinge to the side of the cut plane it lies on, rather than
+    searching the surface: the GLB splits the surface at every UV seam, so a jaw arrives as many loose pieces.
+- **`pin_mouth` seeds from both sides.** For a mouth not cut open, it used to seed each jaw from the one vertex nearest
+  the species' `upper` and `lower` points, whichever side that lay on, so the other side's cheek could reach the jaw
+  first through the mouth's corner. Each jaw is now seeded on both sides.
 - **The paint: `mirror_paint.py`.** Tripo painted the head's right side with a smeared brow and mouth. Every texel of
   a face right of the midline is now repainted from the mirrored point on the left, on the master before
   `pixel_reduce.py`.
