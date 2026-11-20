@@ -369,6 +369,17 @@
    "body": "Tripo web studio multi-view (H3.1, triangle topology), its 20-credit texture step, exported GLB (mesh/tripo/tripo.glb); prepare_mesh.py --head -y --length 1.68 --triangles 6000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.6 --saturation 0.85 (64 texels/m)",
    "retained": "authoring/assets/creatures/stalk-bill/ (authoring/tools/assets-sync.sh)"
+  },
+  {
+   "mesh": "content/game/creatures/plume-neck/plume-neck.glb",
+   "sha256": "34a6ed0ff3fb5b7a7c87a1639d7f0cb3ad794fd0e92359bcd353fccce8301acb",
+   "manifest": "content/game/creatures/plume-neck/plume-neck.manifest.json",
+   "built": "authoring/tools/creatures/build_creature.py from authoring/assets/creatures/plume-neck/species.json with --mesh ruffed.glb --texture ruffed-64.png (#10882; the ruff's fifteen frills grown by add_ruff.py from the species' ruff block, each on its own bone)",
+   "concept": "authoring/assets/creatures/plume-neck/concept/sheet-26.png: Den #10617's round two sheet 26, picked by Patch 2026-11-16 (den-wiki wandering-years/cave-wildlife; GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "authoring/assets/creatures/plume-neck/mesh/reference.png (reference-4.png: the third of three draws, its front view's smile edited to a scowl; the first spread its ruff, the second lost the long neck), on all fours with lizard legs and its mane closed; spec beside it; cut by cut_views.py; shown to Patch, who said to mesh it",
+   "body": "Tripo web studio multi-view (H3.1, triangle topology), its 20-credit texture step, exported GLB (mesh/tripo/tripo.glb); prepare_mesh.py --head -y --length 3.2 --triangles 6500 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.55 --saturation 0.85 (64 texels/m); add_ruff.py adds a 2-row strip for the frills' edges and maps their faces onto the mane's own paint",
+   "retained": "authoring/assets/creatures/plume-neck/ (authoring/tools/assets-sync.sh)"
   }
  ],
  "reference": {

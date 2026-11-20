@@ -1,0 +1,432 @@
+{
+  "id": "plume-neck",
+  "family": "saurian",
+  "about": "The plume-neck (#10882), an upright vent-orchard lizard with a long neck and a crimson mane of frills: 3.2 m long, its head 1.2 m high on all fours, fitted to the Tripo body (authoring/assets/creatures/plume-neck/mesh), on the saurian family with a two-bone neck and a ruff of three segments, each split in two halves that roll out to flare. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -0.05,
+      0.55
+    ],
+    "spine": [
+      0,
+      0.2,
+      0.6
+    ],
+    "spine2": [
+      0,
+      0.45,
+      0.62
+    ],
+    "chest": [
+      0,
+      0.7,
+      0.6
+    ],
+    "neck": [
+      0,
+      0.76,
+      0.66
+    ],
+    "neck2": [
+      0,
+      0.9,
+      0.88
+    ],
+    "head": [
+      0,
+      1.06,
+      1.06
+    ],
+    "nose": [
+      0,
+      1.62,
+      0.98
+    ],
+    "jaw": [
+      0,
+      1.12,
+      0.99
+    ],
+    "jaw_tip": [
+      0,
+      1.55,
+      0.95
+    ],
+    "tail0": [
+      0,
+      -0.25,
+      0.52
+    ],
+    "tail1": [
+      0,
+      -0.45,
+      0.48
+    ],
+    "tail2": [
+      0,
+      -0.65,
+      0.45
+    ],
+    "tail3": [
+      0,
+      -0.85,
+      0.42
+    ],
+    "tail4": [
+      0,
+      -1.05,
+      0.38
+    ],
+    "tail5": [
+      0,
+      -1.25,
+      0.35
+    ],
+    "tail6": [
+      0,
+      -1.5,
+      0.31
+    ],
+    "hip_socket": [
+      0.2,
+      -0.02,
+      0.45
+    ],
+    "knee": [
+      0.33,
+      0.08,
+      0.3
+    ],
+    "ankle": [
+      0.33,
+      -0.05,
+      0.08
+    ],
+    "toe": [
+      0.34,
+      0.1,
+      0.0
+    ],
+    "shoulder": [
+      0.15,
+      0.75,
+      0.5
+    ],
+    "elbow": [
+      0.22,
+      0.7,
+      0.3
+    ],
+    "wrist": [
+      0.21,
+      0.8,
+      0.08
+    ],
+    "knuckle": [
+      0.22,
+      0.92,
+      0.0
+    ],
+    "eye": [
+      0.08,
+      1.25,
+      1.12
+    ],
+    "ruff1": [
+      -0.1269,
+      1.0,
+      0.9308
+    ],
+    "ruff1_tip": [
+      -0.246,
+      0.6349,
+      0.4698
+    ],
+    "ruff2": [
+      -0.1384,
+      1.0,
+      0.9691
+    ],
+    "ruff2_tip": [
+      -0.2626,
+      0.6166,
+      0.5246
+    ],
+    "ruff3": [
+      -0.1387,
+      1.0,
+      1.0091
+    ],
+    "ruff3_tip": [
+      -0.2629,
+      0.5988,
+      0.5807
+    ],
+    "ruff4": [
+      -0.1276,
+      1.0,
+      1.0476
+    ],
+    "ruff4_tip": [
+      -0.247,
+      0.5805,
+      0.6356
+    ],
+    "ruff5": [
+      -0.1061,
+      1.0,
+      1.0813
+    ],
+    "ruff5_tip": [
+      -0.2142,
+      0.561,
+      0.6868
+    ],
+    "ruff6": [
+      -0.076,
+      1.0,
+      1.1076
+    ],
+    "ruff6_tip": [
+      -0.1626,
+      0.5406,
+      0.7315
+    ],
+    "ruff7": [
+      -0.0396,
+      1.0,
+      1.1243
+    ],
+    "ruff7_tip": [
+      -0.0899,
+      0.5225,
+      0.7645
+    ],
+    "ruff8": [
+      0.0,
+      1.0,
+      1.13
+    ],
+    "ruff8_tip": [
+      0.0,
+      0.5146,
+      0.7773
+    ],
+    "ruff9": [
+      0.0396,
+      1.0,
+      1.1243
+    ],
+    "ruff9_tip": [
+      0.0899,
+      0.5225,
+      0.7645
+    ],
+    "ruff10": [
+      0.076,
+      1.0,
+      1.1076
+    ],
+    "ruff10_tip": [
+      0.1626,
+      0.5406,
+      0.7315
+    ],
+    "ruff11": [
+      0.1061,
+      1.0,
+      1.0813
+    ],
+    "ruff11_tip": [
+      0.2142,
+      0.561,
+      0.6868
+    ],
+    "ruff12": [
+      0.1276,
+      1.0,
+      1.0476
+    ],
+    "ruff12_tip": [
+      0.247,
+      0.5805,
+      0.6356
+    ],
+    "ruff13": [
+      0.1387,
+      1.0,
+      1.0091
+    ],
+    "ruff13_tip": [
+      0.2629,
+      0.5988,
+      0.5807
+    ],
+    "ruff14": [
+      0.1384,
+      1.0,
+      0.9691
+    ],
+    "ruff14_tip": [
+      0.2626,
+      0.6166,
+      0.5246
+    ],
+    "ruff15": [
+      0.1269,
+      1.0,
+      0.9308
+    ],
+    "ruff15_tip": [
+      0.246,
+      0.6349,
+      0.4698
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.4,
+      "stride": 0.9,
+      "duty": 0.65,
+      "liftHind": 0.07,
+      "liftFore": 0.07,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.R": 0.05,
+        "hind.R": 0.5,
+        "fore.L": 0.55
+      },
+      "bob": 0.01,
+      "bendDegrees": 7.0,
+      "swayDegrees": 2.0,
+      "headSwingDegrees": 0.5,
+      "tailDegrees": 7.0,
+      "swingOutMetres": 0.05
+    },
+    "run": {
+      "seconds": 0.55,
+      "stride": 1.8,
+      "duty": 0.45,
+      "liftHind": 0.1,
+      "liftFore": 0.1,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.R": 0.02,
+        "hind.R": 0.5,
+        "fore.L": 0.52
+      },
+      "bob": 0.02,
+      "bendDegrees": 10.0,
+      "swayDegrees": 3.0,
+      "headSwingDegrees": 0.6,
+      "tailDegrees": 9.0,
+      "swingOutMetres": 0.06
+    },
+    "idle": {
+      "seconds": 5.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "threat": {
+      "seconds": 2.4,
+      "raiseMetres": 0.12,
+      "bendDegrees": 4.0,
+      "neckDegrees": 26.0,
+      "jawDegrees": 22.0,
+      "tailCurlDegrees": 8.0,
+      "ruffDegrees": 80.0
+    },
+    "bite": {
+      "seconds": 1.0,
+      "lungeMetres": 0.5,
+      "sweepDegrees": 12.0,
+      "jawDegrees": 24.0,
+      "ruffDegrees": 60.0
+    },
+    "hurt": {
+      "seconds": 0.7
+    },
+    "die": {
+      "seconds": 2.4
+    },
+    "upright": {
+      "seconds": 8.0,
+      "degrees": 55.0,
+      "liftMetres": 0.0,
+      "armDegrees": 15.0,
+      "forearmDegrees": -45.0,
+      "neckDegrees": -20.0,
+      "neck2Degrees": -10.0,
+      "tailDegrees": 14.0,
+      "turnDegrees": 6.0
+    }
+  },
+  "mouth": {
+    "hingeForward": 1.2,
+    "upper": [
+      1.55,
+      1.03
+    ],
+    "lower": [
+      1.5,
+      0.95
+    ],
+    "biteHeight": 0.99
+  },
+  "ruff": {
+    "count": 15,
+    "centre": [
+      1.0,
+      0.99
+    ],
+    "radius": 0.14,
+    "fromDegrees": -115.0,
+    "toDegrees": 115.0,
+    "length": 0.6,
+    "width": 0.18,
+    "thickness": 0.02,
+    "slopeDegrees": 48.0,
+    "splayDegrees": 12.0,
+    "colour": [
+      190,
+      40,
+      45
+    ],
+    "edgeColour": [
+      110,
+      14,
+      20
+    ],
+    "colourWithin": 60,
+    "angles": [
+      -115.0,
+      -98.57,
+      -82.14,
+      -65.71,
+      -49.29,
+      -32.86,
+      -16.43,
+      0.0,
+      16.43,
+      32.86,
+      49.29,
+      65.71,
+      82.14,
+      98.57,
+      115.0
+    ]
+  }
+}

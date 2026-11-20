@@ -8,7 +8,7 @@ the ground; a species bakes the ones it has settings for, and `rest` always.
 import math
 from dataclasses import dataclass, field
 
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 import gait
 
@@ -1114,10 +1114,19 @@ def saurian_bones(points):
         ("spine", "hips", "spine", "spine2", 1.0),
         ("spine2", "spine", "spine2", "chest", 1.0),
         ("chest", "spine2", "chest", "neck", 1.0),
-        ("neck", "chest", "neck", "head", 1.0),
-        ("head", "neck", "head", "nose", 1.0),
-        ("jaw", "head", "jaw", "jaw_tip", 1.0),
     ]
+    if "neck2" in points:
+        # A long neck (#10882, the plume-neck) bends in two.
+        bones += [("neck", "chest", "neck", "neck2", 1.0), ("neck2", "neck", "neck2", "head", 1.0),
+                  ("head", "neck2", "head", "nose", 1.0)]
+    else:
+        bones += [("neck", "chest", "neck", "head", 1.0), ("head", "neck", "head", "nose", 1.0)]
+    bones += [("jaw", "head", "jaw", "jaw_tip", 1.0)]
+    # A ruff (#10882): each frill grown by add_ruff.py on its own bone on the head, from its root to its tip.
+    index = 1
+    while f"ruff{index}" in points:
+        bones += [(f"ruff{index}", "head", f"ruff{index}", f"ruff{index}_tip", 1.0)]
+        index += 1
     count = 1
     while f"tail{count + 1}" in points:
         count += 1
@@ -1131,8 +1140,23 @@ def saurian_bones(points):
 
 
 SAURIAN_SPINE = ("hips", "spine", "spine2", "chest")
-# How long a tongue flick takes, out and back, in seconds.
-FLICK_SECONDS = 0.4
+
+
+def flare_ruff(c, degrees, ripple=0.0, t=0.0):
+    """A ruff's frills swing out from lying back along the neck, each along its own radius round the neck, by degrees
+    (#10882); a ripple runs round them. Each frill's radius is the part of its line that leans away from the ruff's
+    mean line, as add_ruff.py splays it. A body without a ruff has nothing to flare."""
+    bones = c.rig.data.bones
+    frills = [bones[f"ruff{k}"] for k in range(1, 64) if f"ruff{k}" in bones]
+    if not frills:
+        return
+    mean = sum(((b.tail_local - b.head_local).normalized() for b in frills), Vector()).normalized()
+    for k, bone in enumerate(frills, start=1):
+        line = (bone.tail_local - bone.head_local).normalized()
+        radial = (line - mean * line.dot(mean)).normalized()
+        axis = bone.matrix_local.to_3x3().inverted() @ line.cross(radial).normalized()
+        angle = degrees + ripple * gait.wave(t, 6, lag=0.08 * k)
+        c.bone_rotation(bone.name, Matrix.Rotation(math.radians(angle), 3, axis))
 
 
 def flick(c, s, clip, t, starts):
@@ -1228,6 +1252,8 @@ def saurian_threat(c, s, t):
     c.bone_rotation("head", pitch(-settings.get("neckDegrees", 20.0) * 0.6 * up) @ yaw(3.0 * up * shake))
     c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 30.0) * up - 2.0 * up * shake))
     saurian_tail(c, t, 4.0 * up, cycles=3.0, curl=settings.get("tailCurlDegrees", 8.0) * up)
+    # A ruff flares wide and shivers (#10882): the plume-neck's display before it strikes.
+    flare_ruff(c, settings.get("ruffDegrees", 0.0) * gait.rise_hold_fall(t, 0.15, 0.85), 6.0 * up, t)
 
 
 def saurian_bite(c, s, t):
@@ -1250,6 +1276,7 @@ def saurian_bite(c, s, t):
     c.bone_rotation("head", pitch(6.0 * back - 4.0 * strike) @ yaw(0.5 * across * back - 0.6 * across * strike))
     c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 30.0) * wide + 3.0 * shut))
     saurian_tail(c, t, 3.0 * (back + strike), cycles=2.0)
+    flare_ruff(c, settings.get("ruffDegrees", 0.0) * (1.0 - gait.ease_in_out(t, 0.7, 1.0)))
 
 
 def saurian_hurt(c, s, t):
@@ -1277,6 +1304,31 @@ def saurian_lie(c, s, t):
     c.bone_rotation("head", pitch(-0.5 * settings.get("headDegrees", 6.0)))
     saurian_tail(c, 0.0, 0.0, curl=settings.get("tailCurlDegrees", 5.0))
     flick(c, s, "lie", t, (0.55,))
+
+
+def saurian_upright(c, s, t):
+    """Standing straight and still, reared up on the hind legs and the tail (#10882, the plume-neck): the body tips up
+    about the hind feet, the forelegs fold against the chest, the tail lies back along the ground and the neck rises
+    straight, the head level; it breathes and turns its head once a clip, as one more tube among the tubes."""
+    settings = s["upright"]
+    rise = settings["degrees"]
+    breathe = gait.wave(t)
+    c.bone_rotation("root", pitch(rise))
+    c.bone_offset("root", (0, 0, settings.get("liftMetres", 0.0)))
+    for side in SIDES:
+        c.leg_influence(f"fore.{side}", 0.0)
+        c.bone_rotation(f"upperarm.{side}", pitch(-settings.get("armDegrees", 40.0)))
+        c.bone_rotation(f"forearm.{side}", pitch(settings.get("forearmDegrees", 70.0)))
+    c.bone_rotation("chest", pitch(0.5 * breathe))
+    neck = settings.get("neckDegrees", 0.0)
+    c.bone_rotation("neck", pitch(neck))
+    turn = settings.get("turnDegrees", 6.0) * gait.rise_hold_fall(t, 0.35, 0.55, 0.85)
+    c.bone_rotation("head", pitch(-rise - neck - settings.get("neck2Degrees", 0.0)) @ yaw(turn))
+    if "neck2" in c.rig.pose.bones:
+        c.bone_rotation("neck2", pitch(settings.get("neck2Degrees", 0.0)))
+    # The tail bends back down to the ground behind it.
+    for i, name in enumerate(tail_names(c), start=1):
+        c.bone_rotation(name, pitch(-settings.get("tailDegrees", 12.0) if i <= 3 else 0.0))
 
 
 def saurian_die(c, s, t):
@@ -1346,6 +1398,7 @@ SAURIAN_CLIPS = {
     "die": (saurian_die, False, False),
     "swim": (saurian_swim, True, False),
     "lunge": (saurian_lunge, False, False),
+    "upright": (saurian_upright, True, False),
 }
 
 

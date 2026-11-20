@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/plume-neck/mesh/tripo/tripo.glb",
+  "triangles": 6499,
+  "areaSquareMetres": 4.439,
+  "charts": 732,
+  "utilization": 0.742,
+  "masterTexels": [
+    885,
+    889
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.4735945165157318,
+      -1.602642297744751,
+      -0.00026805372908711433
+    ],
+    [
+      0.47364023327827454,
+      1.6023229360580444,
+      1.2220131158828735
+    ]
+  ]
+}

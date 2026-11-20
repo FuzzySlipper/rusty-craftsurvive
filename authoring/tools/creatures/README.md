@@ -9,7 +9,7 @@ Provenance is in [`content/creatures.sources.json`](../../../content/creatures.s
 Humans borrow UAL's humanoid clips (`authoring/tools/characters/`). Nothing comparable exists for four legs,
 and every animal's proportions differ. So each **family** in `families.py` (plantigrade: sloths and
 bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers, the hummock and the seep-rat;
-saurian: monitors, salamanders; bird and theropod: two legs, among them the stalk-bill and the ribbon-stalker; flyer: wings)
+saurian: monitors, salamanders, the plume-neck; bird and theropod: two legs, among them the stalk-bill and the ribbon-stalker; flyer: wings)
 has a skeleton and a clip generator in code. A species bakes the family clips it has settings for:
 
 - A species file (`<kind>/species.json`) places the family's joints as metres
@@ -32,12 +32,13 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `cut_views.py` | Cuts a reference sheet into Tripo's four views at one scale |
 | `fit.py` (Blender) | Shows a species' joints through its prepared body, for fitting them |
 | `drop_limbs.py` (Blender) | Cuts limbs a generated body should not have out of it and closes the holes |
-| `preview.py` (Blender) | Renders an exported GLB's clips: still frames, or every frame with `--sequence` |
+| `preview.py` (Blender) | Renders an exported GLB's clips: still frames, or every frame with `--sequence`; `--top` and `--front` add views from above and head on |
 | `montage.py` | Lays `preview.py` stills out as one sheet |
 | `sequence.py` | Animates `--sequence` frames: smooth beside a stepped rate, as one GIF |
 | `add_crest.py` (Blender) | Grows a crest of filaments with glowing beads onto a prepared body (#10878) |
 | `keep_band.py` | Keeps one hue band of a master paint through pixel reduction, with its own palette (#10878) |
 | `add_tongue.py` (Blender) | Grows a forked tongue inside a prepared body's mouth, on its own bone (#10879) |
+| `add_ruff.py` (Blender) | Grows a ring of large frills round a prepared body's neck, each on its own bone, painted from the body's own mane (#10882) |
 | `split_dome.py` (Blender) | Cuts a domed back down the middle, lines the halves and builds ribbed plates under them (#10880) |
 | `tone_band.py` | Scales the saturation and value of one hue band of a reduced paint, to match the ground an animal hides in (#10880) |
 
@@ -404,4 +405,27 @@ The ribbon-stalker (theropod) and the stalk-bill (bird) came through the Tripo w
     instead lifted the feet off the ground.
 - **In game.** Both kinds map their `lie` role to `stand`. The stalk-bill plays `stalk` as its walk and `spear` as its
   bite.
+
+### The plume-neck (#10882)
+
+An upright lizard that runs on all fours, on the `saurian` family rather than a theropod with arms that turn into
+forelegs: its anatomy is a lizard's on four legs, and standing is a clip.
+
+- **The sheet.** It draws the animal on all fours with a lizard's bent legs (sheet 26's standing legs looked human) and
+  its mane closed. It took three draws: the first spread the ruff half open in the front and back views, and the second
+  lost the long neck. The third's front view smiled, so that mouth alone was edited to a scowl.
+- **The saurian family's additions.**
+  - A species that places `neck2` gets a neck that bends in two.
+  - `upright` rears the body up about the hind feet, the forelegs folded and the tail down along the ground. It stands
+    still, breathing and turning its head once a clip; it does not plant its forefeet.
+  - A threat's or bite's `ruffDegrees` flares the ruff (`flare_ruff`), with a ripple round it in the threat.
+- **The ruff: `add_ruff.py`.** Tripo's mane lies along the neck and cannot open. Splitting it down the dorsal line and
+  rolling the halves out (as `split_dome.py` does for the hummock) showed only a torn mane. So the ruff is grown from the
+  species' `"ruff"` block instead: `count` solid serrated leaves in a ring round the neck behind the head, each lying
+  back along the neck and splayed a little out. The script writes each frill's points into the species (`ruff1` to
+  `ruffN`), so the family gives each its own bone on the head.
+  - `flare_ruff` swings each frill out along its own radius, its splay away from the ruff's mean line, so the ring opens
+    into a fan round the head.
+  - The frills' faces map onto the largest square of the body's paint that is all mane crimson, so they carry its texels.
+  - `pin_ruff` in build_creature.py gives each loose frill to its nearest ruff bone.
 

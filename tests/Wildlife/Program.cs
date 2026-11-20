@@ -1526,6 +1526,15 @@ Check.Section("cave animals", () =>
     Check.That(stalkBill.Mesh.Clips.TryGetValue(WildlifeClipRole.Bite, out string? spears) && spears == "spear", "and its bite is the spearing strike");
     Check.That(ribbonStalker.Cave!.Lives == CaveHabitat.RibbonThicket && stalkBill.Cave!.Lives == CaveHabitat.FunnelGarden, "each lives in its own community");
 
+    // #10882: the plume-neck stands upright at rest and shows its flared ruff before it strikes.
+    WildlifeKind plumeNeck = catalog.Kind("plume-neck");
+    Check.That(plumeNeck.Mesh!.Clips.TryGetValue(WildlifeClipRole.Lie, out string? upright) && upright == "upright", "the plume-neck rests standing upright (#10882)");
+    Hunter flaring = Of(plumeNeck);
+    HunterRules.Advance(flaring, CreatureState.Attacking, 1, 9, 1d / 60);
+    Check.That(flaring.Holding, "it holds its display before it strikes, even with the player in reach");
+    Check.Equal(WildlifeClipRole.Threat, HunterRules.Want(flaring, CreatureState.Attacking, 0, 3), "and its display is its threat, the ruff flared");
+    Check.That(plumeNeck.Cave!.Lives == CaveHabitat.VentOrchard, "it lives in the vent orchard");
+
 });
 
 // Creature behaviour debugging (#10926): a test aid's hold on a herd animal, read by the rules, and its release.

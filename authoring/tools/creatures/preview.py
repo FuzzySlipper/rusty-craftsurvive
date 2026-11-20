@@ -20,6 +20,8 @@ from mathutils import Vector
 VIEWS = {"side": (0.0, 8.0), "quarter": (40.0, 15.0)}
 # From above, with --top: a lizard's side-to-side bend shows only from here (#10879).
 TOP_VIEW = (0.0, 89.0)
+# Head on, with --front: a display that opens sideways, such as a ruff (#10882), shows whole only from here.
+FRONT_VIEW = (90.0, 6.0)
 VIEW_METRES = 8.0
 POST_METRES = 1.8
 
@@ -31,7 +33,9 @@ def main(argv):
     across = float(argv[argv.index("--view") + 1]) if "--view" in argv else VIEW_METRES
     sequence = argv[argv.index("--sequence") + 1].split(",") if "--sequence" in argv else None
     only = argv[argv.index("--clips") + 1].split(",") if "--clips" in argv else None
-    views = dict(VIEWS, top=TOP_VIEW) if "--top" in argv else VIEWS
+    views = dict(VIEWS, top=TOP_VIEW) if "--top" in argv else dict(VIEWS)
+    if "--front" in argv:
+        views["front"] = FRONT_VIEW
     out.mkdir(parents=True, exist_ok=True)
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj)

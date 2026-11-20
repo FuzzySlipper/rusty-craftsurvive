@@ -440,6 +440,8 @@ def pin_mouth(species, mesh):
           f"{sum(end == 'lower' for end in side.values())} the jaw")
 
 
+# How far a ruff frill's centre may lie from its bone's line, in metres (#10882).
+RUFF_REACH = 0.12
 # How far a tongue piece's centre may lie from the tongue's line, in metres.
 TONGUE_REACH = 0.06
 
@@ -521,6 +523,38 @@ def pin_dome(species, mesh):
             group.add([index], weight, "REPLACE")
     print(f"dome: {len(weights['L'])} left and {len(weights['R'])} right vertices open with the halves; "
           f"{len(plate)} plate vertices stay")
+
+
+def pin_ruff(species, mesh):
+    """
+    A ruff grown by add_ruff.py (#10882) is a loose piece per frill: every loose piece follows the ruff bone whose line
+    its centre lies nearest, when within `RUFF_REACH` of it, so each frill swings out as one when the ruff flares.
+    """
+    points = species["points"]
+    lines = [(f"ruff{k}", to_blender(points[f"ruff{k}"]), to_blender(points[f"ruff{k}_tip"]))
+             for k in range(1, 64) if f"ruff{k}" in points]
+    if not lines:
+        return
+    verts = mesh.data.vertices
+    pieces = mesh_pieces(mesh)
+    body = max(pieces.values(), key=len)
+    pinned = {}
+    for piece in pieces.values():
+        if piece is body:
+            continue
+        centre = sum((verts[i].co for i in piece), Vector()) / len(piece)
+        name, a, b = min(lines, key=lambda line: segment_distance(centre, line[1], line[2]))
+        if segment_distance(centre, a, b) <= RUFF_REACH:
+            for i in piece:
+                pinned[i] = name
+    for group in mesh.vertex_groups:
+        group.remove(list(pinned))
+    for name in sorted(set(pinned.values())):
+        group = mesh.vertex_groups.get(name) or mesh.vertex_groups.new(name=name)
+        group.add([i for i, n in pinned.items() if n == name], 1.0, "REPLACE")
+    if len(set(pinned.values())) != len(lines):
+        raise SystemExit(f"ruff: {len(set(pinned.values()))} of {len(lines)} frills found their bones")
+    print(f"ruff: {len(pinned)} vertices follow its {len(lines)} frills")
 
 
 def pin_ears(species, mesh):
@@ -794,6 +828,7 @@ def main(argv):
     pin_ears(species, mesh)
     pin_tongue(species, mesh)
     pin_dome(species, mesh)
+    pin_ruff(species, mesh)
     controls = Controls(rig, family)
     points = species["points"]
     manifest = {
