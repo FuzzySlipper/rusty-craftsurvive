@@ -137,7 +137,7 @@
       "groupMinimum": 1, "groupMaximum": 3,
       "body": { "lengthMetres": 0.4, "heightMetres": 0.15, "widthMetres": 0.12, "colour": "#6b5546" },
       "walkSpeed": 0.6, "fleeSpeed": 3.0, "wanderMetres": 4, "fleeMetres": 5, "hideSeconds": 1.5,
-      "mesh": { "file": "creatures/mound-shrew/mound-shrew.glb", "manifest": "creatures/mound-shrew/mound-shrew.manifest.json", "scale": 1.0, "clips": { "idle": "idle", "walk": "walk", "run": "run" } }
+      "mesh": { "file": "creatures/mound-shrew/mound-shrew.glb", "manifest": "creatures/mound-shrew/mound-shrew.manifest.json", "scale": 0.806, "clips": { "idle": "idle", "walk": "walk", "run": "run" } }
     }
   ],
   "kinds": [

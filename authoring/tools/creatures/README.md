@@ -483,6 +483,9 @@ but no ragdoll.
   - The mound-shrew is on the `low-slung` family.
   - Species strides are set so each gait's rate matches the ambient speeds in `kinds.json` (walk at `walkSpeed`,
     run at `fleeSpeed`).
+  - The mound-shrew's mesh was fitted 0.5 m long; `kinds.json` draws it at `scale` 0.806, the design's 0.4 m. Its
+    clips play about 1.24x faster to keep its feet on the ground. `tests/Wildlife` checks each small creature's
+    drawn length (mesh bounds x scale) against its `lengthMetres`.
 - **Small bodies.** At 0.3-0.5 m, heat weighting fails on the mesh as it is: Blender's heat solver loses a body under a
   few metres. So `build_creature.py`'s `auto_weights` scales the rig and mesh up to `HEAT_SMALLEST_METRES` for the
   weighting, then sets them back.

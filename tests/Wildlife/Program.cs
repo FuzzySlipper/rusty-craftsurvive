@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 using CraftSurvive.Game.Modules.Birds;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Rpg;
@@ -1550,11 +1551,17 @@ Check.Section("cave animals", () =>
     Check.That(rootAdder.Cave!.Lives == CaveHabitat.Mouth, "it lives in a cave's mouth");
 
     // #10884: the small cave creatures have bodies that stand, wander and run off, and nothing to fight with.
+    // How far a small creature's drawn length may stray from its design's, as a share of it.
+    const double DrawnLengthTolerance = 0.03;
     foreach (string small in new[] { "blindfish", "drift-grazer", "mound-shrew" })
     {
         CaveAmbientKind smallKind = catalog.CaveAmbient.Single(kind => kind.Id == small);
         Check.That(smallKind.Mesh is { } body && WildlifeKinds.AmbientClips.All(body.Clips.ContainsKey) && body.Ragdoll is null, $"the {small} has a body that idles, walks and runs, and no ragdoll (#10884)");
         Check.That(catalog.Kinds.All(kind => kind.Id != small), $"the {small} is not a hunter or a herd animal: nothing hunts it, nothing it fights");
+        // Review R10884-1: the design's size is the length drawn, the mesh's own length at its scale.
+        double drawn = GlbLongestExtent($"Wildlife.{small}.glb") * smallKind.Mesh!.Scale;
+        Check.That(Math.Abs(drawn - smallKind.Body.LengthMetres) <= DrawnLengthTolerance * smallKind.Body.LengthMetres,
+            $"the {small} is drawn {drawn:0.000} m long, its design's {smallKind.Body.LengthMetres} m");
     }
 
 });
@@ -1631,6 +1638,21 @@ Check.Section("debug holds", () =>
 return Check.Finish("wildlife");
 
 static string ReadKinds() => ReadResource("Wildlife.kinds.json");
+
+// The longest side of a GLB's first mesh's position bounds, in the mesh's own metres.
+static double GlbLongestExtent(string name)
+{
+    using Stream stream = typeof(Check).Assembly.GetManifestResourceStream(name)
+        ?? throw new InvalidOperationException($"{name} is not embedded");
+    using BinaryReader reader = new(stream);
+    reader.ReadBytes(12);
+    int length = reader.ReadInt32();
+    reader.ReadInt32();
+    using JsonDocument gltf = JsonDocument.Parse(reader.ReadBytes(length));
+    int accessor = gltf.RootElement.GetProperty("meshes")[0].GetProperty("primitives")[0].GetProperty("attributes").GetProperty("POSITION").GetInt32();
+    JsonElement bounds = gltf.RootElement.GetProperty("accessors")[accessor];
+    return Enumerable.Range(0, 3).Max(axis => bounds.GetProperty("max")[axis].GetDouble() - bounds.GetProperty("min")[axis].GetDouble());
+}
 
 static string ReadResource(string name)
 {
