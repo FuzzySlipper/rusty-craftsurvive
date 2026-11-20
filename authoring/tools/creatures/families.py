@@ -1140,6 +1140,8 @@ def saurian_bones(points):
 
 
 SAURIAN_SPINE = ("hips", "spine", "spine2", "chest")
+# How long a tongue flick takes, out and back, in seconds.
+FLICK_SECONDS = 0.4
 
 
 def flare_ruff(c, degrees, ripple=0.0, t=0.0):
