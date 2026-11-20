@@ -473,6 +473,56 @@ def pin_tongue(species, mesh):
     print(f"tongue: {len(piece)} vertices follow the tongue bone")
 
 
+def pin_dome(species, mesh):
+    """
+    A dome cut down the middle by split_dome.py (#10880) opens on two bones, `dome.L` and `dome.R`. Each vertex of the
+    dome and its lining follows its own side's half by a weight that is whole in the middle of the cut and above
+    `fullAboveMetres`, and falls smoothly to nothing over `taperMetres` toward the cut's ends and down to
+    `fadeFromMetres` toward the hinge, so the halves part widest in the middle and the body beneath stays whole. The
+    plates and their floor (the strip texels split_dome.py paints them with, past its first column) stay on the body.
+    """
+    dome = species.get("dome")
+    if not dome:
+        return
+    start, end = dome["forward"]
+    low, full = dome["fadeFromMetres"], dome["fullAboveMetres"]
+    image = next(node.image for node in mesh.data.materials[0].node_tree.nodes if node.type == "TEX_IMAGE")
+    width, height = image.size
+    plate = set()
+    uv = mesh.data.uv_layers.active.data
+    for poly in mesh.data.polygons:
+        u, v = uv[poly.loop_start].uv
+        if v < 1.0 / height and u > 1.0 / width:
+            plate.update(poly.vertices)
+
+    def smooth(x):
+        x = max(0.0, min(1.0, x))
+        return x * x * (3 - 2 * x)
+
+    weights = {"L": {}, "R": {}}
+    for vertex in mesh.data.vertices:
+        if vertex.index in plate:
+            continue
+        f, z = -vertex.co.y, vertex.co.z
+        along = smooth(min(f - start, end - f) / dome["taperMetres"]) if start < f < end else 0.0
+        weight = along * smooth((z - low) / (full - low))
+        if weight > 0.0:
+            weights["L" if vertex.co.x > 0 else "R"][vertex.index] = weight
+    for group in mesh.vertex_groups:
+        for index, weight in {**weights["L"], **weights["R"]}.items():
+            try:
+                kept = group.weight(index)
+            except RuntimeError:
+                continue
+            group.add([index], kept * (1.0 - weight), "REPLACE")
+    for name, side in weights.items():
+        group = mesh.vertex_groups.get(f"dome.{name}") or mesh.vertex_groups.new(name=f"dome.{name}")
+        for index, weight in side.items():
+            group.add([index], weight, "REPLACE")
+    print(f"dome: {len(weights['L'])} left and {len(weights['R'])} right vertices open with the halves; "
+          f"{len(plate)} plate vertices stay")
+
+
 def pin_ears(species, mesh):
     """
     Ear-fans (#10878) are thin sheets: every vertex out past `sideMetres`, above `aboveMetres` and between the `forward`
@@ -743,6 +793,7 @@ def main(argv):
     pin_mouth(species, mesh)
     pin_ears(species, mesh)
     pin_tongue(species, mesh)
+    pin_dome(species, mesh)
     controls = Controls(rig, family)
     points = species["points"]
     manifest = {

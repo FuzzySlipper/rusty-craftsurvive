@@ -1,0 +1,237 @@
+{
+  "id": "seep-rat",
+  "family": "low-slung",
+  "about": "The seep-rat (#10880), a colony hunter of the vent orchard built like a giant naked mole-rat: 1.5 m with its tail and 0.34 m high, fitted to the Tripo body (authoring/assets/creatures/seep-rat/mesh), its mouth open on four incisors. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.2,
+      0
+    ],
+    "hips": [
+      0,
+      -0.3,
+      0.2
+    ],
+    "spine": [
+      0,
+      0.05,
+      0.21
+    ],
+    "chest": [
+      0,
+      0.35,
+      0.21
+    ],
+    "neck": [
+      0,
+      0.48,
+      0.2
+    ],
+    "head": [
+      0,
+      0.58,
+      0.2
+    ],
+    "nose": [
+      0,
+      0.76,
+      0.18
+    ],
+    "jaw": [
+      0,
+      0.58,
+      0.12
+    ],
+    "jaw_tip": [
+      0,
+      0.74,
+      0.08
+    ],
+    "tail0": [
+      0,
+      -0.47,
+      0.17
+    ],
+    "tail1": [
+      0,
+      -0.53,
+      0.13
+    ],
+    "tail2": [
+      0,
+      -0.6,
+      0.1
+    ],
+    "tail3": [
+      0,
+      -0.67,
+      0.07
+    ],
+    "tail4": [
+      0,
+      -0.74,
+      0.05
+    ],
+    "hip_socket": [
+      0.13,
+      -0.36,
+      0.17
+    ],
+    "knee": [
+      0.17,
+      -0.3,
+      0.1
+    ],
+    "ankle": [
+      0.18,
+      -0.4,
+      0.04
+    ],
+    "toe": [
+      0.18,
+      -0.32,
+      0.0
+    ],
+    "shoulder": [
+      0.12,
+      0.37,
+      0.17
+    ],
+    "elbow": [
+      0.16,
+      0.33,
+      0.1
+    ],
+    "wrist": [
+      0.17,
+      0.38,
+      0.04
+    ],
+    "knuckle": [
+      0.17,
+      0.45,
+      0.0
+    ],
+    "eye": [
+      0.06,
+      0.64,
+      0.25
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "spineFlex": 4.0,
+    "walk": {
+      "seconds": 0.6,
+      "stride": 0.4,
+      "duty": 0.65,
+      "liftHind": 0.03,
+      "liftFore": 0.035,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.008,
+      "swayDegrees": 4.0
+    },
+    "run": {
+      "seconds": 0.36,
+      "stride": 0.7,
+      "duty": 0.45,
+      "liftHind": 0.05,
+      "liftFore": 0.05,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.1,
+        "fore.L": 0.5,
+        "fore.R": 0.6
+      },
+      "bob": 0.02,
+      "swayDegrees": 3.0
+    },
+    "idle": {
+      "seconds": 4.0
+    },
+    "alert": {
+      "seconds": 2.0
+    },
+    "threat": {
+      "seconds": 1.2,
+      "neckDegrees": 18.0,
+      "headDegrees": 6.0,
+      "jawDegrees": 22.0,
+      "crouchMetres": 0.03,
+      "braceMetres": 0.03
+    },
+    "bite": {
+      "seconds": 0.7,
+      "lungeMetres": 0.22,
+      "jawDegrees": 24.0,
+      "neckDegrees": 10.0,
+      "headDegrees": 12.0
+    },
+    "hurt": {
+      "seconds": 0.5,
+      "jawDegrees": 16.0
+    },
+    "lie": {
+      "seconds": 4.0,
+      "sinkMetres": 0.04,
+      "sprawlMetres": 0.04,
+      "headDegrees": 10.0
+    },
+    "die": {
+      "seconds": 1.6
+    }
+  },
+  "proxy": {
+    "about": "The stand-in body built from metaball capsules along the bones, until the concept mesh replaces it.",
+    "radii": {
+      "hips": 0.72,
+      "spine": 0.86,
+      "chest": 0.72,
+      "neck": 0.2,
+      "head": 0.2,
+      "jaw": 0.1,
+      "tail1": 0.2,
+      "tail2": 0.16,
+      "tail3": 0.13,
+      "tail4": 0.1,
+      "thigh": 0.2,
+      "shin": 0.16,
+      "foot": 0.14,
+      "upperarm": 0.2,
+      "forearm": 0.15,
+      "hand": 0.13
+    },
+    "resolution": 0.05,
+    "triangles": 5000,
+    "palette": {
+      "coat": "#6e6250",
+      "belly": "#8a7e68",
+      "legs": "#4e4438",
+      "claw": "#3a3228",
+      "eye": "#17110d"
+    }
+  },
+  "mouth": {
+    "hingeForward": 0.6,
+    "upper": [
+      0.72,
+      0.22
+    ],
+    "lower": [
+      0.7,
+      0.07
+    ],
+    "biteHeight": 0.15
+  }
+}

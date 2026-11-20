@@ -8,7 +8,7 @@ Provenance is in [`content/creatures.sources.json`](../../../content/creatures.s
 
 Humans borrow UAL's humanoid clips (`authoring/tools/characters/`). Nothing comparable exists for four legs,
 and every animal's proportions differ. So each **family** in `families.py` (plantigrade: sloths and
-bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers;
+bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers, the hummock and the seep-rat;
 saurian: monitors, salamanders; bird and theropod: two legs; flyer: wings)
 has a skeleton and a clip generator in code. A species bakes the family clips it has settings for:
 
@@ -38,6 +38,8 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `add_crest.py` (Blender) | Grows a crest of filaments with glowing beads onto a prepared body (#10878) |
 | `keep_band.py` | Keeps one hue band of a master paint through pixel reduction, with its own palette (#10878) |
 | `add_tongue.py` (Blender) | Grows a forked tongue inside a prepared body's mouth, on its own bone (#10879) |
+| `split_dome.py` (Blender) | Cuts a domed back down the middle, lines the halves and builds ribbed plates under them (#10880) |
+| `tone_band.py` | Scales the saturation and value of one hue band of a reduced paint, to match the ground an animal hides in (#10880) |
 
 ```sh
 blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/build_creature.py -- \
@@ -347,4 +349,40 @@ drowner's gill plumes and flank fringe are drawn as solid fronds and one wavy sk
   salt-white took 0.72 at saturation 0.7, and the drowner's mostly red atlas 0.4 at 0.75 (0.62 bleached its skin white).
 - **In game.** The drowner's home is the middle of its pool, over a bed a few tenths of a metre under the surface, so
   it rests there on `swim` (the `Swim` clip role), sunk to its back and head.
+
+### Cave hunters that hide or swarm (#10880)
+
+The hummock and the seep-rat came through the Tripo web studio as the #10879 pair did, both on the `low-slung` family.
+The hummock's sheet draws its dome closed, with one seam down the middle, and hardens its face to a snapping turtle's
+hooked beak. The seep-rat's draws its mouth open on four incisors, since Tripo copies the sheet literally.
+
+- **The low-slung family's additions.**
+  - Its bones now depend on the species (`Family.sized`): the tail is as long as the species draws it.
+  - A species that places `dome_hinge` and `dome_hinge_tip` has a dome cut in two, each half on its own bone (`dome.L`,
+    `dome.R`) hinged along its side and parented to the spine.
+  - Clips:
+    - `threat` braces the body, lowers or raises the head and gapes; a split dome heaves open by `domeDegrees` and pulses;
+    - `bite` draws back and lunges with the jaws wide; with `rearDegrees` (the hummock's charge and crush) the front
+      rears off its forefeet and slams down;
+    - `hurt` is a flinch;
+    - `lie` is belly-down between sprawled feet (the seep-rat);
+    - `hide` (the hummock) sinks the body until the dome's rim meets the ground, feet into it, head drawn in, the dome
+      breathing. Its feet leave the ground, so it does not plant them; the kind maps its `lie` role to `hide`.
+- **The split back: `split_dome.py`.** From the species' `"dome"` block:
+  - **The cut.** It cuts the dome's top along the midline between the block's `forward` ends (faces above
+    `cutAboveMetres`) and opens the cut, nudging each lip a millimetre to its own side.
+  - **The lining.** It copies the dome's faces near the midline, insets them toward the long axis (`axisMetres`) and
+    turns them inward, so an opened half shows flesh from inside. The generated body's vertex normals were not all
+    usable: insetting along them left whole rows of the lining on the outer surface, where it showed through.
+  - **The plates.** It builds the ribbed fins, following the dome's own curve just under it and widest where the
+    cut is, with a floor beneath them.
+  - **The weights.** `pin_dome` in build_creature.py gives each half its dome and lining by a weight that is whole in
+    the cut's middle and fades toward its ends and down to the hinge, so the opening is a lens. The plates (told
+    apart by their strip texels) stay on the body.
+- **Paint.** The hummock's velvet came out a bright ochre and orange, which stood out among the cushion barrens' muted
+  rust and khaki hummocks. `tone_band.py --hue 15 60 --above 0.62 --saturation 0.8 --value 0.68` brought it to their
+  levels. The seep-rat's skin folds reduced to scattered dark texels until `pixel_reduce.py --line-contrast 0.22`.
+- **In game.**
+  - The hummock rests hidden at its home among the barrens' cushions and displays its split back before it charges.
+  - A seep-rat colony is one band of four to six at 0.9 m spacing. The kind's `pack` block wakes all of them together.
 

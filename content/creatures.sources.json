@@ -325,6 +325,28 @@
    "body": "Tripo web studio multi-view (H3.1, triangle topology), its 20-credit texture step, exported GLB (mesh/tripo/tripo.glb); prepare_mesh.py --head -y --length 4.5 --triangles 7000 --texels 128",
    "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.4 --saturation 0.75 (64 texels/m)",
    "retained": "authoring/assets/creatures/drowner/ (authoring/tools/assets-sync.sh)"
+  },
+  {
+   "mesh": "content/game/creatures/hummock/hummock.glb",
+   "sha256": "26d751d573429ea16f49d1bc98e01337187cb6e5f6ee826f666fb43385859b7c",
+   "manifest": "content/game/creatures/hummock/hummock.manifest.json",
+   "built": "authoring/tools/creatures/build_creature.py from authoring/assets/creatures/hummock/species.json with --mesh split.glb --texture split-64.png (#10880; the dome cut down the middle, lined and given its plates by split_dome.py from the species' dome block)",
+   "concept": "authoring/assets/creatures/hummock/concept/sheet-4.png: Den #10617's first spread sheet 4, picked by Patch 2026-11-16 (den-wiki wandering-years/cave-wildlife; GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "authoring/assets/creatures/hummock/mesh/reference.png (ref-1.png with a stray seam across the dome painted out of the side view), its dome drawn closed and its face hardened; spec beside it; cut by cut_views.py; shown to Patch, who said to mesh it",
+   "body": "Tripo web studio multi-view (H3.1, triangle topology), its 20-credit texture step, exported GLB (mesh/tripo/tripo.glb); prepare_mesh.py --head -y --length 3.5 --triangles 5800 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.42 --saturation 0.85 (64 texels/m); tone_band.py --hue 15 60 --above 0.62 --saturation 0.8 --value 0.68 to the cushion barrens' levels; split_dome.py adds a 2-row strip for the lining and plates",
+   "retained": "authoring/assets/creatures/hummock/ (authoring/tools/assets-sync.sh)"
+  },
+  {
+   "mesh": "content/game/creatures/seep-rat/seep-rat.glb",
+   "sha256": "a956f0f30f9a6b1decaf5113999234132a2e46f4168d4d98cf00c9e0b27c71b3",
+   "manifest": "content/game/creatures/seep-rat/seep-rat.manifest.json",
+   "built": "authoring/tools/creatures/build_creature.py from authoring/assets/creatures/seep-rat/species.json with --mesh body.glb --texture body-64.png (#10880)",
+   "concept": "authoring/assets/creatures/seep-rat/concept/sheet-25.png: Den #10617's round two sheet 25, picked by Patch 2026-11-16 (den-wiki wandering-years/cave-wildlife; GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "authoring/assets/creatures/seep-rat/mesh/reference.png, its mouth open on four incisors; spec beside it; cut by cut_views.py; shown to Patch, who said to mesh it",
+   "body": "Tripo web studio multi-view (H3.1, triangle topology), its 20-credit texture step, exported GLB (mesh/tripo/tripo.glb); prepare_mesh.py --head -y --length 1.5 --triangles 3500 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.55 --saturation 0.95 --line-contrast 0.22 (64 texels/m)",
+   "retained": "authoring/assets/creatures/seep-rat/ (authoring/tools/assets-sync.sh)"
   }
  ],
  "reference": {

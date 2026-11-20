@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/hummock/mesh/tripo/tripo.glb",
+  "triangles": 5800,
+  "areaSquareMetres": 15.709,
+  "charts": 231,
+  "utilization": 0.7841,
+  "masterTexels": [
+    862,
+    857
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.9145813584327698,
+      -1.7523823976516724,
+      -0.001142639433965087
+    ],
+    [
+      0.9163937568664551,
+      1.7502903938293457,
+      1.613881230354309
+    ]
+  ]
+}

@@ -1505,6 +1505,17 @@ Check.Section("cave animals", () =>
     Check.Equal(WildlifeClipRole.Lie, HunterRules.Want(Of(saltMonitor), CreatureState.Resting, 0, 3), "the salt-monitor lies belly-down at rest (#10879)");
     Check.That(drowner.Body.SizeClass == WildlifeSizeClass.Broad && saltMonitor.Body.SizeClass == WildlifeSizeClass.Broad, "both route as broad bodies: wide and low");
 
+    // #10880: the hummock hides under its dome at rest; a seep-rat colony rests packed and hunts as a pack.
+    WildlifeKind domed = catalog.Kind("hummock");
+    Check.Equal(WildlifeClipRole.Lie, HunterRules.Want(Of(domed), CreatureState.Resting, 0, 3), "the hummock rests lying (#10880)");
+    Check.That(domed.Mesh!.Clips.TryGetValue(WildlifeClipRole.Lie, out string? hide) && hide == "hide", "and its rest is hiding under its dome");
+    Check.That(domed.Cave!.Lives == CaveHabitat.CushionBarrens && domed.Body.SizeClass == WildlifeSizeClass.Broad, "it lives in the cushion barrens and routes as a broad body");
+    WildlifeKind seepRat = catalog.Kind("seep-rat");
+    Check.Equal(WildlifeClipRole.Lie, HunterRules.Want(Of(seepRat), CreatureState.Resting, 0, 3), "a seep-rat lies belly-down at rest (#10880)");
+    Check.That(seepRat.Hunt!.Pack is not null && seepRat.GroupMinimum >= 4, "seep-rats live as a colony of four or more and hunt as a pack");
+    Check.That(seepRat.SpacingMetres < seepRat.Body.LengthMetres, "a colony rests packed closer than a body's length");
+    Check.That(seepRat.Cave!.Lives == CaveHabitat.VentOrchard && seepRat.Body.SizeClass == WildlifeSizeClass.Small, "they live in the vent orchard and route as small bodies");
+
 });
 
 // Creature behaviour debugging (#10926): a test aid's hold on a herd animal, read by the rules, and its release.

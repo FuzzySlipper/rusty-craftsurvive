@@ -1,0 +1,321 @@
+{
+  "id": "hummock",
+  "family": "low-slung",
+  "about": "The hummock (#10880), a cave grazer of the cushion barrens: 3.5 m long with its tail and 1.6 m high, fitted to the Tripo body (authoring/assets/creatures/hummock/mesh). Its dome is cut down the middle into two halves on their own bones (dome.L, dome.R, hinged along each side), with ribbed plates inside (split_dome.py). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -0.6,
+      0.95
+    ],
+    "spine": [
+      0,
+      0.0,
+      1.05
+    ],
+    "chest": [
+      0,
+      0.7,
+      0.95
+    ],
+    "neck": [
+      0,
+      1.05,
+      0.75
+    ],
+    "head": [
+      0,
+      1.4,
+      0.82
+    ],
+    "nose": [
+      0,
+      1.8,
+      0.72
+    ],
+    "jaw": [
+      0,
+      1.45,
+      0.62
+    ],
+    "jaw_tip": [
+      0,
+      1.75,
+      0.6
+    ],
+    "tail0": [
+      0,
+      -1.15,
+      0.7
+    ],
+    "tail1": [
+      0,
+      -1.3,
+      0.66
+    ],
+    "tail2": [
+      0,
+      -1.45,
+      0.62
+    ],
+    "tail3": [
+      0,
+      -1.6,
+      0.6
+    ],
+    "tail4": [
+      0,
+      -1.78,
+      0.58
+    ],
+    "hip_socket": [
+      0.6,
+      -0.72,
+      0.75
+    ],
+    "knee": [
+      0.62,
+      -0.68,
+      0.42
+    ],
+    "ankle": [
+      0.62,
+      -0.74,
+      0.12
+    ],
+    "toe": [
+      0.62,
+      -0.55,
+      0.0
+    ],
+    "shoulder": [
+      0.6,
+      0.63,
+      0.75
+    ],
+    "elbow": [
+      0.62,
+      0.6,
+      0.42
+    ],
+    "wrist": [
+      0.62,
+      0.64,
+      0.12
+    ],
+    "knuckle": [
+      0.62,
+      0.8,
+      0.0
+    ],
+    "eye": [
+      0.15,
+      1.55,
+      0.9
+    ],
+    "dome_hinge": [
+      0.78,
+      -0.95,
+      0.8
+    ],
+    "dome_hinge_tip": [
+      0.78,
+      0.95,
+      0.8
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "rigid": true,
+    "walk": {
+      "seconds": 2.0,
+      "stride": 1.0,
+      "duty": 0.72,
+      "liftHind": 0.07,
+      "liftFore": 0.08,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.015,
+      "swayDegrees": 1.5
+    },
+    "run": {
+      "seconds": 1.4,
+      "stride": 1.12,
+      "duty": 0.6,
+      "liftHind": 0.09,
+      "liftFore": 0.1,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.02,
+      "swayDegrees": 2.0
+    },
+    "idle": {
+      "seconds": 5.0
+    },
+    "graze": {
+      "seconds": 5.0,
+      "neckDegrees": -34.0,
+      "headDegrees": -8.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "die": {
+      "seconds": 2.4,
+      "metres": 0.4
+    },
+    "threat": {
+      "seconds": 2.2,
+      "domeDegrees": 18.0,
+      "domeHeaveDegrees": 2.0,
+      "neckDegrees": -14.0,
+      "headDegrees": -4.0,
+      "jawDegrees": 30.0,
+      "crouchMetres": 0.06
+    },
+    "bite": {
+      "seconds": 1.4,
+      "lungeMetres": 0.5,
+      "rearDegrees": 14.0,
+      "jawDegrees": 32.0,
+      "neckDegrees": 6.0,
+      "headDegrees": 10.0
+    },
+    "hurt": {
+      "seconds": 0.8,
+      "jawDegrees": 20.0
+    },
+    "hide": {
+      "seconds": 6.0,
+      "metres": 0.55,
+      "feetSinkShare": 0.6,
+      "retractMetres": 0.35,
+      "neckDegrees": 22.0,
+      "headDegrees": 12.0
+    }
+  },
+  "proxy": {
+    "about": "The stand-in body built from metaball capsules along the bones, until the concept mesh replaces it.",
+    "radii": {
+      "hips": 0.72,
+      "spine": 0.86,
+      "chest": 0.72,
+      "neck": 0.2,
+      "head": 0.2,
+      "jaw": 0.1,
+      "tail1": 0.2,
+      "tail2": 0.16,
+      "tail3": 0.13,
+      "tail4": 0.1,
+      "thigh": 0.2,
+      "shin": 0.16,
+      "foot": 0.14,
+      "upperarm": 0.2,
+      "forearm": 0.15,
+      "hand": 0.13
+    },
+    "resolution": 0.05,
+    "triangles": 5000,
+    "palette": {
+      "coat": "#6e6250",
+      "belly": "#8a7e68",
+      "legs": "#4e4438",
+      "claw": "#3a3228",
+      "eye": "#17110d"
+    }
+  },
+  "shell": {
+    "bone": "spine",
+    "aboveMetres": 0.55,
+    "forward": [
+      -1.1,
+      1.05
+    ],
+    "legs": [
+      [
+        -0.98,
+        -0.44
+      ],
+      [
+        0.36,
+        0.92
+      ]
+    ]
+  },
+  "dome": {
+    "forward": [
+      -1.0,
+      0.98
+    ],
+    "cutAboveMetres": 1.0,
+    "taperMetres": 0.45,
+    "fadeFromMetres": 0.6,
+    "fullAboveMetres": 0.85,
+    "bandMetres": 0.6,
+    "liningAboveMetres": 0.95,
+    "liningInsetMetres": 0.03,
+    "liningShare": 1.0,
+    "plates": {
+      "count": 12,
+      "segments": 5,
+      "halfWidthMetres": 0.45,
+      "insetMetres": 0.02,
+      "heightMetres": 0.26,
+      "thicknessMetres": 0.05,
+      "endMetres": 0.12
+    },
+    "colours": {
+      "lining": [
+        124,
+        36,
+        24
+      ],
+      "plate": [
+        226,
+        96,
+        44
+      ],
+      "crest": [
+        250,
+        170,
+        90
+      ],
+      "floor": [
+        70,
+        16,
+        14
+      ]
+    },
+    "axisMetres": 0.6
+  },
+  "mouth": {
+    "hingeForward": 1.5,
+    "upper": [
+      1.78,
+      0.74
+    ],
+    "lower": [
+      1.68,
+      0.62
+    ],
+    "biteHeight": 0.68
+  }
+}

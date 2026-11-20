@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/seep-rat/mesh/tripo/tripo.glb",
+  "triangles": 3500,
+  "areaSquareMetres": 1.403,
+  "charts": 184,
+  "utilization": 0.7662,
+  "masterTexels": [
+    444,
+    444
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.24774111807346344,
+      -0.7527826428413391,
+      0.0001881067582871765
+    ],
+    [
+      0.24795153737068176,
+      0.7506790161132812,
+      0.3366601765155792
+    ]
+  ]
+}

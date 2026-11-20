@@ -909,12 +909,25 @@ GRAVIPORTAL_CLIPS = {
 
 # ---------------------------------------------------------------- low-slung: glyptodons, beavers
 
-def low_slung_bones():
-    """A rigid shell is a body that keeps its spine still: the species says so, not the skeleton."""
-    bones = trunk_body() + tail_chain(4)
+def low_slung_bones(points):
+    """A rigid shell is a body that keeps its spine still: the species says so, not the skeleton. The tail is as long
+    as the species draws it (tail1 to tailN). A species that places `dome_hinge` and `dome_hinge_tip` has a dome cut
+    down the middle (#10880, the hummock): each half on its own bone along its hinge at the dome's side, on the spine."""
+    bones = trunk_body() + tail_chain(sum(1 for name in points if name.startswith("tail") and name != "tail0"))
     for side, sign in SIDES.items():
         bones += plain_legs(side, sign)
+        if "dome_hinge" in points:
+            bones += [(f"dome.{side}", "spine", "dome_hinge", "dome_hinge_tip", sign)]
     return bones
+
+
+def open_dome(c, degrees):
+    """Both halves of a split dome heave apart about their hinges, the left half rolling left and the right half
+    right. A species without a split dome has no halves to open."""
+    if "dome.L" not in c.rig.pose.bones:
+        return
+    c.bone_rotation("dome.L", roll(-degrees))
+    c.bone_rotation("dome.R", roll(degrees))
 
 
 def low_slung_walk(c, s, t):
@@ -983,6 +996,95 @@ def low_slung_die(c, s, t):
     fall_over(c, t, c.leg_length("hind.L"))
 
 
+def low_slung_threat(c, s, t):
+    """A threat display: the body braced low at the front, the head low or raised, the mouth wide and shaking. A split
+    dome (the hummock) heaves open on its plates and pulses with breath (#10880)."""
+    settings = s["threat"]
+    up = gait.rise_hold_fall(t, 0.25, 0.82)
+    shake = gait.wave(t, 6)
+    c.bone_offset("root", (0, -settings.get("braceMetres", 0.0) * up, -settings.get("crouchMetres", 0.05) * up))
+    c.bone_rotation("chest", pitch(settings.get("chestDegrees", 0.0) * up))
+    c.bone_rotation("neck", pitch(settings.get("neckDegrees", 10.0) * up) @ yaw(4.0 * up * gait.wave(t, 2)))
+    c.bone_rotation("head", pitch(settings.get("headDegrees", 0.0) * up) @ yaw(3.0 * up * shake))
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 30.0) * up - 2.0 * up * shake))
+    heave = settings.get("domeHeaveDegrees", 3.0) * gait.wave(t, 3)
+    open_dome(c, (settings.get("domeDegrees", 0.0) + heave) * up)
+    swing_tail(c, t, 4.0 * up, droop=-6.0 * up)
+
+
+def low_slung_bite(c, s, t):
+    """The attack: drawn back, then a lunge forward with the jaws wide that snap shut. With `rearDegrees` (the hummock's
+    charge and crush) the front rears up off its forefeet as it drives forward and slams down on its prey."""
+    settings = s["bite"]
+    back = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.32, 0.45))
+    strike = gait.ease_in_out(t, 0.32, 0.48) * (1.0 - gait.ease_in_out(t, 0.7, 1.0))
+    wide = gait.ease_in_out(t, 0.05, 0.32) * (1.0 - gait.ease_in_out(t, 0.45, 0.52))
+    shut = gait.ease_in_out(t, 0.45, 0.52) * (1.0 - gait.ease_in_out(t, 0.8, 1.0))
+    reach = settings.get("lungeMetres", 0.3)
+    rear = settings.get("rearDegrees", 0.0)
+    if rear:
+        # Up as it draws back and drives in, then down hard at the strike.
+        lift = gait.ease_in_out(t, 0.05, 0.36) * (1.0 - gait.ease_in_out(t, 0.4, 0.5))
+        slam = gait.ease_in_out(t, 0.4, 0.5) * (1.0 - gait.ease_in_out(t, 0.7, 1.0))
+        for side in SIDES:
+            c.leg_influence(f"fore.{side}", 1.0 - lift)
+            c.bone_rotation(f"upperarm.{side}", pitch(-35.0 * lift))
+            c.bone_rotation(f"forearm.{side}", pitch(40.0 * lift))
+        c.bone_rotation("root", pitch(rear * lift - 0.15 * rear * slam))
+        c.bone_offset("root", (0, -0.4 * reach * lift - reach * slam, -0.06 * slam))
+    else:
+        c.bone_offset("hips", (0, 0.3 * reach * back - reach * strike, 0.03 * strike))
+    c.bone_rotation("chest", pitch(4.0 * back - 4.0 * strike))
+    c.bone_rotation("neck", pitch(settings.get("neckDegrees", 12.0) * back - 8.0 * strike))
+    c.bone_rotation("head", pitch(6.0 * back - settings.get("headDegrees", 10.0) * strike))
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 30.0) * wide + 3.0 * shut))
+    swing_tail(c, t, 3.0 * (back + strike))
+
+
+def low_slung_hurt(c, s, t):
+    """A blow lands: it flinches back and aside, head jerked away, mouth gaping; a split dome clamps shut."""
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    c.bone_offset("hips", (0, 0.08 * hit, -0.03 * hit))
+    c.bone_rotation("chest", roll(-5.0 * hit))
+    c.bone_rotation("neck", pitch(8.0 * hit) @ yaw(-16.0 * hit))
+    c.bone_rotation("head", pitch(6.0 * hit))
+    c.bone_rotation("jaw", pitch(-s.get("hurt", {}).get("jawDegrees", 18.0) * hit))
+    swing_tail(c, t, 6.0 * hit)
+
+
+def low_slung_hide(c, s, t):
+    """At rest hidden (#10880, the hummock): legs and head drawn in under the dome, which sits on the ground as one more
+    mound, rising and falling with slow breath. Its feet leave the ground, so it does not plant them."""
+    settings = s["hide"]
+    breathe = gait.wave(t)
+    drop = settings["metres"]
+    # The body sinks until the dome's rim meets the ground, the belly into it. The feet go down into the ground by
+    # `feetSinkShare` of that, so the legs fold only the rest of the way and stay under the dome.
+    c.bone_offset("root", (0, 0, -drop))
+    for leg in c.targets:
+        c.place(leg, up=-settings.get("feetSinkShare", 0.5) * drop, side=-0.04)
+    c.bone_offset("neck", (0, settings.get("retractMetres", 0.0), 0))
+    c.bone_rotation("neck", pitch(-settings.get("neckDegrees", 25.0)))
+    c.bone_rotation("head", pitch(-settings.get("headDegrees", 15.0)))
+    for i, name in enumerate(tail_names(c), start=1):
+        c.bone_rotation(name, pitch(-4.0 * i) @ yaw(5.0 * i))
+    c.bone_offset("spine", (0, 0, 0.012 * breathe))
+    open_dome(c, 0.6 * breathe)
+
+
+def low_slung_lie(c, s, t):
+    """At rest, belly-down between sprawled feet, chin on the ground, the flanks breathing (#10880, the seep-rat)."""
+    settings = s["lie"]
+    breathe = gait.wave(t)
+    for leg in c.targets:
+        c.place(leg, side=settings.get("sprawlMetres", 0.05))
+    c.bone_offset("root", (0, 0, -settings["sinkMetres"]))
+    c.bone_rotation("spine", pitch(0.6 * breathe))
+    c.bone_rotation("neck", pitch(-settings.get("headDegrees", 8.0)))
+    c.bone_rotation("head", pitch(-0.4 * settings.get("headDegrees", 8.0)) @ yaw(3.0 * gait.wave(t, lag=0.3)))
+    swing_tail(c, t, 1.0, droop=-4.0)
+
+
 LOW_SLUNG_CLIPS = {
     "rest": (clip_rest, False, True),
     "idle": (low_slung_idle, True, True),
@@ -993,6 +1095,11 @@ LOW_SLUNG_CLIPS = {
     "hunker": (low_slung_hunker, False, False),
     "slip": (low_slung_slip, False, False),
     "die": (low_slung_die, False, False),
+    "threat": (low_slung_threat, False, True),
+    "bite": (low_slung_bite, False, False),
+    "hurt": (low_slung_hurt, False, True),
+    "lie": (low_slung_lie, True, True),
+    "hide": (low_slung_hide, True, False),
 }
 
 
@@ -1594,7 +1701,7 @@ FAMILIES = {
     "flyer": Family(flyer_bones, {}, FLYER_CLIPS, (), "body", "body", ("wing1", "wing2", "wing3"), ("streamer1", "streamer2")),
     "low-slung": Family(low_slung_bones, PLANTIGRADE_LEGS, LOW_SLUNG_CLIPS,
                         (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
-                        ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand")),
+                        ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand"), sized=True),
     # The low-slung legs and feet with a bending trunk and a tail as long as the species draws it (#10879).
     "saurian": Family(saurian_bones, SAURIAN_LEGS, SAURIAN_CLIPS,
                       (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
