@@ -38,6 +38,8 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `add_crest.py` (Blender) | Grows a crest of filaments with glowing beads onto a prepared body (#10878) |
 | `keep_band.py` | Keeps one hue band of a master paint through pixel reduction, with its own palette (#10878) |
 | `add_tongue.py` (Blender) | Grows a forked tongue inside a prepared body's mouth, on its own bone (#10879) |
+| `open_mouth.py` (Blender) | Cuts a body's closed mouth open along its bite line and builds the roof, floor and teeth inside (#10882) |
+| `mirror_paint.py` (Blender) | Repaints a master's right side from its left, where Tripo painted the two sides differently (#10882) |
 | `add_ruff.py` (Blender) | Grows a ring of large frills round a prepared body's neck, each on its own bone, painted from the body's own mane (#10882) |
 | `split_dome.py` (Blender) | Cuts a domed back down the middle, lines the halves and builds ribbed plates under them (#10880) |
 | `tone_band.py` | Scales the saturation and value of one hue band of a reduced paint, to match the ground an animal hides in (#10880) |
@@ -428,4 +430,15 @@ forelegs: its anatomy is a lizard's on four legs, and standing is a clip.
     into a fan round the head.
   - The frills' faces map onto the largest square of the body's paint that is all mane crimson, so they carry its texels.
   - `pin_ruff` in build_creature.py gives each loose frill to its nearest ruff bone.
+- **The mouth: `open_mouth.py`.** Where a sheet draws the jaws barely parted, Tripo closes them, and the mouth is a
+  painted line: dropping the jaw stretched that surface into a smear (Patch, 2026-11-20: it looked like a drawn-open
+  texture). The tool cuts the head along the species' `"mouthCut"` bite line (from `hinge` to `tip`, joined only at
+  the corners), closes each jaw's edge with a fan into a dark roof or floor, and stands small pointed teeth along both
+  edges, each rooted in its own jaw's edge. Run it before `add_ruff.py`.
+- **`pin_mouth` seeds from both sides.** It used to seed each jaw from the one vertex nearest the species' `upper` and
+  `lower` points, whichever side that lay on. With the mouth cut open the other side's cheek was nearer through the
+  mouth's corner than over the snout, so it went to the jaw and stretched. Each jaw is now seeded on both sides.
+- **The paint: `mirror_paint.py`.** Tripo painted the head's right side with a smeared brow and mouth. Every texel of
+  a face right of the midline is now repainted from the mirrored point on the left, on the master before
+  `pixel_reduce.py`.
 

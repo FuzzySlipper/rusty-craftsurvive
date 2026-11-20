@@ -294,6 +294,87 @@
       0.4698
     ]
   },
+  "mouth": {
+    "hingeForward": 1.22,
+    "upper": [
+      1.5,
+      1.04
+    ],
+    "lower": [
+      1.5,
+      0.95
+    ],
+    "biteHeight": 0.98
+  },
+  "mouthCut": {
+    "hinge": [
+      1.22,
+      1.0
+    ],
+    "tip": [
+      1.7,
+      0.965
+    ],
+    "cornerMetres": 0.03,
+    "reachMetres": 0.2,
+    "depthMetres": 0.02,
+    "toothEvery": 0.028,
+    "toothMetres": 0.015,
+    "toothInsetMetres": 0.008,
+    "insideColour": [
+      92,
+      22,
+      26
+    ],
+    "toothColour": [
+      232,
+      222,
+      200
+    ]
+  },
+  "ruff": {
+    "count": 15,
+    "centre": [
+      1.0,
+      0.99
+    ],
+    "radius": 0.14,
+    "fromDegrees": -115.0,
+    "toDegrees": 115.0,
+    "length": 0.6,
+    "width": 0.18,
+    "thickness": 0.02,
+    "slopeDegrees": 48.0,
+    "splayDegrees": 12.0,
+    "colour": [
+      190,
+      40,
+      45
+    ],
+    "edgeColour": [
+      110,
+      14,
+      20
+    ],
+    "colourWithin": 60,
+    "angles": [
+      -115.0,
+      -98.57,
+      -82.14,
+      -65.71,
+      -49.29,
+      -32.86,
+      -16.43,
+      0.0,
+      16.43,
+      32.86,
+      49.29,
+      65.71,
+      82.14,
+      98.57,
+      115.0
+    ]
+  },
   "clips": {
     "fps": 30,
     "walk": {
@@ -373,60 +454,5 @@
       "tailDegrees": 14.0,
       "turnDegrees": 6.0
     }
-  },
-  "mouth": {
-    "hingeForward": 1.2,
-    "upper": [
-      1.55,
-      1.03
-    ],
-    "lower": [
-      1.5,
-      0.95
-    ],
-    "biteHeight": 0.99
-  },
-  "ruff": {
-    "count": 15,
-    "centre": [
-      1.0,
-      0.99
-    ],
-    "radius": 0.14,
-    "fromDegrees": -115.0,
-    "toDegrees": 115.0,
-    "length": 0.6,
-    "width": 0.18,
-    "thickness": 0.02,
-    "slopeDegrees": 48.0,
-    "splayDegrees": 12.0,
-    "colour": [
-      190,
-      40,
-      45
-    ],
-    "edgeColour": [
-      110,
-      14,
-      20
-    ],
-    "colourWithin": 60,
-    "angles": [
-      -115.0,
-      -98.57,
-      -82.14,
-      -65.71,
-      -49.29,
-      -32.86,
-      -16.43,
-      0.0,
-      16.43,
-      32.86,
-      49.29,
-      65.71,
-      82.14,
-      98.57,
-      115.0
-    ]
   }
 }

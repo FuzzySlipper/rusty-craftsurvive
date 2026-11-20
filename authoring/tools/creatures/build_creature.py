@@ -407,11 +407,14 @@ def pin_mouth(species, mesh):
     inside = [v for v in data.verts if -v.co.y >= forward and v.co.z >= above]
     pinned = {v.index for v in inside}
 
-    def nearest(point):
-        return min(inside, key=lambda v: (-v.co.y - point[0]) ** 2 + (v.co.z - point[1]) ** 2)
+    def nearest(point, side):
+        """The vertex nearest the [forward, up] point on one side of the head: each end of the mouth is sought from both
+        sides, so neither jaw reaches round a corner of the mouth to the other side's cheek first (#10882)."""
+        candidates = [v for v in inside if (v.co.x >= 0.0) == (side > 0)] or inside
+        return min(candidates, key=lambda v: (-v.co.y - point[0]) ** 2 + (v.co.z - point[1]) ** 2)
 
     reached = {}
-    queue = [(0.0, nearest(mouth[name]).index, name) for name in ("upper", "lower")]
+    queue = [(0.0, nearest(mouth[name], side).index, name) for name in ("upper", "lower") for side in (1.0, -1.0)]
     heapq.heapify(queue)
     while queue:
         distance, index, name = heapq.heappop(queue)

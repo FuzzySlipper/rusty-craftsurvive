@@ -8,154 +8,154 @@
       "end": "spine",
       "length": 0.0,
       "radius": 0.13,
-      "mass": 32.7
+      "mass": 26.6
     },
     {
       "joint": "spine",
       "end": "spine2",
       "length": 0.0,
       "radius": 0.151,
-      "mass": 39.1
+      "mass": 31.8
     },
     {
       "joint": "spine2",
       "end": "chest",
       "length": 0.0,
       "radius": 0.077,
-      "mass": 17.6
+      "mass": 14.4
     },
     {
       "joint": "chest",
       "end": "neck",
       "length": 0.0,
       "radius": 0.102,
-      "mass": 18.5
+      "mass": 15.1
     },
     {
       "joint": "neck",
       "end": "neck2",
       "length": 0.0,
       "radius": 0.141,
-      "mass": 36.2
+      "mass": 29.5
     },
     {
       "joint": "neck2",
       "end": "head",
       "length": 0.0,
       "radius": 0.076,
-      "mass": 17.0
+      "mass": 13.8
     },
     {
       "joint": "head",
       "end": null,
-      "length": 0.05,
-      "radius": 0.377,
-      "mass": 138.3
+      "length": 0.197,
+      "radius": 0.301,
+      "mass": 89.4
     },
     {
       "joint": "upperarm.L",
       "end": "forearm.L",
       "length": 0.0,
       "radius": 0.119,
-      "mass": 27.9
+      "mass": 22.7
     },
     {
       "joint": "forearm.L",
       "end": null,
       "length": 0.262,
       "radius": 0.101,
-      "mass": 27.5
+      "mass": 22.4
     },
     {
       "joint": "upperarm.R",
       "end": "forearm.R",
       "length": 0.0,
       "radius": 0.121,
-      "mass": 28.5
+      "mass": 23.2
     },
     {
       "joint": "forearm.R",
       "end": null,
       "length": 0.25,
       "radius": 0.107,
-      "mass": 29.0
+      "mass": 23.7
     },
     {
       "joint": "tail1",
       "end": "tail2",
       "length": 0.0,
       "radius": 0.073,
-      "mass": 15.4
+      "mass": 12.5
     },
     {
       "joint": "tail2",
       "end": "tail3",
       "length": 0.0,
       "radius": 0.072,
-      "mass": 15.1
+      "mass": 12.3
     },
     {
       "joint": "tail3",
       "end": "tail4",
       "length": 0.0,
       "radius": 0.067,
-      "mass": 13.8
+      "mass": 11.3
     },
     {
       "joint": "tail4",
       "end": "tail5",
       "length": 0.0,
       "radius": 0.094,
-      "mass": 20.7
+      "mass": 16.9
     },
     {
       "joint": "tail5",
       "end": "tail6",
       "length": 0.0,
       "radius": 0.04,
-      "mass": 7.8
+      "mass": 6.3
     },
     {
       "joint": "tail6",
       "end": null,
       "length": 0.304,
       "radius": 0.04,
-      "mass": 9.7
+      "mass": 7.9
     },
     {
       "joint": "thigh.L",
       "end": "shin.L",
       "length": 0.0,
       "radius": 0.125,
-      "mass": 29.8
+      "mass": 24.3
     },
     {
       "joint": "shin.L",
       "end": null,
       "length": 0.237,
       "radius": 0.11,
-      "mass": 29.6
+      "mass": 24.1
     },
     {
       "joint": "thigh.R",
       "end": "shin.R",
       "length": 0.0,
       "radius": 0.122,
-      "mass": 29.0
+      "mass": 23.6
     },
     {
       "joint": "shin.R",
       "end": null,
       "length": 0.246,
       "radius": 0.107,
-      "mass": 28.7
+      "mass": 23.4
     }
   ],
   "links": [
     {
       "parent": 0,
       "child": 1,
-      "damping": 4.9,
+      "damping": 4.0,
       "axis": [
         0.0,
         1.0,
@@ -167,7 +167,7 @@
     {
       "parent": 1,
       "child": 2,
-      "damping": 2.2,
+      "damping": 1.8,
       "axis": [
         0.0,
         1.0,
@@ -179,7 +179,7 @@
     {
       "parent": 2,
       "child": 3,
-      "damping": 0.3,
+      "damping": 0.2,
       "axis": [
         0.0,
         1.0,
@@ -191,7 +191,7 @@
     {
       "parent": 3,
       "child": 4,
-      "damping": 4.9,
+      "damping": 4.0,
       "axis": [
         0.0,
         1.0,
@@ -203,7 +203,7 @@
     {
       "parent": 4,
       "child": 5,
-      "damping": 2.0,
+      "damping": 1.6,
       "axis": [
         0.0,
         1.0,
@@ -215,7 +215,7 @@
     {
       "parent": 5,
       "child": 6,
-      "damping": 47.5,
+      "damping": 44.4,
       "axis": [
         0.0,
         1.0,
@@ -227,7 +227,7 @@
     {
       "parent": 3,
       "child": 7,
-      "damping": 2.6,
+      "damping": 2.2,
       "axis": [
         0.0,
         1.0,
@@ -239,7 +239,7 @@
     {
       "parent": 7,
       "child": 8,
-      "damping": 7.3,
+      "damping": 5.9,
       "axis": [
         0.9991,
         -0.0413,
@@ -251,7 +251,7 @@
     {
       "parent": 3,
       "child": 9,
-      "damping": 2.7,
+      "damping": 2.2,
       "axis": [
         0.0,
         1.0,
@@ -263,7 +263,7 @@
     {
       "parent": 9,
       "child": 10,
-      "damping": 7.4,
+      "damping": 6.0,
       "axis": [
         0.9991,
         0.0413,
@@ -275,7 +275,7 @@
     {
       "parent": 0,
       "child": 11,
-      "damping": 1.3,
+      "damping": 1.0,
       "axis": [
         0.0,
         1.0,
@@ -287,7 +287,7 @@
     {
       "parent": 11,
       "child": 12,
-      "damping": 1.2,
+      "damping": 1.0,
       "axis": [
         0.0,
         1.0,
@@ -299,7 +299,7 @@
     {
       "parent": 12,
       "child": 13,
-      "damping": 1.1,
+      "damping": 0.9,
       "axis": [
         0.0,
         1.0,
@@ -311,7 +311,7 @@
     {
       "parent": 13,
       "child": 14,
-      "damping": 1.7,
+      "damping": 1.4,
       "axis": [
         0.0,
         1.0,
@@ -323,7 +323,7 @@
     {
       "parent": 14,
       "child": 15,
-      "damping": 0.6,
+      "damping": 0.5,
       "axis": [
         0.0,
         1.0,
@@ -335,7 +335,7 @@
     {
       "parent": 15,
       "child": 16,
-      "damping": 2.3,
+      "damping": 1.9,
       "axis": [
         0.0,
         1.0,
@@ -347,7 +347,7 @@
     {
       "parent": 0,
       "child": 17,
-      "damping": 2.9,
+      "damping": 2.4,
       "axis": [
         0.0,
         1.0,
@@ -359,7 +359,7 @@
     {
       "parent": 17,
       "child": 18,
-      "damping": 7.1,
+      "damping": 5.8,
       "axis": [
         1.0,
         -0.0,
@@ -371,7 +371,7 @@
     {
       "parent": 0,
       "child": 19,
-      "damping": 2.9,
+      "damping": 2.3,
       "axis": [
         0.0,
         1.0,
@@ -383,7 +383,7 @@
     {
       "parent": 19,
       "child": 20,
-      "damping": 7.1,
+      "damping": 5.8,
       "axis": [
         1.0,
         0.0,
