@@ -42,6 +42,8 @@ CONES = {
     "neck": (0.7, 0.3),
     "head": (0.6, 0.3),
     "tail": (0.7, 0.3),
+    # A snake's body segments (#10883): each bends freely, so a dead one lies in loose curves.
+    "body": (0.6, 0.2),
     "trunk": (0.7, 0.3),
     "thigh": (1.0, 0.25),
     "upperarm": (0.9, 0.25),
@@ -60,6 +62,16 @@ SMALLEST_LENGTH = 0.05
 DENSITY = 900.0
 # Joint damping, as a share of the child's mass and the square of its length: limbs settle.
 DAMPING_SHARE = 2.0
+
+
+def hit_bone(joints):
+    """The bone that takes the killing blow: the chest, or for a body with none (#10883, a snake) its middle segment."""
+    if HIT_BONE in joints:
+        return HIT_BONE
+    body = [joint for joint in joints if family_name(joint) == "body"]
+    if not body:
+        raise SystemExit(f"no {HIT_BONE} and no body segments to take the blow among {joints}")
+    return body[len(body) // 2]
 
 
 def family_name(joint):
@@ -240,7 +252,7 @@ def build(species):
     return {
         "$comment": "Written by authoring/tools/creatures/ragdoll.py from the built GLB. Lengths and radii are metres, masses kilograms, limits radians, damping N m s per radian.",
         "species": species,
-        "hitBone": joints.index(HIT_BONE),
+        "hitBone": joints.index(hit_bone(joints)),
         "bones": bones,
         "links": links,
     }

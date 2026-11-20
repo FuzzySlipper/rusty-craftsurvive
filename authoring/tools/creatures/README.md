@@ -9,7 +9,7 @@ Provenance is in [`content/creatures.sources.json`](../../../content/creatures.s
 Humans borrow UAL's humanoid clips (`authoring/tools/characters/`). Nothing comparable exists for four legs,
 and every animal's proportions differ. So each **family** in `families.py` (plantigrade: sloths and
 bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers, the hummock and the seep-rat;
-saurian: monitors, salamanders, the plume-neck; bird and theropod: two legs, among them the stalk-bill and the ribbon-stalker; flyer: wings)
+saurian: monitors, salamanders, the plume-neck; bird and theropod: two legs, among them the stalk-bill and the ribbon-stalker; flyer: wings; serpent: no legs, the root-adder)
 has a skeleton and a clip generator in code. A species bakes the family clips it has settings for:
 
 - A species file (`<kind>/species.json`) places the family's joints as metres
@@ -446,4 +446,29 @@ forelegs: its anatomy is a lizard's on four legs, and standing is a clip.
 - **The paint: `mirror_paint.py`.** Tripo painted the head's right side with a smeared brow and mouth. Every texel of
   a face right of the midline is now repainted from the mirrored point on the left, on the master before
   `pixel_reduce.py`.
+
+### The root-adder: a legless family (#10883)
+
+- **The sheet** lays the snake out dead straight, so one chain runs through it; its jaws are parted on its fangs.
+- **The body.** Tripo made it a metre wide over seven, too fat to coil. `prepare_mesh.py --girth 0.5 --depth 0.62`
+  slims it across and down, its length kept, before it is charted. Tripo also closed the jaws, so `open_mouth.py`
+  cuts them open. Its fangs hang outside the lower lip, below any level bite line, so the mouth block's
+  `upperLuminanceAbove` keeps faces painted that bright (the fangs) uncut and on the head.
+- **The `serpent` family.**
+  - Bones: one chain of body segments from the tail tip forward (`body1` on `s0..s1` to `bodyN`), then the neck, head
+    and jaw. No legs, so `CreatureFeet` plants nothing; the product pitches it between `s2` and the head.
+  - Its root lies inside the body, so it does not deform (`Family.root_deforms`): skinned, it held the middle still.
+  - `serpent_lay` turns each segment; with `centre` it turns the root so the head points forward and moves it so the
+    flat shape is centred on the origin, where the capsule is.
+  - Clips:
+    - `lie` coils it flat in a spiral (`loops`), tail innermost;
+    - `threat` lifts the last `riseSegments` into an S with the neck curving back to level and the jaws wide;
+    - `bite` draws the S back and shoots it out and down;
+    - `walk`/`run` run a wave of turns down the body (lateral undulation, in place);
+    - `hang` lies belly up along the ceiling (the origin, as for the drop-sloth) in loose loops, the front bending
+      down over `bendSegments` with the bend over the origin;
+    - `drop` turns it right way up as the product lowers it and lands it coiled;
+    - `idle`, `alert`, `hurt` and `die`, which goes limp.
+- **Ragdoll.** `body` segments are cones. A body without a chest takes the blow on its middle segment; its ragdoll
+  starts from the tail tip, which a fallen snake's record follows.
 

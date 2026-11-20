@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/root-adder/mesh/tripo/tripo.glb",
+  "triangles": 6000,
+  "areaSquareMetres": 9.389,
+  "charts": 314,
+  "utilization": 0.7674,
+  "masterTexels": [
+    859,
+    756
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.2691972553730011,
+      -3.499328374862671,
+      0.00020500818209256977
+    ],
+    [
+      0.27154773473739624,
+      3.509673595428467,
+      0.457624614238739
+    ]
+  ]
+}

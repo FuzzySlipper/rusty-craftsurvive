@@ -1772,6 +1772,255 @@ FLYER_CLIPS = {
 
 # ---------------------------------------------------------------- the table
 
+# ---------------------------------------------------------------- serpent: legless (#10883, the root-adder)
+
+def serpent_segments(points):
+    """How many body segments the species places: s0 (the tail tip) to sN (the neck's base)."""
+    count = 0
+    while f"s{count + 1}" in points:
+        count += 1
+    return count
+
+
+def serpent_bones(points):
+    """A snake: one chain of body segments from the tail tip forward (body1 on s0..s1, bodyN ending at the neck's base),
+    then the neck, head and jaw. A turn of a segment carries everything ahead of it, so a curve along the chain bends the
+    whole snake. It has no legs."""
+    count = serpent_segments(points)
+    bones = [("root", None, "root", "root_tip", 1.0)]
+    bones += [(f"body{k}", "root" if k == 1 else f"body{k - 1}", f"s{k - 1}", f"s{k}", 1.0) for k in range(1, count + 1)]
+    bones += [
+        ("neck", f"body{count}", f"s{count}", "head", 1.0),
+        ("head", "neck", "head", "nose", 1.0),
+        ("jaw", "head", "jaw", "jaw_tip", 1.0),
+    ]
+    return bones
+
+
+def serpent_body(c):
+    """The body segments' bone names, tail first."""
+    return sorted((name for name in c.rig.pose.bones.keys() if name.startswith("body")), key=lambda name: int(name[4:]))
+
+
+def serpent_lay(c, turns, lifts=None, centre=True):
+    """Lays the body by a turn (degrees to the left) and a lift (degrees up) at each segment, the tail first. With
+    `centre`, turns and moves the whole snake so its head points forward and the flat shape is centred on the origin,
+    where its capsule is. Returns the head's heading before that turn, in degrees."""
+    names = serpent_body(c)
+    lifts = lifts or [0.0] * len(names)
+    for name, turn, lift in zip(names, turns, lifts):
+        c.bone_rotation(name, yaw(turn) @ pitch(lift))
+    heading = sum(turns)
+    if not centre:
+        return heading
+    # The flat shape the turns make, centred on the origin once the root turns it so the head points forward.
+    points = serpent_flat(c, turns)
+    xs, ys = [point[0] for point in points], [point[1] for point in points]
+    cx, cy = sum(xs) / len(xs), sum(ys) / len(ys)
+    # The root turns the whole shape about the origin so the head points forward; then it moves the turned centre
+    # onto the origin.
+    back = -math.radians(heading)
+    rx = cx * math.cos(back) - cy * math.sin(back)
+    ry = cx * math.sin(back) + cy * math.cos(back)
+    c.bone_rotation("root", yaw(-heading))
+    c.bone_offset("root", (-rx, -ry, 0.0))
+    return heading
+
+
+def serpent_flat(c, turns):
+    """The flat shape a set of turns lays the body in, as Blender ground (x, y) points from the tail tip, before the
+    root moves it."""
+    names = serpent_body(c)
+    x, y = c.rig.data.bones[names[0]].head_local.x, c.rig.data.bones[names[0]].head_local.y
+    angle = 0.0
+    points = [(x, y)]
+    for turn, name in zip(turns, names):
+        angle += math.radians(turn)
+        length = c.rig.data.bones[name].length
+        x += math.sin(angle) * length
+        y -= math.cos(angle) * length
+        points.append((x, y))
+    return points
+
+
+def serpent_coil(count, loops, inner_share=0.35):
+    """Turns that wind `count` segments into a flat spiral of so many loops, the tail innermost and the curve easing
+    outward."""
+    weights = [1.0 / (inner_share + k / max(count - 1, 1)) for k in range(count)]
+    scale = 360.0 * loops / sum(weights)
+    return [weight * scale for weight in weights]
+
+
+def serpent_coiled(c, settings, amount, front_lift=0.0):
+    """Coiled flat by `amount`, the last `riseSegments` free to rise, by `front_lift` degrees, into an S over the coil."""
+    names = serpent_body(c)
+    front = settings.get("riseSegments", 4)
+    coil = serpent_coil(len(names) - front, settings.get("loops", 1.3))
+    turns = [turn * amount for turn in coil] + [settings.get("frontTurnDegrees", 30.0) * amount / front] * front
+    lifts = [0.0] * (len(names) - front) + [front_lift if k == 0 else 0.0 for k in range(front)]
+    return serpent_lay(c, turns, lifts)
+
+
+def serpent_front(c, lift, jaw=0.0, sway=0.0, head_down=0.0):
+    """The neck curves the raised front back to level, so the head looks forward over the coil."""
+    c.bone_rotation("neck", pitch(-0.75 * lift) @ yaw(sway))
+    c.bone_rotation("head", pitch(-0.25 * lift - head_down) @ yaw(-0.5 * sway))
+    c.bone_rotation("jaw", pitch(-jaw))
+
+
+def serpent_wave(count, amplitude, wavelength_segments, t):
+    """A travelling wave down the body: each segment's turn, moving from the head toward the tail as t goes 0 to 1."""
+    return [amplitude * math.sin(gait.TAU * (t + k / wavelength_segments)) for k in range(count)]
+
+
+def serpent_slither(c, settings, t):
+    """Lateral undulation in place: a wave of turns runs down the body from the head to the tail, so the snake moves
+    forward through it at the clip's speed; the root turns against the wave and the head steers to keep looking ahead."""
+    names = serpent_body(c)
+    count = len(names)
+    turns = serpent_wave(count, settings["bendDegrees"], settings.get("waveSegments", 7.0), t)
+    turns = [turn * (0.45 + 0.55 * math.sin(math.pi * (k + 0.5) / count)) for k, turn in enumerate(turns)]
+    heading = serpent_lay(c, turns, centre=False)
+    c.bone_rotation("root", yaw(-0.5 * heading))
+    c.bone_rotation("neck", yaw(-0.5 * heading) @ pitch(settings.get("headLiftDegrees", 4.0)))
+    c.bone_rotation("head", pitch(-settings.get("headLiftDegrees", 4.0)))
+
+
+def serpent_walk(c, s, t):
+    serpent_slither(c, s["walk"], t)
+
+
+def serpent_run(c, s, t):
+    serpent_slither(c, s["run"], t)
+
+
+def serpent_idle(c, s, t):
+    """Lying stretched out in a lazy curve, the head lifting a little and turning, tasting the air."""
+    names = serpent_body(c)
+    curve = s["idle"].get("curveDegrees", 8.0)
+    serpent_lay(c, [curve * math.sin(math.pi * 1.5 * k / len(names)) for k in range(len(names))], centre=False)
+    c.bone_rotation("neck", pitch(5.0 + 3.0 * gait.wave(t)) @ yaw(10.0 * gait.wave(t, lag=0.25)))
+    c.bone_rotation("head", pitch(-3.0 * gait.wave(t, 2)) @ yaw(6.0 * gait.wave(t, lag=0.4)))
+
+
+def serpent_alert(c, s, t):
+    """The head and neck raised off the ground, swaying."""
+    serpent_idle(c, s, 0.0)
+    c.bone_rotation("neck", pitch(30.0) @ yaw(12.0 * gait.wave(t)))
+    c.bone_rotation("head", pitch(-22.0) @ yaw(6.0 * gait.wave(t, lag=0.2)))
+
+
+def serpent_lie(c, s, t):
+    """At rest on the ground (#10883): coiled flat, the head laid on the coil, breathing."""
+    serpent_coiled(c, s["lie"], 1.0)
+    c.bone_rotation("neck", pitch(3.0 + 1.5 * gait.wave(t)) @ yaw(20.0))
+    c.bone_rotation("head", pitch(-3.0) @ yaw(8.0 * gait.wave(t, lag=0.3)))
+
+
+def serpent_threat(c, s, t):
+    """Coiled, the front raised in an S, the jaws wide on the fangs, swaying."""
+    settings = s["threat"]
+    up = gait.rise_hold_fall(t, 0.2, 0.85)
+    lift = settings.get("riseDegrees", 60.0) * up
+    serpent_coiled(c, settings, 1.0, lift)
+    serpent_front(c, lift, jaw=settings.get("jawDegrees", 40.0) * up, sway=8.0 * up * gait.wave(t, 2))
+
+
+def serpent_bite(c, s, t):
+    """The strike from the coil: the S draws back, then the front shoots out and down at the prey with the jaws wide,
+    snaps shut and recoils."""
+    settings = s["bite"]
+    back = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.32, 0.42))
+    strike = gait.ease_in_out(t, 0.32, 0.44) * (1.0 - gait.ease_in_out(t, 0.66, 1.0))
+    wide = gait.ease_in_out(t, 0.1, 0.36) * (1.0 - gait.ease_in_out(t, 0.46, 0.52))
+    shut = gait.ease_in_out(t, 0.46, 0.52) * (1.0 - gait.ease_in_out(t, 0.8, 1.0))
+    rise = settings.get("riseDegrees", 60.0)
+    lift = rise * (1.0 + 0.25 * back - 0.85 * strike)
+    serpent_coiled(c, settings, 1.0, lift)
+    serpent_front(c, lift, jaw=settings.get("jawDegrees", 50.0) * wide - 3.0 * shut, head_down=settings.get("diveDegrees", 15.0) * strike)
+    # The lunge: the front bends forward over the coil as the S straightens.
+    names = serpent_body(c)
+    front = settings.get("riseSegments", 4)
+    for name in names[-front + 1:]:
+        c.bone_rotation(name, yaw(settings.get("frontTurnDegrees", 30.0) / front) @ pitch(-settings.get("reachDegrees", 8.0) * strike))
+
+
+def serpent_hurt(c, s, t):
+    """A blow lands: it flinches, the body jerking aside and the head thrown back, mouth gaping."""
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    names = serpent_body(c)
+    serpent_lay(c, [18.0 * hit * math.sin(math.pi * k / len(names)) for k in range(len(names))], centre=False)
+    c.bone_rotation("neck", pitch(20.0 * hit) @ yaw(-25.0 * hit))
+    c.bone_rotation("jaw", pitch(-25.0 * hit))
+
+
+def serpent_die(c, s, t):
+    """It goes limp: the body slumps into a loose curve and rolls a little onto its side, the jaws falling open."""
+    limp = gait.ease_in_out(t, 0.1, 0.8)
+    names = serpent_body(c)
+    serpent_lay(c, [limp * 14.0 * math.sin(math.pi * 2.2 * k / len(names)) for k in range(len(names))], centre=False)
+    c.bone_rotation("root", roll(60.0 * limp))
+    c.bone_rotation("neck", pitch(-6.0 * limp) @ yaw(30.0 * limp))
+    c.bone_rotation("jaw", pitch(-22.0 * limp))
+
+
+def serpent_hanging(c, s, amount, t):
+    """Upside down along the ceiling, which the product puts at the origin (#10883): the rear in loose loops along it,
+    the front hanging down and the head turned to look at the floor."""
+    settings = s["hang"]
+    names = serpent_body(c)
+    hang = settings.get("hangSegments", 4)
+    rear = len(names) - hang
+    loops = [settings.get("loopDegrees", 22.0) * math.sin(math.pi * 3.0 * k / rear) for k in range(rear)]
+    turns = loops + [settings.get("swayDegrees", 4.0) * gait.wave(t)] * hang
+    # Lying belly up along the ceiling, the front bends down over its first few segments (in the flipped body a lift
+    # turns it toward the floor), and its last curls a little back so the head hangs looking forward.
+    bend = settings.get("bendSegments", 3)
+    lifts = [0.0] * rear + [settings.get("dropDegrees", 90.0) * amount / bend] * bend + [-settings.get("curlDegrees", 15.0) * amount] * (hang - bend)
+    turns = [turn * amount for turn in turns]
+    serpent_lay(c, turns, lifts, centre=False)
+    # Turned over about the forward axis and moved so the bend where the front drops sits over the origin: the capsule
+    # on the floor below is where it lands.
+    heading = sum(turns[:rear])
+    names_flat = serpent_flat(c, turns)
+    bx, by = names_flat[rear]
+    turn = roll(180.0 * amount) @ yaw(-heading)
+    bend = turn @ Vector((bx, by, 0.0))
+    c.bone_rotation("root", turn)
+    # Hanging, the bend is over the origin; turned right way up and straight it eases back to its rest, centred.
+    c.bone_offset("root", (-bend.x * amount, -bend.y * amount, 0.0))
+    c.bone_rotation("neck", pitch(settings.get("lookDegrees", -60.0) * amount) @ yaw(10.0 * gait.wave(t, lag=0.3) * amount))
+
+
+def serpent_hang(c, s, t):
+    """At rest hanging from the roots of a cave's mouth (#10883), swaying a little."""
+    serpent_hanging(c, s, 1.0, t)
+
+
+def serpent_drop(c, s, t):
+    """Letting go (#10883): it turns right way up as the product lowers it, and lands coiled."""
+    serpent_hanging(c, s, 1.0 - gait.ease_in_out(t, 0.0, 0.6), t)
+    if t > 0.6:
+        serpent_coiled(c, s["lie"], gait.ease_in_out(t, 0.6, 1.0))
+    c.bone_rotation("jaw", pitch(-30.0 * (1.0 - gait.ease_in_out(t, 0.4, 1.0))))
+
+
+SERPENT_CLIPS = {
+    "rest": (clip_rest, False, False),
+    "idle": (serpent_idle, True, False),
+    "walk": (serpent_walk, True, False),
+    "run": (serpent_run, True, False),
+    "alert": (serpent_alert, True, False),
+    "lie": (serpent_lie, True, False),
+    "threat": (serpent_threat, False, False),
+    "bite": (serpent_bite, False, False),
+    "hurt": (serpent_hurt, False, False),
+    "die": (serpent_die, False, False),
+    "hang": (serpent_hang, True, False),
+    "drop": (serpent_drop, False, False),
+}
+
+
 @dataclass(frozen=True)
 class Family:
     bones: object
@@ -1786,6 +2035,9 @@ class Family:
     tip_bones: tuple = field(default=())
     # Whether the bones depend on the species' points (a tail as long as it is drawn): `bones(points)`.
     sized: bool = False
+    # Whether the root bone carries skin. A snake's root lies inside its body (#10883), where it would hold the middle
+    # still while the chain coils around it.
+    root_deforms: bool = True
 
 
 FAMILIES = {
@@ -1812,6 +2064,8 @@ FAMILIES = {
                         (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                         ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand"), sized=True),
     # The low-slung legs and feet with a bending trunk and a tail as long as the species draws it (#10879).
+    # No legs (#10883): body segments from the tail tip to the neck; the product pitches it between s2 and the head.
+    "serpent": Family(serpent_bones, {}, SERPENT_CLIPS, (), "s2", "head", (), (), sized=True, root_deforms=False),
     "saurian": Family(saurian_bones, SAURIAN_LEGS, SAURIAN_CLIPS,
                       (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                       ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand"), sized=True),

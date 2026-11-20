@@ -74,6 +74,7 @@ def build_armature(species, family):
             bone.parent = data.edit_bones[parent]
             bone.use_connect = (bone.head - bone.parent.tail).length < 1e-4
     bpy.ops.object.mode_set(mode="OBJECT")
+    data.bones["root"].use_deform = family.root_deforms
     for pb in rig.pose.bones:
         pb.rotation_mode = "QUATERNION"
     return rig
@@ -417,6 +418,22 @@ def pin_cut_mouth(species, mesh):
             if abs(above[i]) < MOUTH_ON_LINE:
                 votes[i] = votes.get(i, 0.0) + lean
     side = {i: "upper" if (votes.get(i, d) if abs(d) < MOUTH_ON_LINE else d) > 0 else "lower" for i, d in above.items()}
+    # Parts of the upper jaw painted bright, such as fangs hanging below the bite line (#10883), stay with the head.
+    if (threshold := cut.get("upperLuminanceAbove")) is not None:
+        image = next(node.image for node in mesh.data.materials[0].node_tree.nodes if node.type == "TEX_IMAGE")
+        width, height = image.size
+        pixels = image.pixels[:]
+        uv = mesh.data.uv_layers.active.data
+        for poly in mesh.data.polygons:
+            u, v = uv[poly.loop_start].uv
+            # The bottom rows are strips grown by the tools (the mouth's inside and its teeth), not the body's paint.
+            if v * height < MOUTH_STRIP_ROWS:
+                continue
+            at = 4 * (min(height - 1, int(v * height)) * width + min(width - 1, int(u * width)))
+            if 0.2126 * pixels[at] + 0.7152 * pixels[at + 1] + 0.0722 * pixels[at + 2] > threshold:
+                for i in poly.vertices:
+                    if i in side:
+                        side[i] = "upper"
     groups = {"upper": "head", "lower": "jaw"}
     for group in mesh.vertex_groups:
         group.remove(list(side))
@@ -430,6 +447,8 @@ def pin_cut_mouth(species, mesh):
 # How near the cut plane a vertex counts as on it, in metres: open_mouth.py parts the lips by more, so only a
 # vertex the cut made exactly on the line (at the mouth's joined corners) goes by its faces.
 MOUTH_ON_LINE = 0.0004
+# The strip rows open_mouth.py adds along the paint's bottom (the mouth's inside and teeth), read past by the fang test.
+MOUTH_STRIP_ROWS = 2
 
 
 def pin_mouth(species, mesh):

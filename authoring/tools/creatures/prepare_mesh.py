@@ -3,13 +3,15 @@ budget, re-chart at an even texel density and bake its paint into a master textu
 
 usage: blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/prepare_mesh.py -- \
            <generated.glb> <out dir> --head +x --length 5.4 --xatlas <dir> [--triangles 6000] [--texels 128]
+           [--girth 1.0] [--depth <girth>]
 
 Needs the `xatlas` package built for Blender's Python (3.13), put in a scratch directory with
 `python3 -m pip install --target <dir> --python-version 3.13 --only-binary=:all: --no-deps xatlas`.
 
 - The head points along --head (+x, -x, +y, -y in Blender's frame after glTF import). The mesh is
   turned to face Blender's -Y (glTF +Z, the rig's front), scaled so its length along that axis is
-  --length metres, stood on the ground (lowest point at 0) and centred on its bounding box.
+  --length metres, stood on the ground (lowest point at 0) and centred on its bounding box. --girth and --depth
+  scale it across (x) and up (z) after that, its length kept: for a body generated too thick.
 - It is decimated to about --triangles and charted by xatlas at --texels per metre. Blender's
   smart projection cuts a generated body into thousands of islands a few texels across, which a
   32 texels/m reduction averages into colour noise; xatlas makes large charts (as
@@ -117,6 +119,12 @@ def main(argv):
     scale = length / (hi.y - lo.y)
     centre = Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z))
     original.data.transform(Matrix.Scale(scale, 4) @ Matrix.Translation(-centre))
+    # A body Tripo made too thick for its length (#10883: the root-adder came out a metre wide over seven) is slimmed
+    # across and down, its length kept, before it is charted, so its paint is baked onto the slimmer shape.
+    girth = option(argv, "--girth", 1.0, float)
+    depth = option(argv, "--depth", girth, float)
+    if girth != 1.0 or depth != 1.0:
+        original.data.transform(Matrix.Diagonal((girth, 1.0, depth, 1.0)))
     original.data.update()
 
     # The game mesh: a decimated copy with one evenly scaled chart set.

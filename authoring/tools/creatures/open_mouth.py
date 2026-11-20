@@ -11,6 +11,8 @@ and a clip that drops the jaw stretches that surface into a smear. This opens it
   separate surfaces joined only at the mouth's corners (the last `cornerMetres` before the hinge stay joined).
 - **The inside.** Each jaw's edge of the cut is closed by a fan to a point `depthMetres` inside the jaw on the
   midline: the roof of the mouth and its floor, painted `insideColour`.
+- **What stays above.** With `upperLuminanceAbove`, faces painted brighter than that (fangs that hang outside the
+  lower lip) are not cut, and pin_cut_mouth keeps them on the head.
 - **The teeth.** Every `toothEvery` metres along each jaw's edge, a pointed triangle stands just inside it, rooted
   `toothMetres` within the jaw and pointing to the bite line, painted `toothColour`. Each tooth lies wholly on its own
   jaw's side of the cut, which is how pin_cut_mouth in build_creature.py tells whose it is.
@@ -63,6 +65,28 @@ def widen_paint(paint_path, out_path, inside, tooth):
     return width, height, height + STRIP_ROWS
 
 
+def upper_painted(data, uv_layer, paint_path, cut, heights):
+    """The faces whose texel is brighter than the block's `upperLuminanceAbove`: parts of the upper jaw, such as fangs,
+    that reach below the bite line. The UVs have already moved up by the strip, so they are read back to the paint."""
+    threshold = cut.get("upperLuminanceAbove")
+    if threshold is None:
+        return set()
+    old_height, height = heights
+    paint = bpy.data.images.load(str(Path(paint_path).resolve()), check_existing=True)
+    width = paint.size[0]
+    pixels = np.array(paint.pixels[:], dtype=np.float32).reshape(old_height, width, 4)
+    found = set()
+    for face in data.faces:
+        u, v = face.loops[0][uv_layer].uv
+        row = int((v * height - STRIP_ROWS))
+        if not 0 <= row < old_height:
+            continue
+        r, g, b, _ = pixels[row, min(width - 1, int(u * width))]
+        if 0.2126 * r + 0.7152 * g + 0.0722 * b > threshold:
+            found.add(face.index)
+    return found
+
+
 def main(argv):
     body_path, paint_path, species_path, out_glb, out_paint = argv[:5]
     cut = json.loads(Path(species_path).read_text())["mouthCut"]
@@ -90,7 +114,10 @@ def main(argv):
     data.from_mesh(mesh.data)
     uv_layer = data.loops.layers.uv.active
     reach = cut.get("reachMetres", 0.25)
-    region = [f for f in data.faces if all(-v.co.y >= hinge_f - 0.01 for v in f.verts)
+    # Faces painted as the upper jaw's own (#10883: the root-adder's fangs hang outside its lower lip) are not cut:
+    # they stay whole on the head.
+    upper = upper_painted(data, uv_layer, paint_path, cut, (old_height, height))
+    region = [f for f in data.faces if f.index not in upper and all(-v.co.y >= hinge_f - 0.01 for v in f.verts)
               and all(abs(above(v.co)) <= reach for v in f.verts)]
     geom = list({v for f in region for v in f.verts}) + list({e for f in region for e in f.edges}) + region
     result = bmesh.ops.bisect_plane(data, geom=geom, plane_co=origin, plane_no=normal, dist=1e-5)

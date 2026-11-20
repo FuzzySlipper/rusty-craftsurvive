@@ -380,6 +380,17 @@
    "body": "Tripo web studio multi-view (H3.1, triangle topology), its 20-credit texture step, exported GLB (mesh/tripo/tripo.glb); prepare_mesh.py --head -y --length 3.2 --triangles 6500 --texels 128",
    "reduced": "mirror_paint.py on the master (the right side repainted from the left), then pixel_reduce.py --factor 2 --colors 14 --luminance 0.55 --saturation 0.85 (64 texels/m); open_mouth.py and add_ruff.py each add a 2-row strip; add_ruff.py adds a 2-row strip for the frills' edges and maps their faces onto the mane's own paint",
    "retained": "authoring/assets/creatures/plume-neck/ (authoring/tools/assets-sync.sh)"
+  },
+  {
+   "mesh": "content/game/creatures/root-adder/root-adder.glb",
+   "sha256": "277720708b6ee85c20f67850aaa6e0f01cc040a37712a067f3565cc9adc515ca",
+   "manifest": "content/game/creatures/root-adder/root-adder.manifest.json",
+   "built": "authoring/tools/creatures/build_creature.py from authoring/assets/creatures/root-adder/species.json with --mesh mouthed.glb --texture mouthed-64.png (#10883; on the serpent family; the mouth cut open by open_mouth.py from the species' mouthCut block, its bright fangs kept on the upper jaw)",
+   "concept": "authoring/assets/creatures/root-adder/concept/sheet-19.png: Den #10617's round two sheet 19, picked by Patch 2026-11-16 (den-wiki wandering-years/cave-wildlife; GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "authoring/assets/creatures/root-adder/mesh/reference.png (reference-1.png), laid out straight for the rig, its jaws parted on its fangs; spec beside it; cut by cut_views.py; shown to Patch, who said to mesh it",
+   "body": "Tripo web studio multi-view (H3.1, triangle topology), its 20-credit texture step, exported GLB (mesh/tripo/tripo.glb); prepare_mesh.py --head -y --length 7.0 --triangles 6000 --texels 128 --girth 0.5 --depth 0.62 (Tripo made it a metre wide)",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.45 --saturation 0.9 (64 texels/m); open_mouth.py adds a 2-row strip for the mouth's inside and teeth",
+   "retained": "authoring/assets/creatures/root-adder/ (authoring/tools/assets-sync.sh)"
   }
  ],
  "reference": {

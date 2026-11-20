@@ -338,8 +338,10 @@ Check.Section("ragdolls", () =>
         WildlifeRagdollRig rig = WildlifeRagdollRig.Parse(ReadResource($"Wildlife.{Path.GetFileName(path)}"));
         string[] joints = [.. rig.Bones.Select(bone => bone.Joint)];
 
-        Check.That(rig.Bones[0].Joint == "hips", $"{kind.Id}'s ragdoll starts from its hips, which the fall follows");
-        Check.That(joints[rig.HitBone] == "chest", $"{kind.Id}'s killing blow lands on its chest");
+        // A snake (#10883) has no hips or chest: its chain starts at its tail tip, and the blow lands mid-body.
+        bool snake = joints.Contains("body1");
+        Check.That(rig.Bones[0].Joint == (snake ? "body1" : "hips"), $"{kind.Id}'s ragdoll starts from its hips (a snake from its tail), which the fall follows");
+        Check.That(snake ? joints[rig.HitBone].StartsWith("body", StringComparison.Ordinal) : joints[rig.HitBone] == "chest", $"{kind.Id}'s killing blow lands on its chest (a snake mid-body)");
         Check.That(rig.Bones.All(bone => bone.Radius > 0 && bone.Mass > 0), $"{kind.Id}'s bones have a body");
         Check.That(rig.Bones.All(bone => bone.End is null ? bone.Length > 0 : joints.Contains(bone.End)), $"{kind.Id}'s bones end at a bone or in a length");
 
@@ -1539,6 +1541,13 @@ Check.Section("cave animals", () =>
     Check.Equal(0, miasma.Crossed(WildlifeClipRole.Walk, 0f, 1f), "and never as it walks");
     Check.Equal(miasma.Crossed(WildlifeClipRole.Threat, 0f, 1f), miasma.Crossed(WildlifeClipRole.Threat, 0f, 0.5f) + miasma.Crossed(WildlifeClipRole.Threat, 0.5f, 1f), "a clip's breaths are let out once each, however its updates fall");
     Check.That(catalog.Kind("salt-monitor").Mesh!.Breath is null, "a kind without a breath lets none out");
+
+    // #10883: the root-adder hangs from a ceiling at rest, drops, and on the ground rests coiled.
+    WildlifeKind rootAdder = catalog.Kind("root-adder");
+    Check.That(rootAdder.Hunt!.Rest is { Hangs: true }, "the root-adder hangs from a ceiling at rest (#10883)");
+    Check.That(rootAdder.Mesh!.Clips.ContainsKey(WildlifeClipRole.Hang) && rootAdder.Mesh.Clips.ContainsKey(WildlifeClipRole.Drop), "and has its hang and its drop");
+    Check.That(rootAdder.Mesh.Clips.TryGetValue(WildlifeClipRole.Lie, out string? coiled) && coiled == "lie", "on the ground it rests coiled");
+    Check.That(rootAdder.Cave!.Lives == CaveHabitat.Mouth, "it lives in a cave's mouth");
 
 });
 

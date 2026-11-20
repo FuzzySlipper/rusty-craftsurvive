@@ -1,0 +1,73 @@
+{
+  "species": "root-adder",
+  "family": "serpent",
+  "body": {
+    "hindMetres": -2.564,
+    "foreMetres": 3.0
+  },
+  "legs": [],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "idle": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "walk": {
+      "seconds": 1.6,
+      "loops": true,
+      "plantsFeet": false,
+      "speed": 0.4375
+    },
+    "run": {
+      "seconds": 0.9,
+      "loops": true,
+      "plantsFeet": false,
+      "speed": 1.2222
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "lie": {
+      "seconds": 6.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 2.4,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "bite": {
+      "seconds": 1.1,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "hurt": {
+      "seconds": 0.6,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "die": {
+      "seconds": 2.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "hang": {
+      "seconds": 6.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "drop": {
+      "seconds": 1.2,
+      "loops": false,
+      "plantsFeet": false
+    }
+  }
+}
