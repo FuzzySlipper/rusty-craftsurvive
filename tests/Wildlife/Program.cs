@@ -1534,6 +1534,11 @@ Check.Section("cave animals", () =>
     Check.That(flaring.Holding, "it holds its display before it strikes, even with the player in reach");
     Check.Equal(WildlifeClipRole.Threat, HunterRules.Want(flaring, CreatureState.Attacking, 0, 3), "and its display is its threat, the ruff flared");
     Check.That(plumeNeck.Cave!.Lives == CaveHabitat.VentOrchard, "it lives in the vent orchard");
+    WildlifeBreath miasma = plumeNeck.Mesh!.Breath ?? throw new InvalidDataException("the plume-neck breathes a miasma");
+    Check.That(miasma.Crossed(WildlifeClipRole.Threat, 0f, 1f) >= 2 && miasma.Crossed(WildlifeClipRole.Bite, 0f, 1f) >= 1, "its miasma leaves its mouth in its roar and with its bite");
+    Check.Equal(0, miasma.Crossed(WildlifeClipRole.Walk, 0f, 1f), "and never as it walks");
+    Check.Equal(miasma.Crossed(WildlifeClipRole.Threat, 0f, 1f), miasma.Crossed(WildlifeClipRole.Threat, 0f, 0.5f) + miasma.Crossed(WildlifeClipRole.Threat, 0.5f, 1f), "a clip's breaths are let out once each, however its updates fall");
+    Check.That(catalog.Kind("salt-monitor").Mesh!.Breath is null, "a kind without a breath lets none out");
 
 });
 

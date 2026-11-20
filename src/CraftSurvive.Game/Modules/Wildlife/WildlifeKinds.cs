@@ -99,8 +99,13 @@ internal enum WildlifeClipRole
     Swim,
 }
 
-/// <summary>A kind's animated body: its mesh and build manifest, which clip plays each role, and how it falls when killed, if it does more than play its death. A kind without one is drawn as a placeholder.</summary>
-internal sealed record WildlifeMesh(string File, string Manifest, float Scale, IReadOnlyDictionary<WildlifeClipRole, string> Clips, string? Ragdoll = null);
+/// <summary>
+/// A kind's animated body: its mesh and build manifest, which clip plays each role, how it falls when killed, if it does
+/// more than play its death, and the miasma its open mouth breathes out (#10882), if any. A kind without one is drawn as a
+/// placeholder.
+/// </summary>
+internal sealed record WildlifeMesh(string File, string Manifest, float Scale, IReadOnlyDictionary<WildlifeClipRole, string> Clips, string? Ragdoll = null,
+    WildlifeBreath? Breath = null);
 
 /// <summary>
 /// A kind's young (#10600): this share of a herd's animals, the adult's mesh at this scale with its
@@ -619,8 +624,14 @@ internal static class WildlifeKinds
             clips[Enum<WildlifeClipRole>(clip.Name)] = clip.Value.GetString()!;
         }
 
+        WildlifeBreath? breath = WildlifeBreath.Read(mesh, Enum<WildlifeClipRole>);
+        foreach (WildlifeClipRole role in breath?.At.Keys ?? [])
+        {
+            if (!clips.ContainsKey(role)) throw new InvalidDataException($"breath: the mesh plays no clip for {role}");
+        }
+
         return new WildlifeMesh(mesh.GetProperty("file").GetString()!, mesh.GetProperty("manifest").GetString()!, mesh.GetProperty("scale").GetSingle(), clips,
-            mesh.TryGetProperty("ragdoll", out JsonElement ragdoll) ? ragdoll.GetString() : null);
+            mesh.TryGetProperty("ragdoll", out JsonElement ragdoll) ? ragdoll.GetString() : null, breath);
     }
 
     private static WildlifeKind ReadKind(JsonElement kind, Dictionary<WildlifeSizeClass, WildlifeCapsule> classes,

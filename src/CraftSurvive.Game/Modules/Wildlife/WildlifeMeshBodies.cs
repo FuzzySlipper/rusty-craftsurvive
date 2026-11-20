@@ -41,6 +41,19 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <summary>How many bodies have been retired, for readouts.</summary>
     private long retired;
 
+    /// <summary>The breath's sprite, the dust puff, opened when a body first breathes (#10882).</summary>
+    private RenderResourceReference? breathSprite;
+
+    /// <summary>Breaths let out and refused, and the last refusal, for readouts.</summary>
+    private long breathsLet, breathsRefused;
+    private string breathFailure = "none";
+
+    /// <summary>Where the last breath left a mouth, the way it went, and the body's place and facing, for readouts.</summary>
+    private string lastBreath = "none";
+
+    /// <summary>Separates one body's breaths' seeds from another's.</summary>
+    private const ulong BreathSalt = 0x9E37_79B9_7F4A_7C15UL;
+
     /// <summary>The body's one material slot, and how rough its paint is, as the mesh's own material has it.</summary>
     private const uint BodySlot = 0;
     private const float PaintRoughness = 0.9f;
@@ -90,6 +103,12 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
         /// <summary>Its death has begun, as a ragdoll or a clip: a body that could not fall at once plays its clip and stays with it.</summary>
         internal bool Fell { get; set; }
+
+        /// <summary>How far through its clip it is, as a share of the clip's length: when to breathe (#10882).</summary>
+        internal float ClipShare { get; set; }
+
+        /// <summary>How many breaths it has let out, to seed each one apart.</summary>
+        internal ulong Breaths { get; set; }
     }
 
     internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<Creatures.CreatureSpace?, double, double, double, float> groundAt, ulong seed, Func<Creatures.CreatureSpace?, WildlifeRagdolls> ragdollsIn)
@@ -135,6 +154,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Vector3 world = new(member.Position.X, body.Height + member.Lift, member.Position.Y);
         Transform placement = new(ToLocal(body, world), Quaternion.Concatenate(lift, turn), new Vector3(scale));
         Plant(body, placement, world, scale, plant: !fallen && distance <= plantWithin, frozen: !fallen && Frozen(member));
+        if (!fallen) Breathe(body, kind, member, placement, scale, seconds);
         return new AppearanceFact(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.Cast);
     }
 
@@ -198,9 +218,53 @@ internal sealed class WildlifeMeshBodies : IDisposable
         // A herd must not breathe in step: a looping clip starts at the animal's own point in it.
         float start = restart && clip.Loops ? WildlifeClips.Phase(member, seed) : 0;
         engine.Animation.SetPlayback(new(body.Instance, AnimationPlaybackKind.Play, clip.Name, loop, rate, 1, restart, (float)animation.FadeSeconds, true, start));
+        if (restart) body.ClipShare = clip.Seconds > 0 ? (float)(start / clip.Seconds) : 0f;
         body.Playing = role;
         body.Rate = rate;
         body.Paused = false;
+    }
+
+    /// <summary>
+    /// Lets out the kind's breath (#10882) where its clip crosses one of the shares the breath lists: a burst of haze from
+    /// between the jaws as posed now, the way they point. Only a body drawn whole and playing breathes.
+    /// </summary>
+    private void Breathe(Body body, WildlifeKind kind, WildlifeMember member, Transform placement, float scale, double seconds)
+    {
+        if (kind.Mesh!.Breath is not WildlifeBreath breath || body.Playing is not WildlifeClipRole playing || body.Paused || !body.Published) return;
+        CreatureClip clip = body.Kind.Rig.Clip(playing);
+        if (clip.Seconds <= 0 || seconds <= 0) return;
+        float from = body.ClipShare;
+        float to = from + (float)(seconds * body.Rate / clip.Seconds);
+        body.ClipShare = clip.Loops ? to % 1f : Math.Min(to, 1f);
+        int count = breath.Crossed(playing, from, Math.Min(to, 1f)) + (clip.Loops && to > 1f ? breath.Crossed(playing, 0f, to - 1f) : 0);
+        if (count == 0 || body.Tier == WildlifeTier.Hidden) return;
+        ReadOnlySpan<JointPose> pose = engine.Animation.SampleJointPose(AnimationPoseSampleRequest.OfCurrentPlayback(body.Instance, placement, applyPoseControls: false)).Span;
+        (Vector3 mouth, Vector3 forward) = WildlifeBreathLook.Mouth(breath, pose[(int)body.Kind.Joint(breath.UpperJoint)], pose[(int)body.Kind.Joint(breath.LowerJoint)], scale);
+        breathSprite ??= OpenBreathSprite();
+        lastBreath = string.Create(CultureInfo.InvariantCulture,
+            $"mouth={mouth.X:F2},{mouth.Y:F2},{mouth.Z:F2} forward={forward.X:F2},{forward.Y:F2},{forward.Z:F2} at={placement.Translation.X:F2},{placement.Translation.Y:F2},{placement.Translation.Z:F2} facing={Vector3.Transform(Vector3.UnitZ, placement.Rotation).X:F2},{Vector3.Transform(Vector3.UnitZ, placement.Rotation).Z:F2}");
+        for (int i = 0; i < count; i++)
+        {
+            ulong seed = unchecked(((ulong)body.ObjectId * BreathSalt) ^ ++body.Breaths);
+            try
+            {
+                engine.Presentation.EmitParticles(WildlifeBreathLook.Describe(breath, mouth, forward, breathSprite.Value, seed, scale));
+                breathsLet++;
+            }
+            catch (EngineCallException exception)
+            {
+                breathsRefused++;
+                breathFailure = exception.Message;
+            }
+        }
+    }
+
+    private RenderResourceReference OpenBreathSprite()
+    {
+        RenderResourceInfo resource = engine.Graphics.OpenResource(new RenderResourceRequest(Feedback.Bursts.PuffContentPath));
+        if (resource.Kind != RenderResourceKind.Texture || resource.ByteLength == 0)
+            throw new InvalidOperationException($"the breath's sprite '{Feedback.Bursts.PuffContentPath}' must be a non-empty Engine texture.");
+        return resource.Handle;
     }
 
     /// <summary>Sits the body on the ground under its hind and fore feet: every update near, now and then further out, not at all once its pose is held.</summary>
@@ -397,7 +461,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     internal string Readout()
     {
         string text = string.Create(CultureInfo.InvariantCulture,
-            $"mostPitch={bodies.All.Select(b => Math.Abs(b.Pitch) * 180 / MathF.PI).DefaultIfEmpty().Max():F1} meshes={bodies.Count} full={bodies.All.Count(b => b.Tier == WildlifeTier.Full)} play={bodies.All.Count(b => b.Tier == WildlifeTier.Play)} held={bodies.All.Count(b => b.Tier == WildlifeTier.Held)} hidden={bodies.All.Count(b => b.Tier == WildlifeTier.Hidden)} planted={bodies.All.Count(b => b.Planted)} steepest={bodies.All.Select(b => Math.Abs(b.Pitch)).DefaultIfEmpty(0).Max() * 180 / MathF.PI:F1} retired={retired} plants={planting.Calls} sampleMs={planting.Sample:F1} castMs={planting.Casts:F1} poseMs={planting.Pose:F1}");
+            $"mostPitch={bodies.All.Select(b => Math.Abs(b.Pitch) * 180 / MathF.PI).DefaultIfEmpty().Max():F1} meshes={bodies.Count} full={bodies.All.Count(b => b.Tier == WildlifeTier.Full)} play={bodies.All.Count(b => b.Tier == WildlifeTier.Play)} held={bodies.All.Count(b => b.Tier == WildlifeTier.Held)} hidden={bodies.All.Count(b => b.Tier == WildlifeTier.Hidden)} planted={bodies.All.Count(b => b.Planted)} steepest={bodies.All.Select(b => Math.Abs(b.Pitch)).DefaultIfEmpty(0).Max() * 180 / MathF.PI:F1} retired={retired} plants={planting.Calls} sampleMs={planting.Sample:F1} castMs={planting.Casts:F1} poseMs={planting.Pose:F1} breaths={breathsLet} breathsRefused={breathsRefused} breathFailure={breathFailure} lastBreath=[{lastBreath}]");
         planting = default;
         return text + Lying();
     }
