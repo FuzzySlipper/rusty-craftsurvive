@@ -1549,6 +1549,14 @@ Check.Section("cave animals", () =>
     Check.That(rootAdder.Mesh.Clips.TryGetValue(WildlifeClipRole.Lie, out string? coiled) && coiled == "lie", "on the ground it rests coiled");
     Check.That(rootAdder.Cave!.Lives == CaveHabitat.Mouth, "it lives in a cave's mouth");
 
+    // #10884: the small cave creatures have bodies that stand, wander and run off, and nothing to fight with.
+    foreach (string small in new[] { "blindfish", "drift-grazer", "mound-shrew" })
+    {
+        CaveAmbientKind smallKind = catalog.CaveAmbient.Single(kind => kind.Id == small);
+        Check.That(smallKind.Mesh is { } body && WildlifeKinds.AmbientClips.All(body.Clips.ContainsKey) && body.Ragdoll is null, $"the {small} has a body that idles, walks and runs, and no ragdoll (#10884)");
+        Check.That(catalog.Kinds.All(kind => kind.Id != small), $"the {small} is not a hunter or a herd animal: nothing hunts it, nothing it fights");
+    }
+
 });
 
 // Creature behaviour debugging (#10926): a test aid's hold on a herd animal, read by the rules, and its release.

@@ -203,6 +203,7 @@ internal sealed record WildlifeCave(CaveHabitat Lives, int HomesPerCave);
 /// <param name="FleeMetres">The player this near sends it away.</param>
 /// <param name="HideSeconds">How long it runs before it slips out of sight, until the player has gone.</param>
 /// <param name="Swims">A swimmer keeps under its pool's surface rather than on a floor.</param>
+/// <param name="Mesh">Its animated body (#10884), with idle, walk and run clips: no collider and no ragdoll. Without one it is drawn as a placeholder.</param>
 internal sealed record CaveAmbientKind(
     string Id,
     string Name,
@@ -215,7 +216,8 @@ internal sealed record CaveAmbientKind(
     double WanderMetres,
     double FleeMetres,
     double HideSeconds,
-    bool Swims);
+    bool Swims,
+    WildlifeMesh? Mesh = null);
 
 /// <summary>
 /// How a pack hunts (#10626): what one sees calls the others from this far, for this long after it last
@@ -540,6 +542,9 @@ internal static class WildlifeKinds
         return read;
     }
 
+    /// <summary>The clips an ambient creature's mesh plays (#10884): standing, wandering and running off.</summary>
+    internal static readonly WildlifeClipRole[] AmbientClips = [WildlifeClipRole.Idle, WildlifeClipRole.Walk, WildlifeClipRole.Run];
+
     private static CaveAmbientKind ReadAmbient(JsonElement kind)
     {
         string id = kind.GetProperty("id").GetString()!;
@@ -561,7 +566,13 @@ internal static class WildlifeKinds
             kind.GetProperty("wanderMetres").GetDouble(),
             kind.GetProperty("fleeMetres").GetDouble(),
             kind.GetProperty("hideSeconds").GetDouble(),
-            kind.TryGetProperty("swims", out JsonElement swims) && swims.GetBoolean());
+            kind.TryGetProperty("swims", out JsonElement swims) && swims.GetBoolean(),
+            ReadMesh(kind));
+        foreach (WildlifeClipRole role in AmbientClips)
+        {
+            if (read.Mesh is { } mesh && !mesh.Clips.ContainsKey(role)) throw new InvalidDataException($"{id}: a cave creature's mesh plays {role}");
+        }
+
         if (read.GroupMinimum < 1 || read.GroupMaximum < read.GroupMinimum) throw new InvalidDataException($"{id}: group size must be 1 or more, minimum first");
         if (read.FleeSpeed <= read.WalkSpeed) throw new InvalidDataException($"{id}: a cave creature runs faster than it wanders");
         return read;

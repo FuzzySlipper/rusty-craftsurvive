@@ -1,0 +1,91 @@
+{
+  "id": "drift-grazer",
+  "family": "serpent",
+  "about": "The drift-grazer (#10884), a small ambient grazer of the deep floors like a sea pig on land: 50 cm, fitted to the Tripo body (authoring/assets/creatures/drift-grazer/mesh) on the serpent family: a slow creeping wave down its soft body, its tube feet riding with it. No collider and no combat.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.05,
+      0
+    ],
+    "s0": [
+      0,
+      -0.24,
+      0.12
+    ],
+    "s1": [
+      0,
+      -0.15,
+      0.12
+    ],
+    "s2": [
+      0,
+      -0.06,
+      0.12
+    ],
+    "s3": [
+      0,
+      0.03,
+      0.12
+    ],
+    "s4": [
+      0,
+      0.12,
+      0.12
+    ],
+    "head": [
+      0,
+      0.17,
+      0.12
+    ],
+    "nose": [
+      0,
+      0.26,
+      0.12
+    ],
+    "jaw": [
+      0,
+      0.17500000000000002,
+      0.1
+    ],
+    "jaw_tip": [
+      0,
+      0.25,
+      0.1
+    ],
+    "eye": [
+      0.03,
+      0.2,
+      0.15
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 2.4,
+      "stride": 0.36,
+      "bendDegrees": 5.0,
+      "waveSegments": 3.5,
+      "headLiftDegrees": 3.0
+    },
+    "run": {
+      "seconds": 1.2,
+      "stride": 0.72,
+      "bendDegrees": 8.0,
+      "waveSegments": 3.5,
+      "headLiftDegrees": 5.0
+    },
+    "idle": {
+      "seconds": 5.0,
+      "curveDegrees": 3.0
+    },
+    "die": {
+      "seconds": 1.0
+    }
+  }
+}

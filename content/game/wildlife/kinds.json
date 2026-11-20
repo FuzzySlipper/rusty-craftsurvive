@@ -118,7 +118,8 @@
       "cave": { "lives": "pools", "homesPerCave": 2 },
       "groupMinimum": 4, "groupMaximum": 7,
       "body": { "lengthMetres": 0.3, "heightMetres": 0.08, "widthMetres": 0.06, "colour": "#f2dcd8" },
-      "walkSpeed": 0.3, "fleeSpeed": 1.6, "wanderMetres": 3, "fleeMetres": 3, "hideSeconds": 1.2, "swims": true
+      "walkSpeed": 0.3, "fleeSpeed": 1.6, "wanderMetres": 3, "fleeMetres": 3, "hideSeconds": 1.2, "swims": true,
+      "mesh": { "file": "creatures/blindfish/blindfish.glb", "manifest": "creatures/blindfish/blindfish.manifest.json", "scale": 1.0, "clips": { "idle": "idle", "walk": "walk", "run": "run" } }
     },
     {
       "id": "drift-grazer",
@@ -126,7 +127,8 @@
       "cave": { "lives": "deep-floors", "homesPerCave": 2 },
       "groupMinimum": 2, "groupMaximum": 4,
       "body": { "lengthMetres": 0.5, "heightMetres": 0.3, "widthMetres": 0.3, "colour": "#e8c9c4" },
-      "walkSpeed": 0.15, "fleeSpeed": 0.6, "wanderMetres": 5, "fleeMetres": 4, "hideSeconds": 4
+      "walkSpeed": 0.15, "fleeSpeed": 0.6, "wanderMetres": 5, "fleeMetres": 4, "hideSeconds": 4,
+      "mesh": { "file": "creatures/drift-grazer/drift-grazer.glb", "manifest": "creatures/drift-grazer/drift-grazer.manifest.json", "scale": 1.0, "clips": { "idle": "idle", "walk": "walk", "run": "run" } }
     },
     {
       "id": "mound-shrew",
@@ -134,7 +136,8 @@
       "cave": { "lives": "inverted-grove", "homesPerCave": 2 },
       "groupMinimum": 1, "groupMaximum": 3,
       "body": { "lengthMetres": 0.4, "heightMetres": 0.15, "widthMetres": 0.12, "colour": "#6b5546" },
-      "walkSpeed": 0.6, "fleeSpeed": 3.0, "wanderMetres": 4, "fleeMetres": 5, "hideSeconds": 1.5
+      "walkSpeed": 0.6, "fleeSpeed": 3.0, "wanderMetres": 4, "fleeMetres": 5, "hideSeconds": 1.5,
+      "mesh": { "file": "creatures/mound-shrew/mound-shrew.glb", "manifest": "creatures/mound-shrew/mound-shrew.manifest.json", "scale": 1.0, "clips": { "idle": "idle", "walk": "walk", "run": "run" } }
     }
   ],
   "kinds": [

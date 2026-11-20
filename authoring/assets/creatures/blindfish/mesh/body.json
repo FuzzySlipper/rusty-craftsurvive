@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/blindfish/mesh/tripo/tripo.glb",
+  "triangles": 1398,
+  "areaSquareMetres": 0.049,
+  "charts": 203,
+  "utilization": 0.7815,
+  "masterTexels": [
+    302,
+    303
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.06553692370653152,
+      -0.15025432407855988,
+      2.304963709320873e-05
+    ],
+    [
+      0.06554491072893143,
+      0.14952565729618073,
+      0.10932781547307968
+    ]
+  ]
+}

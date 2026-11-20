@@ -143,6 +143,7 @@ internal sealed partial class WildlifeModule : IProductModule
         {
             WildlifeMeshBodies meshes = new(engine, content, frame, catalog.Animation, GroundIn, Seed, RagdollsIn);
             foreach (WildlifeKind kind in catalog.Kinds.Where(kind => kind.Mesh is not null)) meshes.Prepare(kind);
+            foreach (CaveAmbientKind kind in catalog.CaveAmbient.Where(kind => kind.Mesh is not null)) meshes.Prepare(kind);
             presentation = new WildlifePresentation(engine, frame, meshes);
         }
 

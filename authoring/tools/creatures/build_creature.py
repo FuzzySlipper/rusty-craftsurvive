@@ -227,12 +227,28 @@ def unweighted_vertices(mesh):
     return [v for v in mesh.data.vertices if not any(g.weight > 0 for g in v.groups)]
 
 
+# Blender's bone heat fails outright on a very small body (#10884: a 30 cm fish), so one smaller than this, metres
+# across its longest side, is weighted scaled up to it and set back after.
+HEAT_SMALLEST_METRES = 3.0
+
+
 def auto_weights(rig, mesh):
+    size = max(mesh.dimensions)
+    grow = HEAT_SMALLEST_METRES / size if 0 < size < HEAT_SMALLEST_METRES else 1.0
+    if grow != 1.0:
+        rig.scale = mesh.scale = (grow, grow, grow)
+        bpy.context.view_layer.update()
     bpy.ops.object.select_all(action="DESELECT")
     mesh.select_set(True)
     rig.select_set(True)
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.parent_set(type="ARMATURE_AUTO")
+    if grow != 1.0:
+        # The mesh is now the rig's child: the rig's scale carries it, so only the rig's own is set back.
+        rig.scale = (1.0, 1.0, 1.0)
+        mesh.matrix_parent_inverse.identity()
+        mesh.scale = (1.0, 1.0, 1.0)
+        bpy.context.view_layer.update()
 
 
 def keep_largest_island(mesh):

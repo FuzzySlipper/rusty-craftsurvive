@@ -1,0 +1,12 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE blindfish, a small blind cave fish, in exactly the shape, fins and colours of the FIRST reference image's left fish. About 30 cm long. It lies perfectly STRAIGHT and level, as if swimming straight ahead: the body straight from snout to tail, the fins spread as in the first reference image, the tail fin straight back.
+Exactly the same creature in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE profile, head pointing to the left, the whole creature from nose to tail tip. In this view the far side is hidden exactly behind the near side.
+- BOTTOM LEFT: the FRONT view, looking straight at its face.
+- BOTTOM RIGHT: the BACK view, from straight behind.
+Landscape aspect about 1536x1024. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - a real cave fish's anatomy simplified into a few large masses: a slender, slightly flattened body, a blunt head with NO EYES at all, only smooth skin where eyes would be, a small downturned mouth, a long dorsal fin, pectoral and pelvic fins, and a forked tail fin. The fins drawn as SOLID THIN SHEETS with a few ray lines, not filaments.
+
+PAINT - follow the SECOND reference image, a sheet of a giant ground sloth from the same game, only for its treatment and not its colours: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction. Pale pinkish-white skin, faintly see-through, with the dark line of the spine and a few pink organs faintly showing through the body, the fins paler and lightly pink.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO water, NO rocks, NO other objects. ONE creature only. NOT cute, NOT a cartoon, NOT photoreal, NOT a perspective render, NOT anime, NOT cel shading or outlines. NO eyes. EXACTLY ONE fish.

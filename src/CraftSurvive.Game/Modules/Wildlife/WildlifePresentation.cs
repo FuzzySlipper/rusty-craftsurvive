@@ -120,6 +120,14 @@ internal sealed class WildlifePresentation : IDisposable
         {
             if (creature.Member.Under) continue;
             CaveAmbientKind kind = creature.Home.Kind;
+            if (kind.Mesh is not null)
+            {
+                // Its own body (#10884): drawn, nothing more.
+                kept.Add(creature.Member);
+                next.Add(meshes.PoseAmbient(kind, creature.Member, creature.Feet, Vector2.Distance(creature.Member.Position, here)));
+                continue;
+            }
+
             Pose(kind.Body, PressedResponse.Flee, WildlifeActivity.Drift, creature.Member, creature.Feet, false, Appearances(kind.Id, kind.Body), next);
         }
 

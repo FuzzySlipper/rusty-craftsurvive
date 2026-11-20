@@ -1,0 +1,96 @@
+{
+  "id": "blindfish",
+  "family": "serpent",
+  "about": "The blindfish (#10884), a small ambient cave fish that schools in pools: 30 cm, fitted to the Tripo body (authoring/assets/creatures/blindfish/mesh) on the serpent family, its swim the slither's wave. No collider and no combat.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.05,
+      0
+    ],
+    "s0": [
+      0,
+      -0.15,
+      0.05
+    ],
+    "s1": [
+      0,
+      -0.108,
+      0.05
+    ],
+    "s2": [
+      0,
+      -0.066,
+      0.05
+    ],
+    "s3": [
+      0,
+      -0.024,
+      0.05
+    ],
+    "s4": [
+      0,
+      0.018,
+      0.05
+    ],
+    "s5": [
+      0,
+      0.06,
+      0.05
+    ],
+    "head": [
+      0,
+      0.09,
+      0.05
+    ],
+    "nose": [
+      0,
+      0.15,
+      0.05
+    ],
+    "jaw": [
+      0,
+      0.095,
+      0.035
+    ],
+    "jaw_tip": [
+      0,
+      0.13999999999999999,
+      0.035
+    ],
+    "eye": [
+      0.02,
+      0.11,
+      0.06
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 0.8,
+      "stride": 0.24,
+      "bendDegrees": 14.0,
+      "waveSegments": 4.5,
+      "headLiftDegrees": 0.0
+    },
+    "run": {
+      "seconds": 0.3,
+      "stride": 0.48,
+      "bendDegrees": 22.0,
+      "waveSegments": 4.5,
+      "headLiftDegrees": 0.0
+    },
+    "idle": {
+      "seconds": 3.0,
+      "curveDegrees": 5.0
+    },
+    "die": {
+      "seconds": 1.0
+    }
+  }
+}

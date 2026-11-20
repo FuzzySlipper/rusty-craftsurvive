@@ -1,0 +1,38 @@
+{
+  "species": "blindfish",
+  "family": "serpent",
+  "body": {
+    "hindMetres": -0.066,
+    "foreMetres": 0.09
+  },
+  "legs": [],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "idle": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "walk": {
+      "seconds": 0.8,
+      "loops": true,
+      "plantsFeet": false,
+      "speed": 0.3
+    },
+    "run": {
+      "seconds": 0.3,
+      "loops": true,
+      "plantsFeet": false,
+      "speed": 1.6
+    },
+    "die": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    }
+  }
+}

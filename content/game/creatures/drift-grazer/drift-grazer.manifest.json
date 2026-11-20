@@ -1,0 +1,38 @@
+{
+  "species": "drift-grazer",
+  "family": "serpent",
+  "body": {
+    "hindMetres": -0.06,
+    "foreMetres": 0.17
+  },
+  "legs": [],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "idle": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "walk": {
+      "seconds": 2.4,
+      "loops": true,
+      "plantsFeet": false,
+      "speed": 0.15
+    },
+    "run": {
+      "seconds": 1.2,
+      "loops": true,
+      "plantsFeet": false,
+      "speed": 0.6
+    },
+    "die": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    }
+  }
+}

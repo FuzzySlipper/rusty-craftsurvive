@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/mound-shrew/mesh/tripo/tripo.glb",
+  "triangles": 1400,
+  "areaSquareMetres": 0.077,
+  "charts": 119,
+  "utilization": 0.7717,
+  "masterTexels": [
+    252,
+    255
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.04120276868343353,
+      -0.2502373456954956,
+      -0.0005198436556383967
+    ],
+    [
+      0.041604865342378616,
+      0.24587613344192505,
+      0.14463955163955688
+    ]
+  ]
+}

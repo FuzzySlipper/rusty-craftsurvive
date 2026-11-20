@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/drift-grazer/mesh/tripo/tripo.glb",
+  "triangles": 1200,
+  "areaSquareMetres": 0.338,
+  "charts": 133,
+  "utilization": 0.7937,
+  "masterTexels": [
+    305,
+    301
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.10349069535732269,
+      -0.2520422339439392,
+      0.0005874799680896103
+    ],
+    [
+      0.10410155355930328,
+      0.2499651163816452,
+      0.23966774344444275
+    ]
+  ]
+}

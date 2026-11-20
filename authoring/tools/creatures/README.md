@@ -472,3 +472,24 @@ forelegs: its anatomy is a lizard's on four legs, and standing is a clip.
 - **Ragdoll.** `body` segments are cones. A body without a chest takes the blow on its middle segment; its ragdoll
   starts from the tail tip, which a fallen snake's record follows.
 
+
+### Ambient cave creatures (#10884)
+
+The blindfish, drift-grazer and mound-shrew are furtive ambience (Patch: no colliders and no combat). They get bodies
+but no ragdoll.
+- **Families.**
+  - The blindfish (5 segments) and the drift-grazer (4) are on the `serpent` family: its `walk`/`run` wave reads as
+    a fish's swim and as a sea pig's slow roll.
+  - The mound-shrew is on the `low-slung` family.
+  - Species strides are set so each gait's rate matches the ambient speeds in `kinds.json` (walk at `walkSpeed`,
+    run at `fleeSpeed`).
+- **Small bodies.** At 0.3-0.5 m, heat weighting fails on the mesh as it is: Blender's heat solver loses a body under a
+  few metres. So `build_creature.py`'s `auto_weights` scales the rig and mesh up to `HEAT_SMALLEST_METRES` for the
+  weighting, then sets them back.
+- **Triangles.** 1,200-1,400 triangles each. At 700 the fish looked faceted at lantern range.
+- **The product's side.** A `caveAmbient` kind with a `mesh` block (the same `file`/`manifest`/`scale`/`clips` as a
+  hunter's, with `idle`, `walk` and `run` required) is drawn on its own body by `WildlifeMeshBodies.PoseAmbient`:
+  - the clip comes from its speed: running at 0.6 x `fleeSpeed`, walking above 3 cm/s;
+  - no shadow;
+  - it pauses when held by distance, as hunters do.
+  - A kind without one keeps the placeholder.

@@ -382,13 +382,63 @@ internal sealed class WildlifeMeshBodies : IDisposable
         if (kind.Young is { } young) YoungPaint(kind.Id, young);
     }
 
+    /// <summary>Opens a small cave creature's mesh now, with the world (#10884).</summary>
+    internal void Prepare(CaveAmbientKind kind) => Open(AmbientId(kind), kind.Mesh!);
+
+    /// <summary>A small cave creature's kind shares the opened meshes' table with the hunters' and herds', under its own name.</summary>
+    private static string AmbientId(CaveAmbientKind kind) => "ambient:" + kind.Id;
+
+    /// <summary>
+    /// The fact that draws a small cave creature with a mesh (#10884). It has no collider, no ragdoll and no planted feet:
+    /// it stands, wanders or runs off by its speed, at the rate that keeps its gait on the ground, and casts no shadow.
+    /// </summary>
+    internal AppearanceFact PoseAmbient(CaveAmbientKind kind, WildlifeMember member, float feet, double distance, Creatures.CreatureSpace? space = null)
+    {
+        WildlifeMesh mesh = kind.Mesh!;
+        Body body = bodies.Take(member, () => CreateAmbient(kind, member), Retire);
+        body.Space = space;
+        body.Tier = WildlifeClips.Tier(distance, body.Tier, animation);
+        float speed = member.Velocity.Length();
+        WildlifeClipRole role = speed >= AmbientRunShare * kind.FleeSpeed ? WildlifeClipRole.Run : speed > AmbientStillSpeed ? WildlifeClipRole.Walk : WildlifeClipRole.Idle;
+        float scale = mesh.Scale * member.Size;
+        float rate = WildlifeClips.Rate(role, speed, body.Kind.Rig, animation, scale);
+        bool held = body.Tier >= WildlifeTier.Held;
+        if (held != body.Paused && body.Playing is not null)
+        {
+            body.Paused = held;
+            engine.Animation.SetPlayback(new(body.Instance, held ? AnimationPlaybackKind.Pause : AnimationPlaybackKind.Resume, "", AnimationLoopMode.Once, 0, 0, false, 0, false, 0));
+        }
+
+        if (!held && (body.Playing != role || Math.Abs(rate - body.Rate) >= animation.RateStep)) Start(body, member, role, rate, restart: body.Playing != role);
+        Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI - member.Yaw);
+        Vector3 world = new(member.Position.X, feet, member.Position.Y);
+        Transform placement = new(ToLocal(body, world), turn, new Vector3(scale));
+        return new AppearanceFact(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.None);
+    }
+
+    /// <summary>A small creature moving at least this share of its running speed is running.</summary>
+    private const float AmbientRunShare = 0.6f;
+
+    /// <summary>A small creature slower than this, metres a second, is standing.</summary>
+    private const float AmbientStillSpeed = 0.03f;
+
+    private Body CreateAmbient(CaveAmbientKind kind, WildlifeMember member)
+    {
+        Opened open = Open(AmbientId(kind), kind.Mesh!);
+        int slot = slots.Take();
+        ulong objectId = ProductIds.WildlifeAppearanceBase + ((ulong)slot * WildlifePresentation.PartsPerMember) + WildlifePresentation.MeshPart;
+        Appearance appearance = engine.Animation.CreateAnimatedMeshAppearance(new(open.Mesh));
+        return new Body(open, slot, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId)));
+    }
+
     /// <summary>A kind's clips, opening it if it is not open yet.</summary>
     internal WildlifeRig RigOf(WildlifeKind kind) => Open(kind).Rig;
 
-    private Opened Open(WildlifeKind kind)
+    private Opened Open(WildlifeKind kind) => Open(kind.Id, kind.Mesh!);
+
+    private Opened Open(string id, WildlifeMesh mesh)
     {
-        if (opened.TryGetValue(kind.Id, out Opened? open)) return open;
-        WildlifeMesh mesh = kind.Mesh!;
+        if (opened.TryGetValue(id, out Opened? open)) return open;
         RenderResource resource;
         using (ContentReference reference = engine.Content.OpenReference(new(mesh.File)))
             resource = engine.Animation.OpenAnimatedMeshFromContent(new(reference));
@@ -397,7 +447,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         (uint, uint, uint)[] legs = [.. rig.Rig.Legs.Select(leg =>
             ((uint)Array.IndexOf(joints, leg.Root), (uint)Array.IndexOf(joints, leg.Mid), (uint)Array.IndexOf(joints, leg.End)))];
         WildlifeRagdollRig? ragdoll = mesh.Ragdoll is { } path ? WildlifeRagdollRig.Parse(content.ReadText(path)) : null;
-        return opened[kind.Id] = new Opened(resource, rig, legs, joints, ragdoll);
+        return opened[id] = new Opened(resource, rig, legs, joints, ragdoll);
     }
 
     /// <summary>A point of a body's space's world metres in that space's local frame.</summary>

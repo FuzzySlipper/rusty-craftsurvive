@@ -1,0 +1,59 @@
+{
+  "species": "mound-shrew",
+  "family": "low-slung",
+  "body": {
+    "hindMetres": -0.035,
+    "foreMetres": 0.105
+  },
+  "legs": [
+    [
+      "thigh.L",
+      "shin.L",
+      "foot.L"
+    ],
+    [
+      "upperarm.L",
+      "forearm.L",
+      "hand.L"
+    ],
+    [
+      "thigh.R",
+      "shin.R",
+      "foot.R"
+    ],
+    [
+      "upperarm.R",
+      "forearm.R",
+      "hand.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 0.4,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.6
+    },
+    "run": {
+      "seconds": 0.16666666666666666,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 3.0
+    },
+    "die": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    }
+  }
+}

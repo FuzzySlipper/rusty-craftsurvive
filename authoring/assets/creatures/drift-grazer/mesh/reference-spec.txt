@@ -1,0 +1,12 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE drift-grazer, a small soft cave grazer like a deep-sea sea pig living on land, in exactly the shape and colours of the FIRST reference image's left animal. About 50 cm long. It stands in a NEUTRAL STANCE on its stubby tube-feet, the body level, the mouth straight ahead.
+Exactly the same creature in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE profile, head pointing to the left, the whole creature from nose to tail tip. In this view the far side is hidden exactly behind the near side.
+- BOTTOM LEFT: the FRONT view, looking straight at its face.
+- BOTTOM RIGHT: the BACK view, from straight behind.
+Landscape aspect about 1536x1024. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the FIRST reference image: a soft, plump, rounded sac of a body, SIX PAIRS of short stubby rounded tube-feet underneath in two neat rows, three soft curved feelers standing up from its back, and at the front a round mouth ringed by eight short stubby feeding tentacles. NO eyes. Everything drawn as SOLID smooth masses.
+
+PAINT - follow the SECOND reference image, a sheet of a giant ground sloth from the same game, only for its treatment and not its colours: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction. Pale pinkish-cream skin, faintly translucent, with a soft blush of warmer pink and a faint mottling of cream, the feelers and tube-feet paler, a dark ring inside the mouth.
+
+PROHIBITIONS: NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO water, NO rocks, NO other objects. ONE creature only. NOT cute, NOT a cartoon, NOT photoreal, NOT a perspective render, NOT anime, NOT cel shading or outlines. NO eyes. NOT smiling, NOT a face.

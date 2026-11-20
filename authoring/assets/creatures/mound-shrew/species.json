@@ -1,0 +1,167 @@
+{
+  "id": "mound-shrew",
+  "family": "low-slung",
+  "about": "The mound-shrew (#10884), a small ambient scavenger of the inverted grove's fallfield built like an elephant shrew: 0.5 m with its tail, fitted to the Tripo body (authoring/assets/creatures/mound-shrew/mesh). No collider and no combat: it idles, wanders and runs off. Key points are metres as [side, forward, up].",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.05,
+      0
+    ],
+    "hips": [
+      0,
+      -0.04,
+      0.085
+    ],
+    "spine": [
+      0,
+      0.03,
+      0.095
+    ],
+    "chest": [
+      0,
+      0.1,
+      0.095
+    ],
+    "neck": [
+      0,
+      0.14,
+      0.1
+    ],
+    "head": [
+      0,
+      0.165,
+      0.1
+    ],
+    "nose": [
+      0,
+      0.25,
+      0.075
+    ],
+    "jaw": [
+      0,
+      0.17,
+      0.07
+    ],
+    "jaw_tip": [
+      0,
+      0.225,
+      0.065
+    ],
+    "tail0": [
+      0,
+      -0.08,
+      0.075
+    ],
+    "tail1": [
+      0,
+      -0.12,
+      0.055
+    ],
+    "tail2": [
+      0,
+      -0.16,
+      0.03
+    ],
+    "tail3": [
+      0,
+      -0.2,
+      0.015
+    ],
+    "tail4": [
+      0,
+      -0.245,
+      0.008
+    ],
+    "hip_socket": [
+      0.025,
+      -0.03,
+      0.07
+    ],
+    "knee": [
+      0.03,
+      -0.01,
+      0.045
+    ],
+    "ankle": [
+      0.03,
+      -0.035,
+      0.012
+    ],
+    "toe": [
+      0.03,
+      -0.01,
+      0.0
+    ],
+    "shoulder": [
+      0.022,
+      0.105,
+      0.07
+    ],
+    "elbow": [
+      0.025,
+      0.1,
+      0.045
+    ],
+    "wrist": [
+      0.024,
+      0.105,
+      0.012
+    ],
+    "knuckle": [
+      0.024,
+      0.12,
+      0.0
+    ],
+    "eye": [
+      0.018,
+      0.18,
+      0.115
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 0.4,
+      "stride": 0.24,
+      "duty": 0.62,
+      "liftHind": 0.012,
+      "liftFore": 0.012,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.R": 0.1,
+        "hind.R": 0.5,
+        "fore.L": 0.6
+      },
+      "bob": 0.004,
+      "swayDegrees": 3.0
+    },
+    "run": {
+      "seconds": 0.16,
+      "stride": 0.48,
+      "duty": 0.4,
+      "liftHind": 0.02,
+      "liftFore": 0.02,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.08,
+        "fore.L": 0.5,
+        "fore.R": 0.58
+      },
+      "bob": 0.01,
+      "swayDegrees": 2.0
+    },
+    "idle": {
+      "seconds": 3.0
+    },
+    "die": {
+      "seconds": 1.0
+    },
+    "spineFlex": 4.0
+  }
+}
