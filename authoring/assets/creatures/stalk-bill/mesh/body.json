@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/stalk-bill/mesh/tripo/tripo.glb",
+  "triangles": 6000,
+  "areaSquareMetres": 5.523,
+  "charts": 726,
+  "utilization": 0.7278,
+  "masterTexels": [
+    974,
+    969
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.38565921783447266,
+      -0.8427821397781372,
+      0.009196270257234573
+    ],
+    [
+      0.3826254606246948,
+      0.8405617475509644,
+      2.4942779541015625
+    ]
+  ]
+}

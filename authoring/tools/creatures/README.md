@@ -9,7 +9,7 @@ Provenance is in [`content/creatures.sources.json`](../../../content/creatures.s
 Humans borrow UAL's humanoid clips (`authoring/tools/characters/`). Nothing comparable exists for four legs,
 and every animal's proportions differ. So each **family** in `families.py` (plantigrade: sloths and
 bears; ungulate: horses, deer, goats, pigs; graviportal: mammoths; low-slung: glyptodons, beavers, the hummock and the seep-rat;
-saurian: monitors, salamanders; bird and theropod: two legs; flyer: wings)
+saurian: monitors, salamanders; bird and theropod: two legs, among them the stalk-bill and the ribbon-stalker; flyer: wings)
 has a skeleton and a clip generator in code. A species bakes the family clips it has settings for:
 
 - A species file (`<kind>/species.json`) places the family's joints as metres
@@ -385,4 +385,23 @@ hooked beak. The seep-rat's draws its mouth open on four incisors, since Tripo c
 - **In game.**
   - The hummock rests hidden at its home among the barrens' cushions and displays its split back before it charges.
   - A seep-rat colony is one band of four to six at 0.9 m spacing. The kind's `pack` block wakes all of them together.
+
+### Two-legged cave hunters (#10881)
+
+The ribbon-stalker (theropod) and the stalk-bill (bird) came through the Tripo web studio as the #10880 pair did.
+
+- **The sheets.** The ribbon-stalker took three draws: the first grinned from the front and held its tail level, and the
+  second drew an upright crocodile-man on human legs. The third spec names the forward lean and the bird's leg (short
+  thigh, long bare tarsus), and asks for seven large solid flaps, so Tripo kept them as solid strips. The stalk-bill's
+  spec asks for its bill parted and the house style's crisp texels, not sheet 21's soft paint.
+- **New bird-family clips** (the theropod inherits `stand`):
+  - `stand` is the hidden rest: neck in, one slow turn of the head a clip, the body swaying a degree, a theropod's
+    arms folded and tail hanging still;
+  - `stalk` (the stalk-bill) is the walk at its own slow pace with the neck low, its `speed` in the manifest as walk's
+    and run's are;
+  - `spear` (the stalk-bill) coils the neck into an S, then tips the body forward at the spine over planted feet and
+    swings the neck out of its S with the head aimed down ahead, bill wide, and snaps it shut. Tipping it at the root
+    instead lifted the feet off the ground.
+- **In game.** Both kinds map their `lie` role to `stand`. The stalk-bill plays `stalk` as its walk and `spear` as its
+  bite.
 

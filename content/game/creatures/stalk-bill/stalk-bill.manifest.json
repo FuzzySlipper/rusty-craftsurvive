@@ -1,0 +1,80 @@
+{
+  "species": "stalk-bill",
+  "family": "bird",
+  "body": {
+    "hindMetres": -0.23,
+    "foreMetres": -0.23
+  },
+  "legs": [
+    [
+      "shin.L",
+      "cannon.L",
+      "hoof.L"
+    ],
+    [
+      "shin.R",
+      "cannon.R",
+      "hoof.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.5,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.7333
+    },
+    "run": {
+      "seconds": 0.8,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 3.5
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 2.2,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 2.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "hurt": {
+      "seconds": 0.6,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "stand": {
+      "seconds": 10.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "stalk": {
+      "seconds": 2.4,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.375
+    },
+    "spear": {
+      "seconds": 1.2,
+      "loops": false,
+      "plantsFeet": true
+    }
+  }
+}

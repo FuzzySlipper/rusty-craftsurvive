@@ -1516,6 +1516,16 @@ Check.Section("cave animals", () =>
     Check.That(seepRat.SpacingMetres < seepRat.Body.LengthMetres, "a colony rests packed closer than a body's length");
     Check.That(seepRat.Cave!.Lives == CaveHabitat.VentOrchard && seepRat.Body.SizeClass == WildlifeSizeClass.Small, "they live in the vent orchard and route as small bodies");
 
+    // #10881: the ribbon-stalker and the stalk-bill rest standing still; the stalk-bill stalks and spears.
+    WildlifeKind ribbonStalker = catalog.Kind("ribbon-stalker");
+    Check.Equal(WildlifeClipRole.Lie, HunterRules.Want(Of(ribbonStalker), CreatureState.Resting, 0, 3), "the ribbon-stalker rests on its rest clip (#10881)");
+    Check.That(ribbonStalker.Mesh!.Clips.TryGetValue(WildlifeClipRole.Lie, out string? hangs) && hangs == "stand", "and its rest is standing still like a hanging ribbon");
+    WildlifeKind stalkBill = catalog.Kind("stalk-bill");
+    Check.That(stalkBill.Mesh!.Clips.TryGetValue(WildlifeClipRole.Lie, out string? stalkRest) && stalkRest == "stand", "the stalk-bill rests standing still as a stalk (#10881)");
+    Check.That(stalkBill.Mesh.Clips.TryGetValue(WildlifeClipRole.Walk, out string? stalks) && stalks == "stalk", "it walks at a slow stalk");
+    Check.That(stalkBill.Mesh.Clips.TryGetValue(WildlifeClipRole.Bite, out string? spears) && spears == "spear", "and its bite is the spearing strike");
+    Check.That(ribbonStalker.Cave!.Lives == CaveHabitat.RibbonThicket && stalkBill.Cave!.Lives == CaveHabitat.FunnelGarden, "each lives in its own community");
+
 });
 
 // Creature behaviour debugging (#10926): a test aid's hold on a herd animal, read by the rules, and its release.

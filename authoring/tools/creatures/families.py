@@ -1461,6 +1461,56 @@ def bird_die(c, s, t):
     c.bone_rotation("jaw", pitch(-8.0 * fall))
 
 
+def bird_stand(c, s, t):
+    """Standing still for hours (#10881, the stalk-bill and the ribbon-stalker): the neck drawn in and the head level,
+    one slow turn of the head a clip, the chest breathing and the body swaying a degree, as a stalk or a hanging
+    ribbon would. A theropod keeps its arms folded and its tail hanging still."""
+    settings = s["stand"]
+    breathe = gait.wave(t)
+    turn = settings.get("turnDegrees", 6.0) * gait.rise_hold_fall(t, 0.35, 0.55, 0.85)
+    c.bone_rotation("root", roll(settings.get("swayDegrees", 0.8) * gait.wave(t, lag=0.2)))
+    c.bone_rotation("chest", pitch(0.6 * breathe))
+    c.bone_rotation("neck", pitch(-settings.get("neckDegrees", 0.0)))
+    c.bone_rotation("neck3", pitch(settings.get("neckDegrees", 0.0)) @ yaw(turn))
+    c.bone_rotation("head", yaw(0.5 * turn))
+    if "upperarm.L" in c.rig.pose.bones:
+        theropod_arms(c, settings.get("armDegrees", -6.0))
+        theropod_tail(c, t, 0.6)
+
+
+def bird_stalk(c, s, t):
+    """A slow stalk: the walk at its own pace with the neck stretched low and forward and the head held steady over
+    the ground ahead (#10881)."""
+    bird_gait(c, s["stalk"], t, spine_flex=0.5)
+    low = s["stalk"].get("neckDegrees", 14.0)
+    c.bone_rotation("neck", pitch(-low))
+    c.bone_rotation("neck2", pitch(0.4 * low))
+    c.bone_rotation("head", pitch(0.4 * low))
+
+
+def bird_spear(c, s, t):
+    """The spearing strike (#10881, the stalk-bill): the neck draws back into an S with the bill opening, then the body
+    tips forward over its planted feet and the neck straightens out to full length, the head aimed down at the ground
+    ahead with the bill wide, which snaps shut there before the neck draws back up."""
+    settings = s["spear"]
+    coil = gait.ease_in_out(t, 0.0, 0.32) * (1.0 - gait.ease_in_out(t, 0.34, 0.42))
+    throw = gait.ease_in_out(t, 0.34, 0.44) * (1.0 - gait.ease_in_out(t, 0.68, 1.0))
+    wide = gait.ease_in_out(t, 0.1, 0.36) * (1.0 - gait.ease_in_out(t, 0.5, 0.56))
+    shut = gait.ease_in_out(t, 0.5, 0.56) * (1.0 - gait.ease_in_out(t, 0.82, 1.0))
+    reach = settings.get("reachDegrees", 50.0)
+    lean = settings.get("leanDegrees", 10.0)
+    # The body tips at the spine, so the legs keep their feet where they stand.
+    c.bone_offset("hips", (0, -settings.get("lungeMetres", 0.12) * throw, -0.03 * throw))
+    c.bone_rotation("spine", pitch(-lean * throw + 3.0 * coil))
+    c.bone_rotation("chest", pitch(-0.5 * lean * throw))
+    # The neck swings forward out of its S, and the head tips back up to aim the bill down and ahead.
+    c.bone_rotation("neck", pitch(16.0 * coil - reach * throw))
+    c.bone_rotation("neck2", pitch(-22.0 * coil + 0.1 * reach * throw))
+    c.bone_rotation("neck3", pitch(14.0 * coil + 0.1 * reach * throw))
+    c.bone_rotation("head", pitch(-8.0 * coil + 0.6 * reach * throw))
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 30.0) * wide + 3.0 * shut))
+
+
 BIRD_CLIPS = {
     "rest": (clip_rest, False, True),
     "idle": (bird_idle, True, True),
@@ -1471,6 +1521,9 @@ BIRD_CLIPS = {
     "threat": (bird_threat, False, True),
     "bite": (bird_bite, False, True),
     "hurt": (bird_hurt, False, True),
+    "stand": (bird_stand, True, True),
+    "stalk": (bird_stalk, True, True),
+    "spear": (bird_spear, False, True),
 }
 
 
@@ -1557,6 +1610,7 @@ THEROPOD_CLIPS = {
     "threat": (theropod_threat, False, True),
     "bite": (theropod_bite, False, True),
     "hurt": (bird_hurt, False, True),
+    "stand": (bird_stand, True, True),
 }
 
 

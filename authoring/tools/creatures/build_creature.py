@@ -701,7 +701,7 @@ def bake_clips(rig, controls, species, clips):
             bpy.data.actions.remove(target.animation_data.action)
             target.animation_data_clear()
         entry = {"seconds": frames / fps, "loops": loops, "plantsFeet": plants}
-        if clip in ("walk", "run"):
+        if clip in ("walk", "run", "stalk"):
             entry["speed"] = round(gait.speed(settings[clip]["stride"], settings[clip]["seconds"]), 4)
         manifest[clip] = entry
         print(f"clip {clip}: {frames + 1} frames")

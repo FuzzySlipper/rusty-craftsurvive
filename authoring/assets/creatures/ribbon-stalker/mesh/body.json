@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/ribbon-stalker/mesh/tripo/tripo.glb",
+  "triangles": 5999,
+  "areaSquareMetres": 8.19,
+  "charts": 469,
+  "utilization": 0.7583,
+  "masterTexels": [
+    891,
+    891
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.43448272347450256,
+      -1.4115849733352661,
+      -0.00344755407422781
+    ],
+    [
+      0.4394741654396057,
+      1.412724256515503,
+      2.9529869556427
+    ]
+  ]
+}

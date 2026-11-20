@@ -1,0 +1,210 @@
+{
+  "id": "stalk-bill",
+  "family": "bird",
+  "about": "The stalk-bill (#10881), a shoebill-like wading bird of the funnel garden: 2.49 m tall at its crest, fitted to the Tripo body (authoring/assets/creatures/stalk-bill/mesh), on the bird family, its bill parted at rest. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -0.4,
+      1.25
+    ],
+    "spine": [
+      0,
+      -0.2,
+      1.45
+    ],
+    "chest": [
+      0,
+      0.02,
+      1.7
+    ],
+    "neck": [
+      0,
+      0.06,
+      1.85
+    ],
+    "neck2": [
+      0,
+      0.12,
+      1.98
+    ],
+    "neck3": [
+      0,
+      0.2,
+      2.1
+    ],
+    "head": [
+      0,
+      0.3,
+      2.2
+    ],
+    "nose": [
+      0,
+      0.8,
+      2.0
+    ],
+    "jaw": [
+      0,
+      0.36,
+      2.05
+    ],
+    "jaw_tip": [
+      0,
+      0.78,
+      1.9
+    ],
+    "tail0": [
+      0,
+      -0.5,
+      1.15
+    ],
+    "tail1": [
+      0,
+      -0.6,
+      1.05
+    ],
+    "tail2": [
+      0,
+      -0.7,
+      0.95
+    ],
+    "tail3": [
+      0,
+      -0.79,
+      0.86
+    ],
+    "shoulder": [
+      0.2,
+      0.05,
+      1.75
+    ],
+    "wing_tip": [
+      0.22,
+      -0.75,
+      0.95
+    ],
+    "hip_socket": [
+      0.12,
+      -0.22,
+      1.2
+    ],
+    "stifle": [
+      0.13,
+      -0.12,
+      1.0
+    ],
+    "hock": [
+      0.12,
+      -0.23,
+      0.55
+    ],
+    "fetlock": [
+      0.12,
+      -0.23,
+      0.08
+    ],
+    "toe": [
+      0.13,
+      0.05,
+      0.02
+    ]
+  },
+  "mouth": {
+    "hingeForward": 0.42,
+    "upper": [
+      0.75,
+      2.02
+    ],
+    "lower": [
+      0.72,
+      1.86
+    ],
+    "biteHeight": 1.93
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.5,
+      "stride": 1.1,
+      "duty": 0.62,
+      "liftHind": 0.2,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.04,
+      "swayDegrees": 2.0,
+      "swingMetres": 0.06,
+      "nodDegrees": 5.0
+    },
+    "run": {
+      "seconds": 0.8,
+      "stride": 2.8,
+      "duty": 0.38,
+      "liftHind": 0.35,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.1,
+      "swayDegrees": 2.5,
+      "swingMetres": 0.06,
+      "nodDegrees": 6.0,
+      "spineFlex": 2.0,
+      "tailLift": -4.0
+    },
+    "stalk": {
+      "seconds": 2.4,
+      "stride": 0.9,
+      "duty": 0.75,
+      "liftHind": 0.22,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.02,
+      "swayDegrees": 1.0,
+      "swingMetres": 0.04,
+      "nodDegrees": 1.0,
+      "neckDegrees": 16.0
+    },
+    "idle": {
+      "seconds": 4.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "die": {
+      "seconds": 2.2,
+      "restShare": 0.1
+    },
+    "threat": {
+      "seconds": 2.0
+    },
+    "hurt": {
+      "seconds": 0.6
+    },
+    "stand": {
+      "seconds": 10.0,
+      "swayDegrees": 0.6,
+      "turnDegrees": 8.0
+    },
+    "spear": {
+      "seconds": 1.2,
+      "reachDegrees": 55.0,
+      "leanDegrees": 12.0,
+      "lungeMetres": 0.12,
+      "jawDegrees": 28.0
+    }
+  }
+}

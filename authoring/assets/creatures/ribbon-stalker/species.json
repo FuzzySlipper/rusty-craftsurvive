@@ -1,0 +1,217 @@
+{
+  "id": "ribbon-stalker",
+  "family": "theropod",
+  "about": "The ribbon-stalker (#10881), a narrow upright cave hunter of the ribbon thicket: 2.95 m tall at the head, fitted to the Tripo body (authoring/assets/creatures/ribbon-stalker/mesh), on the theropod family with its tail hanging down. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -0.7,
+      1.6
+    ],
+    "spine": [
+      0,
+      -0.45,
+      1.82
+    ],
+    "chest": [
+      0,
+      -0.2,
+      2.05
+    ],
+    "neck": [
+      0,
+      0.08,
+      2.3
+    ],
+    "neck2": [
+      0,
+      0.18,
+      2.5
+    ],
+    "neck3": [
+      0,
+      0.25,
+      2.68
+    ],
+    "head": [
+      0,
+      0.5,
+      2.72
+    ],
+    "nose": [
+      0,
+      1.44,
+      2.6
+    ],
+    "jaw": [
+      0,
+      0.65,
+      2.6
+    ],
+    "jaw_tip": [
+      0,
+      1.35,
+      2.48
+    ],
+    "tail0": [
+      0,
+      -0.92,
+      1.5
+    ],
+    "tail1": [
+      0,
+      -1.0,
+      1.28
+    ],
+    "tail2": [
+      0,
+      -1.07,
+      1.06
+    ],
+    "tail3": [
+      0,
+      -1.13,
+      0.84
+    ],
+    "tail4": [
+      0,
+      -1.2,
+      0.62
+    ],
+    "tail5": [
+      0,
+      -1.26,
+      0.4
+    ],
+    "tail6": [
+      0,
+      -1.32,
+      0.18
+    ],
+    "shoulder": [
+      0.15,
+      -0.2,
+      1.95
+    ],
+    "elbow": [
+      0.18,
+      -0.1,
+      1.7
+    ],
+    "wrist": [
+      0.18,
+      0.05,
+      1.85
+    ],
+    "hand_tip": [
+      0.17,
+      0.05,
+      1.65
+    ],
+    "hip_socket": [
+      0.15,
+      -0.72,
+      1.45
+    ],
+    "stifle": [
+      0.2,
+      -0.53,
+      1.04
+    ],
+    "hock": [
+      0.2,
+      -0.91,
+      0.56
+    ],
+    "fetlock": [
+      0.2,
+      -0.94,
+      0.1
+    ],
+    "toe": [
+      0.2,
+      -0.4,
+      0.02
+    ]
+  },
+  "mouth": {
+    "hingeForward": 0.75,
+    "upper": [
+      1.4,
+      2.62
+    ],
+    "lower": [
+      1.35,
+      2.47
+    ],
+    "biteHeight": 2.55
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.4,
+      "stride": 1.5,
+      "duty": 0.62,
+      "liftHind": 0.22,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.05,
+      "swayDegrees": 2.0,
+      "swingMetres": 0.05,
+      "nodDegrees": 3.0
+    },
+    "run": {
+      "seconds": 0.75,
+      "stride": 4.2,
+      "duty": 0.32,
+      "liftHind": 0.42,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.12,
+      "swayDegrees": 2.5,
+      "swingMetres": 0.05,
+      "nodDegrees": 5.0,
+      "spineFlex": 3.0,
+      "tailLift": -4.0
+    },
+    "idle": {
+      "seconds": 4.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "die": {
+      "seconds": 2.2,
+      "restShare": 0.12
+    },
+    "threat": {
+      "seconds": 2.0
+    },
+    "bite": {
+      "seconds": 0.9
+    },
+    "hurt": {
+      "seconds": 0.6
+    },
+    "stand": {
+      "seconds": 8.0,
+      "swayDegrees": 1.2,
+      "turnDegrees": 5.0,
+      "armDegrees": -6.0
+    }
+  }
+}
