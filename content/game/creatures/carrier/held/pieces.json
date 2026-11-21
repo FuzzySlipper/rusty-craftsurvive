@@ -1,0 +1,27 @@
+{
+  "looks": {
+    "bare": []
+  },
+  "held": {
+    "implement": {
+      "piece": "creatures/carrier/held/implement.prop-mesh.json",
+      "joint": "hand.R",
+      "triangles": 480,
+      "light": {
+        "colour": [
+          1.0,
+          0.55,
+          0.2
+        ],
+        "intensity": 2.0,
+        "range": 4.0,
+        "threatShare": 3.0,
+        "at": [
+          0.0,
+          0.28,
+          0.0198
+        ]
+      }
+    }
+  }
+}

@@ -548,7 +548,7 @@ Check.Section("kinds", () =>
     string[] hunters = ["gaunt", "axe-beak", "drift-runner"];
     string[] cave = ["root-adder", "mouldback", "drowner", "hummock", "ribbon-stalker", "stalk-bill", "drop-sloth", "draft-hound", "salt-monitor", "glass-courser", "seep-rat", "plume-neck"];
     Check.That(cave.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Cave is not null), "the cave's hunters (#10876) load, each with its cave");
-    string[] ruin = ["collector"];
+    string[] ruin = ["collector", "skitterer", "carrier"];
     Check.That(ruin.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt is not null && k.Cave is null), "the ruins' hunters (#10956) load, in no cave's communities");
     Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length, catalog.Kinds.Count,
         "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters and nothing else");
@@ -1601,6 +1601,13 @@ Check.Section("ruin wildlife", () =>
     Check.That(pieces.RootElement.GetProperty("looks").EnumerateObject().Select(look => look.Name).SequenceEqual(["bare", "dome", "split", "full"]),
         "the pieces file offers Patch's four looks");
     Check.That(worn.Looks.All(look => pieces.RootElement.GetProperty("looks").TryGetProperty(look.Look, out _)), "every look the kind wears is in its pieces file");
+    // The implement-carrier's crescent (#10957) carries a light that flares while it threatens or strikes.
+    using JsonDocument carrierPieces = JsonDocument.Parse(ReadResource("Wildlife.carrier.pieces.json"));
+    WildlifeHeldLight crescent = WildlifeHeldLight.Read(carrierPieces.RootElement.GetProperty("held").GetProperty("implement").GetProperty("light"));
+    Check.That(crescent.Range > 0 && crescent.Intensity > 0 && crescent.ThreatShare > 1, "the carrier's crescent lights what is near, brighter in its threat");
+    Check.That(catalog.Kind("skitterer").Mesh!.Worn is { } knife && knife.Looks.Count == 1, "the skitterer wears no shell of its own choosing: it holds its knife");
+    using JsonDocument noLight = JsonDocument.Parse("""{ "at": [0, 0, 0], "colour": [1, 1, 1], "intensity": 0, "range": 1 }""");
+    Check.Throws<InvalidDataException>(() => WildlifeHeldLight.Read(noLight.RootElement), "a held light with no intensity is refused");
     using JsonDocument noWeight = JsonDocument.Parse("""{ "worn": { "pieces": "p.json", "looks": { "bare": 0 } } }""");
     Check.Throws<InvalidDataException>(() => WildlifeWorn.Read(noWeight.RootElement), "looks with no weight between them are refused");
 });

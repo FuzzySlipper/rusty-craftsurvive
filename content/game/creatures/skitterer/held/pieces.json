@@ -1,0 +1,12 @@
+{
+  "looks": {
+    "bare": []
+  },
+  "held": {
+    "knife": {
+      "piece": "creatures/skitterer/held/knife.prop-mesh.json",
+      "joint": "hand.R",
+      "triangles": 40
+    }
+  }
+}

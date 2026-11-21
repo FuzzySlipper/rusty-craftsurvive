@@ -16,6 +16,15 @@ namespace CraftSurvive.Game.Modules.Wildlife;
 internal sealed class WildlifeWornPieces : IDisposable
 {
     private const float PaintRoughness = 0.9f;
+
+    /// <summary>
+    /// How brightly a piece's `glow` part shines (#10957, the implement-carrier's core): its paint is its emission, so it
+    /// shows with no light on it, as the underground's light-has-a-source rule asks.
+    /// </summary>
+    private const float GlowIntensity = 2f;
+
+    /// <summary>The prop part role that glows.</summary>
+    private const string GlowRole = "glow";
     private static readonly Color White = new(1, 1, 1, 1);
 
     /// <summary>Spreads animals' ids over the looks; any odd constant would do.</summary>
@@ -26,14 +35,14 @@ internal sealed class WildlifeWornPieces : IDisposable
     private readonly Dictionary<string, Set> sets = [];
     private readonly Dictionary<string, Opened> opened = [];
 
-    private sealed record Piece(string Mesh, string Joint);
+    private sealed record Piece(string Mesh, string Joint, WildlifeHeldLight? Light = null);
 
     private sealed record Set(IReadOnlyDictionary<string, Piece[]> Looks, Piece[] Held);
 
     private sealed record Opened(MeshResource Mesh, Appearance Look, List<(RenderResource Texture, Material Material)> Paints);
 
-    /// <summary>One piece a body wears: the object that draws it and the joint it hangs from.</summary>
-    internal sealed record Part(ulong ObjectId, Appearance Look, string Joint);
+    /// <summary>One piece a body wears: the object that draws it, the joint it hangs from and any light riding with it.</summary>
+    internal sealed record Part(ulong ObjectId, Appearance Look, string Joint, WildlifeHeldLight? Light = null);
 
     internal WildlifeWornPieces(IEngineContext engine, ProductContent content)
     {
@@ -53,7 +62,7 @@ internal sealed class WildlifeWornPieces : IDisposable
         Piece[] all = [.. pieces, .. set.Held];
         if (all.Length > WildlifeWorn.MostPieces) throw new InvalidDataException($"worn: look '{look}' has {all.Length} pieces; a body has room for {WildlifeWorn.MostPieces}");
         ulong first = ProductIds.WildlifeWornBase + ((ulong)slot * WildlifeWorn.MostPieces);
-        return (look, [.. all.Select((piece, index) => new Part(first + (ulong)index, Open(piece.Mesh), piece.Joint))]);
+        return (look, [.. all.Select((piece, index) => new Part(first + (ulong)index, Open(piece.Mesh), piece.Joint, piece.Light))]);
     }
 
     /// <summary>Opens every piece of a kind's looks now, with the world, rather than as a hitch when the first one wakes.</summary>
@@ -80,7 +89,8 @@ internal sealed class WildlifeWornPieces : IDisposable
     {
         if (sets.TryGetValue(path, out Set? set)) return set;
         using JsonDocument document = JsonDocument.Parse(content.ReadText(path));
-        static Piece Read(JsonElement piece) => new(piece.GetProperty("piece").GetString()!, piece.GetProperty("joint").GetString()!);
+        static Piece Read(JsonElement piece) => new(piece.GetProperty("piece").GetString()!, piece.GetProperty("joint").GetString()!,
+            piece.TryGetProperty("light", out JsonElement light) ? WildlifeHeldLight.Read(light) : null);
         Dictionary<string, Piece[]> looks = document.RootElement.GetProperty("looks").EnumerateObject()
             .ToDictionary(look => look.Name, look => look.Value.EnumerateArray().Select(Read).ToArray());
         Piece[] held = document.RootElement.TryGetProperty("held", out JsonElement heldPieces)
@@ -97,7 +107,10 @@ internal sealed class WildlifeWornPieces : IDisposable
         {
             if (texture is null) throw new InvalidDataException($"worn piece '{path}' part '{role}' names no texture");
             RenderResource handle = engine.Graphics.OpenResource(new(texture, TextureFilter.Nearest, TextureWrap.Clamp)).Handle;
-            Material material = engine.Graphics.CreateMaterial(new MaterialRequest(White, handle, PaintRoughness, White, Vector3.Zero, 0, false));
+            MaterialRequest request = role == GlowRole
+                ? new MaterialRequest(White, handle, PaintRoughness, White, Vector3.One, GlowIntensity, false) { EmissionMap = handle }
+                : new MaterialRequest(White, handle, PaintRoughness, White, Vector3.Zero, 0, false);
+            Material material = engine.Graphics.CreateMaterial(request);
             paints.Add((handle, material));
             return material;
         });

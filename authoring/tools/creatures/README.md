@@ -535,3 +535,20 @@ front and back views with the arms and legs held apart.
   plum-red band (hue 300-15 degrees) is warmed 12 degrees, halved in saturation and raised 1.4x in value after reduction.
 - **Engine rules met.** Piece textures are RGBA PNGs; a point no triangle faces (a ring closing at a crown) takes the
   normal of the points at the same place, as the Engine refuses a mesh it cannot normalise.
+
+
+### The skitterer and the implement-carrier (#10957)
+
+Both are on the `strider` family, from Tripo web-studio bodies made from their picked sheets' side views
+(`<kind>/mesh/reference.png`, hands empty). Their shells are their bodies' own, so their `shells` block holds only what they hold.
+- **Threat and strike styles.** `threat.style` picks the pose: the collector's `wide` (the default), the skitterer's
+  `duck` (the hood pitched down like a shield, the knife arm drawn back, the free hand forward) or the carrier's `thrust`
+  (the implement held out at arm's length, the free arm back). `bite.style: thrust` is a straight punch of the held
+  arm, low by `lowDegrees` (the skitterer's knife), in place of the collector's `slash`.
+- **The crescent.** `make_shells.py` draws a held `"shape": "crescent"`: a ring open on one side and its core as a
+  separate `glow` part, which `WildlifeWornPieces` gives an emissive material. `light` puts a point light at the core,
+  parented to the piece's object so the Engine carries it with the hand; it burns `threatShare` times brighter while
+  the bearer threatens or strikes. At most four held lights burn at once, on bodies drawn in full
+  (`WildlifeMeshBodies.Light`).
+- **Size.** The carrier is the `large` size class (a 2.4 m capsule). The karst ruin it was tested in has a breach too
+  low for that capsule, so it could not route in; its fight and rest were captured on the surface.

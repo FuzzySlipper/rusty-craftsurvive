@@ -10,7 +10,8 @@ forward]) whose rim rises and falls round it (`rim` heights at its sides, front 
 Its paint is drawn here at the game's 64 texels/m: ivory with growth lines, a jade band at the rim, and amber
 insets where `insets` asks. Where the body would come through its underside (the spine's spikes, the hood) the shell
 swells over it by `clearance`, eased over its neighbours, and the run says by how much. A shell with `mesh` is a generated one instead (its prepared folder beside the species file, painted from its sheet by
-paint_from_views.py), stretched to its `box` and raised until the body clears its top. A `held` piece is a short curved blade in a
+paint_from_views.py), stretched to its `box` and raised until the body clears its top. A `held` piece is a short curved blade, or with `"shape": "crescent"` a ring open on one side whose core is a separate
+`glow` part (the implement-carrier's, #10957); `light` gives it a light that rides with it. A `held` blade is a short curved blade in a
 hand's grip. Each piece is written as <name>.prop-mesh.json with <name>.png beside it, and `pieces.json` lists them
 with their joints, for the product.
 """
@@ -304,25 +305,99 @@ def normals_of(points, triangles):
     return normals / length
 
 
-def write_piece(out, name, joint, inverse, points, uvs, triangles, image, content_root):
-    """Writes the piece in its joint's frame (glTF axes, metres), with its texture."""
+def to_joint(points, joint, inverse):
+    """Species-metre points in a joint's own frame (glTF axes, metres)."""
     model = to_gltf(points[:, 0], points[:, 1], points[:, 2])
-    # Species metres to glTF swaps two axes, which mirrors the space: each triangle's winding turns over with it.
-    triangles = [(a, c, b) for a, b, c in triangles]
     frame = inverse[joint]
-    local = (frame[:3, :3] @ model.T).T + frame[:3, 3]
-    normals = normals_of(local, triangles)
-    # The Engine admits RGBA PNGs only.
-    Image.fromarray(image).convert("RGBA").save(out / f"{name}.png")
-    texture = str((out / f"{name}.png").resolve().relative_to(Path(content_root).resolve()))
-    flat = lambda array: [round(float(v), 5) for v in np.asarray(array).ravel()]
-    part = {"role": "shell", "positions": flat(local), "normals": flat(normals), "uvs": flat(uvs),
-            "colors": [1.0] * (4 * len(local)), "indices": [int(i) for tri in triangles for i in tri]}
-    span = local.max(axis=0) - local.min(axis=0)
-    (out / f"{name}.prop-mesh.json").write_text(json.dumps({"name": name, "height": float(span[1]), "parts": [part],
-                                                            "textures": {"shell": texture}}))
-    print(f"{name}: {len(triangles)} triangles on {joint}, texture {image.shape[1]}x{image.shape[0]}")
-    return {"piece": f"{texture[:-len('.png')]}.prop-mesh.json", "joint": joint, "triangles": len(triangles)}
+    return (frame[:3, :3] @ model.T).T + frame[:3, 3]
+
+
+def write_piece(out, name, joint, inverse, points, uvs, triangles, image, content_root, extra=()):
+    """Writes the piece in its joint's frame (glTF axes, metres), with its texture. `extra` adds parts of other roles
+    as (role, points, uvs, triangles, image): a held implement's glowing core is its `glow` part."""
+    parts, textures, count = [], {}, 0
+    for role, part_points, part_uvs, part_triangles, part_image in [("shell", points, uvs, triangles, image), *extra]:
+        # Species metres to glTF swaps two axes, which mirrors the space: each triangle's winding turns over with it.
+        part_triangles = [(a, c, b) for a, b, c in part_triangles]
+        local = to_joint(part_points, joint, inverse)
+        normals = normals_of(local, part_triangles)
+        file = f"{name}.png" if role == "shell" else f"{name}-{role}.png"
+        # The Engine admits RGBA PNGs only.
+        Image.fromarray(part_image).convert("RGBA").save(out / file)
+        textures[role] = str((out / file).resolve().relative_to(Path(content_root).resolve()))
+        flat = lambda array: [round(float(v), 5) for v in np.asarray(array).ravel()]
+        parts.append({"role": role, "positions": flat(local), "normals": flat(normals), "uvs": flat(part_uvs),
+                      "colors": [1.0] * (4 * len(local)), "indices": [int(i) for tri in part_triangles for i in tri]})
+        count += len(part_triangles)
+    span = np.array(parts[0]["positions"]).reshape(-1, 3)
+    span = span.max(axis=0) - span.min(axis=0)
+    (out / f"{name}.prop-mesh.json").write_text(json.dumps({"name": name, "height": float(span[1]), "parts": parts,
+                                                            "textures": textures}))
+    print(f"{name}: {count} triangles on {joint}, texture {image.shape[1]}x{image.shape[0]}")
+    return {"piece": f"{textures['shell'][:-len('.png')]}.prop-mesh.json", "joint": joint, "triangles": count}
+
+
+def crescent_mesh(spec, grip, along, up):
+    """A held crescent (#10957, the implement-carrier's): a thick ring of pale grown material open on one side, hanging
+    below the grip in the plane of `along` (forward) and `up`, and its core, a lens filling the hollow, as its own part
+    for the product to make glow. Points in species metres: (ring points, uvs, triangles, core points, uvs, triangles)."""
+    radius, tube = spec.get("radius", 0.2), spec.get("tube", 0.035)
+    opening = math.radians(spec.get("openingDegrees", 70.0))
+    # The gap faces forward and up, the way the sheet holds it; the ring hangs from its top.
+    gap_at = math.radians(spec.get("gapDegrees", 35.0))
+    centre = grip - up * radius
+    side = np.cross(along, up)
+    arc, ring = 28, 8
+    points, uvs, triangles = [], [], []
+    for i in range(arc + 1):
+        a = gap_at + opening / 2 + (2 * math.pi - opening) * i / arc
+        radial = along * math.cos(a) + up * math.sin(a)
+        # The horns thin to points at the gap.
+        taper = min(1.0, 0.25 + 1.5 * min(i, arc - i) / arc)
+        for j in range(ring):
+            b = 2 * math.pi * j / ring
+            points.append(centre + radial * (radius + tube * taper * math.cos(b)) + side * (tube * taper * math.sin(b)))
+            uvs.append((i / arc, j / ring))
+    for i in range(arc):
+        for j in range(ring):
+            a0, a1 = i * ring + j, i * ring + (j + 1) % ring
+            b0, b1 = a0 + ring, a1 + ring
+            triangles += [(a0, b0, a1), (a1, b0, b1)]
+    core_points, core_uvs, core_triangles = [centre + side * 0.012, centre - side * 0.012], [(0.5, 0.5), (0.5, 0.5)], []
+    rim = 16
+    core = spec.get("core", 0.62) * radius
+    for k in range(rim):
+        a = 2 * math.pi * k / rim
+        core_points.append(centre + (along * math.cos(a) + up * math.sin(a)) * core)
+        core_uvs.append((0.5 + 0.5 * math.cos(a), 0.5 + 0.5 * math.sin(a)))
+    for k in range(rim):
+        a, b = 2 + k, 2 + (k + 1) % rim
+        core_triangles += [(0, a, b), (1, b, a)]
+    return (np.array(points), np.array(uvs), triangles, np.array(core_points), np.array(core_uvs), core_triangles)
+
+
+def paint_crescent(width, height, rng):
+    """The ring: ivory with a few growth lines and a jade band along its inner edge."""
+    image = np.zeros((height, width, 3))
+    for row in range(height):
+        for column in range(width):
+            colour = IVORY + rng.integers(-5, 6, 3)
+            if row in (height // 2, height // 2 - 1):
+                colour = JADE
+            elif column % 9 == 0:
+                colour = IVORY_LINE
+            image[row, column] = colour
+    return np.clip(image, 0, 255).astype(np.uint8)
+
+
+def paint_core(size):
+    """The core: amber, brightest at its heart, its rim a deep plum."""
+    image = np.zeros((size, size, 3))
+    for row in range(size):
+        for column in range(size):
+            d = math.hypot(column + 0.5 - size / 2, row + 0.5 - size / 2) / (size / 2)
+            image[row, column] = PLUM_DEEP if d > 0.9 else (AMBER_LIGHT if d < 0.45 else AMBER)
+    return image.astype(np.uint8)
 
 
 def main(argv):
@@ -357,8 +432,19 @@ def main(argv):
         up = np.array(piece["up"], dtype=float)
         up -= along * np.dot(up, along)
         up /= np.linalg.norm(up)
-        points, uvs, triangles = blade_mesh(piece, grip, along, up)
-        held[name] = write_piece(out, name, piece["joint"], inverse, points, uvs, triangles, paint_blade(32, 8), content_root)
+        if piece.get("shape") == "crescent":
+            points, uvs, triangles, core_points, core_uvs, core_triangles = crescent_mesh(piece, grip, along, up)
+            held[name] = write_piece(out, name, piece["joint"], inverse, points, uvs, triangles, paint_crescent(48, 8, rng),
+                                     content_root, extra=[("glow", core_points, core_uvs, core_triangles, paint_core(16))])
+        else:
+            points, uvs, triangles = blade_mesh(piece, grip, along, up)
+            held[name] = write_piece(out, name, piece["joint"], inverse, points, uvs, triangles, paint_blade(32, 8), content_root)
+        if "light" in piece:
+            # A light that rides with the piece, at the piece's own point in its joint's frame (the crescent's core).
+            light = dict(piece["light"])
+            at = grip - up * piece.get("radius", 0.2) if piece.get("shape") == "crescent" else grip
+            light["at"] = [round(float(v), 4) for v in to_joint(at[None, :], piece["joint"], inverse)[0]]
+            held[name]["light"] = light
     looks = {look: [pieces[name] for name in names] for look, names in spec["looks"].items()}
     (out / "pieces.json").write_text(json.dumps({"looks": looks, "held": held}, indent=2) + "\n")
     print(f"wrote {out / 'pieces.json'}: looks {', '.join(looks)}")

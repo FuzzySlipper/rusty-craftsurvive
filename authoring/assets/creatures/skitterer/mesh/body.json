@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/skitterer/mesh/tripo/tripo.glb",
+  "triangles": 5000,
+  "areaSquareMetres": 5.285,
+  "charts": 326,
+  "utilization": 0.7525,
+  "masterTexels": [
+    753,
+    749
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.5043337941169739,
+      -0.6862550377845764,
+      -0.00030292521114461124
+    ],
+    [
+      0.5051318407058716,
+      0.6841467618942261,
+      1.5003594160079956
+    ]
+  ]
+}

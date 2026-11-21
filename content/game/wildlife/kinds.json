@@ -827,6 +827,56 @@
       "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
       "combat": { "health": 70, "evasion": 45, "armour": 5, "experience": 340 },
       "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "skitterer",
+      "name": "Ruin skitterer",
+      "$comment": "The alternative ruin inhabitant (#10957), a skitterer: faceless, compact and quick, its segmented shell its body's own, a knife in its right hand (worn: held only). Ruin placement is #10955; until then craft.creatures.hunter places it.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 3 },
+      "body": { "lengthMetres": 1.4, "heightMetres": 1.5, "widthMetres": 1.0, "sizeClass": "human", "colour": "#d2c0a4" },
+      "mesh": {
+        "file": "creatures/skitterer/skitterer.glb",
+        "manifest": "creatures/skitterer/skitterer.manifest.json",
+        "ragdoll": "creatures/skitterer/skitterer.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "crouch" },
+        "worn": { "pieces": "creatures/skitterer/held/pieces.json", "looks": { "bare": 1 } }
+      },
+      "speeds": { "walk": 0.9, "grazeDrift": 0.4, "flee": 5.0, "turnDegrees": 240 },
+      "wariness": { "noticeMetres": 20, "actMetres": 8, "lookSeconds": 0.6, "warnSeconds": 0.6 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 20, "reachMetres": 1.6, "haltMetres": 1.2, "accuracy": 22, "power": 3, "cooldownTicks": 90, "biteWindupSeconds": 0.32, "dodgeMetres": 0.8,
+        "rest": { "wakeMetres": 8, "clip": "lie" }, "display": { "seconds": 0.8 }, "search": { "seconds": 8 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 40, "evasion": 60, "armour": 4, "experience": 220 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "carrier",
+      "name": "Implement-carrier",
+      "$comment": "A special ruin inhabitant (#10957): tall on very long legs under a wide cap, carrying an enigmatic crescent whose amber core glows and lights what is near (worn: held only, with its light). What the crescent does in a fight is open (board thread 'Ruin wildlife: the ecology'); until then its thrust strikes as a blow. Ruin placement is #10955.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 5 },
+      "body": { "lengthMetres": 1.7, "heightMetres": 2.5, "widthMetres": 1.6, "sizeClass": "large", "colour": "#d8c8aa" },
+      "mesh": {
+        "file": "creatures/carrier/carrier.glb",
+        "manifest": "creatures/carrier/carrier.manifest.json",
+        "ragdoll": "creatures/carrier/carrier.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "crouch" },
+        "worn": { "pieces": "creatures/carrier/held/pieces.json", "looks": { "bare": 1 } }
+      },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.4, "flee": 3.5, "turnDegrees": 120 },
+      "wariness": { "noticeMetres": 26, "actMetres": 10, "lookSeconds": 1.2, "warnSeconds": 1.2 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 26, "reachMetres": 2.4, "haltMetres": 2.0, "accuracy": 26, "power": 6, "cooldownTicks": 170, "biteWindupSeconds": 0.46, "dodgeMetres": 0.4,
+        "rest": { "wakeMetres": 10, "clip": "lie" }, "display": { "seconds": 1.6 }, "search": { "seconds": 12 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 120, "evasion": 35, "armour": 6, "experience": 600 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 2, "oneIn": 1 } ]
     }
   ]
 }

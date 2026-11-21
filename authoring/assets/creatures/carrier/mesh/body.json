@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/carrier/mesh/tripo/tripo.glb",
+  "triangles": 5500,
+  "areaSquareMetres": 7.296,
+  "charts": 329,
+  "utilization": 0.7637,
+  "masterTexels": [
+    798,
+    794
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.7856849431991577,
+      -0.8719103932380676,
+      0.0009204393718391657
+    ],
+    [
+      0.7843073606491089,
+      0.8707037568092346,
+      2.5019702911376953
+    ]
+  ]
+}

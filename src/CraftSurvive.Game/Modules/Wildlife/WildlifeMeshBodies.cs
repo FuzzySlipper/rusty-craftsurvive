@@ -126,6 +126,13 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
         /// <summary>The body's and its pieces' facts from its last pose, for hanging them before a snapshot.</summary>
         internal AppearanceFact[] WornFacts { get; set; } = [];
+
+        /// <summary>The light riding with a held piece (#10957), once made, and whether it burns bright (threat, strike).</summary>
+        internal Light? HeldLight { get; set; }
+
+        internal bool HeldLightBright { get; set; }
+
+        internal int HeldLightSlot { get; set; }
     }
 
     internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<Creatures.CreatureSpace?, double, double, double, float> groundAt, ulong seed, Func<Creatures.CreatureSpace?, WildlifeRagdolls> ragdollsIn)
@@ -207,6 +214,51 @@ internal sealed class WildlifeMeshBodies : IDisposable
             engine.Graphics.PublishChanges(new(body.WornFacts, ReadOnlyMemory<ulong>.Empty, body.Worn.Select(part => new MeshJointAttachment(part.ObjectId, part.Joint)).ToArray()));
             body.Hung = true;
         }
+
+        foreach (Body body in bodies.All) Light(body);
+    }
+
+    /// <summary>The most held lights burning at once (#10957): each is a point light, so they are kept to the nearest bodies.</summary>
+    private const int MostHeldLights = 4;
+
+    private readonly Stack<int> heldLightSlots = new(Enumerable.Range(0, MostHeldLights).Reverse());
+
+    /// <summary>
+    /// Makes, retunes or lets go of the light riding with a body's held piece: made once the piece hangs (the Engine shows a
+    /// light while its parent is published) and the body is drawn in full, while a slot is free; brighter while it
+    /// threatens or strikes; let go when the body leaves full detail or falls.
+    /// </summary>
+    private void Light(Body body)
+    {
+        if (body.Worn.FirstOrDefault(part => part.Light is not null) is not { Light: WildlifeHeldLight held } part) return;
+        bool wanted = body.Hung && body.Tier == WildlifeTier.Full && !body.Fell;
+        if (!wanted)
+        {
+            ReleaseLight(body);
+            return;
+        }
+
+        bool bright = body.Playing is WildlifeClipRole.Threat or WildlifeClipRole.Bite;
+        if (body.HeldLight is not null && bright == body.HeldLightBright) return;
+        if (body.HeldLight is null && heldLightSlots.Count == 0) return;
+        int slot = body.HeldLight is null ? heldLightSlots.Pop() : body.HeldLightSlot;
+        LightRequest request = new(ProductIds.WildlifeHeldLightBase + (ulong)slot, true, part.ObjectId,
+            new LightDescriptor(LightKind.Point, held.Colour, held.Intensity * (bright ? held.ThreatShare : 1f), true, held.At, -Vector3.UnitY, true, held.Range, HeldLightDecay, 0f, 0f,
+                LightShadowIntent.Disabled, 0, 0, false));
+        if (body.HeldLight is Light light) engine.Graphics.UpdateLight(new LightUpdateRequest(light, request));
+        else body.HeldLight = engine.Graphics.CreateLight(request);
+        body.HeldLightSlot = slot;
+        body.HeldLightBright = bright;
+    }
+
+    private const float HeldLightDecay = 2f;
+
+    private void ReleaseLight(Body body)
+    {
+        if (body.HeldLight is not Light light) return;
+        light.Dispose();
+        heldLightSlots.Push(body.HeldLightSlot);
+        body.HeldLight = null;
     }
 
     /// <summary>A piece sits in its joint's own frame as make_shells.py wrote it.</summary>
@@ -533,6 +585,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     private void Retire(Body body)
     {
         if (body.Ragdoll is { } ragdoll) ragdollsIn(body.Space).Release(ragdoll);
+        ReleaseLight(body);
         body.Instance.Dispose();
         retiring.Add(body.Appearance);
         slots.Release(body.Slot);

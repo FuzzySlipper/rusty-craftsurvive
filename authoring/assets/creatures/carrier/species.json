@@ -1,0 +1,205 @@
+{
+  "id": "carrier",
+  "family": "strider",
+  "about": "The implement-carrier (#10957), a special ruin inhabitant: about 2.5 m tall at its hat-like cap on very long legs, fitted to the Tripo body (authoring/assets/creatures/carrier/mesh), on the strider family. It holds the crescent implement, with its glowing core and light, in its right hand. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -0.05,
+      1.48
+    ],
+    "spine": [
+      0,
+      0.0,
+      1.68
+    ],
+    "chest": [
+      0,
+      0.05,
+      1.85
+    ],
+    "neck": [
+      0,
+      0.1,
+      2.0
+    ],
+    "head": [
+      0,
+      0.12,
+      2.15
+    ],
+    "nose": [
+      0,
+      0.32,
+      2.1
+    ],
+    "shoulder": [
+      0.42,
+      0.15,
+      1.6
+    ],
+    "elbow": [
+      0.52,
+      0.2,
+      1.22
+    ],
+    "wrist": [
+      0.55,
+      0.2,
+      0.94
+    ],
+    "knuckle": [
+      0.55,
+      0.21,
+      0.87
+    ],
+    "claw_tip": [
+      0.55,
+      0.22,
+      0.79
+    ],
+    "hip_socket": [
+      0.18,
+      -0.06,
+      1.42
+    ],
+    "stifle": [
+      0.2,
+      0.02,
+      0.98
+    ],
+    "hock": [
+      0.22,
+      -0.11,
+      0.45
+    ],
+    "fetlock": [
+      0.24,
+      -0.12,
+      0.08
+    ],
+    "toe": [
+      0.25,
+      0.24,
+      0.02
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.6,
+      "stride": 1.6,
+      "duty": 0.62,
+      "liftHind": 0.2,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.05,
+      "swayDegrees": 2.0,
+      "swingMetres": 0.05,
+      "nodDegrees": 2.0,
+      "armSwingDegrees": 10.0
+    },
+    "run": {
+      "seconds": 0.9,
+      "stride": 3.2,
+      "duty": 0.4,
+      "liftHind": 0.35,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.08,
+      "swayDegrees": 2.5,
+      "swingMetres": 0.05,
+      "nodDegrees": 2.0,
+      "spineFlex": 1.0,
+      "armSwingDegrees": 18.0
+    },
+    "idle": {
+      "seconds": 4.5
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "crouch": {
+      "seconds": 6.0,
+      "sinkMetres": 0.3,
+      "armDegrees": 6.0
+    },
+    "die": {
+      "seconds": 2.4,
+      "restShare": 0.2
+    },
+    "threat": {
+      "seconds": 2.0,
+      "style": "thrust",
+      "sinkMetres": 0.35,
+      "reachDegrees": 80.0,
+      "widenMetres": 0.18
+    },
+    "bite": {
+      "seconds": 1.0,
+      "style": "thrust",
+      "lungeMetres": 0.35,
+      "lowDegrees": 5.0
+    },
+    "hurt": {
+      "seconds": 0.6
+    }
+  },
+  "shells": {
+    "$comment": "No worn shells: its shell is its body's. What it holds is a rigid piece on its right hand (make_shells.py).",
+    "pieces": {},
+    "held": {
+      "implement": {
+        "joint": "hand.R",
+        "shape": "crescent",
+        "grip": [
+          -0.55,
+          0.22,
+          0.86
+        ],
+        "along": [
+          0,
+          1,
+          0
+        ],
+        "up": [
+          0,
+          0,
+          1
+        ],
+        "radius": 0.2,
+        "tube": 0.035,
+        "openingDegrees": 70,
+        "gapDegrees": 35,
+        "core": 0.62,
+        "light": {
+          "colour": [
+            1.0,
+            0.55,
+            0.2
+          ],
+          "intensity": 2.0,
+          "range": 4.0,
+          "threatShare": 3.0
+        }
+      }
+    },
+    "looks": {
+      "bare": []
+    }
+  }
+}

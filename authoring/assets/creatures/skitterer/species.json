@@ -1,0 +1,192 @@
+{
+  "id": "skitterer",
+  "family": "strider",
+  "about": "The ruin skitterer (#10957), the alternative inhabitant: a faceless, compact, top-heavy skitterer about 1.5 m tall at its shell, fitted to the Tripo body (authoring/assets/creatures/skitterer/mesh), on the strider family. It holds a knife in its right hand. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -0.3,
+      0.72
+    ],
+    "spine": [
+      0,
+      -0.02,
+      0.85
+    ],
+    "chest": [
+      0,
+      0.24,
+      0.9
+    ],
+    "neck": [
+      0,
+      0.42,
+      0.95
+    ],
+    "head": [
+      0,
+      0.55,
+      0.98
+    ],
+    "nose": [
+      0,
+      0.68,
+      0.92
+    ],
+    "shoulder": [
+      0.3,
+      0.26,
+      0.95
+    ],
+    "elbow": [
+      0.4,
+      0.26,
+      0.62
+    ],
+    "wrist": [
+      0.42,
+      0.25,
+      0.26
+    ],
+    "knuckle": [
+      0.42,
+      0.26,
+      0.14
+    ],
+    "claw_tip": [
+      0.42,
+      0.28,
+      0.02
+    ],
+    "hip_socket": [
+      0.16,
+      -0.2,
+      0.62
+    ],
+    "stifle": [
+      0.22,
+      -0.05,
+      0.44
+    ],
+    "hock": [
+      0.2,
+      -0.2,
+      0.22
+    ],
+    "fetlock": [
+      0.2,
+      -0.2,
+      0.05
+    ],
+    "toe": [
+      0.2,
+      0.12,
+      0.02
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 0.8,
+      "stride": 0.7,
+      "duty": 0.6,
+      "liftHind": 0.1,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.03,
+      "swayDegrees": 2.0,
+      "swingMetres": 0.03,
+      "nodDegrees": 2.0,
+      "armSwingDegrees": 10.0
+    },
+    "run": {
+      "seconds": 0.42,
+      "stride": 2.1,
+      "duty": 0.36,
+      "liftHind": 0.16,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.04,
+      "swayDegrees": 2.0,
+      "swingMetres": 0.03,
+      "nodDegrees": 2.0,
+      "spineFlex": 1.0,
+      "armSwingDegrees": 18.0,
+      "armReachDegrees": 15.0
+    },
+    "idle": {
+      "seconds": 3.0
+    },
+    "alert": {
+      "seconds": 2.4
+    },
+    "crouch": {
+      "seconds": 5.0,
+      "sinkMetres": 0.2,
+      "armDegrees": 8.0
+    },
+    "die": {
+      "seconds": 1.8,
+      "restShare": 0.3
+    },
+    "threat": {
+      "seconds": 1.6,
+      "style": "duck",
+      "sinkMetres": 0.22,
+      "duckDegrees": 16.0,
+      "widenMetres": 0.08
+    },
+    "bite": {
+      "seconds": 0.7,
+      "style": "thrust",
+      "lungeMetres": 0.25,
+      "lowDegrees": 25.0
+    },
+    "hurt": {
+      "seconds": 0.5
+    }
+  },
+  "shells": {
+    "$comment": "No worn shells: its shell is its body's. What it holds is a rigid piece on its right hand (make_shells.py).",
+    "pieces": {},
+    "held": {
+      "knife": {
+        "joint": "hand.R",
+        "grip": [
+          -0.42,
+          0.27,
+          0.14
+        ],
+        "along": [
+          0,
+          1,
+          -0.5
+        ],
+        "up": [
+          0,
+          0,
+          1
+        ],
+        "length": 0.32,
+        "width": 0.045
+      }
+    },
+    "looks": {
+      "bare": []
+    }
+  }
+}

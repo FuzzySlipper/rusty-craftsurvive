@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Globalization;
 using System.Text.Json;
 using CraftSurvive.Game.Modules.Rpg;
@@ -825,4 +826,21 @@ internal static class WildlifeKinds
         System.Enum.TryParse(name, ignoreCase: true, out T value) && System.Enum.IsDefined(value)
             ? value
             : throw new InvalidDataException($"unknown {typeof(T).Name} '{name}'");
+}
+
+/// <summary>
+/// A light riding with a held piece (#10957, the implement-carrier's core): a point light parented to the piece's object
+/// at <paramref name="At"/> in its joint's frame, so the Engine carries it with the hand. It burns
+/// <paramref name="ThreatShare"/> times brighter while its bearer threatens or strikes.
+/// </summary>
+internal sealed record WildlifeHeldLight(Vector3 At, Vector3 Colour, float Intensity, float Range, float ThreatShare)
+{
+    internal static WildlifeHeldLight Read(JsonElement light)
+    {
+        static Vector3 Vector(JsonElement value) => new(value[0].GetSingle(), value[1].GetSingle(), value[2].GetSingle());
+        WildlifeHeldLight read = new(Vector(light.GetProperty("at")), Vector(light.GetProperty("colour")), light.GetProperty("intensity").GetSingle(),
+            light.GetProperty("range").GetSingle(), light.TryGetProperty("threatShare", out JsonElement share) ? share.GetSingle() : 1f);
+        if (read.Intensity <= 0 || read.Range <= 0 || read.ThreatShare <= 0) throw new InvalidDataException("a held light needs a positive intensity, range and threat share");
+        return read;
+    }
 }

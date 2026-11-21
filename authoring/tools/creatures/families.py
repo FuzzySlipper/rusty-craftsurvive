@@ -2129,6 +2129,12 @@ def strider_threat(c, s, t):
     settings = s["threat"]
     up = gait.rise_hold_fall(t, 0.2, 0.85)
     shake = gait.wave(t, 10)
+    if settings.get("style") == "duck":
+        strider_duck(c, settings, up, shake)
+        return
+    if settings.get("style") == "thrust":
+        strider_present(c, settings, up, shake)
+        return
     c.bone_offset("hips", (0, 0.04 * up, -settings.get("sinkMetres", 0.3) * up))
     c.bone_rotation("hips", pitch(-4.0 * up))
     c.bone_rotation("spine", pitch(-3.0 * up))
@@ -2143,6 +2149,66 @@ def strider_threat(c, s, t):
     c.bone_rotation("upperarm.R", pitch((reach + 0.4 * settings.get("bladeDegrees", 35.0)) * up) @ spread("R", out * up))
     c.bone_rotation("forearm.R", pitch(settings.get("bladeDegrees", 35.0) * up))
     c.bone_rotation("hand.R", pitch(-15.0 * up))
+
+
+def strider_duck(c, settings, up, shake):
+    """The skitterer's threat (#10957): it ducks behind its hood as behind a shield, legs folded deep and the front
+    pitched down, the knife arm drawn back and up to stab and the free hand reaching forward low, trembling."""
+    c.bone_offset("hips", (0, 0.06 * up, -settings.get("sinkMetres", 0.25) * up))
+    c.bone_rotation("hips", pitch(-settings.get("duckDegrees", 14.0) * up))
+    c.bone_rotation("chest", pitch(-6.0 * up) @ roll(0.8 * up * shake))
+    c.bone_rotation("neck", pitch(-10.0 * up))
+    for leg in ("hind.L", "hind.R"):
+        c.place(leg, side=settings.get("widenMetres", 0.08) * up)
+    # The knife arm swings back behind the body, the elbow bent so the blade points forward, ready to stab.
+    c.bone_rotation("upperarm.R", pitch(-70.0 * up) @ spread("R", 20.0 * up))
+    c.bone_rotation("forearm.R", pitch(55.0 * up))
+    c.bone_rotation("hand.R", pitch(-20.0 * up))
+    c.bone_rotation("upperarm.L", pitch(45.0 * up) @ spread("L", 10.0 * up))
+    c.bone_rotation("forearm.L", pitch(-10.0 * up))
+    c.bone_rotation("claw.L", pitch(12.0 * up))
+
+
+def strider_present(c, settings, up, shake):
+    """The implement-carrier's threat (#10957): legs spread and bent, the body lowered, the implement thrust forward at
+    arm's length (its core flares: the product's light), the free arm drawn back with the hand open behind it."""
+    c.bone_offset("hips", (0, 0.05 * up, -settings.get("sinkMetres", 0.35) * up))
+    c.bone_rotation("hips", pitch(-6.0 * up))
+    c.bone_rotation("chest", pitch(-4.0 * up) @ roll(0.6 * up * shake))
+    for leg in ("hind.L", "hind.R"):
+        c.place(leg, side=settings.get("widenMetres", 0.18) * up)
+    c.bone_rotation("upperarm.R", pitch(settings.get("reachDegrees", 80.0) * up) @ spread("R", 5.0 * up))
+    c.bone_rotation("forearm.R", pitch(-5.0 * up))
+    c.bone_rotation("hand.R", pitch(8.0 * up * (0.6 + 0.4 * shake)))
+    c.bone_rotation("upperarm.L", pitch(-30.0 * up) @ spread("L", 30.0 * up))
+    c.bone_rotation("forearm.L", pitch(-20.0 * up))
+    c.bone_rotation("claw.L", pitch(-15.0 * up))
+
+
+def strider_thrust(c, s, t):
+    """A straight thrust (#10957): the held arm draws back as the body coils, then the body lunges over its planted feet
+    and the arm punches straight forward at the target, low for the skitterer's knife (`lowDegrees`), level for the
+    implement, and draws back."""
+    settings = s["bite"]
+    wind = gait.ease_in_out(t, 0.0, 0.32) * (1.0 - gait.ease_in_out(t, 0.38, 0.46))
+    strike = gait.ease_in_out(t, 0.38, 0.48) * (1.0 - gait.ease_in_out(t, 0.7, 1.0))
+    low = settings.get("lowDegrees", 0.0)
+    c.bone_offset("hips", (0, -settings.get("lungeMetres", 0.3) * strike + 0.05 * wind, -0.1 * (wind + strike)))
+    c.bone_rotation("spine", pitch(-5.0 * strike))
+    c.bone_rotation("chest", yaw(-12.0 * wind + 10.0 * strike) @ pitch(-5.0 * strike))
+    c.bone_rotation("upperarm.R", pitch(-30.0 * wind + (85.0 - low) * strike))
+    c.bone_rotation("forearm.R", pitch(80.0 * wind - 5.0 * strike))
+    c.bone_rotation("hand.R", pitch(-20.0 * wind))
+    c.bone_rotation("upperarm.L", pitch(20.0 * wind - 25.0 * strike) @ spread("L", 15.0 * strike))
+    c.bone_rotation("claw.L", pitch(-15.0))
+
+
+def strider_strike(c, s, t):
+    """The hunter's blow, by the species' `bite.style`: `slash` (the collector's blade stroke) or `thrust`."""
+    if s["bite"].get("style") == "thrust":
+        strider_thrust(c, s, t)
+    else:
+        strider_slash(c, s, t)
 
 
 def strider_slash(c, s, t):
@@ -2207,7 +2273,7 @@ STRIDER_CLIPS = {
     "crouch": (strider_crouch, True, True),
     "die": (strider_die, False, False),
     "threat": (strider_threat, False, True),
-    "bite": (strider_slash, False, True),
+    "bite": (strider_strike, False, True),
     "hurt": (strider_hurt, False, True),
 }
 
