@@ -588,3 +588,25 @@ them first), then a mesh sheet and a Tripo body, all on `low-slung`.
 - **Mesh sheets that fought back:** the lurker's first sheet gave it human hands and stood it up, and the shard
   dweller's lost its long arms; naming what the limbs end in ("digging blades ... NOT hands", "arms twice as long as the
   legs") and passing the creature's full sheet as a third reference fixed both.
+
+### Three-legged ruin creatures: the tripod family (#10960)
+
+The channel sifter and the stilt runner (kind `stilt-pack`) are on `tripod`, a new family. Each got a wildlife sheet
+by the settled recipe, which Patch saw first, then a mesh sheet and a Tripo body.
+- **Three legs.** Two front legs are mirrored and a back leg runs on the middle line, placed by `.C` points. Each leg
+  is the bird's leg: thigh, shin, cannon and toe. `Family.leg_sides` names the legs a family has (default `("L", "R")`;
+  the tripod has `("L", "R", "C")`). The leg controls, the manifest's legs and foot placement all follow it, and a
+  `.C` foot sits on the middle line.
+- **The whip arm and the fan.** A species that places `whip0` to `whipN` hangs a whip of N segments under its chest
+  (the stilt runner). `whip()` curls it up over the body in the threat and lashes it out ahead in the strike. A
+  species that places `fan` and `fan_tip` gets a spreading fan on its head (the sifter's combs).
+- **Rest.** The rest is `feed`: the head and fan dip and sift, with the body sunk a little. The sifter sifts the
+  channel's water; the stilt runners peck at the relic lights.
+- **The sifter's spores** are WildlifeBreath puffs in `kinds.json` (amber, released from the chest during the
+  threat). They are a look only: the rules of the mark they leave are still being settled on the crew board.
+- **The sifter's amber** was lost in the colour reduction, even with `--accent-colors`. The master's amber texels were
+  copied back over `body-64.png` before `emission_mask.py` (recorded in `content/creatures.sources.json`).
+- **A pack's lethality comes mostly from its size.** A landed blow does `power` plus a tenth of the roll, about 6 even
+  at power 1. Five stilt runners kill an idle, unarmoured 30-health player in about 4 s, even at accuracy 14 and a
+  2 s cooldown. That is still gentler than a seep-rat colony of the same size. Tune a pack by `groupMaximum` and
+  `cooldownTicks`; `power` barely changes it.

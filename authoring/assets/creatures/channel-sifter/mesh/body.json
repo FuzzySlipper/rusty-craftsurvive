@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/channel-sifter/mesh/tripo/tripo.glb",
+  "triangles": 4999,
+  "areaSquareMetres": 6.156,
+  "charts": 323,
+  "utilization": 0.7601,
+  "masterTexels": [
+    800,
+    802
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.5694008469581604,
+      -0.7858952879905701,
+      -0.0001820702600525692
+    ],
+    [
+      0.568962037563324,
+      0.7783600687980652,
+      1.8096845149993896
+    ]
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "species": "channel-sifter",
+  "family": "tripod",
+  "body": {
+    "hindMetres": -0.62,
+    "foreMetres": 0.32
+  },
+  "legs": [
+    [
+      "shin.L",
+      "cannon.L",
+      "hoof.L"
+    ],
+    [
+      "shin.R",
+      "cannon.R",
+      "hoof.R"
+    ],
+    [
+      "shin.C",
+      "cannon.C",
+      "hoof.C"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.5,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.6667
+    },
+    "run": {
+      "seconds": 0.8,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 2.75
+    },
+    "alert": {
+      "seconds": 2.5,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "feed": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 2.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 1.6,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "bite": {
+      "seconds": 0.8,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "hurt": {
+      "seconds": 0.5,
+      "loops": false,
+      "plantsFeet": true
+    }
+  }
+}

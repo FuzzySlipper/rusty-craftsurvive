@@ -1,0 +1,79 @@
+{
+  "species": "stilt-pack",
+  "family": "tripod",
+  "body": {
+    "hindMetres": -0.33,
+    "foreMetres": 0.34
+  },
+  "legs": [
+    [
+      "shin.L",
+      "cannon.L",
+      "hoof.L"
+    ],
+    [
+      "shin.R",
+      "cannon.R",
+      "hoof.R"
+    ],
+    [
+      "shin.C",
+      "cannon.C",
+      "hoof.C"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 0.5333333333333333,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 1.0
+    },
+    "run": {
+      "seconds": 0.3,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 5.5
+    },
+    "alert": {
+      "seconds": 2.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "feed": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 1.5,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "bite": {
+      "seconds": 0.5333333333333333,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "hurt": {
+      "seconds": 0.4,
+      "loops": false,
+      "plantsFeet": true
+    }
+  }
+}

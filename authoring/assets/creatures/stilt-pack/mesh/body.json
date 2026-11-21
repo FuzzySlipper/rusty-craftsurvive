@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/stilt-pack/mesh/tripo/tripo.glb",
+  "triangles": 3500,
+  "areaSquareMetres": 1.396,
+  "charts": 268,
+  "utilization": 0.7654,
+  "masterTexels": [
+    513,
+    516
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.3230341970920563,
+      -0.3590996563434601,
+      0.00115553243085742
+    ],
+    [
+      0.32347458600997925,
+      0.36122575402259827,
+      1.206960916519165
+    ]
+  ]
+}

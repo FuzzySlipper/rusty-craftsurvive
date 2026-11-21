@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[3]
 CREATURES = ROOT / "content" / "game" / "creatures"
 
 # Joints left to the clips: they follow their parent as they are.
-UNSIMULATED = ("root", "jaw", "tongue", "dome", "ruff", "ear", "hoof", "fhoof", "foot", "hand", "claw", "wing", "blade")
+UNSIMULATED = ("root", "jaw", "tongue", "dome", "ruff", "ear", "hoof", "fhoof", "foot", "hand", "claw", "wing", "blade", "fan")
 # Where a bone with several simulated children points.
 SPANS_TO = {"hips": "spine", "chest": "neck"}
 # The bone that takes the killing blow.
@@ -49,6 +49,8 @@ CONES = {
     "upperarm": (0.9, 0.25),
     # The blade-limbed special's scythe limbs (#10958) flop loosely from its back.
     "bladeupper": (0.9, 0.25),
+    # The stilt runner's whip arm (#10960) hangs loose like a tail.
+    "whip": (0.7, 0.3),
 }
 HINGES = {
     "shin": (-0.1, 2.2),

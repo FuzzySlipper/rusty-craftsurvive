@@ -1,0 +1,189 @@
+{
+  "id": "stilt-pack",
+  "family": "tripod",
+  "about": "A stilt-pack runner (#10960), a ruin skitterer about 1.2 m tall in packs: a round shell body on three needle legs with one whip arm, fitted to the Tripo body (authoring/assets/creatures/stilt-pack/mesh), on the tripod family with a four-segment whip. Key points are metres as [side, forward, up]; front-leg points are the left side's, mirrored; `.C` points are the back leg on the middle line.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.3,
+      0
+    ],
+    "hips": [
+      0,
+      -0.1,
+      0.9
+    ],
+    "spine": [
+      0,
+      0.0,
+      0.95
+    ],
+    "chest": [
+      0,
+      0.1,
+      0.95
+    ],
+    "neck": [
+      0,
+      0.18,
+      0.95
+    ],
+    "head": [
+      0,
+      0.24,
+      0.95
+    ],
+    "nose": [
+      0,
+      0.32,
+      0.95
+    ],
+    "eye": [
+      0.05,
+      0.3,
+      0.98
+    ],
+    "hip_socket": [
+      0.17,
+      0.16,
+      0.74
+    ],
+    "stifle": [
+      0.23,
+      0.23,
+      0.5
+    ],
+    "hock": [
+      0.27,
+      0.29,
+      0.28
+    ],
+    "fetlock": [
+      0.31,
+      0.34,
+      0.05
+    ],
+    "toe": [
+      0.32,
+      0.37,
+      0.0
+    ],
+    "hip_socket.C": [
+      0,
+      -0.14,
+      0.74
+    ],
+    "stifle.C": [
+      0,
+      -0.21,
+      0.5
+    ],
+    "hock.C": [
+      0,
+      -0.27,
+      0.28
+    ],
+    "fetlock.C": [
+      0,
+      -0.33,
+      0.05
+    ],
+    "toe.C": [
+      0,
+      -0.36,
+      0.0
+    ],
+    "whip0": [
+      0,
+      0.05,
+      0.72
+    ],
+    "whip1": [
+      0,
+      0.06,
+      0.6
+    ],
+    "whip2": [
+      0,
+      0.06,
+      0.48
+    ],
+    "whip3": [
+      0,
+      0.06,
+      0.36
+    ],
+    "whip4": [
+      0,
+      0.06,
+      0.22
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 0.55,
+      "stride": 0.55,
+      "duty": 0.62,
+      "liftHind": 0.1,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.333,
+        "hind.C": 0.667
+      },
+      "bob": 0.03,
+      "swayDegrees": 3.0,
+      "nodDegrees": 1.0,
+      "whipSwayDegrees": 10.0
+    },
+    "run": {
+      "seconds": 0.3,
+      "stride": 1.65,
+      "duty": 0.42,
+      "liftHind": 0.16,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.333,
+        "hind.C": 0.667
+      },
+      "bob": 0.05,
+      "swayDegrees": 3.0,
+      "nodDegrees": 1.0,
+      "whipSwayDegrees": 10.0
+    },
+    "idle": {
+      "seconds": 3.0
+    },
+    "alert": {
+      "seconds": 2.0
+    },
+    "feed": {
+      "seconds": 3.0,
+      "sinkMetres": 0.12,
+      "dipDegrees": 20.0
+    },
+    "threat": {
+      "seconds": 1.0,
+      "rearDegrees": -15.0,
+      "headDegrees": 0.0,
+      "whipCurlDegrees": 60.0,
+      "sinkMetres": 0.15
+    },
+    "bite": {
+      "seconds": 0.55,
+      "lungeMetres": 0.18
+    },
+    "hurt": {
+      "seconds": 0.4
+    },
+    "die": {
+      "seconds": 1.5,
+      "restShare": 0.2
+    }
+  }
+}

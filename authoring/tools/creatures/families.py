@@ -2376,6 +2376,191 @@ STRIDER_BLADED_CLIPS = {
 }
 
 
+# ---------------------------------------------------------------- tripod: three legs, two in front and one behind (#10960)
+
+TRIPOD_LEGS = {"hind": ("cannon", "hoof", "hock", -1.0)}
+TRIPOD_SIDES = ("L", "R", "C")
+
+
+def tripod_bones(points):
+    """A body on three legs, the two front ones mirrored and a back one on the middle line (`.C` points), each the
+    bird's leg: thigh, shin, cannon and toe. A species that places `whip0` to `whipN` hangs a whip arm of N segments
+    under its chest (the stilt pack's); one that places `fan` and `fan_tip` has a fan on its head that spreads (the
+    channel sifter's combs)."""
+    bones = [
+        ("root", None, "root", "root_tip", 1.0),
+        ("hips", "root", "hips", "spine", 1.0),
+        ("spine", "hips", "spine", "chest", 1.0),
+        ("chest", "spine", "chest", "neck", 1.0),
+        ("neck", "chest", "neck", "head", 1.0),
+        ("head", "neck", "head", "nose", 1.0),
+    ]
+    for side, sign in SIDES.items():
+        bones += [
+            (f"thigh.{side}", "chest", "hip_socket", "stifle", sign),
+            (f"shin.{side}", f"thigh.{side}", "stifle", "hock", sign),
+            (f"cannon.{side}", f"shin.{side}", "hock", "fetlock", sign),
+            (f"hoof.{side}", f"cannon.{side}", "fetlock", "toe", sign),
+        ]
+    bones += [
+        ("thigh.C", "hips", "hip_socket.C", "stifle.C", 1.0),
+        ("shin.C", "thigh.C", "stifle.C", "hock.C", 1.0),
+        ("cannon.C", "shin.C", "hock.C", "fetlock.C", 1.0),
+        ("hoof.C", "cannon.C", "fetlock.C", "toe.C", 1.0),
+    ]
+    whips = sum(1 for name in points if name.startswith("whip") and name != "whip0")
+    parent = "chest"
+    for i in range(1, whips + 1):
+        bones.append((f"whip{i}", parent, f"whip{i - 1}", f"whip{i}", 1.0))
+        parent = f"whip{i}"
+    if "fan" in points:
+        bones.append(("fan", "head", "fan", "fan_tip", 1.0))
+    return bones
+
+
+def whip(c, curl=0.0, lash=0.0, t=0.0, sway=0.0):
+    """The whip arm hanging under the body: `curl` swings it forward and up, each segment further, so it rises in front
+    and arcs over the body like a raised sting; `lash` throws it straight out ahead, the first segment swinging and the
+    rest straightening; `sway` swings it side to side."""
+    i = 1
+    while f"whip{i}" in c.rig.pose.bones:
+        own = curl * (0.3 + 0.15 * i) + (lash if i == 1 else -0.15 * lash)
+        c.bone_rotation(f"whip{i}", pitch(own) @ yaw(sway * gait.wave(t, lag=0.1 * i)))
+        i += 1
+
+
+def fan(c, spread):
+    if "fan" in c.rig.pose.bones:
+        c.bone_rotation("fan", pitch(spread))
+
+
+def tripod_gait(c, settings, t, spine_flex):
+    """Three legs in turn, a third of a cycle apart: the body leans over the two that stand and bobs as each lifts."""
+    duty, stride = settings["duty"], settings["stride"]
+    for leg, offset in settings["phases"].items():
+        phase = t + offset
+        side = leg.split(".")[1]
+        forward, up = gait.foot(phase, duty, stride, settings["liftHind"])
+        swing = 0.0 if gait.planted(phase, duty) else math.sin(math.pi * ((phase % 1.0) - duty) / (1.0 - duty))
+        c.place(leg, forward=forward, up=up, toe_pitch=-25.0 * swing)
+        reach = math.degrees(math.asin(max(-0.9, min(0.9, forward / c.leg_length(leg)))))
+        c.bone_rotation(f"thigh.{side}", pitch(TOP_SEGMENT_SHARE * reach))
+    sway, bob = settings["swayDegrees"], settings["bob"]
+    c.bone_offset("hips", (0, 0, -bob * math.cos(3 * gait.TAU * t)))
+    c.bone_rotation("hips", roll(sway * gait.wave(t)) @ pitch(spine_flex * gait.wave(t, 3)))
+    c.bone_rotation("chest", roll(-0.5 * sway * gait.wave(t, lag=0.2)))
+    c.bone_rotation("head", pitch(settings.get("nodDegrees", 2.0) * gait.wave(t, 3, lag=0.3)))
+    whip(c, curl=8.0, t=t, sway=settings.get("whipSwayDegrees", 8.0))
+    fan(c, 3.0 * gait.wave(t, 3, lag=0.4))
+
+
+def tripod_walk(c, s, t):
+    tripod_gait(c, s["walk"], t, spine_flex=0.8)
+
+
+def tripod_run(c, s, t):
+    tripod_gait(c, s["run"], t, spine_flex=s["run"].get("spineFlex", 2.0))
+
+
+def tripod_idle(c, s, t):
+    """Still, swaying a little over its three feet; the head dips and the fan or whip drifts."""
+    c.bone_rotation("hips", roll(1.0 * gait.wave(t)))
+    c.bone_rotation("head", pitch(-3.0 + 2.0 * gait.wave(t, 2)) @ yaw(5.0 * gait.wave(t, lag=0.25)))
+    whip(c, curl=6.0, t=t, sway=5.0)
+    fan(c, 2.0 * gait.wave(t, 2, lag=0.3))
+
+
+def tripod_alert(c, s, t):
+    c.bone_rotation("chest", pitch(4.0))
+    c.bone_rotation("head", pitch(10.0) @ yaw(15.0 * gait.wave(t)))
+    whip(c, curl=20.0, t=t, sway=3.0)
+    fan(c, 8.0)
+
+
+def tripod_feed(c, s, t):
+    """At rest it feeds (#10960): the head and fan dip to the water or the relic light and sift, the body sunk a
+    little on its legs, the whip pecking."""
+    settings = s.get("feed", {})
+    sift = gait.wave(t, 4)
+    c.bone_offset("hips", (0, 0, -settings.get("sinkMetres", 0.15)))
+    c.bone_rotation("chest", pitch(-settings.get("dipDegrees", 15.0)))
+    c.bone_rotation("head", pitch(-settings.get("dipDegrees", 15.0) + 4.0 * sift))
+    fan(c, 6.0 * sift)
+    whip(c, lash=12.0 * max(0.0, sift), t=t)
+
+
+def tripod_threat(c, s, t):
+    """Its threat (#10960): the body rears back over its back leg, the head and fan lift and the fan spreads wide (the
+    sifter puffs its pods: the product's breath), or the whip arm is drawn up and back over the body to lash (the
+    pack runner), trembling."""
+    settings = s["threat"]
+    up = gait.rise_hold_fall(t, 0.2, 0.85)
+    shake = gait.wave(t, 10)
+    c.bone_offset("hips", (0, 0.05 * up, -settings.get("sinkMetres", 0.1) * up))
+    c.bone_rotation("hips", pitch(settings.get("rearDegrees", 12.0) * up))
+    c.bone_rotation("chest", pitch(4.0 * up) @ roll(0.8 * up * shake))
+    c.bone_rotation("head", pitch(settings.get("headDegrees", 15.0) * up) @ yaw(2.0 * up * shake))
+    fan(c, settings.get("fanDegrees", 35.0) * up)
+    whip(c, curl=settings.get("whipCurlDegrees", 50.0) * up, t=t * 3.0, sway=4.0 * up)
+
+
+def tripod_strike(c, s, t):
+    """The blow: the body drops forward between its legs as the whip arm lashes down at the target ahead, or, with no
+    whip, the head and hood drive forward and down (the sifter's shove)."""
+    settings = s["bite"]
+    back = gait.ease_in_out(t, 0.0, 0.32) * (1.0 - gait.ease_in_out(t, 0.36, 0.46))
+    strike = gait.ease_in_out(t, 0.36, 0.48) * (1.0 - gait.ease_in_out(t, 0.72, 1.0))
+    c.bone_offset("hips", (0, -settings.get("lungeMetres", 0.2) * strike, -0.08 * strike))
+    c.bone_rotation("hips", pitch(8.0 * back - 14.0 * strike))
+    c.bone_rotation("head", pitch(10.0 * back - 20.0 * strike))
+    whip(c, curl=60.0 * back * (1.0 - strike), lash=80.0 * strike)
+    fan(c, 20.0 * back - 10.0 * strike)
+
+
+def tripod_hurt(c, s, t):
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    c.bone_offset("hips", (0, 0.06 * hit, -0.04 * hit))
+    c.bone_rotation("hips", roll(8.0 * hit))
+    c.bone_rotation("head", pitch(10.0 * hit) @ yaw(-12.0 * hit))
+    whip(c, curl=30.0 * hit)
+    fan(c, 15.0 * hit)
+
+
+def tripod_die(c, s, t):
+    """The legs fold and it tips over onto its side."""
+    limp = gait.ease_in_out(t, 0.1, 0.55)
+    fall = gait.ease_in_out(t, 0.3, 0.85)
+    height = c.leg_length("hind.C")
+    for leg in c.targets:
+        c.leg_influence(leg, 1.0 - limp)
+    for side in TRIPOD_SIDES:
+        c.bone_rotation(f"thigh.{side}", pitch(-20.0 * limp))
+        c.bone_rotation(f"shin.{side}", pitch(45.0 * limp))
+        c.bone_rotation(f"cannon.{side}", pitch(-35.0 * limp))
+    angle = 80.0 * fall
+    c.bone_rotation("root", roll(angle))
+    lies = s["die"].get("restShare", 0.3)
+    c.bone_offset("root", (0, 0, max(0.0, lies * height - height * math.cos(math.radians(angle))) * fall))
+    c.bone_offset("hips", (0, 0, -0.3 * height * limp))
+    c.bone_rotation("head", pitch(-15.0 * fall))
+    whip(c, curl=-20.0 * fall)
+    fan(c, -10.0 * fall)
+
+
+TRIPOD_CLIPS = {
+    "rest": (clip_rest, False, True),
+    "idle": (tripod_idle, True, True),
+    "walk": (tripod_walk, True, True),
+    "run": (tripod_run, True, True),
+    "alert": (tripod_alert, True, True),
+    "feed": (tripod_feed, True, True),
+    "die": (tripod_die, False, False),
+    "threat": (tripod_threat, False, True),
+    "bite": (tripod_strike, False, True),
+    "hurt": (tripod_hurt, False, True),
+}
+
+
 @dataclass(frozen=True)
 class Family:
     bones: object
@@ -2393,6 +2578,8 @@ class Family:
     # Whether the root bone carries skin. A snake's root lies inside its body (#10883), where it would hold the middle
     # still while the chain coils around it.
     root_deforms: bool = True
+    # The sides its legs stand on: left and right, or with "C" a leg on the middle line too (#10960, the tripods).
+    leg_sides: tuple = ("L", "R")
 
 
 FAMILIES = {
@@ -2412,6 +2599,9 @@ FAMILIES = {
                    ("thigh", "shin", "cannon"), ("hoof",)),
     "theropod": Family(theropod_bones, BIRD_LEGS, THEROPOD_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
                        ("thigh", "shin", "cannon"), ("hoof", "hand")),
+    # Three legs, two in front and one behind on the middle line (#10960): the channel sifter and the stilt pack.
+    "tripod": Family(tripod_bones, TRIPOD_LEGS, TRIPOD_CLIPS, (("shin", "cannon", "hoof"),), "fetlock.C", "fetlock",
+                     ("thigh", "shin", "cannon", "whip"), ("hoof",), sized=True, leg_sides=TRIPOD_SIDES),
     "strider": Family(strider_bones, BIRD_LEGS, STRIDER_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
                       ("thigh", "shin", "cannon", "upperarm", "forearm"), ("hoof", "hand", "claw")),
     # The strider with a pair of scythe limbs on its back (#10958).

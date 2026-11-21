@@ -973,6 +973,64 @@
       "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
       "combat": { "health": 28, "evasion": 65, "armour": 3, "experience": 170 },
       "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "channel-sifter",
+      "name": "Channel sifter",
+      "$comment": "A ruin tender (#10960): it wades the Ancients' water channels on three legs, sifting with the comb fan under its hood. Tenders threaten indirectly: when disturbed it rears and puffs glowing amber spores from its pods (breath). The spores' mark is proposed on the board ('Ruin wildlife: the ecology'); until Patch settles it the puff is a look only and its shove a weak blow.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 1.6, "heightMetres": 1.8, "widthMetres": 1.1, "sizeClass": "human", "colour": "#d8c4a4" },
+      "mesh": {
+        "file": "creatures/channel-sifter/channel-sifter.glb",
+        "manifest": "creatures/channel-sifter/channel-sifter.manifest.json",
+        "ragdoll": "creatures/channel-sifter/channel-sifter.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "feed" },
+        "breath": {
+          "$comment": "#10960: amber spores puffed from the pods along its sides as it rears in its threat; a look only until the mark is settled. Emitted between the spine's and chest's joints, drifting out and rising; colours sRGB.",
+          "at": { "threat": [0.3, 0.45, 0.6] },
+          "upper": { "joint": "chest", "reachMetres": 0.0 },
+          "lower": { "joint": "spine", "reachMetres": 0.0 },
+          "count": 30, "lifetimeSeconds": [1.4, 2.6], "speed": [0.2, 0.9], "spreadMetresPerSecond": 0.8, "riseMetresPerSecondSquared": 0.35,
+          "sizes": [[0, 0.06], [0.3, 0.22], [1, 0.4]],
+          "colours": [[0, [1.0, 0.72, 0.3, 0.9]], [0.5, [0.95, 0.6, 0.2, 0.6]], [1, [0.8, 0.5, 0.2, 0.0]]]
+        }
+      },
+      "speeds": { "walk": 0.6, "grazeDrift": 0.3, "flee": 2.7, "turnDegrees": 90 },
+      "wariness": { "noticeMetres": 14, "actMetres": 6, "lookSeconds": 1.0, "warnSeconds": 1.0 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 14, "reachMetres": 1.8, "haltMetres": 1.4, "accuracy": 14, "power": 1, "cooldownTicks": 160, "biteWindupSeconds": 0.45, "dodgeMetres": 0.3,
+        "rest": { "wakeMetres": 6, "clip": "lie" }, "display": { "seconds": 1.6 }, "search": { "seconds": 5 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 30, "evasion": 25, "armour": 3, "experience": 160 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "stilt-pack",
+      "name": "Stilt runner",
+      "$comment": "Ruin skitterers in packs (#10960): melon-sized shell bodies on three needle legs, each with one whip arm that lashes. They run in a quick jittering rush and flank like the draft-hound pack, and peck at the relic lights at rest.",
+      "habitat": {},
+      "social": { "shape": "band", "groupMinimum": 5, "groupMaximum": 6, "spacingMetres": 1.2 },
+      "body": { "lengthMetres": 0.9, "heightMetres": 1.2, "widthMetres": 0.9, "sizeClass": "small", "colour": "#d4c6aa" },
+      "mesh": {
+        "file": "creatures/stilt-pack/stilt-pack.glb",
+        "manifest": "creatures/stilt-pack/stilt-pack.manifest.json",
+        "ragdoll": "creatures/stilt-pack/stilt-pack.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "feed" }
+      },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.4, "flee": 5.5, "turnDegrees": 240 },
+      "wariness": { "noticeMetres": 20, "actMetres": 8, "lookSeconds": 0.4, "warnSeconds": 0.4 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 20, "reachMetres": 1.5, "haltMetres": 1.1, "accuracy": 14, "power": 1, "cooldownTicks": 120, "biteWindupSeconds": 0.3, "dodgeMetres": 0.7,
+        "pack": { "alarmMetres": 30, "alarmSeconds": 6, "flankDegrees": 40, "closeMetres": 5 },
+        "rest": { "wakeMetres": 7, "clip": "lie" }, "display": { "seconds": 0.6 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 16, "evasion": 55, "armour": 2, "experience": 80 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 2 } ]
     }
   ]
 }

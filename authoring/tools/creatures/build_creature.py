@@ -705,8 +705,9 @@ class Controls:
         self.legs = family.legs
         self.targets = {}
         self.rest = {}
+        self.leg_sides = family.leg_sides
         for kind, (ik_bone, end_bone, _joint, bend) in self.legs.items():
-            for side in SIDES:
+            for side in self.leg_sides:
                 leg = f"{kind}.{side}"
                 end = rig.data.bones[f"{end_bone}.{side}"]
                 target = bpy.data.objects.new(f"ik.{leg}", None)
@@ -739,7 +740,7 @@ class Controls:
     def calibrate_poles(self):
         """Pick each IK chain's pole angle that keeps the rest pose where it is."""
         for kind, (ik_bone, _end, _joint, _bend) in self.legs.items():
-            for side in SIDES:
+            for side in self.leg_sides:
                 pb = self.rig.pose.bones[f"{ik_bone}.{side}"]
                 rest = pb.bone.head_local.copy()
                 best = None
@@ -776,7 +777,8 @@ class Controls:
     def place(self, leg, forward=0.0, up=0.0, side=0.0, toe_pitch=0.0):
         """Move a leg's target from its rest by metres forward/up/outward; pitch its end bone."""
         rest = self.rest[leg]
-        sign = SIDES[leg.split(".")[1]]
+        # A leg on the body's middle line (side "C", #10960's tripods) moves outward as the left does.
+        sign = SIDES.get(leg.split(".")[1], 1.0)
         offset = Matrix.Translation((side * sign, -forward, up))
         turn = Matrix.Rotation(math.radians(-toe_pitch), 4, "X")
         location = rest.to_translation()
@@ -943,7 +945,7 @@ def main(argv):
         "body": {"hindMetres": points[family.hind_point][1], "foreMetres": points[family.fore_point][1]},
         # Each leg as (root, mid, end) joints for two-bone IK; end is the joint that stands.
         "legs": [[f"{a}.{side}", f"{b}.{side}", f"{c}.{side}"]
-                 for side in SIDES for a, b, c in family.chains],
+                 for side in family.leg_sides for a, b, c in family.chains],
         "clips": bake_clips(rig, controls, species, clips),
     }
     strip_controls(rig, controls)

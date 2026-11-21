@@ -1,0 +1,172 @@
+{
+  "id": "channel-sifter",
+  "family": "tripod",
+  "about": "The channel sifter (#10960), a ruin tender about 1.8 m tall on three legs under a hood-shell with a comb fan, fitted to the Tripo body (authoring/assets/creatures/channel-sifter/mesh), on the tripod family. Key points are metres as [side, forward, up]; front-leg points are the left side's, mirrored; `.C` points are the back leg on the middle line.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.4,
+      0
+    ],
+    "hips": [
+      0,
+      -0.35,
+      1.05
+    ],
+    "spine": [
+      0,
+      -0.05,
+      1.15
+    ],
+    "chest": [
+      0,
+      0.25,
+      1.15
+    ],
+    "neck": [
+      0,
+      0.42,
+      1.25
+    ],
+    "head": [
+      0,
+      0.52,
+      1.35
+    ],
+    "nose": [
+      0,
+      0.7,
+      1.45
+    ],
+    "fan": [
+      0,
+      0.5,
+      1.25
+    ],
+    "fan_tip": [
+      0,
+      0.55,
+      0.55
+    ],
+    "hip_socket": [
+      0.28,
+      0.25,
+      0.95
+    ],
+    "stifle": [
+      0.36,
+      0.28,
+      0.65
+    ],
+    "hock": [
+      0.4,
+      0.3,
+      0.32
+    ],
+    "fetlock": [
+      0.44,
+      0.32,
+      0.08
+    ],
+    "toe": [
+      0.46,
+      0.45,
+      0.0
+    ],
+    "hip_socket.C": [
+      0,
+      -0.4,
+      0.95
+    ],
+    "stifle.C": [
+      0,
+      -0.5,
+      0.62
+    ],
+    "hock.C": [
+      0,
+      -0.58,
+      0.32
+    ],
+    "fetlock.C": [
+      0,
+      -0.62,
+      0.08
+    ],
+    "toe.C": [
+      0,
+      -0.72,
+      0.0
+    ],
+    "eye": [
+      0.05,
+      0.6,
+      1.4
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.5,
+      "stride": 1.0,
+      "duty": 0.7,
+      "liftHind": 0.12,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.333,
+        "hind.C": 0.667
+      },
+      "bob": 0.03,
+      "swayDegrees": 2.0,
+      "nodDegrees": 2.0
+    },
+    "run": {
+      "seconds": 0.8,
+      "stride": 2.2,
+      "duty": 0.5,
+      "liftHind": 0.2,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.333,
+        "hind.C": 0.667
+      },
+      "bob": 0.05,
+      "swayDegrees": 2.0,
+      "nodDegrees": 2.0
+    },
+    "idle": {
+      "seconds": 4.0
+    },
+    "alert": {
+      "seconds": 2.5
+    },
+    "feed": {
+      "seconds": 4.0,
+      "sinkMetres": 0.15,
+      "dipDegrees": 15.0
+    },
+    "threat": {
+      "seconds": 1.6,
+      "rearDegrees": 10.0,
+      "headDegrees": 12.0,
+      "fanDegrees": 40.0,
+      "sinkMetres": 0.05
+    },
+    "bite": {
+      "seconds": 0.8,
+      "lungeMetres": 0.25
+    },
+    "hurt": {
+      "seconds": 0.5
+    },
+    "die": {
+      "seconds": 2.0,
+      "restShare": 0.3
+    }
+  }
+}
