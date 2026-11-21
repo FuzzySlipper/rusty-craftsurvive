@@ -427,7 +427,7 @@
   },
   {
    "mesh": "content/game/creatures/collector/collector.glb",
-   "sha256": "b29e6afdeaa1699994aa768e59067a0ef15a6875ecf13c81c9117985aafb77e0",
+   "sha256": "b7126fb2e23d4d7de3a8e2a785fa1010164d577c53597e648fb3321e8b26775f",
    "manifest": "content/game/creatures/collector/collector.manifest.json",
    "built": "authoring/tools/creatures/build_creature.py from authoring/assets/creatures/collector/species.json with --mesh body.glb --texture body-64.png --emission emission.png (Blender 5.2.2), on the strider family",
    "concept": "Patch's settled look (#10618): /data/evidence/rusty-craftsurvive/ruins-10618/sheets/b2-refined.png and shells2.png, on den-wiki Ruins wildlife",
@@ -440,7 +440,8 @@
     "shells": "dome, cap, back and full: GPT-image shell sheets (authoring/assets/creatures/collector/shells/<name>-reference.png, specs beside them), Tripo web studio multiview HD models without texture (30 credits each; its texture step stalled), prepare_mesh.py --head -y, painted from their own sheets by paint_from_views.py, pixel_reduce.py --factor 2 --colors 12-14 --luminance 0.62-0.67",
     "blade": "drawn in code by make_shells.py"
    },
-   "retained": "/data/evidence/rusty-craftsurvive/collector-10956/"
+   "retained": "/data/evidence/rusty-craftsurvive/collector-10956/",
+   "toned": "Patch, 2026-11-21: paler and fleshier than the punchy red. Texels of hue 300-15 degrees with saturation from 0.2 turned 12 degrees warmer, saturation x0.5, value x1.4 (the reduced paint before it is kept as mesh/body-64-punchy.png)"
   }
  ],
  "reference": {

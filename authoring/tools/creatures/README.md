@@ -530,5 +530,7 @@ front and back views with the arms and legs held apart.
   with the body when it is first drawn, under ids of their own (`ProductIds.WildlifeWornBase`, three a slot). The Engine
   carries them with the pose and the ragdoll; the product follows nothing. `craft.creature.look <look|any>` makes bodies
   from then on wear one look, for captures.
+- **Skin.** Tripo painted the tissue a deep wine red that read punchy in game; Patch asked for paler and fleshier. Its
+  plum-red band (hue 300-15 degrees) is warmed 12 degrees, halved in saturation and raised 1.4x in value after reduction.
 - **Engine rules met.** Piece textures are RGBA PNGs; a point no triangle faces (a ring closing at a crown) takes the
   normal of the points at the same place, as the Engine refuses a mesh it cannot normalise.
