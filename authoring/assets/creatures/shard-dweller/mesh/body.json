@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/shard-dweller/mesh/tripo/tripo.glb",
+  "triangles": 4000,
+  "areaSquareMetres": 1.214,
+  "charts": 221,
+  "utilization": 0.7609,
+  "masterTexels": [
+    481,
+    481
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.2950447201728821,
+      -0.45027223229408264,
+      -0.0021122086327522993
+    ],
+    [
+      0.2934132218360901,
+      0.44997233152389526,
+      0.6097056269645691
+    ]
+  ]
+}

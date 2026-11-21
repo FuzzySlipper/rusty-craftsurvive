@@ -1,0 +1,84 @@
+{
+  "species": "threshold-lurker",
+  "family": "low-slung",
+  "body": {
+    "hindMetres": -0.46,
+    "foreMetres": 0.26
+  },
+  "legs": [
+    [
+      "thigh.L",
+      "shin.L",
+      "foot.L"
+    ],
+    [
+      "upperarm.L",
+      "forearm.L",
+      "hand.L"
+    ],
+    [
+      "thigh.R",
+      "shin.R",
+      "foot.R"
+    ],
+    [
+      "upperarm.R",
+      "forearm.R",
+      "hand.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 0.5333333333333333,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.7273
+    },
+    "run": {
+      "seconds": 0.3333333333333333,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 4.4118
+    },
+    "alert": {
+      "seconds": 2.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 1.6,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "bite": {
+      "seconds": 0.7,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "hurt": {
+      "seconds": 0.5,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "hide": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": false
+    }
+  }
+}

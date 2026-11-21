@@ -1,0 +1,182 @@
+{
+  "id": "shard-dweller",
+  "family": "low-slung",
+  "about": "The shard dweller (#10959), a ruin skitterer about 0.6 m high under a carried shard of the ruin, fitted to the Tripo body (authoring/assets/creatures/shard-dweller/mesh), on the low-slung family. Its shard is held rigid on its spine (pins). Key points are metres as [side, forward, up]; limb points are the left side's, mirrored.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.2,
+      0
+    ],
+    "hips": [
+      0,
+      -0.2,
+      0.3
+    ],
+    "spine": [
+      0,
+      -0.05,
+      0.32
+    ],
+    "chest": [
+      0,
+      0.08,
+      0.3
+    ],
+    "neck": [
+      0,
+      0.15,
+      0.3
+    ],
+    "head": [
+      0,
+      0.2,
+      0.28
+    ],
+    "nose": [
+      0,
+      0.3,
+      0.25
+    ],
+    "jaw": [
+      0,
+      0.2,
+      0.22
+    ],
+    "jaw_tip": [
+      0,
+      0.28,
+      0.2
+    ],
+    "hip_socket": [
+      0.08,
+      -0.22,
+      0.25
+    ],
+    "knee": [
+      0.1,
+      -0.2,
+      0.14
+    ],
+    "ankle": [
+      0.1,
+      -0.25,
+      0.04
+    ],
+    "toe": [
+      0.1,
+      -0.18,
+      0.0
+    ],
+    "shoulder": [
+      0.17,
+      0.1,
+      0.28
+    ],
+    "elbow": [
+      0.22,
+      0.15,
+      0.16
+    ],
+    "wrist": [
+      0.24,
+      0.3,
+      0.05
+    ],
+    "knuckle": [
+      0.24,
+      0.42,
+      0.0
+    ]
+  },
+  "pins": [
+    {
+      "$comment": "The carried shard stays rigid on the spine (#10959).",
+      "bone": "spine",
+      "up": [
+        0.4,
+        0.7
+      ],
+      "centre": [
+        0,
+        -0.1
+      ],
+      "radius": 0.7
+    }
+  ],
+  "clips": {
+    "fps": 30,
+    "spineFlex": 3.0,
+    "walk": {
+      "seconds": 0.5,
+      "stride": 0.3,
+      "duty": 0.62,
+      "liftHind": 0.03,
+      "liftFore": 0.03,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.01,
+      "swayDegrees": 3.0
+    },
+    "run": {
+      "seconds": 0.32,
+      "stride": 0.6,
+      "duty": 0.42,
+      "liftHind": 0.05,
+      "liftFore": 0.05,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.1,
+        "fore.L": 0.5,
+        "fore.R": 0.6
+      },
+      "bob": 0.02,
+      "swayDegrees": 3.0
+    },
+    "idle": {
+      "seconds": 3.0
+    },
+    "alert": {
+      "seconds": 2.0
+    },
+    "threat": {
+      "seconds": 1.2,
+      "rearDegrees": 18.0,
+      "armDegrees": 55.0,
+      "armSpreadDegrees": 30.0,
+      "forearmDegrees": -10.0,
+      "neckDegrees": 0.0,
+      "jawDegrees": 0.0,
+      "crouchMetres": 0.02
+    },
+    "bite": {
+      "seconds": 0.6,
+      "lungeMetres": 0.15,
+      "jawDegrees": 0.0,
+      "neckDegrees": 0.0,
+      "headDegrees": 0.0
+    },
+    "hurt": {
+      "seconds": 0.5,
+      "jawDegrees": 0.0
+    },
+    "die": {
+      "seconds": 1.6
+    },
+    "lie": {
+      "seconds": 4.0,
+      "sinkMetres": 0.08,
+      "sprawlMetres": 0.03,
+      "headDegrees": 0.0
+    }
+  }
+}

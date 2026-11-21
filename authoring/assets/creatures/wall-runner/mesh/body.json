@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/wall-runner/mesh/tripo/tripo.glb",
+  "triangles": 3999,
+  "areaSquareMetres": 1.495,
+  "charts": 336,
+  "utilization": 0.7627,
+  "masterTexels": [
+    556,
+    556
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.46029964089393616,
+      -0.8009586930274963,
+      -0.0003539406170602888
+    ],
+    [
+      0.4610673189163208,
+      0.7994497418403625,
+      0.44859451055526733
+    ]
+  ]
+}

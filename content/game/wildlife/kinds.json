@@ -901,6 +901,78 @@
       "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
       "combat": { "health": 140, "evasion": 35, "armour": 7, "experience": 700 },
       "loot": [ { "item": "hide", "minimum": 1, "maximum": 2, "oneIn": 1 } ]
+    },
+    {
+      "id": "threshold-lurker",
+      "name": "Threshold lurker",
+      "$comment": "A ruin skitterer (#10959): a low ambusher that rests sunk into the floor under a ruined doorway, only its shield's top showing, and bursts up as the player passes (its threat), then rams and claws. Ruin placement under thresholds is #10955.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 3 },
+      "body": { "lengthMetres": 1.2, "heightMetres": 0.55, "widthMetres": 0.8, "sizeClass": "small", "colour": "#cbb89c" },
+      "mesh": {
+        "file": "creatures/threshold-lurker/threshold-lurker.glb",
+        "manifest": "creatures/threshold-lurker/threshold-lurker.manifest.json",
+        "ragdoll": "creatures/threshold-lurker/threshold-lurker.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "hide" }
+      },
+      "speeds": { "walk": 0.8, "grazeDrift": 0.4, "flee": 4.5, "turnDegrees": 200 },
+      "wariness": { "noticeMetres": 14, "actMetres": 5, "lookSeconds": 0.4, "warnSeconds": 0.4 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 14, "reachMetres": 1.4, "haltMetres": 1.0, "accuracy": 24, "power": 4, "cooldownTicks": 110, "biteWindupSeconds": 0.42, "dodgeMetres": 0.5,
+        "rest": { "wakeMetres": 4, "clip": "lie" }, "display": { "seconds": 0.7 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 45, "evasion": 40, "armour": 6, "experience": 230 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "shard-dweller",
+      "name": "Shard dweller",
+      "$comment": "A ruin skitterer (#10959): a small soft body under a carried shard of the ruin, which it raises as a shield, reaching out from under it with long three-digit arms.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 3 },
+      "body": { "lengthMetres": 0.9, "heightMetres": 0.6, "widthMetres": 0.8, "sizeClass": "small", "colour": "#cfc0a6" },
+      "mesh": {
+        "file": "creatures/shard-dweller/shard-dweller.glb",
+        "manifest": "creatures/shard-dweller/shard-dweller.manifest.json",
+        "ragdoll": "creatures/shard-dweller/shard-dweller.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "lie" }
+      },
+      "speeds": { "walk": 0.6, "grazeDrift": 0.4, "flee": 3.0, "turnDegrees": 220 },
+      "wariness": { "noticeMetres": 16, "actMetres": 6, "lookSeconds": 0.6, "warnSeconds": 0.6 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 16, "reachMetres": 1.2, "haltMetres": 0.9, "accuracy": 20, "power": 2, "cooldownTicks": 90, "biteWindupSeconds": 0.36, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 6, "clip": "lie" }, "display": { "seconds": 0.8 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 35, "evasion": 45, "armour": 7, "experience": 180 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "wall-runner",
+      "name": "Wall runner",
+      "$comment": "A ruin skitterer (#10959): a flat quick body on four spread pad-footed limbs with a whip tail. It runs on walls and ceilings in its design; until the Engine moves and routes bodies on walls (rusty-engine #10967) it runs on floors only.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 3 },
+      "body": { "lengthMetres": 1.6, "heightMetres": 0.35, "widthMetres": 1.0, "sizeClass": "small", "colour": "#d4c4a8" },
+      "mesh": {
+        "file": "creatures/wall-runner/wall-runner.glb",
+        "manifest": "creatures/wall-runner/wall-runner.manifest.json",
+        "ragdoll": "creatures/wall-runner/wall-runner.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "lie" }
+      },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.4, "flee": 6.5, "turnDegrees": 260 },
+      "wariness": { "noticeMetres": 20, "actMetres": 8, "lookSeconds": 0.4, "warnSeconds": 0.4 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 20, "reachMetres": 1.3, "haltMetres": 1.0, "accuracy": 22, "power": 2, "cooldownTicks": 80, "biteWindupSeconds": 0.3, "dodgeMetres": 0.9,
+        "rest": { "wakeMetres": 7, "clip": "lie" }, "display": { "seconds": 0.6 }, "search": { "seconds": 6 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 28, "evasion": 65, "armour": 3, "experience": 170 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
     }
   ]
 }

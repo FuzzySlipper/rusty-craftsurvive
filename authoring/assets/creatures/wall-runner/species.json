@@ -1,0 +1,198 @@
+{
+  "id": "wall-runner",
+  "family": "low-slung",
+  "about": "The wall runner (#10959), a flat ruin skitterer about 1.6 m long with its tail, fitted to the Tripo body (authoring/assets/creatures/wall-runner/mesh), on the low-slung family with a five-bone tail. It runs on floors only until rusty-engine #10967. Key points are metres as [side, forward, up]; limb points are the left side's, mirrored.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.3,
+      0
+    ],
+    "hips": [
+      0,
+      0.1,
+      0.28
+    ],
+    "spine": [
+      0,
+      0.35,
+      0.3
+    ],
+    "chest": [
+      0,
+      0.6,
+      0.28
+    ],
+    "neck": [
+      0,
+      0.72,
+      0.27
+    ],
+    "head": [
+      0,
+      0.78,
+      0.26
+    ],
+    "nose": [
+      0,
+      0.85,
+      0.25
+    ],
+    "jaw": [
+      0,
+      0.78,
+      0.22
+    ],
+    "jaw_tip": [
+      0,
+      0.84,
+      0.2
+    ],
+    "tail0": [
+      0,
+      0.0,
+      0.24
+    ],
+    "tail1": [
+      0,
+      -0.15,
+      0.23
+    ],
+    "tail2": [
+      0,
+      -0.3,
+      0.23
+    ],
+    "tail3": [
+      0,
+      -0.45,
+      0.22
+    ],
+    "tail4": [
+      0,
+      -0.6,
+      0.22
+    ],
+    "tail5": [
+      0,
+      -0.78,
+      0.21
+    ],
+    "hip_socket": [
+      0.2,
+      0.12,
+      0.22
+    ],
+    "knee": [
+      0.32,
+      0.02,
+      0.18
+    ],
+    "ankle": [
+      0.38,
+      -0.02,
+      0.05
+    ],
+    "toe": [
+      0.38,
+      0.02,
+      0.0
+    ],
+    "shoulder": [
+      0.2,
+      0.6,
+      0.22
+    ],
+    "elbow": [
+      0.27,
+      0.68,
+      0.16
+    ],
+    "wrist": [
+      0.27,
+      0.72,
+      0.05
+    ],
+    "knuckle": [
+      0.27,
+      0.76,
+      0.0
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "spineFlex": 3.0,
+    "walk": {
+      "seconds": 0.45,
+      "stride": 0.45,
+      "duty": 0.6,
+      "liftHind": 0.04,
+      "liftFore": 0.04,
+      "phases": {
+        "hind.L": 0.0,
+        "fore.L": 0.25,
+        "hind.R": 0.5,
+        "fore.R": 0.75
+      },
+      "bob": 0.01,
+      "swayDegrees": 3.0
+    },
+    "run": {
+      "seconds": 0.3,
+      "stride": 1.95,
+      "duty": 0.42,
+      "liftHind": 0.07,
+      "liftFore": 0.07,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.1,
+        "fore.L": 0.5,
+        "fore.R": 0.6
+      },
+      "bob": 0.02,
+      "swayDegrees": 3.0
+    },
+    "idle": {
+      "seconds": 3.0
+    },
+    "alert": {
+      "seconds": 2.0
+    },
+    "threat": {
+      "seconds": 1.0,
+      "rearDegrees": 28.0,
+      "armDegrees": -20.0,
+      "armSpreadDegrees": 35.0,
+      "forearmDegrees": 40.0,
+      "tailCurlDegrees": 45.0,
+      "neckDegrees": 0.0,
+      "jawDegrees": 0.0,
+      "crouchMetres": 0.02
+    },
+    "bite": {
+      "seconds": 0.5,
+      "lungeMetres": 0.25,
+      "jawDegrees": 0.0,
+      "neckDegrees": 0.0,
+      "headDegrees": 0.0
+    },
+    "hurt": {
+      "seconds": 0.5,
+      "jawDegrees": 0.0
+    },
+    "die": {
+      "seconds": 1.6
+    },
+    "lie": {
+      "seconds": 4.0,
+      "sinkMetres": 0.1,
+      "sprawlMetres": 0.05,
+      "headDegrees": 0.0
+    }
+  }
+}

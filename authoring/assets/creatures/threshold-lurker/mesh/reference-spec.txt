@@ -1,0 +1,13 @@
+WHAT IT IS: a model reference sheet for building a 3D game creature: ONE threshold lurker, a low ruin skitterer about 1.2 m long and 0.5 m high, in EXACTLY the body, shield, limbs, colours and texels of the FIRST reference image (its sheet's side view, view 1). It stands in a NEUTRAL STANCE: low on its four limbs, all four feet flat on the ground and spread apart, the wide wedge-shaped shield level at its front, its body level behind it.
+
+Exactly the same creature in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE profile, its front pointing to the left, the whole creature from feet to top. In this view the far limbs stand EXACTLY BEHIND the near ones and are hidden by them, so only the near side's limbs can be seen.
+- BOTTOM LEFT: the FRONT view, looking straight at its front, all its limbs apart from the body and from each other, visible with grey space between them.
+- BOTTOM RIGHT: the BACK view, from straight behind, all its limbs apart and visible.
+Portrait aspect about 1024x1536. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped.
+
+SHAPE - follow the FIRST reference image exactly, with the THIRD reference image (the same creature's full sheet) for its other sides: the wide wedge-shaped ivory shield at the front with its row of amber sockets and jade band; behind it a SOFT body of plum-pink ribbed TISSUE in rounded rings, NOT armour plates, NOT a shell; the front two limbs end in broad flat curved DIGGING BLADES like shovel heads edged with three blunt claws (NOT toes, NOT hands); the hind two in splayed three-toed feet.
+
+PAINT - follow the FIRST reference image exactly for its colours and treatment, and the SECOND reference image (a ground sloth sheet from the same game) only for the texel treatment: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work. NOT soft or airbrushed. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the creature, not a light direction.
+
+PROHIBITIONS: NO symbols, NO glyphs, NO markings. NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO people, NO scale post, NO rocks, NO other objects. NO EYES, NO FACE. EXACTLY FOUR LIMBS. The front limbs end in digging blades with three blunt claws, NOT hands. NOT cute, NOT photoreal, NOT a perspective render, NOT anime, NOT cel shading or outlines, NOT a robot.

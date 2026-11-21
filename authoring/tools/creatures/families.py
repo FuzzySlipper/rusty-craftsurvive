@@ -1002,6 +1002,15 @@ def low_slung_threat(c, s, t):
     settings = s["threat"]
     up = gait.rise_hold_fall(t, 0.25, 0.82)
     shake = gait.wave(t, 6)
+    rear = settings.get("rearDegrees", 0.0)
+    if rear:
+        # The front rears off its forefeet about the hind feet (#10959, the threshold lurker bursting up, the wall runner),
+        # the forelimbs raised under it and spread by `armSpreadDegrees`.
+        for side in SIDES:
+            c.leg_influence(f"fore.{side}", 1.0 - up)
+            c.bone_rotation(f"upperarm.{side}", pitch(settings.get("armDegrees", -40.0) * up) @ spread(side, settings.get("armSpreadDegrees", 15.0) * up))
+            c.bone_rotation(f"forearm.{side}", pitch(settings.get("forearmDegrees", 50.0) * up))
+        c.bone_rotation("root", pitch(rear * up + 1.5 * up * shake))
     c.bone_offset("root", (0, -settings.get("braceMetres", 0.0) * up, -settings.get("crouchMetres", 0.05) * up))
     c.bone_rotation("chest", pitch(settings.get("chestDegrees", 0.0) * up))
     c.bone_rotation("neck", pitch(settings.get("neckDegrees", 10.0) * up) @ yaw(4.0 * up * gait.wave(t, 2)))
@@ -1009,7 +1018,7 @@ def low_slung_threat(c, s, t):
     c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 30.0) * up - 2.0 * up * shake))
     heave = settings.get("domeHeaveDegrees", 3.0) * gait.wave(t, 3)
     open_dome(c, (settings.get("domeDegrees", 0.0) + heave) * up)
-    swing_tail(c, t, 4.0 * up, droop=-6.0 * up)
+    swing_tail(c, t, 4.0 * up, droop=-settings.get("tailCurlDegrees", 6.0) * up)
 
 
 def low_slung_bite(c, s, t):

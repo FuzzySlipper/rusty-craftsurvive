@@ -566,3 +566,20 @@ through the target in the blow (`bladeStrikeDegrees`), loose as it dies. Its arm
   limbs rising from it, so a blade's swing tore the dome; the dome now follows the spine and only the roots move.
 - **Ragdoll:** `bladeupper` is a cone, `bladefore` a hinge, and the scythe is left to the clips.
 - It is the `large` size class, and it fits the karst ruin's pillared hall that the carrier could not reach.
+
+
+### Small ruin skitterers on the low-slung family (#10959)
+
+The threshold lurker, the shard dweller and the wall runner each got a wildlife sheet by the settled recipe (Patch saw
+them first), then a mesh sheet and a Tripo body, all on `low-slung`.
+- **Rearing threat.** `threat.rearDegrees` rears the front off its forefeet about the hind feet, the forelimbs raised by
+  `armDegrees`/`forearmDegrees` and spread by `armSpreadDegrees`; `tailCurlDegrees` curls the tail up over the back
+  (the wall runner). The lurker's threat is its burst out of the floor; its rest is the hummock's `hide`, sunk until only
+  its back and shield show.
+- **The shard dweller's shard** is held rigid on the spine by a species `pins` region. Its Tripo paint has no amber, so it
+  has no emission.
+- **The wall runner runs on floors only.** The Engine's character movement and navigation are planar and upright;
+  running on walls and ceilings is asked upstream as rusty-engine #10967.
+- **Mesh sheets that fought back:** the lurker's first sheet gave it human hands and stood it up, and the shard
+  dweller's lost its long arms; naming what the limbs end in ("digging blades ... NOT hands", "arms twice as long as the
+  legs") and passing the creature's full sheet as a third reference fixed both.

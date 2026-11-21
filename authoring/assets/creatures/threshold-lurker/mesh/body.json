@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/threshold-lurker/mesh/tripo/tripo.glb",
+  "triangles": 4000,
+  "areaSquareMetres": 2.254,
+  "charts": 273,
+  "utilization": 0.759,
+  "masterTexels": [
+    589,
+    579
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.43427810072898865,
+      -0.5997337102890015,
+      -2.891356598411221e-05
+    ],
+    [
+      0.43396100401878357,
+      0.6015052199363708,
+      0.590298056602478
+    ]
+  ]
+}
