@@ -527,7 +527,8 @@ front and back views with the arms and legs held apart.
     leave most of it empty, so the body's 0.45 turned them grey-brown.
 - **In game.** `mesh.worn` in `kinds.json` names the pieces file and how often each look turns up. `WildlifeWornPieces`
   opens each piece once; each body's pieces are children of its object, hung from their joints in one `PublishChanges`
-  with the body when it is first drawn, under ids of their own (`ProductIds.WildlifeWornBase`, three a slot). The Engine
+  with the body just before the first snapshot that draws it, and again after any snapshot that left it out (the map
+  lets go of the bindings, R10956-1), under ids of their own (`ProductIds.WildlifeWornBase`, three a slot). The Engine
   carries them with the pose and the ragdoll; the product follows nothing. `craft.creature.look <look|any>` makes bodies
   from then on wear one look, for captures.
 - **Skin.** Tripo painted the tissue a deep wine red that read punchy in game; Patch asked for paler and fleshier. Its

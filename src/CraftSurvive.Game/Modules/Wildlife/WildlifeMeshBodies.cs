@@ -118,8 +118,14 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
         internal WildlifeWornPieces.Part[] Worn { get; set; } = [];
 
-        /// <summary>Whether its pieces have been hung from their joints: once, when the body is first drawn.</summary>
+        /// <summary>
+        /// Whether its pieces hang from their joints: they are hung before the first snapshot that draws the body, and again
+        /// after a snapshot that left it out (the map), which let go of them and their bindings.
+        /// </summary>
         internal bool Hung { get; set; }
+
+        /// <summary>The body's and its pieces' facts from its last pose, for hanging them before a snapshot.</summary>
+        internal AppearanceFact[] WornFacts { get; set; } = [];
     }
 
     internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<Creatures.CreatureSpace?, double, double, double, float> groundAt, ulong seed, Func<Creatures.CreatureSpace?, WildlifeRagdolls> ragdollsIn)
@@ -174,22 +180,33 @@ internal sealed class WildlifeMeshBodies : IDisposable
     }
 
     /// <summary>
-    /// The facts of what a body wears and holds (#10956): each piece a child of the body in its joint's frame. The first time
-    /// the body is drawn its pieces are hung from their joints, with the body itself in the same change, as the Engine wants
-    /// a parent there; later snapshots keep each piece where it hangs.
+    /// The facts of what a body wears and holds (#10956): each piece a child of the body in its joint's frame. They join the
+    /// snapshot as plain children; <see cref="BeforeSnapshot"/> hangs them from their joints, which later snapshots keep.
     /// </summary>
     private void Wear(Body body, AppearanceFact fact, ICollection<AppearanceFact>? into)
     {
         if (body.Worn.Length == 0) return;
         AppearanceFact[] pieces = [.. body.Worn.Select(part => new AppearanceFact(part.ObjectId, true, body.ObjectId, PieceFrame, part.Look, fact.Visible, RenderLayer.Scene, ShadowCasting.Cast))];
-        if (!body.Hung)
+        body.WornFacts = [fact, .. pieces];
+        foreach (AppearanceFact piece in pieces) into?.Add(piece);
+    }
+
+    /// <summary>
+    /// Before a snapshot that draws the bodies (#10956 R10956-1): hangs the pieces of every body whose pieces are not hanging
+    /// from their joints, a body new since the last snapshot or one a snapshot left out (the map) and so let go of with its
+    /// pieces and their joint bindings. Each is published with its body in one change, as the Engine wants a parent there,
+    /// from the facts its last pose made: the same facts the snapshot then carries, which keeps each piece where it hangs.
+    /// A snapshot that leaves the bodies out hangs nothing.
+    /// </summary>
+    internal void BeforeSnapshot(bool drawn)
+    {
+        if (!drawn) return;
+        foreach (Body body in bodies.All)
         {
-            AppearanceFact[] changed = [fact, .. pieces];
-            engine.Graphics.PublishChanges(new(changed, ReadOnlyMemory<ulong>.Empty, body.Worn.Select(part => new MeshJointAttachment(part.ObjectId, part.Joint)).ToArray()));
+            if (body.Hung || body.WornFacts.Length == 0) continue;
+            engine.Graphics.PublishChanges(new(body.WornFacts, ReadOnlyMemory<ulong>.Empty, body.Worn.Select(part => new MeshJointAttachment(part.ObjectId, part.Joint)).ToArray()));
             body.Hung = true;
         }
-
-        foreach (AppearanceFact piece in pieces) into?.Add(piece);
     }
 
     /// <summary>A piece sits in its joint's own frame as make_shells.py wrote it.</summary>
@@ -528,7 +545,13 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// </summary>
     internal void AfterSnapshot(bool drawn)
     {
-        foreach (Body body in bodies.All) body.Published = drawn;
+        foreach (Body body in bodies.All)
+        {
+            body.Published = drawn;
+            // A snapshot that left the body out let go of its pieces' joint bindings with them (R10956-1).
+            if (!drawn) body.Hung = false;
+        }
+
         foreach (Appearance appearance in retiring) appearance.Dispose();
         retiring.Clear();
     }

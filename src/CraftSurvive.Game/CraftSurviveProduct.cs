@@ -738,6 +738,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         mapView?.Profile.Mark("snapshot.facts");
         // The Engine's publish, and the retired resources the owners let go after it, are the Engine's share (#10907).
         long publishing = System.Diagnostics.Stopwatch.GetTimestamp();
+        // Worn pieces are hung from their joints first: the snapshot keeps a binding, but cannot make one (#10956).
+        wildlife.BeforeAppearanceSnapshot(drawn: town.Open || !mapOpen || mapView is null);
         engine.Graphics.PublishSnapshot(facts);
         mapView?.Profile.Mark("snapshot.publish");
         creatures.AfterAppearanceSnapshot();

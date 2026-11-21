@@ -129,6 +129,9 @@ internal sealed partial class WildlifeModule : IProductModule
     /// <summary>Called by the product root once it has published a snapshot of <see cref="AppearanceFacts"/>.</summary>
     internal void AfterAppearanceSnapshot(bool drawn) => presentation?.Meshes.AfterSnapshot(drawn);
 
+    /// <summary>Hangs worn pieces from their joints before a snapshot that draws wildlife (#10956).</summary>
+    internal void BeforeAppearanceSnapshot(bool drawn) => presentation?.Meshes.BeforeSnapshot(drawn);
+
     private WildlifeCatalog Catalog => catalog ?? throw new InvalidOperationException("wildlife has not started");
 
     private WildlifeLedger Ledger => ledger ?? throw new InvalidOperationException("wildlife has not started");
