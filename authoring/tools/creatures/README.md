@@ -576,6 +576,11 @@ them first), then a mesh sheet and a Tripo body, all on `low-slung`.
   `armDegrees`/`forearmDegrees` and spread by `armSpreadDegrees`; `tailCurlDegrees` curls the tail up over the back
   (the wall runner). The lurker's threat is its burst out of the floor; its rest is the hummock's `hide`, sunk until only
   its back and shield show.
+- **The lurker's ambush, staged live (R10959-1).** Spawn it resting on a doorway's threshold, stand the player a
+  few metres off on the far side, and walk through on held input (`scripts/live.mjs walk --steps 6 --minimum 0`,
+  re-aimed each hold): at its `wakeMetres` (4 m) it goes from its sunk `hide` rest to its rearing threat on the
+  threshold, then pursues. The karst ruin's breach (`craft.dungeon.visit breach`) is an arched doorway open 7 m to
+  its south. Placing it on doorways in generated ruins is #10955.
 - **The shard dweller's shard** is held rigid on the spine by a species `pins` region. Its Tripo paint has no amber, so it
   has no emission.
 - **The wall runner runs on floors only.** The Engine's character movement and navigation are planar and upright;
