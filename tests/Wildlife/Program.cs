@@ -548,7 +548,10 @@ Check.Section("kinds", () =>
     string[] hunters = ["gaunt", "axe-beak", "drift-runner"];
     string[] cave = ["root-adder", "mouldback", "drowner", "hummock", "ribbon-stalker", "stalk-bill", "drop-sloth", "draft-hound", "salt-monitor", "glass-courser", "seep-rat", "plume-neck"];
     Check.That(cave.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Cave is not null), "the cave's hunters (#10876) load, each with its cave");
-    Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length, catalog.Kinds.Count, "the content holds the two waves, the hunters, the cave's hunters and nothing else");
+    string[] ruin = ["collector"];
+    Check.That(ruin.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt is not null && k.Cave is null), "the ruins' hunters (#10956) load, in no cave's communities");
+    Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length, catalog.Kinds.Count,
+        "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters and nothing else");
     Check.That(Enum.GetValues<PressedResponse>().All(r => catalog.Kinds.Any(k => k.Pressed == r)), "every pressed response must have a kind that shows it");
     Check.That(Enum.GetValues<WildlifeSizeClass>().All(c => catalog.SizeClasses.ContainsKey(c)), "every size class must have a capsule");
     WildlifeKind sloth = catalog.Kind("ground-sloth");
@@ -1313,7 +1316,9 @@ Check.Section("cave animals", () =>
         Check.That(creature.Tuning.WakeRange == kind.Hunt.Rest!.WakeMetres && creature.Tuning.SearchTicks > 0, $"{kind.Id}'s rest and search reach the creature rules");
     }
 
-    Check.That(catalog.Kinds.Where(kind => kind.Cave is null && kind.Hunt is not null).All(kind => kind.Hunt!.Rest is null && kind.Hunt.Display is null && kind.Hunt.Search is null),
+    // The ruins' hunters (#10956) live under the world as the cave's do, so they rest, display and search too.
+    Check.That(catalog.Kinds.Where(kind => kind.Cave is null && kind.Hunt is not null && kind.Mesh?.Worn is null)
+            .All(kind => kind.Hunt!.Rest is null && kind.Hunt.Display is null && kind.Hunt.Search is null),
         "the overworld's hunters keep their own ways: no rest, display or search of a cave's");
     Check.That(catalog.CaveWakeMetres > 0 && catalog.CaveWakeMetres < 96, "a cave home wakes inside the distance the encounter director lets creatures go at");
 
@@ -1567,6 +1572,39 @@ Check.Section("cave animals", () =>
 });
 
 // Creature behaviour debugging (#10926): a test aid's hold on a herd animal, read by the rules, and its release.
+Check.Section("ruin wildlife", () =>
+{
+    // The main ruin inhabitant (#10956): a hunter of no overworld region and no cave, wearing a shell as equipment.
+    WildlifeKind collector = catalog.Kind("collector");
+    Check.That(Enum.GetValues<MapBiome>().All(biome => collector.HabitatWeight(biome) == 0) && collector.Population.HerdsPerSquareKilometre == 0,
+        "the collector lives in no overworld region");
+    Check.That(collector.Hunt!.Rest is { } rest && rest.WakeMetres > collector.Hunt.ReachMetres && rest.WakeMetres <= collector.Hunt.SightMetres,
+        "the collector rests and wakes within its sight");
+    Check.That(collector.Hunt.Display is { Seconds: > 0 } && collector.Hunt.Search is { Seconds: > 0 }, "the collector displays before it attacks and searches for a player it lost");
+    WildlifeWorn worn = collector.Mesh!.Worn ?? throw new InvalidOperationException("the collector wears nothing");
+    Check.Equal("creatures/collector/shells/pieces.json", worn.Pieces, "its pieces come from the shell maker's file");
+    Check.Equal("bare", worn.Pick(0.0), "the lowest share wears the first look");
+    Check.Equal("full", worn.Pick(0.999), "the highest share wears the last look");
+    Check.That(Enumerable.Range(0, 600).Select(i => worn.Pick(i / 600.0)).Distinct().SequenceEqual(["bare", "dome", "split", "full"]), "every look is worn by some share");
+    Check.Equal(200, Enumerable.Range(0, 600).Count(i => worn.Pick(i / 600.0) == "dome"), "each look is worn by its weight's share");
+
+    using JsonDocument pieces = JsonDocument.Parse(ReadResource("Wildlife.collector.pieces.json"));
+    string[] joints = GlbJoints("Wildlife.collector.glb");
+    JsonElement[] held = [.. pieces.RootElement.GetProperty("held").EnumerateObject().Select(piece => piece.Value)];
+    foreach (JsonProperty look in pieces.RootElement.GetProperty("looks").EnumerateObject())
+    {
+        JsonElement[] all = [.. look.Value.EnumerateArray(), .. held];
+        Check.That(all.Length <= WildlifeWorn.MostPieces, $"the {look.Name} look and what is held fit a body's ids");
+        Check.That(all.All(piece => joints.Contains(piece.GetProperty("joint").GetString())), $"every piece of the {look.Name} look hangs from a joint of the collector's rig");
+    }
+
+    Check.That(pieces.RootElement.GetProperty("looks").EnumerateObject().Select(look => look.Name).SequenceEqual(["bare", "dome", "split", "full"]),
+        "the pieces file offers Patch's four looks");
+    Check.That(worn.Looks.All(look => pieces.RootElement.GetProperty("looks").TryGetProperty(look.Look, out _)), "every look the kind wears is in its pieces file");
+    using JsonDocument noWeight = JsonDocument.Parse("""{ "worn": { "pieces": "p.json", "looks": { "bare": 0 } } }""");
+    Check.Throws<InvalidDataException>(() => WildlifeWorn.Read(noWeight.RootElement), "looks with no weight between them are refused");
+});
+
 Check.Section("debug holds", () =>
 {
     Vector2 near = new(12, 0);
@@ -1652,6 +1690,20 @@ static double GlbLongestExtent(string name)
     int accessor = gltf.RootElement.GetProperty("meshes")[0].GetProperty("primitives")[0].GetProperty("attributes").GetProperty("POSITION").GetInt32();
     JsonElement bounds = gltf.RootElement.GetProperty("accessors")[accessor];
     return Enumerable.Range(0, 3).Max(axis => bounds.GetProperty("max")[axis].GetDouble() - bounds.GetProperty("min")[axis].GetDouble());
+}
+
+// The names of a GLB's first skin's joints.
+static string[] GlbJoints(string name)
+{
+    using Stream stream = typeof(Check).Assembly.GetManifestResourceStream(name)
+        ?? throw new InvalidOperationException($"{name} is not embedded");
+    using BinaryReader reader = new(stream);
+    reader.ReadBytes(12);
+    int length = reader.ReadInt32();
+    reader.ReadInt32();
+    using JsonDocument gltf = JsonDocument.Parse(reader.ReadBytes(length));
+    JsonElement nodes = gltf.RootElement.GetProperty("nodes");
+    return [.. gltf.RootElement.GetProperty("skins")[0].GetProperty("joints").EnumerateArray().Select(joint => nodes[joint.GetInt32()].GetProperty("name").GetString()!)];
 }
 
 static string ReadResource(string name)

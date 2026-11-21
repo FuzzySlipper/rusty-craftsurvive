@@ -496,3 +496,39 @@ but no ragdoll.
   - no shadow;
   - it pauses when held by distance, as hunters do.
   - A kind without one keeps the placeholder.
+
+
+### The main ruin inhabitant: the strider family and worn shells (#10956)
+
+The collector is the ruins' common foe (den-wiki [Ruins wildlife](https://wiki.dragonden.stream/wiki/wandering-years/ruins-wildlife)).
+Its body came through the Tripo web studio from `collector/mesh/reference.png`: the bare body from the settled shell sheet, in side,
+front and back views with the arms and legs held apart.
+- **The `strider` family.** The bird's legs (thigh, shin, cannon, toes; two-bone IK on the lower pair) under a spine with
+  no tail, two long arms that hang to the ground (`upperarm`, `forearm`, `hand`, `claw`) and a short neck to a hanging
+  head. The skitterer, the implement-carrier and the blade-limbed special build on it (#10957, #10958).
+  - Clips: `rest`, `idle`, `walk` and `run` (the arms swing against the legs, `armSwingDegrees`), `alert`, `crouch`
+    (its rest, sunk low with its hands down), `threat` (low and wide: knees deep, head thrust out, both arms reaching,
+    the blade arm raised; Patch: it never stands up like a person), `bite` (the blade stroke: it coils, lunges and sweeps
+    across), `hurt` and `die`.
+  - The spine flexes little, so a rigid shell on it does not part from the body.
+- **Worn pieces.** Shells and the blade are not skinned. Each is a rigid prop mesh in the frame of the joint it hangs
+  from, so one body wears any of the four looks, as equipment (Patch, 2026-11-21).
+  - `make_shells.py <species.json> <built.glb> <out dir>` reads the species' `shells` block and the built GLB's bind
+    matrices, and writes each piece as `<name>.prop-mesh.json` and `<name>.png`, with `pieces.json` listing each look's
+    pieces and the held ones by joint.
+  - A shell with `mesh` is a generated one, stretched to its `box` and raised until the body's trunk clears its top
+    (`clearance`); one without is a cap drawn in code (`centre`, `half`, `rim`, `top`, `fullness`).
+  - Species metres to glTF swaps two axes, which mirrors the space, so the writer turns every triangle over.
+  - `paint_from_views.py <body.glb> <views dir> <master.png>` paints a prepared mesh from its sheet's views by the way
+    each surface faces. The shells needed it: Tripo's texture step stalled on the first and never finished, so the shells
+    were generated untextured (30 credits each) and painted from their own sheets
+    (`collector/shells/<name>-reference.png`).
+  - Reduce shell paint with `--luminance 0.67`: the reducer scales to a mean over the whole image, and a shell's charts
+    leave most of it empty, so the body's 0.45 turned them grey-brown.
+- **In game.** `mesh.worn` in `kinds.json` names the pieces file and how often each look turns up. `WildlifeWornPieces`
+  opens each piece once; each body's pieces are children of its object, hung from their joints in one `PublishChanges`
+  with the body when it is first drawn, under ids of their own (`ProductIds.WildlifeWornBase`, three a slot). The Engine
+  carries them with the pose and the ragdoll; the product follows nothing. `craft.creature.look <look|any>` makes bodies
+  from then on wear one look, for captures.
+- **Engine rules met.** Piece textures are RGBA PNGs; a point no triangle faces (a ring closing at a crown) takes the
+  normal of the points at the same place, as the Engine refuses a mesh it cannot normalise.

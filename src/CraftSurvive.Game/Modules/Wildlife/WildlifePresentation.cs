@@ -94,14 +94,14 @@ internal sealed class WildlifePresentation : IDisposable
                 }
 
                 kept.Add(member);
-                next.Add(meshes.Pose(herd, herd.Kind, member, feet(member), Vector2.Distance(member.Position, here), seconds, plantWithin, fallen: false));
+                next.Add(meshes.Pose(herd, herd.Kind, member, feet(member), Vector2.Distance(member.Position, here), seconds, plantWithin, fallen: false, into: next));
             }
         }
 
         foreach (Creatures.WildlifeHunter hunter in hunters)
         {
             kept.Add(hunter.Member);
-            next.Add(meshes.Pose(null, hunter.Kind, hunter.Member, hunter.Feet, Vector2.Distance(hunter.Member.Position, here), seconds, double.PositiveInfinity, fallen: false, space: hunter.Space));
+            next.Add(meshes.Pose(null, hunter.Kind, hunter.Member, hunter.Feet, Vector2.Distance(hunter.Member.Position, here), seconds, double.PositiveInfinity, fallen: false, space: hunter.Space, into: next));
         }
 
         foreach (WildlifeFallen body in fallen)
@@ -113,7 +113,7 @@ internal sealed class WildlifePresentation : IDisposable
             }
 
             kept.Add(body.Member);
-            next.Add(meshes.Pose(null, body.Kind, body.Member, feet(body.Member), Vector2.Distance(body.Member.Position, here), seconds, plantWithin, fallen: true, body.Blow, body.Space as Creatures.CreatureSpace));
+            next.Add(meshes.Pose(null, body.Kind, body.Member, feet(body.Member), Vector2.Distance(body.Member.Position, here), seconds, plantWithin, fallen: true, body.Blow, body.Space as Creatures.CreatureSpace, into: next));
         }
 
         foreach (CaveAmbient creature in ambient ?? [])

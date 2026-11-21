@@ -781,6 +781,9 @@ internal sealed partial class WildlifeModule : IProductModule
         return "all herds asleep";
     }
 
+    /// <summary>A test aid (#10956): the look bodies made from now wear, of the kinds that wear pieces; "any" for each its own.</summary>
+    internal string ForceWornLook(string look) => Presentation.Meshes.ForceLook(look, Catalog.Kinds);
+
     /// <summary>What an animal's mesh plays now, for a creature's inspection (#10926).</summary>
     internal string BodyReadout(WildlifeMember member) => Presentation.Meshes.BodyReadout(member);
 

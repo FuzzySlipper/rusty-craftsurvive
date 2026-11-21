@@ -1,0 +1,38 @@
+{
+  "looks": {
+    "bare": [],
+    "dome": [
+      {
+        "piece": "creatures/collector/shells/dome.prop-mesh.json",
+        "joint": "spine",
+        "triangles": 1498
+      }
+    ],
+    "split": [
+      {
+        "piece": "creatures/collector/shells/cap.prop-mesh.json",
+        "joint": "head",
+        "triangles": 1498
+      },
+      {
+        "piece": "creatures/collector/shells/back.prop-mesh.json",
+        "joint": "spine",
+        "triangles": 1500
+      }
+    ],
+    "full": [
+      {
+        "piece": "creatures/collector/shells/full.prop-mesh.json",
+        "joint": "spine",
+        "triangles": 1800
+      }
+    ]
+  },
+  "held": {
+    "blade": {
+      "piece": "creatures/collector/shells/blade.prop-mesh.json",
+      "joint": "hand.R",
+      "triangles": 40
+    }
+  }
+}

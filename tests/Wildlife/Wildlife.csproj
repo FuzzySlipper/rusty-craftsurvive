@@ -44,6 +44,8 @@
     <EmbeddedResource Include="../../content/game/creatures/gaunt/gaunt.manifest.json" LogicalName="Wildlife.gaunt.manifest.json" />
     <EmbeddedResource Include="../../content/game/birds/birds.json" LogicalName="Wildlife.birds.json" />
     <EmbeddedResource Include="../../content/game/creatures/*/*.ragdoll.json" LogicalName="Wildlife.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../content/game/creatures/collector/collector.glb" LogicalName="Wildlife.collector.glb" />
+    <EmbeddedResource Include="../../content/game/creatures/collector/shells/pieces.json" LogicalName="Wildlife.collector.pieces.json" />
     <EmbeddedResource Include="../../content/game/creatures/blindfish/blindfish.glb;../../content/game/creatures/drift-grazer/drift-grazer.glb;../../content/game/creatures/mound-shrew/mound-shrew.glb" LogicalName="Wildlife.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

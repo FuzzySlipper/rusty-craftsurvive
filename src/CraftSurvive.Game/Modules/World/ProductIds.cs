@@ -195,6 +195,11 @@ internal static class ProductIds
 
     internal const ulong PartyAppearanceLimit = 0x80UL;
 
+    /// <summary>The rigid pieces wildlife wears and holds (#10956): a shell or a blade hung from a body's joint, a few for each mesh body's slot.</summary>
+    internal const ulong WildlifeWornBase = 0xA_6000UL;
+
+    internal const ulong WildlifeWornLimit = 0xC00UL;
+
     /// <summary>The overworld places' kit pieces standing in the near ground (#9992), at most <see cref="PlaceMeshLimit"/>.</summary>
     internal const ulong PlaceMeshBase = 0x9_A000UL;
 

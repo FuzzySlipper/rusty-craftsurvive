@@ -802,6 +802,31 @@
       "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
       "combat": { "health": 60, "evasion": 50, "armour": 3, "experience": 320 },
       "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "collector",
+      "name": "Ruin collector",
+      "$comment": "The main ruin inhabitant (#10956), the collectors' common foe: a low crouch on bent legs, long arms hanging, a blade in its right hand, and a shell worn like equipment. Its shells and blade are rigid pieces hung from its joints (worn). Ruin placement is #10955; until then craft.creatures.hunter places it.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 2.2, "heightMetres": 2.02, "widthMetres": 0.9, "sizeClass": "human", "colour": "#c8b49c" },
+      "mesh": {
+        "file": "creatures/collector/collector.glb",
+        "manifest": "creatures/collector/collector.manifest.json",
+        "ragdoll": "creatures/collector/collector.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "crouch" },
+        "worn": { "pieces": "creatures/collector/shells/pieces.json", "looks": { "bare": 1, "dome": 2, "split": 2, "full": 1 } }
+      },
+      "speeds": { "walk": 1.2, "grazeDrift": 0.4, "flee": 5.5, "turnDegrees": 160 },
+      "wariness": { "noticeMetres": 24, "actMetres": 9, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 24, "reachMetres": 2.2, "haltMetres": 1.8, "accuracy": 24, "power": 4, "cooldownTicks": 130, "biteWindupSeconds": 0.46, "dodgeMetres": 0.5,
+        "rest": { "wakeMetres": 9, "clip": "lie" }, "display": { "seconds": 1.2 }, "search": { "seconds": 10 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 70, "evasion": 45, "armour": 5, "experience": 340 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
     }
   ]
 }

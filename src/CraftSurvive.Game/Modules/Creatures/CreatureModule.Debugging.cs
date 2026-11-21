@@ -458,6 +458,9 @@ internal sealed partial class CreatureModule
     /// show</c> is on, in headless snapshots too): <c>off</c>, <c>selected</c> or <c>all</c>. Each says its id, state, clip
     /// and route outcome.
     /// </summary>
+    /// <summary>A test aid (#10956): the look shell-wearing creatures made from now on wear.</summary>
+    internal string Look(string look) => Wildlife is null ? "no wildlife" : Wildlife.ForceWornLook(look);
+
     internal string Labels(string mode)
     {
         if (mode is not ("off" or "selected" or "all")) return "labels off|selected|all";

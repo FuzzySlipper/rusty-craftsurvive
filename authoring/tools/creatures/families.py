@@ -2021,6 +2021,197 @@ SERPENT_CLIPS = {
 }
 
 
+# ---------------------------------------------------------------- strider: two legs and two long arms, no tail (#10956)
+
+def strider_bones():
+    """The bird's legs under a short spine with no tail, two long arms that hang to the ground and grip, and a short neck
+    to a hanging head (#10956, the main ruin inhabitant). Its shells are not skinned: each is a rigid mesh the product
+    hangs from a joint of this rig (the species' `shells`), so the spine flexes little."""
+    bones = [
+        ("root", None, "root", "root_tip", 1.0),
+        ("hips", "root", "hips", "spine", 1.0),
+        ("spine", "hips", "spine", "chest", 1.0),
+        ("chest", "spine", "chest", "neck", 1.0),
+        ("neck", "chest", "neck", "head", 1.0),
+        ("head", "neck", "head", "nose", 1.0),
+    ]
+    for side, sign in SIDES.items():
+        bones += [
+            (f"thigh.{side}", "hips", "hip_socket", "stifle", sign),
+            (f"shin.{side}", f"thigh.{side}", "stifle", "hock", sign),
+            (f"cannon.{side}", f"shin.{side}", "hock", "fetlock", sign),
+            (f"hoof.{side}", f"cannon.{side}", "fetlock", "toe", sign),
+            (f"upperarm.{side}", "chest", "shoulder", "elbow", sign),
+            (f"forearm.{side}", f"upperarm.{side}", "elbow", "wrist", sign),
+            (f"hand.{side}", f"forearm.{side}", "wrist", "knuckle", sign),
+            (f"claw.{side}", f"hand.{side}", "knuckle", "claw_tip", sign),
+        ]
+    return bones
+
+
+def strider_arms(c, settings, swing=(0.0, 0.0), reach=0.0, out=0.0, curl=0.0):
+    """Both arms from hanging: `swing` pitches each (left, right) forward, `reach` raises both forward from the shoulder
+    with the elbow opening, `out` spreads them, and `curl` closes the fingers."""
+    for (side, sign), own in zip(SIDES.items(), swing):
+        c.bone_rotation(f"upperarm.{side}", pitch(own + reach) @ spread(side, out))
+        c.bone_rotation(f"forearm.{side}", pitch(0.35 * own - 0.3 * reach))
+        c.bone_rotation(f"claw.{side}", pitch(-curl))
+
+
+def strider_gait(c, settings, t, spine_flex):
+    """Two legs in turn, the hips swinging over the foot that stands; the long arms swing against the legs, each a little
+    behind, and the spine stays stiff enough under its shell."""
+    duty, stride = settings["duty"], settings["stride"]
+    for leg, offset in settings["phases"].items():
+        phase = t + offset
+        side = leg.split(".")[1]
+        forward, up = gait.foot(phase, duty, stride, settings["liftHind"])
+        swing = 0.0 if gait.planted(phase, duty) else math.sin(math.pi * ((phase % 1.0) - duty) / (1.0 - duty))
+        c.place(leg, forward=forward, up=up, toe_pitch=-30.0 * swing)
+        reach = math.degrees(math.asin(max(-0.9, min(0.9, forward / c.leg_length(leg)))))
+        c.bone_rotation(f"thigh.{side}", pitch(TOP_SEGMENT_SHARE * reach))
+    sway, bob = settings["swayDegrees"], settings["bob"]
+    c.bone_offset("hips", (settings.get("swingMetres", 0.06) * gait.wave(t), 0, -bob * math.cos(2 * gait.TAU * t)))
+    c.bone_rotation("hips", roll(sway * gait.wave(t)) @ yaw(0.6 * sway * gait.wave(t, lag=0.1)))
+    c.bone_rotation("spine", pitch(spine_flex * gait.wave(t, 2)))
+    c.bone_rotation("chest", roll(-0.7 * sway * gait.wave(t, lag=0.2)) @ yaw(-0.8 * sway * gait.wave(t, lag=0.15)))
+    nod = settings.get("nodDegrees", 3.0)
+    c.bone_rotation("neck", pitch(-nod * gait.wave(t, 2, lag=0.15)))
+    c.bone_rotation("head", pitch(0.6 * nod * gait.wave(t, 2, lag=0.3)) @ yaw(-0.5 * sway * gait.wave(t, lag=0.3)))
+    arm = settings.get("armSwingDegrees", 14.0)
+    left, right = arm * gait.wave(t, lag=0.5 + 0.08), arm * gait.wave(t, lag=0.08)
+    strider_arms(c, settings, swing=(left, right), reach=settings.get("armReachDegrees", 0.0), curl=10.0)
+
+
+def strider_walk(c, s, t):
+    strider_gait(c, s["walk"], t, spine_flex=0.6)
+
+
+def strider_run(c, s, t):
+    strider_gait(c, s["run"], t, spine_flex=s["run"].get("spineFlex", 1.5))
+
+
+def strider_idle(c, s, t):
+    """Still, breathing; the hanging head turns a little, the arms drift and the fingers flex."""
+    breathe = gait.wave(t, 2)
+    c.bone_rotation("spine", pitch(0.5 * breathe))
+    c.bone_rotation("chest", pitch(-0.5 * gait.wave(t, 2, lag=0.1)))
+    c.bone_rotation("neck", pitch(1.5 * gait.wave(t)) @ yaw(6.0 * gait.wave(t, lag=0.25)))
+    c.bone_rotation("head", yaw(5.0 * gait.wave(t, lag=0.3)))
+    drift = 3.0 * gait.wave(t, lag=0.2)
+    strider_arms(c, s, swing=(drift, -drift), curl=10.0 + 12.0 * max(0.0, gait.wave(t, 3)))
+
+
+def strider_alert(c, s, t):
+    """It lifts its head from the hang and turns it slowly, arms drawn a little forward, fingers open."""
+    c.bone_rotation("chest", pitch(3.0))
+    c.bone_rotation("neck", pitch(14.0) @ yaw(18.0 * gait.wave(t)))
+    c.bone_rotation("head", pitch(6.0) @ yaw(8.0 * gait.wave(t, lag=0.1)))
+    strider_arms(c, s, reach=12.0, out=6.0, curl=-6.0)
+
+
+def strider_crouch(c, s, t):
+    """At rest (#10956): sunk low on folded legs with its hands on the ground before it and its head hanging, still as
+    the ruin around it; it only breathes."""
+    settings = s.get("crouch", {})
+    sink = settings.get("sinkMetres", 0.35)
+    c.bone_offset("hips", (0, 0, -sink))
+    c.bone_rotation("spine", pitch(-3.0 + 0.4 * gait.wave(t)))
+    c.bone_rotation("neck", pitch(-10.0))
+    c.bone_rotation("head", pitch(-6.0))
+    strider_arms(c, s, reach=settings.get("armDegrees", 10.0), curl=20.0)
+
+
+def strider_threat(c, s, t):
+    """The threat stays low and wide (Patch, 2026-11-21: it never stands up like a person): knees bend deep, the head
+    thrusts out under the shell, both arms reach forward and wide with the hands open, and the right, which holds the
+    blade, rises. A tremor runs through it."""
+    settings = s["threat"]
+    up = gait.rise_hold_fall(t, 0.2, 0.85)
+    shake = gait.wave(t, 10)
+    c.bone_offset("hips", (0, 0.04 * up, -settings.get("sinkMetres", 0.3) * up))
+    c.bone_rotation("hips", pitch(-4.0 * up))
+    c.bone_rotation("spine", pitch(-3.0 * up))
+    c.bone_rotation("chest", pitch(4.0 * up) @ roll(0.8 * up * shake))
+    c.bone_rotation("neck", pitch(-12.0 * up) @ yaw(3.0 * up * gait.wave(t, 2)))
+    c.bone_rotation("head", pitch(18.0 * up) @ yaw(2.0 * up * shake))
+    for leg in ("hind.L", "hind.R"):
+        c.place(leg, side=settings.get("widenMetres", 0.12) * up)
+    reach, out = settings.get("reachDegrees", 55.0), settings.get("spreadDegrees", 32.0)
+    strider_arms(c, s, reach=reach * up, out=out * up, curl=-14.0 * up)
+    # The blade arm: the upper arm a little higher than the other, the forearm raised from the elbow.
+    c.bone_rotation("upperarm.R", pitch((reach + 0.4 * settings.get("bladeDegrees", 35.0)) * up) @ spread("R", out * up))
+    c.bone_rotation("forearm.R", pitch(settings.get("bladeDegrees", 35.0) * up))
+    c.bone_rotation("hand.R", pitch(-15.0 * up))
+
+
+def strider_slash(c, s, t):
+    """The blade stroke (the hunter's bite): the right arm draws up and back as the body coils, then the body lunges
+    over its planted feet and the arm sweeps forward and down across to the left, the left hand reaching to grab."""
+    settings = s["bite"]
+    wind = gait.ease_in_out(t, 0.0, 0.34) * (1.0 - gait.ease_in_out(t, 0.4, 0.5))
+    strike = gait.ease_in_out(t, 0.4, 0.52) * (1.0 - gait.ease_in_out(t, 0.72, 1.0))
+    lunge = settings.get("lungeMetres", 0.3)
+    c.bone_offset("hips", (0, -lunge * strike + 0.06 * wind, -0.12 * (wind + strike)))
+    c.bone_rotation("spine", pitch(-6.0 * strike))
+    c.bone_rotation("chest", yaw(-18.0 * wind + 22.0 * strike) @ pitch(-6.0 * strike))
+    c.bone_rotation("neck", pitch(-8.0 * strike))
+    c.bone_rotation("head", pitch(10.0 * strike))
+    c.bone_rotation("upperarm.R", pitch(80.0 * wind + 55.0 * strike) @ spread("R", 30.0 * wind - 20.0 * strike))
+    c.bone_rotation("forearm.R", pitch(45.0 * wind - 25.0 * strike))
+    c.bone_rotation("hand.R", pitch(-25.0 * wind + 20.0 * strike))
+    c.bone_rotation("upperarm.L", pitch(30.0 * wind + 65.0 * strike) @ spread("L", 12.0 * wind))
+    c.bone_rotation("forearm.L", pitch(-15.0 * strike))
+    c.bone_rotation("claw.L", pitch(14.0 * wind - 30.0 * strike))
+    c.bone_rotation("claw.R", pitch(-25.0))
+
+
+def strider_hurt(c, s, t):
+    """A blow lands: it recoils back and aside, the arms flung out, and settles."""
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    c.bone_offset("hips", (0, 0.1 * hit, -0.05 * hit))
+    c.bone_rotation("chest", pitch(8.0 * hit) @ roll(6.0 * hit))
+    c.bone_rotation("neck", pitch(10.0 * hit) @ yaw(-14.0 * hit))
+    c.bone_rotation("head", pitch(8.0 * hit))
+    strider_arms(c, s, reach=20.0 * hit, out=25.0 * hit, curl=-15.0 * hit)
+
+
+def strider_die(c, s, t):
+    """The legs fold and it pitches forward onto its arms, then slumps over onto its side."""
+    limp = gait.ease_in_out(t, 0.1, 0.5)
+    fall = gait.ease_in_out(t, 0.35, 0.85)
+    height = c.leg_length("hind.L")
+    for leg in c.targets:
+        c.leg_influence(leg, 1.0 - limp)
+    for side in SIDES:
+        c.bone_rotation(f"thigh.{side}", pitch(-30.0 * limp))
+        c.bone_rotation(f"shin.{side}", pitch(50.0 * limp))
+        c.bone_rotation(f"cannon.{side}", pitch(-40.0 * limp))
+    angle = 75.0 * fall
+    c.bone_rotation("root", roll(angle))
+    lies = s["die"].get("restShare", 0.3)
+    c.bone_offset("root", (0, 0, max(0.0, lies * height - height * math.cos(math.radians(angle))) * fall))
+    c.bone_offset("hips", (0, -0.15 * limp, -0.35 * height * limp))
+    c.bone_rotation("spine", pitch(-6.0 * limp))
+    c.bone_rotation("neck", pitch(-18.0 * fall) @ yaw(-14.0 * fall))
+    c.bone_rotation("head", pitch(-12.0 * fall))
+    strider_arms(c, s, swing=(25.0 * limp, 10.0 * limp), out=10.0 * fall, curl=30.0 * fall)
+
+
+STRIDER_CLIPS = {
+    "rest": (clip_rest, False, True),
+    "idle": (strider_idle, True, True),
+    "walk": (strider_walk, True, True),
+    "run": (strider_run, True, True),
+    "alert": (strider_alert, True, True),
+    "crouch": (strider_crouch, True, True),
+    "die": (strider_die, False, False),
+    "threat": (strider_threat, False, True),
+    "bite": (strider_slash, False, True),
+    "hurt": (strider_hurt, False, True),
+}
+
+
 @dataclass(frozen=True)
 class Family:
     bones: object
@@ -2057,6 +2248,8 @@ FAMILIES = {
                    ("thigh", "shin", "cannon"), ("hoof",)),
     "theropod": Family(theropod_bones, BIRD_LEGS, THEROPOD_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
                        ("thigh", "shin", "cannon"), ("hoof", "hand")),
+    "strider": Family(strider_bones, BIRD_LEGS, STRIDER_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
+                      ("thigh", "shin", "cannon", "upperarm", "forearm"), ("hoof", "hand", "claw")),
     "percher": Family(bird_bones, BIRD_LEGS, PERCHER_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
                       ("thigh", "shin", "cannon"), ("hoof",)),
     "flyer": Family(flyer_bones, {}, FLYER_CLIPS, (), "body", "body", ("wing1", "wing2", "wing3"), ("streamer1", "streamer2")),

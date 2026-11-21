@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/collector/shells/dome/tripo.glb",
+  "triangles": 1498,
+  "areaSquareMetres": 9.598,
+  "charts": 46,
+  "utilization": 0.6326,
+  "masterTexels": [
+    642,
+    613
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.7377422451972961,
+      -1.2202900648117065,
+      0.001373675069771707
+    ],
+    [
+      0.7379230260848999,
+      1.219618558883667,
+      0.8893228769302368
+    ]
+  ]
+}

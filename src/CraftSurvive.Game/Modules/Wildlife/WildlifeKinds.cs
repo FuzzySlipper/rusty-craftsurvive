@@ -105,7 +105,41 @@ internal enum WildlifeClipRole
 /// placeholder.
 /// </summary>
 internal sealed record WildlifeMesh(string File, string Manifest, float Scale, IReadOnlyDictionary<WildlifeClipRole, string> Clips, string? Ragdoll = null,
-    WildlifeBreath? Breath = null);
+    WildlifeBreath? Breath = null, WildlifeWorn? Worn = null);
+
+/// <summary>
+/// What a kind wears and holds (#10956): rigid pieces hung from its rig's joints rather than skinned, so one body can
+/// wear different shells, as equipment. <paramref name="Pieces"/> is the content path of the pieces file
+/// (authoring/tools/creatures/make_shells.py writes it): each look's pieces and the held ones, with their joints. Each
+/// animal wears one look, chosen by its weight in <paramref name="Looks"/>.
+/// </summary>
+internal sealed record WildlifeWorn(string Pieces, IReadOnlyList<(string Look, double Weight)> Looks)
+{
+    /// <summary>How many pieces one body may wear and hold at once: the id range gives each mesh body's slot this many.</summary>
+    internal const int MostPieces = 3;
+
+    internal static WildlifeWorn? Read(JsonElement mesh)
+    {
+        if (!mesh.TryGetProperty("worn", out JsonElement worn)) return null;
+        (string, double)[] looks = [.. worn.GetProperty("looks").EnumerateObject().Select(look => (look.Name, look.Value.GetDouble()))];
+        if (looks.Length == 0 || looks.Any(look => look.Item2 < 0) || looks.Sum(look => look.Item2) <= 0)
+            throw new InvalidDataException("worn: looks need a positive weight between them");
+        return new WildlifeWorn(worn.GetProperty("pieces").GetString()!, looks);
+    }
+
+    /// <summary>The look an animal wears, by its weight, from a number spread evenly over [0, 1).</summary>
+    internal string Pick(double share)
+    {
+        double total = Looks.Sum(look => look.Weight), at = share * total;
+        foreach ((string look, double weight) in Looks)
+        {
+            if (at < weight) return look;
+            at -= weight;
+        }
+
+        return Looks[^1].Look;
+    }
+}
 
 /// <summary>
 /// A kind's young (#10600): this share of a herd's animals, the adult's mesh at this scale with its
@@ -642,7 +676,7 @@ internal static class WildlifeKinds
         }
 
         return new WildlifeMesh(mesh.GetProperty("file").GetString()!, mesh.GetProperty("manifest").GetString()!, mesh.GetProperty("scale").GetSingle(), clips,
-            mesh.TryGetProperty("ragdoll", out JsonElement ragdoll) ? ragdoll.GetString() : null, breath);
+            mesh.TryGetProperty("ragdoll", out JsonElement ragdoll) ? ragdoll.GetString() : null, breath, WildlifeWorn.Read(mesh));
     }
 
     private static WildlifeKind ReadKind(JsonElement kind, Dictionary<WildlifeSizeClass, WildlifeCapsule> classes,

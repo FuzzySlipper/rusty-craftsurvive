@@ -51,6 +51,9 @@ public sealed class CreatureDebugModule : IDebugCommandModule
     [DebugCommand("craft.creature.force", Description = "Test aid (#10926): holds the selected creature - state (a hunter: rest|idle|alert|pursue|search|attack; a herd animal: rest|idle|look|warn|flee), clip <role>, goto <x>,<z> (a hunter searches its way there, a herd animal walks), freeze (no rules, no move, its playback paused and pose held), health <n> - or release; give a value of - where none is needed.")]
     public string Force(string what, string value) => creatures.Force(what, value);
 
+    [DebugCommand("craft.creature.look", Description = "Test aid (#10956): the look creatures that wear shells wear from now on (bare, dome, split, full, or any for each its own); bodies already awake keep theirs.")]
+    public string Look(string look) => creatures.Look(look);
+
     [DebugCommand("craft.creature.labels", Description = "Test aid (#10926): labels over creatures on the Engine's inspection overlay (id, kind, state, clip, route, override) - off, selected or all; the Engine draws them while engine.inspect.overlay show is on.")]
     public string Labels(string mode) => creatures.Labels(mode);
 

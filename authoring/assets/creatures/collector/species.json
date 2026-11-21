@@ -1,0 +1,266 @@
+{
+  "id": "collector",
+  "family": "strider",
+  "about": "The main ruin inhabitant (#10956), the collectors' common foe: 2.2 m long and 2.02 m at its spine ridge in its low crouch, fitted to the Tripo body (authoring/assets/creatures/collector/mesh), on the strider family. Its shells are separate rigid meshes hung from joints (`shells`). Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -0.75,
+      1.55
+    ],
+    "spine": [
+      0,
+      -0.25,
+      1.65
+    ],
+    "chest": [
+      0,
+      0.25,
+      1.62
+    ],
+    "neck": [
+      0,
+      0.55,
+      1.6
+    ],
+    "head": [
+      0,
+      0.75,
+      1.55
+    ],
+    "nose": [
+      0,
+      1.05,
+      1.38
+    ],
+    "shoulder": [
+      0.36,
+      0.3,
+      1.5
+    ],
+    "elbow": [
+      0.5,
+      0.4,
+      1.05
+    ],
+    "wrist": [
+      0.57,
+      0.56,
+      0.55
+    ],
+    "knuckle": [
+      0.57,
+      0.62,
+      0.3
+    ],
+    "claw_tip": [
+      0.54,
+      0.6,
+      0.06
+    ],
+    "hip_socket": [
+      0.22,
+      -0.72,
+      1.3
+    ],
+    "stifle": [
+      0.28,
+      -0.32,
+      0.88
+    ],
+    "hock": [
+      0.25,
+      -0.66,
+      0.4
+    ],
+    "fetlock": [
+      0.26,
+      -0.62,
+      0.08
+    ],
+    "toe": [
+      0.26,
+      -0.15,
+      0.02
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.3,
+      "stride": 1.2,
+      "duty": 0.62,
+      "liftHind": 0.18,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.04,
+      "swayDegrees": 2.5,
+      "swingMetres": 0.05,
+      "nodDegrees": 3.0,
+      "armSwingDegrees": 14.0
+    },
+    "run": {
+      "seconds": 0.72,
+      "stride": 3.0,
+      "duty": 0.36,
+      "liftHind": 0.32,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.08,
+      "swayDegrees": 3.0,
+      "swingMetres": 0.06,
+      "nodDegrees": 4.0,
+      "spineFlex": 1.5,
+      "armSwingDegrees": 26.0,
+      "armReachDegrees": 10.0
+    },
+    "idle": {
+      "seconds": 4.0
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "crouch": {
+      "seconds": 6.0,
+      "sinkMetres": 0.35,
+      "armDegrees": 10.0
+    },
+    "die": {
+      "seconds": 2.2,
+      "restShare": 0.25
+    },
+    "threat": {
+      "seconds": 2.0,
+      "sinkMetres": 0.3,
+      "widenMetres": 0.12,
+      "reachDegrees": 55.0,
+      "spreadDegrees": 32.0,
+      "bladeDegrees": 35.0
+    },
+    "bite": {
+      "seconds": 1.0,
+      "lungeMetres": 0.3
+    },
+    "hurt": {
+      "seconds": 0.6
+    }
+  },
+  "shells": {
+    "$comment": "Rigid worn pieces (#10956): each shell a cap over the body hung from a joint, in [side, forward, up] metres; make_shells.py builds them. The looks are Patch's four: bare, the long dome, the split head cap with a back shell, and the full cover.",
+    "pieces": {
+      "dome": {
+        "joint": "spine",
+        "mesh": "shells/dome",
+        "box": [
+          0.42,
+          [
+            -1.25,
+            1.0
+          ],
+          [
+            1.38,
+            2.25
+          ]
+        ],
+        "clearance": 0.03
+      },
+      "cap": {
+        "joint": "head",
+        "mesh": "shells/cap",
+        "box": [
+          0.32,
+          [
+            0.46,
+            1.2
+          ],
+          [
+            1.35,
+            1.95
+          ]
+        ],
+        "clearance": 0.03
+      },
+      "back": {
+        "joint": "spine",
+        "mesh": "shells/back",
+        "box": [
+          0.44,
+          [
+            -1.25,
+            0.22
+          ],
+          [
+            1.38,
+            2.22
+          ]
+        ],
+        "clearance": 0.03
+      },
+      "full": {
+        "joint": "spine",
+        "mesh": "shells/full",
+        "box": [
+          0.6,
+          [
+            -1.3,
+            1.1
+          ],
+          [
+            0.95,
+            2.3
+          ]
+        ],
+        "clearance": 0.03
+      }
+    },
+    "held": {
+      "blade": {
+        "joint": "hand.R",
+        "grip": [
+          -0.57,
+          0.64,
+          0.28
+        ],
+        "along": [
+          0,
+          1,
+          0.15
+        ],
+        "up": [
+          0,
+          0,
+          1
+        ],
+        "length": 0.48,
+        "width": 0.07
+      }
+    },
+    "looks": {
+      "bare": [],
+      "dome": [
+        "dome"
+      ],
+      "split": [
+        "cap",
+        "back"
+      ],
+      "full": [
+        "full"
+      ]
+    }
+  }
+}

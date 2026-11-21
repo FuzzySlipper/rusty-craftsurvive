@@ -1,0 +1,11 @@
+WHAT IT IS: a model reference sheet for building a 3D game object: ONE BACK SHELL, taken off the back of a ruin creature and shown on its own, in EXACTLY the shape of the REAR shell in the FIRST reference image (the larger one over the back). A grown, living shell like a beetle's wing case: about 1.5 m long, 0.9 m wide and 0.7 m high from its rim to its crown. Its front end is high and cut short where the head-cap sits ahead of it; it rises to its crown and curves down at the back over the hips; along its sides the rim comes down in a gentle curve. It is a thick solid shell; seen from the side or the ends you see only its outside and its rim.
+
+Exactly the same object in three ORTHOGRAPHIC views, no perspective, flat even lighting with no cast shadows, on a plain flat light-grey background:
+- TOP HALF of the sheet: the LEFT SIDE view, its front pointing to the left.
+- BOTTOM LEFT: the FRONT view, looking straight at its front end.
+- BOTTOM RIGHT: the BACK view, from straight behind.
+Portrait aspect about 1024x1536. Keep the views separate with clear grey space between them; do not overlap them. All three views at the same scale, nothing cropped. It rests level at the same height in every view, its rim's lowest points on one line.
+
+PAINT - follow the SECOND reference image, a sheet of the creature that wears it, for its treatment: a hand-painted texture at LOW RESOLUTION with crisp visible square texels, a few authored pixel-art marks and dark line work, matching that sheet's texel size. NOT soft or airbrushed. Pale ivory-cream shell with faint growth lines, a soft jade-green band along its rim edge, the rim's very edge a thin darker line. Calm surfaces with a few strong authored details, never a busy tiled pattern, and never a patchwork of flat polygon-shaped colour blocks. Flat even lighting: paint the colours of the object, not a light direction.
+
+PROHIBITIONS: NO symbols, NO glyphs, NO markings or signs on it. NO text, NO letters, NO labels, NO UI, NO watermark, NO frame lines. NO creature, NO body, NO legs, NO head, NO people, NO scale post, NO stand, NO other objects. NOT a hat, NOT a helmet worn by a person, NOT a bowl, NOT metal armour with rivets. NOT photoreal, NOT a perspective render, NOT anime, NOT cel shading or outlines.

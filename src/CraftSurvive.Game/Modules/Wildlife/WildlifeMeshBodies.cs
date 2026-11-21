@@ -35,6 +35,9 @@ internal sealed class WildlifeMeshBodies : IDisposable
     private readonly CyclingSlots slots = new(WildlifePresentation.MostMembers);
     private readonly List<Appearance> retiring = [];
 
+    /// <summary>The shells and blades bodies wear and hold (#10956), each piece opened once.</summary>
+    private readonly WildlifeWornPieces worn;
+
     /// <summary>What planting feet has cost since the last readout: calls, and the time in sampling the pose, casting for the ground and setting the pose.</summary>
     private (long Calls, double Sample, double Casts, double Pose) planting;
 
@@ -109,6 +112,14 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
         /// <summary>How many breaths it has let out, to seed each one apart.</summary>
         internal ulong Breaths { get; set; }
+
+        /// <summary>The look it wears (#10956) and the pieces that make it up, each hung from a joint; none for a kind that wears nothing.</summary>
+        internal string? WornLook { get; set; }
+
+        internal WildlifeWornPieces.Part[] Worn { get; set; } = [];
+
+        /// <summary>Whether its pieces have been hung from their joints: once, when the body is first drawn.</summary>
+        internal bool Hung { get; set; }
     }
 
     internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<Creatures.CreatureSpace?, double, double, double, float> groundAt, ulong seed, Func<Creatures.CreatureSpace?, WildlifeRagdolls> ragdollsIn)
@@ -120,6 +131,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         this.groundAt = groundAt ?? throw new ArgumentNullException(nameof(groundAt));
         this.seed = seed;
         this.ragdollsIn = ragdollsIn ?? throw new ArgumentNullException(nameof(ragdollsIn));
+        worn = new WildlifeWornPieces(engine, content);
     }
 
     internal WildlifeAnimation Animation => animation;
@@ -129,8 +141,9 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <param name="blow">The way the killing blow drove it.</param>
     /// <param name="plantWithin">How near it must be for its feet to be planted.</param>
     /// <param name="space">The space it is in (#10876): its position and feet are that space's world metres; null for the walking session.</param>
+    /// <param name="into">Where the facts of what it wears and holds go (#10956), beside the one returned for its body.</param>
     internal AppearanceFact Pose(WildlifeHerd? herd, WildlifeKind kind, WildlifeMember member, float feet, double distance, double seconds, double plantWithin, bool fallen, Vector2 blow = default,
-        Creatures.CreatureSpace? space = null)
+        Creatures.CreatureSpace? space = null, ICollection<AppearanceFact>? into = null)
     {
         Body body = bodies.Take(member, () => Create(kind, member), Retire);
         body.Space = space;
@@ -155,8 +168,32 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Transform placement = new(ToLocal(body, world), Quaternion.Concatenate(lift, turn), new Vector3(scale));
         Plant(body, placement, world, scale, plant: !fallen && distance <= plantWithin, frozen: !fallen && Frozen(member));
         if (!fallen) Breathe(body, kind, member, placement, scale, seconds);
-        return new AppearanceFact(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.Cast);
+        AppearanceFact fact = new(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.Cast);
+        Wear(body, fact, into);
+        return fact;
     }
+
+    /// <summary>
+    /// The facts of what a body wears and holds (#10956): each piece a child of the body in its joint's frame. The first time
+    /// the body is drawn its pieces are hung from their joints, with the body itself in the same change, as the Engine wants
+    /// a parent there; later snapshots keep each piece where it hangs.
+    /// </summary>
+    private void Wear(Body body, AppearanceFact fact, ICollection<AppearanceFact>? into)
+    {
+        if (body.Worn.Length == 0) return;
+        AppearanceFact[] pieces = [.. body.Worn.Select(part => new AppearanceFact(part.ObjectId, true, body.ObjectId, PieceFrame, part.Look, fact.Visible, RenderLayer.Scene, ShadowCasting.Cast))];
+        if (!body.Hung)
+        {
+            AppearanceFact[] changed = [fact, .. pieces];
+            engine.Graphics.PublishChanges(new(changed, ReadOnlyMemory<ulong>.Empty, body.Worn.Select(part => new MeshJointAttachment(part.ObjectId, part.Joint)).ToArray()));
+            body.Hung = true;
+        }
+
+        foreach (AppearanceFact piece in pieces) into?.Add(piece);
+    }
+
+    /// <summary>A piece sits in its joint's own frame as make_shells.py wrote it.</summary>
+    private static readonly Transform PieceFrame = new(Vector3.Zero, Quaternion.Identity, Vector3.One);
 
     /// <summary>Lets a body fall if it has a ragdoll and a pose to fall from, holding its clip so that what the ragdoll leaves to the clips stays still.</summary>
     private void Fall(Body body, WildlifeKind kind, WildlifeMember member, Vector2 blow)
@@ -342,7 +379,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         if (!member.Young)
         {
             Tint(appearance, member);
-            return new Body(open, slot, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId)));
+            return Dressed(new Body(open, slot, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId))), kind, member);
         }
 
         // The young share the adult's mesh and every clip; only the paint and the head's size are theirs.
@@ -352,7 +389,23 @@ internal sealed class WildlifeMeshBodies : IDisposable
         AnimationInstance instance = engine.Animation.CreateInstance(new(appearance, objectId));
         JointOverride[] overrides = [JointOverride.LocalScale(open.Joint(young.HeadJoint), young.HeadScale, 1)];
         engine.Animation.SetPose(new(instance, ReadOnlyMemory<TwoBoneIk>.Empty, overrides));
-        return new Body(open, slot, objectId, appearance, instance) { Overrides = overrides };
+        return Dressed(new Body(open, slot, objectId, appearance, instance) { Overrides = overrides }, kind, member);
+    }
+
+    /// <summary>Gives a body of a kind that wears pieces (#10956) its look and the pieces of it.</summary>
+    private Body Dressed(Body body, WildlifeKind kind, WildlifeMember member)
+    {
+        if (kind.Mesh!.Worn is not WildlifeWorn wears) return body;
+        (body.WornLook, body.Worn) = worn.For(wears, member.Id, seed, body.Slot);
+        return body;
+    }
+
+    /// <summary>A test aid (#10956): bodies made from now wear this look (any: each its own); says which looks the kinds have.</summary>
+    internal string ForceLook(string look, IEnumerable<WildlifeKind> kinds)
+    {
+        worn.Forced = look is "any" or "" ? null : look;
+        string[] offered = [.. kinds.Where(kind => kind.Mesh?.Worn is not null).SelectMany(kind => worn.Looks(kind.Mesh!.Worn!)).Distinct()];
+        return $"look={worn.Forced ?? "any"} (bodies made from now); looks: {(offered.Length == 0 ? "none" : string.Join(",", offered))}";
     }
 
     /// <summary>Gives an appearance its animal's own coat, over the paint it shares with the rest of its kind.</summary>
@@ -379,6 +432,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     internal void Prepare(WildlifeKind kind)
     {
         Open(kind);
+        if (kind.Mesh?.Worn is { } wears) worn.Prepare(wears);
         if (kind.Young is { } young) YoungPaint(kind.Id, young);
     }
 
@@ -483,7 +537,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <summary>What an animal's mesh plays now (#10926): the clip and its rate, its detail tier, whether its feet are planted, its pitch.</summary>
     internal string BodyReadout(WildlifeMember member) => bodies.Find(member) is Body body
         ? string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"playing={body.Playing?.ToString() ?? "none"} paused={body.Paused} rate={body.Rate:F2} tier={body.Tier} planted={body.Planted} pitch={body.Pitch * 180 / MathF.PI:F1} fell={body.Fell} {PoseReadout(body)}")
+            $"playing={body.Playing?.ToString() ?? "none"} look={body.WornLook ?? "-"} paused={body.Paused} rate={body.Rate:F2} tier={body.Tier} planted={body.Planted} pitch={body.Pitch * 180 / MathF.PI:F1} fell={body.Fell} {PoseReadout(body)}")
         : "no mesh body";
 
     /// <summary>
@@ -551,5 +605,6 @@ internal sealed class WildlifeMeshBodies : IDisposable
         }
 
         paints.Clear();
+        worn.Dispose();
     }
 }
