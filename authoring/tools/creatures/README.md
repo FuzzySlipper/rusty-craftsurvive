@@ -552,3 +552,17 @@ Both are on the `strider` family, from Tripo web-studio bodies made from their p
   (`WildlifeMeshBodies.Light`).
 - **Size.** The carrier is the `large` size class (a 2.4 m capsule). The karst ruin it was tested in has a breach too
   low for that capsule, so it could not route in; its fight and rest were captured on the surface.
+
+
+### The blade-limbed special (#10958)
+
+`reaper` (the wiki's blade-limbed special) is on `strider-bladed`: the strider's bones with a pair of blade limbs rising
+from the spine (`bladeupper`, `bladefore`, `blade`; points `blade_root`, `blade_elbow`, `blade_wrist`, `blade_tip`). Every
+strider clip gets a blade layer (`bladed` in `families.py`): held over the back and swaying, folded down in its crouch,
+swept up and out in the threat (`bladeRaiseDegrees`, `bladeSpreadDegrees`), raised back then brought down together
+through the target in the blow (`bladeStrikeDegrees`), loose as it dies. Its arms keep the strider's threat and thrust.
+- **`pins` in a species file** hold a region to one bone: vertices within an `up` band of heights and a `radius` of a
+  plan `centre`, less `except` circles mirrored to both sides. Heat weighting gave the top of its dome to the blade
+  limbs rising from it, so a blade's swing tore the dome; the dome now follows the spine and only the roots move.
+- **Ragdoll:** `bladeupper` is a cone, `bladefore` a hinge, and the scythe is left to the clips.
+- It is the `large` size class, and it fits the karst ruin's pillared hall that the carrier could not reach.

@@ -1,0 +1,74 @@
+{
+  "species": "reaper",
+  "family": "strider-bladed",
+  "body": {
+    "hindMetres": -0.55,
+    "foreMetres": -0.55
+  },
+  "legs": [
+    [
+      "shin.L",
+      "cannon.L",
+      "hoof.L"
+    ],
+    [
+      "shin.R",
+      "cannon.R",
+      "hoof.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.5,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.6,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 1.0
+    },
+    "run": {
+      "seconds": 0.9,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 3.7778
+    },
+    "alert": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "crouch": {
+      "seconds": 6.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 2.4,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 2.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "bite": {
+      "seconds": 1.1,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "hurt": {
+      "seconds": 0.6,
+      "loops": false,
+      "plantsFeet": true
+    }
+  }
+}

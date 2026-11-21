@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/reaper/mesh/tripo/tripo.glb",
+  "triangles": 5999,
+  "areaSquareMetres": 8.616,
+  "charts": 462,
+  "utilization": 0.7595,
+  "masterTexels": [
+    918,
+    917
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.8399304747581482,
+      -0.8889355063438416,
+      -0.005011488683521748
+    ],
+    [
+      0.8391730189323425,
+      0.8869727849960327,
+      2.992706298828125
+    ]
+  ]
+}

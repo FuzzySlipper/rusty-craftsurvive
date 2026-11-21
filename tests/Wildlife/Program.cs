@@ -548,7 +548,7 @@ Check.Section("kinds", () =>
     string[] hunters = ["gaunt", "axe-beak", "drift-runner"];
     string[] cave = ["root-adder", "mouldback", "drowner", "hummock", "ribbon-stalker", "stalk-bill", "drop-sloth", "draft-hound", "salt-monitor", "glass-courser", "seep-rat", "plume-neck"];
     Check.That(cave.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Cave is not null), "the cave's hunters (#10876) load, each with its cave");
-    string[] ruin = ["collector", "skitterer", "carrier"];
+    string[] ruin = ["collector", "skitterer", "carrier", "reaper"];
     Check.That(ruin.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt is not null && k.Cave is null), "the ruins' hunters (#10956) load, in no cave's communities");
     Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length, catalog.Kinds.Count,
         "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters and nothing else");
@@ -1317,7 +1317,8 @@ Check.Section("cave animals", () =>
     }
 
     // The ruins' hunters (#10956) live under the world as the cave's do, so they rest, display and search too.
-    Check.That(catalog.Kinds.Where(kind => kind.Cave is null && kind.Hunt is not null && kind.Mesh?.Worn is null)
+    string[] overworldHunters = ["gaunt", "axe-beak", "drift-runner"];
+    Check.That(catalog.Kinds.Where(kind => overworldHunters.Contains(kind.Id))
             .All(kind => kind.Hunt!.Rest is null && kind.Hunt.Display is null && kind.Hunt.Search is null),
         "the overworld's hunters keep their own ways: no rest, display or search of a cave's");
     Check.That(catalog.CaveWakeMetres > 0 && catalog.CaveWakeMetres < 96, "a cave home wakes inside the distance the encounter director lets creatures go at");

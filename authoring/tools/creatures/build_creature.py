@@ -357,6 +357,25 @@ def pin_shell(species, mesh):
     print(f"shell: {len(pinned)} of {len(mesh.data.vertices)} vertices follow {shell['bone']}")
 
 
+def pin_regions(species, mesh):
+    """Holds regions of the body to one bone each (#10958): `pins` lists a `bone`, an `up` band of heights and a `radius`
+    about a `centre` ([side, forward]) in plan. The blade-limbed special's dome follows its spine this way, where heat
+    weighting gave its top to the blade limbs rising from it, so a blade's swing bent the dome."""
+    for pin in species.get("pins", []):
+        low, high = pin["up"]
+        side, forward = pin.get("centre", [0.0, 0.0])
+        # `except` leaves out circles about points ([side, forward, radius], mirrored to both sides): the blade limbs' roots.
+        holes = [(sign * x, f, r) for x, f, r in pin.get("except", []) for sign in (1.0, -1.0)]
+        pinned = [v.index for v in mesh.data.vertices
+                  if low <= v.co.z <= high and math.hypot(v.co.x - side, -v.co.y - forward) <= pin["radius"]
+                  and not any(math.hypot(v.co.x - x, -v.co.y - f) <= r for x, f, r in holes)]
+        for group in mesh.vertex_groups:
+            group.remove(pinned)
+        group = mesh.vertex_groups.get(pin["bone"]) or mesh.vertex_groups.new(name=pin["bone"])
+        group.add(pinned, 1.0, "REPLACE")
+        print(f"pin: {len(pinned)} of {len(mesh.data.vertices)} vertices follow {pin['bone']}")
+
+
 def mesh_pieces(mesh):
     """The mesh's loose pieces, each a list of vertex indices, keyed by one of them."""
     verts = mesh.data.vertices
@@ -907,6 +926,7 @@ def main(argv):
     mesh = import_mesh(mesh_path, texture, emission) if mesh_path else build_proxy(species, rig, family)
     skin(rig, mesh)
     pin_shell(species, mesh)
+    pin_regions(species, mesh)
     pin_islands(mesh)
     pin_mouth(species, mesh)
     pin_ears(species, mesh)

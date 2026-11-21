@@ -877,6 +877,30 @@
       "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
       "combat": { "health": 120, "evasion": 35, "armour": 6, "experience": 600 },
       "loot": [ { "item": "hide", "minimum": 1, "maximum": 2, "oneIn": 1 } ]
+    },
+    {
+      "id": "reaper",
+      "name": "Blade-limbed special",
+      "$comment": "A special ruin inhabitant (#10958): very long legs under a beetle dome, two grasping arms, and two scythe-blade limbs on its back that sweep up and out in its threat and come down together in its blow. Rare; at the heart of a large ruin (#10955).",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 6 },
+      "body": { "lengthMetres": 1.6, "heightMetres": 3.0, "widthMetres": 1.4, "sizeClass": "large", "colour": "#d8c8aa" },
+      "mesh": {
+        "file": "creatures/reaper/reaper.glb",
+        "manifest": "creatures/reaper/reaper.manifest.json",
+        "ragdoll": "creatures/reaper/reaper.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "crouch" }
+      },
+      "speeds": { "walk": 1.0, "grazeDrift": 0.4, "flee": 3.8, "turnDegrees": 120 },
+      "wariness": { "noticeMetres": 28, "actMetres": 11, "lookSeconds": 1.2, "warnSeconds": 1.2 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 28, "reachMetres": 3.0, "haltMetres": 2.5, "accuracy": 28, "power": 8, "cooldownTicks": 180, "biteWindupSeconds": 0.5, "dodgeMetres": 0.4,
+        "rest": { "wakeMetres": 11, "clip": "lie" }, "display": { "seconds": 1.8 }, "search": { "seconds": 12 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 140, "evasion": 35, "armour": 7, "experience": 700 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 2, "oneIn": 1 } ]
     }
   ]
 }

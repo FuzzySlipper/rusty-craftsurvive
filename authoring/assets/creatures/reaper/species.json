@@ -1,0 +1,209 @@
+{
+  "id": "reaper",
+  "family": "strider-bladed",
+  "about": "The blade-limbed special (#10958), a rare ruin inhabitant: about 2.4 m at its dome and 3 m at its raised scythe limbs, fitted to the Tripo body (authoring/assets/creatures/reaper/mesh), on the strider-bladed family. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre; limb points are the animal's left side and are mirrored for the right.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.5,
+      0
+    ],
+    "hips": [
+      0,
+      -0.35,
+      1.72
+    ],
+    "spine": [
+      0,
+      -0.15,
+      1.92
+    ],
+    "chest": [
+      0,
+      0.05,
+      1.92
+    ],
+    "neck": [
+      0,
+      0.2,
+      1.92
+    ],
+    "head": [
+      0,
+      0.32,
+      1.9
+    ],
+    "nose": [
+      0,
+      0.5,
+      1.85
+    ],
+    "hip_socket": [
+      0.22,
+      -0.45,
+      1.68
+    ],
+    "stifle": [
+      0.22,
+      -0.42,
+      1.2
+    ],
+    "hock": [
+      0.22,
+      -0.55,
+      0.55
+    ],
+    "fetlock": [
+      0.22,
+      -0.55,
+      0.12
+    ],
+    "toe": [
+      0.22,
+      -0.1,
+      0.02
+    ],
+    "shoulder": [
+      0.38,
+      -0.05,
+      1.72
+    ],
+    "elbow": [
+      0.43,
+      0.0,
+      1.25
+    ],
+    "wrist": [
+      0.42,
+      0.05,
+      0.95
+    ],
+    "knuckle": [
+      0.42,
+      0.06,
+      0.85
+    ],
+    "claw_tip": [
+      0.42,
+      0.08,
+      0.72
+    ],
+    "blade_root": [
+      0.15,
+      -0.38,
+      2.4
+    ],
+    "blade_elbow": [
+      0.2,
+      -0.2,
+      2.9
+    ],
+    "blade_wrist": [
+      0.43,
+      0.2,
+      2.75
+    ],
+    "blade_tip": [
+      0.84,
+      0.87,
+      1.98
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.6,
+      "stride": 1.6,
+      "duty": 0.62,
+      "liftHind": 0.2,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.05,
+      "swayDegrees": 2.0,
+      "swingMetres": 0.05,
+      "nodDegrees": 2.0,
+      "armSwingDegrees": 10.0
+    },
+    "run": {
+      "seconds": 0.9,
+      "stride": 3.4,
+      "duty": 0.4,
+      "liftHind": 0.35,
+      "phases": {
+        "hind.L": 0.0,
+        "hind.R": 0.5
+      },
+      "bob": 0.08,
+      "swayDegrees": 2.5,
+      "swingMetres": 0.05,
+      "nodDegrees": 2.0,
+      "spineFlex": 1.0,
+      "armSwingDegrees": 18.0
+    },
+    "idle": {
+      "seconds": 4.5
+    },
+    "alert": {
+      "seconds": 3.0
+    },
+    "crouch": {
+      "seconds": 6.0,
+      "sinkMetres": 0.35,
+      "armDegrees": 6.0
+    },
+    "die": {
+      "seconds": 2.4,
+      "restShare": 0.2
+    },
+    "threat": {
+      "seconds": 2.0,
+      "sinkMetres": 0.35,
+      "widenMetres": 0.2,
+      "reachDegrees": 45.0,
+      "spreadDegrees": 25.0,
+      "bladeDegrees": 0.0,
+      "bladeRaiseDegrees": 35.0,
+      "bladeSpreadDegrees": 30.0
+    },
+    "bite": {
+      "seconds": 1.1,
+      "style": "thrust",
+      "lungeMetres": 0.35,
+      "lowDegrees": 15.0,
+      "bladeRaiseDegrees": 40.0,
+      "bladeStrikeDegrees": 70.0
+    },
+    "hurt": {
+      "seconds": 0.6
+    }
+  },
+  "pins": [
+    {
+      "$comment": "The dome follows the spine; heat weighting gave its top to the blade limbs (#10958).",
+      "bone": "spine",
+      "up": [
+        1.85,
+        2.5
+      ],
+      "centre": [
+        0,
+        -0.2
+      ],
+      "radius": 0.95,
+      "except": [
+        [
+          0.15,
+          -0.38,
+          0.11
+        ]
+      ]
+    }
+  ]
+}

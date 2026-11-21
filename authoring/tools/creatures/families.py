@@ -2264,6 +2264,82 @@ def strider_die(c, s, t):
     strider_arms(c, s, swing=(25.0 * limp, 10.0 * limp), out=10.0 * fall, curl=30.0 * fall)
 
 
+# ---------------------------------------------------------------- strider-bladed: the strider with a pair of scythe limbs
+
+def strider_bladed_bones():
+    """The strider's bones with a pair of blade limbs rising from the top of the spine (#10958, the blade-limbed special):
+    each an upper limb from its root on the back to a high elbow, a fore-limb out to the wrist, and the scythe blade."""
+    bones = strider_bones()
+    for side, sign in SIDES.items():
+        bones += [
+            (f"bladeupper.{side}", "spine", "blade_root", "blade_elbow", sign),
+            (f"bladefore.{side}", f"bladeupper.{side}", "blade_elbow", "blade_wrist", sign),
+            (f"blade.{side}", f"bladefore.{side}", "blade_wrist", "blade_tip", sign),
+        ]
+    return bones
+
+
+def blades(c, raise_=0.0, out=0.0, fold=0.0, curl=0.0, each=(0.0, 0.0)):
+    """Poses both blade limbs from their rest (raised and folded forward over the back): `raise_` swings the upper limbs
+    back and up, `out` spreads them to the sides, `fold` closes the fore-limb on the upper, `curl` turns the scythe down;
+    `each` adds a (left, right) swing of its own."""
+    for (side, sign), own in zip(SIDES.items(), each):
+        c.bone_rotation(f"bladeupper.{side}", pitch(raise_ + own) @ spread(side, out))
+        c.bone_rotation(f"bladefore.{side}", pitch(fold))
+        c.bone_rotation(f"blade.{side}", pitch(-curl))
+
+
+def bladed(base, pose):
+    """A strider clip with a blade layer over it: `pose(c, s, t)` sets the blades after the base has set the rest."""
+    def clip(c, s, t):
+        base(c, s, t)
+        pose(c, s, t)
+    return clip
+
+
+def blades_still(c, s, t):
+    """Held over the back, swaying a little out of step with each other."""
+    blades(c, each=(2.0 * gait.wave(t, lag=0.1), 2.0 * gait.wave(t, lag=0.35)))
+
+
+def blades_walking(c, s, t):
+    blades(c, each=(3.0 * gait.wave(t, 2, lag=0.2), 3.0 * gait.wave(t, 2, lag=0.7)))
+
+
+def blades_folded(c, s, t):
+    """At rest the blades fold down along the dome."""
+    blades(c, raise_=-25.0, fold=25.0, curl=10.0)
+
+
+def blades_threat(c, s, t):
+    """The threat (#10958): both blades swept up and out to the sides, ready to strike down, trembling."""
+    settings = s["threat"]
+    up = gait.rise_hold_fall(t, 0.2, 0.85)
+    shake = gait.wave(t, 10)
+    blades(c, raise_=settings.get("bladeRaiseDegrees", 35.0) * up, out=settings.get("bladeSpreadDegrees", 35.0) * up,
+           fold=-20.0 * up, curl=-15.0 * up, each=(1.5 * up * shake, -1.5 * up * shake))
+
+
+def blades_strike(c, s, t):
+    """The blow (#10958): both blades rise back over the body as it coils, then come down together through the target
+    in front, the scythes curling in, and draw back up."""
+    wind = gait.ease_in_out(t, 0.0, 0.34) * (1.0 - gait.ease_in_out(t, 0.4, 0.5))
+    strike = gait.ease_in_out(t, 0.4, 0.52) * (1.0 - gait.ease_in_out(t, 0.72, 1.0))
+    settings = s["bite"]
+    blades(c, raise_=settings.get("bladeRaiseDegrees", 40.0) * wind - settings.get("bladeStrikeDegrees", 75.0) * strike,
+           out=12.0 * wind - 8.0 * strike, fold=-25.0 * wind + 20.0 * strike, curl=-20.0 * wind + 35.0 * strike)
+
+
+def blades_hurt(c, s, t):
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    blades(c, raise_=15.0 * hit, out=20.0 * hit)
+
+
+def blades_dying(c, s, t):
+    limp = gait.ease_in_out(t, 0.1, 0.6)
+    blades(c, raise_=-30.0 * limp, out=25.0 * limp, fold=30.0 * limp, curl=20.0 * limp)
+
+
 STRIDER_CLIPS = {
     "rest": (clip_rest, False, True),
     "idle": (strider_idle, True, True),
@@ -2275,6 +2351,19 @@ STRIDER_CLIPS = {
     "threat": (strider_threat, False, True),
     "bite": (strider_strike, False, True),
     "hurt": (strider_hurt, False, True),
+}
+
+STRIDER_BLADED_CLIPS = {
+    "rest": (clip_rest, False, True),
+    "idle": (bladed(strider_idle, blades_still), True, True),
+    "walk": (bladed(strider_walk, blades_walking), True, True),
+    "run": (bladed(strider_run, blades_walking), True, True),
+    "alert": (bladed(strider_alert, blades_still), True, True),
+    "crouch": (bladed(strider_crouch, blades_folded), True, True),
+    "die": (bladed(strider_die, blades_dying), False, False),
+    "threat": (bladed(strider_threat, blades_threat), False, True),
+    "bite": (bladed(strider_strike, blades_strike), False, True),
+    "hurt": (bladed(strider_hurt, blades_hurt), False, True),
 }
 
 
@@ -2316,6 +2405,9 @@ FAMILIES = {
                        ("thigh", "shin", "cannon"), ("hoof", "hand")),
     "strider": Family(strider_bones, BIRD_LEGS, STRIDER_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
                       ("thigh", "shin", "cannon", "upperarm", "forearm"), ("hoof", "hand", "claw")),
+    # The strider with a pair of scythe limbs on its back (#10958).
+    "strider-bladed": Family(strider_bladed_bones, BIRD_LEGS, STRIDER_BLADED_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
+                             ("thigh", "shin", "cannon", "upperarm", "forearm", "bladeupper", "bladefore"), ("hoof", "hand", "claw", "blade")),
     "percher": Family(bird_bones, BIRD_LEGS, PERCHER_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
                       ("thigh", "shin", "cannon"), ("hoof",)),
     "flyer": Family(flyer_bones, {}, FLYER_CLIPS, (), "body", "body", ("wing1", "wing2", "wing3"), ("streamer1", "streamer2")),
