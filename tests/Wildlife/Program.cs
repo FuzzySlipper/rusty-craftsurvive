@@ -1682,6 +1682,38 @@ Check.Section("ruin tenders", () =>
     Check.Equal(GrazerBlow.StartsRing, TenderRules.Struck(calling, ringing: false, sinceLastSeconds: 90), "so does a blow once it has rested");
     Check.Equal(GrazerBlow.CutsRing, TenderRules.Struck(calling, ringing: true, sinceLastSeconds: null), "a blow mid-ring cuts it");
     Check.Equal(GrazerBlow.KeepsAway, TenderRules.Struck(calling, ringing: false, sinceLastSeconds: 30), "a blow while it rests sends it away");
+
+    // A body faded into the mist (#10984): masked at its cutoff, its paint's alpha rising from just over the cutoff at the
+    // tail to 1 at the head, each animal's own alpha choosing how much shows from the head back.
+    using (JsonDocument faded = JsonDocument.Parse("""{ "fade": { "paint": "creatures/x/fade.png", "cutoff": 0.25, "rest": 0.3, "sweepSeconds": 0.6 } }"""))
+    {
+        WildlifeFade fade = WildlifeFade.Read(faded.RootElement) ?? throw new InvalidOperationException("no fade read");
+        float Paint(float rank) => fade.Cutoff + WildlifeFade.TailMargin + ((1 - fade.Cutoff - WildlifeFade.TailMargin) * rank);
+        bool Shows(float rank, float share) => Paint(rank) * fade.AlphaFor(share) >= fade.Cutoff - 1e-6f;
+        Check.That(Shows(0, 1) && Shows(1, 1), "a whole body draws whole, tail and head");
+        Check.That(fade.AlphaFor(0) == 0 && !Shows(1, 0), "none of it shows at nothing");
+        Check.That(Shows(1, 0.3f) && Shows(0.75f, 0.3f) && !Shows(0.6f, 0.3f) && !Shows(0, 0.3f), "at a share, only the texels that near the head show");
+        Check.That(Enumerable.Range(1, 9).Select(n => fade.AlphaFor(n / 10f)).Zip(Enumerable.Range(2, 9).Select(n => fade.AlphaFor(n / 10f))).All(p => p.First < p.Second), "more shows as its alpha rises");
+        Check.That(fade.Toward(0.3f, 1, 0.3) is > 0.79f and < 0.81f && fade.Toward(0.3f, 1, 2) == 1 && fade.Toward(1, 0.3f, 2) == 0.3f, "it sweeps over its time and stops where it should");
+        Check.That(WildlifeFade.Solid(WildlifeClipRole.Bite) && WildlifeFade.Solid(WildlifeClipRole.Threat) && !WildlifeFade.Solid(WildlifeClipRole.Idle) && !WildlifeFade.Solid(WildlifeClipRole.Run),
+            "it shows whole while it attacks, not while it moves about");
+    }
+
+    foreach (string bad in new[] { """{ "fade": { "paint": "p", "cutoff": 0.99, "rest": 0.3, "sweepSeconds": 0.6 } }""", """{ "fade": { "paint": "p", "cutoff": 0.25, "rest": 1.5, "sweepSeconds": 0.6 } }""", """{ "fade": { "paint": "p", "cutoff": 0.25, "rest": 0.3, "sweepSeconds": 0 } }""" })
+    {
+        using JsonDocument wrong = JsonDocument.Parse(bad);
+        bool refused = false;
+        try
+        {
+            WildlifeFade.Read(wrong.RootElement);
+        }
+        catch (InvalidDataException)
+        {
+            refused = true;
+        }
+
+        Check.That(refused, $"a fade is refused: {bad}");
+    }
     Check.That(TenderRules.AnswerSeconds(40, 1.0, 5) > 40 + 5 && TenderRules.AnswerSeconds(40, 0, 5) <= 40 / 0.5 + 5 + 10,
         "an answer lasts long enough to walk there and search, however slow the walker");
     using JsonDocument crestPieces = JsonDocument.Parse(ReadResource("Wildlife.chime-grazer.pieces.json"));

@@ -106,7 +106,53 @@ internal enum WildlifeClipRole
 /// placeholder.
 /// </summary>
 internal sealed record WildlifeMesh(string File, string Manifest, float Scale, IReadOnlyDictionary<WildlifeClipRole, string> Clips, string? Ragdoll = null,
-    WildlifeBreath? Breath = null, WildlifeWorn? Worn = null);
+    WildlifeBreath? Breath = null, WildlifeWorn? Worn = null, WildlifeFade? Fade = null);
+
+/// <summary>
+/// A body faded into the mist (#10984: the fog foes, seen only when they attack). <paramref name="Paint"/> is the kind's
+/// paint with its fade in the alpha (authoring/tools/creatures/fade_paint.py): the cutoff plus a little at the tail,
+/// rising to 1 at the head. It is drawn masked at <paramref name="Cutoff"/>, and each animal's own alpha chooses how much
+/// of it shows, from the head back: <paramref name="Rest"/> of its length at rest, all of it while it threatens, bites,
+/// is hurt or dies, sweeping between the two over <paramref name="SweepSeconds"/>.
+/// </summary>
+internal sealed record WildlifeFade(string Paint, float Cutoff, float Rest, float SweepSeconds)
+{
+    /// <summary>How far over the cutoff the paint's tail stays (fade_paint.py's TAIL_MARGIN), so a whole body draws whole.</summary>
+    internal const float TailMargin = 0.02f;
+
+    internal static WildlifeFade? Read(JsonElement mesh)
+    {
+        if (!mesh.TryGetProperty("fade", out JsonElement fade)) return null;
+        WildlifeFade read = new(fade.GetProperty("paint").GetString()!, fade.GetProperty("cutoff").GetSingle(),
+            fade.GetProperty("rest").GetSingle(), fade.GetProperty("sweepSeconds").GetSingle());
+        if (read.Cutoff is <= 0 or >= 1 - TailMargin) throw new InvalidDataException("fade: the cutoff must lie between 0 and 1, under the tail's margin");
+        if (read.Rest is < 0 or > 1) throw new InvalidDataException("fade: rest is a share of the body, 0 to 1");
+        if (read.SweepSeconds <= 0) throw new InvalidDataException("fade: the sweep needs a positive time");
+        return read;
+    }
+
+    /// <summary>
+    /// An animal's alpha to show this share of its body from the head back: the paint's alpha at the share's end, divided
+    /// into the cutoff, so every texel nearer the head passes; 0 hides it all, and the whole body draws at 1.
+    /// </summary>
+    internal float AlphaFor(float share)
+    {
+        if (share <= 0) return 0;
+        if (share >= 1) return 1;
+        float paintAtEnd = Cutoff + TailMargin + ((1 - Cutoff - TailMargin) * (1 - share));
+        return Cutoff / paintAtEnd;
+    }
+
+    /// <summary>The share it shows, moved toward the one it should by this many seconds of its sweep.</summary>
+    internal float Toward(float shown, float wanted, double seconds)
+    {
+        float step = (float)(seconds / SweepSeconds);
+        return shown < wanted ? MathF.Min(wanted, shown + step) : MathF.Max(wanted, shown - step);
+    }
+
+    /// <summary>Whether a clip shows the whole body: it is attacking, or being hurt or killed.</summary>
+    internal static bool Solid(WildlifeClipRole clip) => clip is WildlifeClipRole.Threat or WildlifeClipRole.Bite or WildlifeClipRole.Hurt or WildlifeClipRole.Die;
+}
 
 /// <summary>
 /// What a kind wears and holds (#10956): rigid pieces hung from its rig's joints rather than skinned, so one body can
@@ -715,7 +761,7 @@ internal static class WildlifeKinds
         }
 
         return new WildlifeMesh(mesh.GetProperty("file").GetString()!, mesh.GetProperty("manifest").GetString()!, mesh.GetProperty("scale").GetSingle(), clips,
-            mesh.TryGetProperty("ragdoll", out JsonElement ragdoll) ? ragdoll.GetString() : null, breath, WildlifeWorn.Read(mesh));
+            mesh.TryGetProperty("ragdoll", out JsonElement ragdoll) ? ragdoll.GetString() : null, breath, WildlifeWorn.Read(mesh), WildlifeFade.Read(mesh));
     }
 
     private static WildlifeKind ReadKind(JsonElement kind, Dictionary<WildlifeSizeClass, WildlifeCapsule> classes,

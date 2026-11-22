@@ -133,6 +133,11 @@ internal sealed class WildlifeMeshBodies : IDisposable
         internal bool HeldLightBright { get; set; }
 
         internal int HeldLightSlot { get; set; }
+
+        /// <summary>How much of a faded body shows (#10984), from the head back, and the alpha last given for it (-1 for none yet).</summary>
+        internal float FadeShown { get; set; }
+
+        internal float FadeAlpha { get; set; } = -1;
     }
 
     internal WildlifeMeshBodies(IEngineContext engine, ProductContent content, WorldFrame frame, WildlifeAnimation animation, Func<Creatures.CreatureSpace?, double, double, double, float> groundAt, ulong seed, Func<Creatures.CreatureSpace?, WildlifeRagdolls> ragdollsIn)
@@ -171,6 +176,8 @@ internal sealed class WildlifeMeshBodies : IDisposable
             Play(body, herd, kind, member, seconds, fallen);
             Sit(body, kind, member, feet, seconds);
         }
+
+        if (kind.Mesh!.Fade is WildlifeFade fade) Fade(body, fade, member, fallen, seconds);
 
         float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
         // The mesh faces +Z; yaw 0 faces north (-Z) and a quarter turn east (+X). A rising front turns the nose up: a negative turn about the mesh's own X.
@@ -446,6 +453,15 @@ internal sealed class WildlifeMeshBodies : IDisposable
         int slot = slots.Take();
         ulong objectId = ProductIds.WildlifeAppearanceBase + ((ulong)slot * WildlifePresentation.PartsPerMember) + WildlifePresentation.MeshPart;
         Appearance appearance = engine.Animation.CreateAnimatedMeshAppearance(new(open.Mesh));
+        // A body faded into the mist (#10984) wears its kind's fading paint, masked, and shows itself from the head back.
+        if (kind.Mesh!.Fade is WildlifeFade fade)
+        {
+            engine.Animation.UpdateAnimatedMeshMaterials(new(appearance, new[] { new MeshMaterialBinding(BodySlot, FadePaint(kind.Id, fade)) }));
+            Body faded = new(open, slot, objectId, appearance, engine.Animation.CreateInstance(new(appearance, objectId))) { FadeShown = fade.Rest };
+            Fade(faded, fade, member, fallen: false, seconds: 0);
+            return Dressed(faded, kind, member);
+        }
+
         if (!member.Young)
         {
             Tint(appearance, member);
@@ -513,13 +529,49 @@ internal sealed class WildlifeMeshBodies : IDisposable
     }
 
     /// <summary>Gives an appearance its animal's own coat, over the paint it shares with the rest of its kind.</summary>
-    private void Tint(Appearance appearance, WildlifeMember member)
+    /// <param name="alpha">A faded body's alpha (#10984), which its masked paint is drawn by; null leaves the paint's own.</param>
+    private void Tint(Appearance appearance, WildlifeMember member, float? alpha = null)
     {
         Color coat = new(member.Coat.X, member.Coat.Y, member.Coat.Z, 1);
         engine.Animation.UpdateAnimatedMeshMaterialFactors(new(appearance, new[]
         {
-            new MeshMaterialFactors(BodySlot, false, default, false, Vector3.Zero, 0, true, coat),
+            new MeshMaterialFactors(BodySlot, alpha is not null, new Color(1, 1, 1, alpha ?? 1), false, Vector3.Zero, 0, true, coat),
         }));
+    }
+
+    /// <summary>
+    /// Forces how much of every faded body shows (#10984), for looking at the fade: a share of the body from the head back,
+    /// or null for each body's own (its rest, or whole while it attacks).
+    /// </summary>
+    internal float? ForcedFade { get; set; }
+
+    /// <summary>The smallest change in a faded body's alpha worth sending: finer than this moves no texel past the cutoff.</summary>
+    private const float FadeAlphaStep = 1f / 256;
+
+    /// <summary>
+    /// Moves a faded body (#10984) toward what it should show: the whole of it while it attacks, is hurt or dies, else its
+    /// rest; its alpha is sent only when it changes.
+    /// </summary>
+    private void Fade(Body body, WildlifeFade fade, WildlifeMember member, bool fallen, double seconds)
+    {
+        float wanted = ForcedFade ?? (fallen || WildlifeFade.Solid(member.Clip) ? 1 : fade.Rest);
+        body.FadeShown = fade.Toward(body.FadeShown, wanted, seconds);
+        float alpha = fade.AlphaFor(body.FadeShown);
+        if (MathF.Abs(alpha - body.FadeAlpha) < FadeAlphaStep) return;
+        body.FadeAlpha = alpha;
+        Tint(body.Appearance, member, alpha);
+    }
+
+    /// <summary>A kind's fading paint (#10984), masked at its cutoff, opened once and shared by all of them.</summary>
+    private Material FadePaint(string kindId, WildlifeFade fade)
+    {
+        string key = $"fade:{kindId}";
+        if (paints.TryGetValue(key, out (RenderResource, Material Material) paint)) return paint.Material;
+        RenderResource texture = engine.Graphics.OpenResource(new(fade.Paint, TextureFilter.Nearest, TextureWrap.Clamp)).Handle;
+        Material material = engine.Graphics.CreateMaterial(new MaterialRequest(White, texture, PaintRoughness, White, Vector3.Zero, 0, false)
+            with { AlphaMode = MaterialAlphaMode.Mask, AlphaCutoff = fade.Cutoff });
+        paints[key] = (texture, material);
+        return material;
     }
 
     /// <summary>A kind's paint for its young, opened once and shared by all of them.</summary>
@@ -538,6 +590,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Open(kind);
         if (kind.Mesh?.Worn is { } wears) worn.Prepare(wears);
         if (kind.Young is { } young) YoungPaint(kind.Id, young);
+        if (kind.Mesh?.Fade is { } fade) FadePaint(kind.Id, fade);
     }
 
     /// <summary>Opens a small cave creature's mesh now, with the world (#10884).</summary>
@@ -648,7 +701,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <summary>What an animal's mesh plays now (#10926): the clip and its rate, its detail tier, whether its feet are planted, its pitch.</summary>
     internal string BodyReadout(WildlifeMember member) => bodies.Find(member) is Body body
         ? string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"playing={body.Playing?.ToString() ?? "none"} look={body.WornLook ?? "-"} paused={body.Paused} rate={body.Rate:F2} tier={body.Tier} planted={body.Planted} pitch={body.Pitch * 180 / MathF.PI:F1} fell={body.Fell} {PoseReadout(body)}")
+            $"playing={body.Playing?.ToString() ?? "none"} look={body.WornLook ?? "-"} paused={body.Paused} rate={body.Rate:F2} tier={body.Tier} planted={body.Planted} pitch={body.Pitch * 180 / MathF.PI:F1} fell={body.Fell}{(body.FadeAlpha >= 0 ? $" fade={body.FadeShown:F2} alpha={body.FadeAlpha:F3}" : "")} {PoseReadout(body)}")
         : "no mesh body";
 
     /// <summary>

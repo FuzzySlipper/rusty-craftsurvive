@@ -461,6 +461,8 @@ internal sealed partial class CreatureModule
     /// <summary>A test aid (#10956): the look shell-wearing creatures made from now on wear.</summary>
     internal string Look(string look) => Wildlife is null ? "no wildlife" : Wildlife.ForceWornLook(look);
 
+    internal string Fade(string share) => Wildlife is null ? "no wildlife" : Wildlife.ForceFade(share);
+
     internal string Labels(string mode)
     {
         if (mode is not ("off" or "selected" or "all")) return "labels off|selected|all";

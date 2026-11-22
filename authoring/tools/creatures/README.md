@@ -660,3 +660,30 @@ scoop head.
     colour. The view's jade texels form a `glow` part a hair proud of each face.
   - Each face keeps its own edge points, since shared ones would have no normal. Cells one wide are trimmed, and
     convex outline corners stay put while the outline is eased, as both would fold flat.
+
+### Fog foes: a body faded into the mist (#10984)
+
+Fog foes are seen only when they attack. At rest their bodies are faded into the mist, and they turn solid head first as
+they strike (den-wiki `wandering-years/fog-wildlife`, "Roster and rules"). The fade is product-side and needs no
+Engine work:
+
+- `fade_paint.py <body.glb> <fade.png>` writes the kind's paint with the fade in its alpha.
+  - Each texel's place along the body comes from the skin: the joints its triangles are weighted to, ranked from the head
+    (1) to the tail (0) along `--chain`. The default chain is the serpent family's: head, neck, body14…body1, root. So a
+    coiled rest pose reads the same as a straight one.
+  - Its alpha is the cutoff plus that rank. It stays just over the cutoff at the tail (`TAIL_MARGIN`, matched by
+    `WildlifeFade.TailMargin`), so a whole body draws whole.
+  - Noise of ±`--crumble` per texel makes the edge crumble in texels.
+- The kind's mesh gets a `fade` block: `{ "paint", "cutoff", "rest", "sweepSeconds" }`.
+  - `WildlifeMeshBodies` binds the paint as a masked material at the cutoff.
+  - Each body's base-colour alpha (`MeshMaterialFactors`) shows a share of it from the head back
+    (`WildlifeFade.AlphaFor`). Its alpha is sent only when it changes.
+  - A body shows `rest` of its length, and all of it while its clip is threat, bite, hurt or die. It sweeps between
+    the two over `sweepSeconds`.
+- **Test aid:** `craft.creature.fade <share>|auto` forces every faded body's share. The body readout gives `fade=` and
+  `alpha=`.
+- **Look:** the Engine resolves a mask's edge by coverage (alpha-to-coverage, sharpened by `fwidth`). The crumble
+  noise therefore leaves the edge partly covered, blending with what lies behind it: dark ground darkens it, and mist
+  shows through it. A paint with `--crumble 0` cuts clean.
+- **Cost:** none measurable. With eight bodies sweeping without a break, the median update took 2.16 ms, against 2.2 ms
+  held.

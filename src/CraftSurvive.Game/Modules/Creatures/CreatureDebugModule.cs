@@ -54,6 +54,9 @@ public sealed class CreatureDebugModule : IDebugCommandModule
     [DebugCommand("craft.creature.look", Description = "Test aid (#10956): the look creatures that wear shells wear from now on (bare, dome, split, full, or any for each its own); bodies already awake keep theirs.")]
     public string Look(string look) => creatures.Look(look);
 
+    [DebugCommand("craft.creature.fade", Description = "Test aid (#10984): how much of every body faded into the mist shows, a share of it from the head back (0 to 1), sweeping there at its kind's pace; auto gives each its own (its rest, or whole while it attacks).")]
+    public string Fade(string share) => creatures.Fade(share);
+
     [DebugCommand("craft.creature.labels", Description = "Test aid (#10926): labels over creatures on the Engine's inspection overlay (id, kind, state, clip, route, override) - off, selected or all; the Engine draws them while engine.inspect.overlay show is on.")]
     public string Labels(string mode) => creatures.Labels(mode);
 

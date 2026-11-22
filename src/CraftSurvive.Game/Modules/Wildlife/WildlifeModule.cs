@@ -790,6 +790,21 @@ internal sealed partial class WildlifeModule : IProductModule
     /// <summary>A test aid (#10956): the look bodies made from now wear, of the kinds that wear pieces; "any" for each its own.</summary>
     internal string ForceWornLook(string look) => Presentation.Meshes.ForceLook(look, Catalog.Kinds);
 
+    /// <summary>A test aid (#10984): how much of every faded body shows, a share from the head back, or auto for each its own.</summary>
+    internal string ForceFade(string share)
+    {
+        if (share is "auto" or "")
+        {
+            Presentation.Meshes.ForcedFade = null;
+            return "fade=auto";
+        }
+
+        if (!float.TryParse(share, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value) || value is < 0 or > 1)
+            return "fade <share 0..1>|auto";
+        Presentation.Meshes.ForcedFade = value;
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"fade={value:F2}");
+    }
+
     /// <summary>What an animal's mesh plays now, for a creature's inspection (#10926).</summary>
     internal string BodyReadout(WildlifeMember member) => Presentation.Meshes.BodyReadout(member);
 
