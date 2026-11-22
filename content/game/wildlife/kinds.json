@@ -1031,6 +1031,54 @@
       "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
       "combat": { "health": 16, "evasion": 55, "armour": 2, "experience": 80 },
       "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 2 } ]
+    },
+    {
+      "id": "brood-bearer",
+      "name": "Brood bearer",
+      "$comment": "A ruin tender (#10961): broad and low on six padded legs, carrying six pods of small skitterers in cups on its back. Settled with Patch (wiki 'Ruins wildlife', Tenders' indirect threats): threatened, it splits its pods once and the brood defends it while it shuffles away. Until the pods are built it shows its threat and gives a weak shove.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 2.0, "heightMetres": 1.0, "widthMetres": 1.5, "sizeClass": "human", "colour": "#d8c8b0" },
+      "mesh": {
+        "file": "creatures/brood-bearer/brood-bearer.glb",
+        "manifest": "creatures/brood-bearer/brood-bearer.manifest.json",
+        "ragdoll": "creatures/brood-bearer/brood-bearer.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "feed" }
+      },
+      "speeds": { "walk": 0.45, "grazeDrift": 0.2, "flee": 1.4, "turnDegrees": 60 },
+      "wariness": { "noticeMetres": 12, "actMetres": 8, "lookSeconds": 1.2, "warnSeconds": 1.2 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 12, "reachMetres": 2.0, "haltMetres": 1.6, "accuracy": 12, "power": 1, "cooldownTicks": 180, "biteWindupSeconds": 0.55, "dodgeMetres": 0.2,
+        "rest": { "wakeMetres": 8, "clip": "lie" }, "display": { "seconds": 2.0 }, "search": { "seconds": 5 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 45, "evasion": 15, "armour": 5, "experience": 180 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "mender",
+      "name": "Mender",
+      "$comment": "A ruin tender (#10961): a dome on four long legs with six handling arms that smooth new shell over cracks. Settled with Patch (wiki 'Ruins wildlife', Tenders' indirect threats): on seeing the player it seals the nearest doorway of the player's room with a membrane. Until the seal is built it shows its threat and gives a weak shove; its rest is its smoothing work (feed).",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 1.4, "heightMetres": 1.6, "widthMetres": 1.2, "sizeClass": "human", "colour": "#e0c8b0" },
+      "mesh": {
+        "file": "creatures/mender/mender.glb",
+        "manifest": "creatures/mender/mender.manifest.json",
+        "ragdoll": "creatures/mender/mender.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "feed" }
+      },
+      "speeds": { "walk": 0.7, "grazeDrift": 0.3, "flee": 2.6, "turnDegrees": 90 },
+      "wariness": { "noticeMetres": 14, "actMetres": 7, "lookSeconds": 1.0, "warnSeconds": 1.0 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 14, "reachMetres": 1.6, "haltMetres": 1.2, "accuracy": 12, "power": 1, "cooldownTicks": 160, "biteWindupSeconds": 0.5, "dodgeMetres": 0.3,
+        "rest": { "wakeMetres": 6, "clip": "lie" }, "display": { "seconds": 1.4 }, "search": { "seconds": 5 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 20, "evasion": 30, "armour": 1, "experience": 120 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
     }
   ]
 }

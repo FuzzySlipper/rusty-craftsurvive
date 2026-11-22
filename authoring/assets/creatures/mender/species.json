@@ -1,0 +1,211 @@
+{
+  "id": "mender",
+  "family": "many-limbed-armed",
+  "about": "The mender (#10961), a ruin tender about 1.6 m tall that grows shell over cracks and seals doorways: a dome over a hanging body on four long legs, with six handling arms ending in spatula pads, fitted to the Tripo body (authoring/assets/creatures/mender/mesh), on the many-limbed family (legs 1 and 3, all three arm pairs). Key points are metres as [side, forward, up]; paired points are the left side's, mirrored.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.3,
+      0
+    ],
+    "hips": [
+      0,
+      -0.2,
+      1.08
+    ],
+    "spine": [
+      0,
+      0.0,
+      1.08
+    ],
+    "chest": [
+      0,
+      0.2,
+      1.08
+    ],
+    "neck": [
+      0,
+      0.3,
+      1.04
+    ],
+    "head": [
+      0,
+      0.37,
+      1.0
+    ],
+    "nose": [
+      0,
+      0.45,
+      1.0
+    ],
+    "hip1": [
+      0.24,
+      0.17,
+      0.98
+    ],
+    "knee1": [
+      0.36,
+      0.27,
+      0.72
+    ],
+    "ankle1": [
+      0.47,
+      0.37,
+      0.12
+    ],
+    "toe1": [
+      0.5,
+      0.44,
+      0.0
+    ],
+    "hip3": [
+      0.24,
+      -0.22,
+      0.98
+    ],
+    "knee3": [
+      0.36,
+      -0.34,
+      0.72
+    ],
+    "ankle3": [
+      0.47,
+      -0.43,
+      0.12
+    ],
+    "toe3": [
+      0.5,
+      -0.53,
+      0.0
+    ],
+    "shoulder1": [
+      0.08,
+      0.33,
+      1.0
+    ],
+    "elbow1": [
+      0.2,
+      0.45,
+      0.85
+    ],
+    "wrist1": [
+      0.3,
+      0.5,
+      0.7
+    ],
+    "pad1": [
+      0.36,
+      0.53,
+      0.62
+    ],
+    "shoulder2": [
+      0.15,
+      0.3,
+      1.02
+    ],
+    "elbow2": [
+      0.27,
+      0.5,
+      0.9
+    ],
+    "wrist2": [
+      0.38,
+      0.6,
+      0.8
+    ],
+    "pad2": [
+      0.45,
+      0.64,
+      0.76
+    ],
+    "shoulder3": [
+      0.22,
+      0.27,
+      1.05
+    ],
+    "elbow3": [
+      0.35,
+      0.48,
+      0.98
+    ],
+    "wrist3": [
+      0.48,
+      0.62,
+      0.9
+    ],
+    "pad3": [
+      0.56,
+      0.7,
+      0.87
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.4,
+      "stride": 0.5,
+      "duty": 0.7,
+      "lift": 0.14,
+      "phases": {
+        "fore.L": 0.0,
+        "hind.R": 0.25,
+        "fore.R": 0.5,
+        "hind.L": 0.75
+      },
+      "bob": 0.02,
+      "swayDegrees": 2.0
+    },
+    "run": {
+      "seconds": 0.8,
+      "stride": 0.9,
+      "duty": 0.55,
+      "lift": 0.18,
+      "phases": {
+        "fore.L": 0.0,
+        "hind.R": 0.25,
+        "fore.R": 0.5,
+        "hind.L": 0.75
+      },
+      "bob": 0.03,
+      "swayDegrees": 2.0
+    },
+    "idle": {
+      "seconds": 3.0
+    },
+    "alert": {
+      "seconds": 2.0
+    },
+    "feed": {
+      "seconds": 2.4,
+      "sinkMetres": 0.15,
+      "dipDegrees": 6.0,
+      "armLiftDegrees": 40.0,
+      "reachDegrees": 30.0
+    },
+    "threat": {
+      "seconds": 1.2,
+      "rearDegrees": 14.0,
+      "chestDegrees": 6.0,
+      "armLiftDegrees": 70.0,
+      "armSpreadDegrees": 35.0,
+      "sinkMetres": 0.05
+    },
+    "bite": {
+      "seconds": 0.7,
+      "lungeMetres": 0.15
+    },
+    "hurt": {
+      "seconds": 0.4
+    },
+    "die": {
+      "seconds": 1.6,
+      "tipDegrees": 12.0,
+      "dropShare": 0.45
+    }
+  }
+}

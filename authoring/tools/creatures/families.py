@@ -2561,6 +2561,185 @@ TRIPOD_CLIPS = {
 }
 
 
+# The many-limbed family (#10961): a broad body on up to three pairs of legs, numbered from the front, with an
+# optional ring of up to three pairs of handling arms under its front. The brood bearer stands on three pairs; the
+# mender on the first and third, with all three pairs of arms.
+MANY_PAIRS = (1, 2, 3)
+MANY_ARMS = (1, 2, 3)
+MANY6_LEGS = {
+    "fore": ("shin1", "foot1", "knee1", 1.0),
+    "mid": ("shin2", "foot2", "knee2", 1.0),
+    "hind": ("shin3", "foot3", "knee3", 1.0),
+}
+MANY4_LEGS = {"fore": MANY6_LEGS["fore"], "hind": MANY6_LEGS["hind"]}
+# Stems drawn as legs, and as feet or pads, on a stand-in body: every numbered pair's.
+MANY_LIMB_BONES = tuple(f"{stem}{n}" for stem in ("thigh", "shin", "arm", "forearm") for n in MANY_PAIRS)
+MANY_TIP_BONES = tuple(f"{stem}{n}" for stem in ("foot", "pad") for n in MANY_PAIRS)
+
+
+def many_limbed_bones(points):
+    """A body on the leg pairs its species places (`hip1` to `hip3`, front to back, each with its knee, ankle and toe),
+    each pair hung from whichever of the hips, spine and chest is nearest along the body, and the arms it places
+    (`shoulder1` to `shoulder3`, each with its elbow, wrist and pad) under the chest: upper arm, forearm, pad."""
+    bones = [
+        ("root", None, "root", "root_tip", 1.0),
+        ("hips", "root", "hips", "spine", 1.0),
+        ("spine", "hips", "spine", "chest", 1.0),
+        ("chest", "spine", "chest", "neck", 1.0),
+        ("neck", "chest", "neck", "head", 1.0),
+        ("head", "neck", "head", "nose", 1.0),
+    ]
+    trunk = {name: points[name][1] for name in ("hips", "spine", "chest")}
+    for side, sign in SIDES.items():
+        for k in MANY_PAIRS:
+            if f"hip{k}" not in points:
+                continue
+            parent = min(trunk, key=lambda name: abs(trunk[name] - points[f"hip{k}"][1]))
+            bones += [
+                (f"thigh{k}.{side}", parent, f"hip{k}", f"knee{k}", sign),
+                (f"shin{k}.{side}", f"thigh{k}.{side}", f"knee{k}", f"ankle{k}", sign),
+                (f"foot{k}.{side}", f"shin{k}.{side}", f"ankle{k}", f"toe{k}", sign),
+            ]
+        for a in MANY_ARMS:
+            if f"shoulder{a}" not in points:
+                continue
+            bones += [
+                (f"arm{a}.{side}", "chest", f"shoulder{a}", f"elbow{a}", sign),
+                (f"forearm{a}.{side}", f"arm{a}.{side}", f"elbow{a}", f"wrist{a}", sign),
+                (f"pad{a}.{side}", f"forearm{a}.{side}", f"wrist{a}", f"pad{a}", sign),
+            ]
+    return bones
+
+
+def many_arms(c, lift=0.0, spread=0.0, reach=0.0, t=0.0, work=0.0):
+    """The arm ring: `lift` swings every arm forward and up from the shoulder, `spread` fans them out to the sides,
+    `reach` straightens the elbows so the pads go forward, and `work` presses them in turn, each pair a third of a
+    cycle after the last (smoothing paste, or sealing)."""
+    for a in MANY_ARMS:
+        for side, sign in SIDES.items():
+            if f"arm{a}.{side}" not in c.rig.pose.bones:
+                continue
+            press = work * max(0.0, gait.wave(t, 2, lag=(a - 1) / 3.0 + (0.5 if sign < 0 else 0.0)))
+            c.bone_rotation(f"arm{a}.{side}", pitch(lift + 12.0 * press) @ yaw(sign * spread * (0.6 + 0.2 * a)))
+            c.bone_rotation(f"forearm{a}.{side}", pitch(reach - 25.0 * press))
+            c.bone_rotation(f"pad{a}.{side}", pitch(10.0 * press))
+
+
+def many_gait(c, settings, t, spine_flex):
+    """Each leg steps at its own phase (the settings' `phases`, by leg name): an alternating tripod for six legs, a
+    walk for four. The body rolls a little over the side that stands."""
+    duty, stride = settings["duty"], settings["stride"]
+    for leg, offset in settings["phases"].items():
+        if leg not in c.targets:
+            continue
+        phase = t + offset
+        kind, side = leg.split(".")
+        k = c.legs[kind][0][-1]
+        forward, up = gait.foot(phase, duty, stride, settings["lift"])
+        swing = 0.0 if gait.planted(phase, duty) else math.sin(math.pi * ((phase % 1.0) - duty) / (1.0 - duty))
+        c.place(leg, forward=forward, up=up, toe_pitch=-15.0 * swing)
+        reach = math.degrees(math.asin(max(-0.9, min(0.9, forward / c.leg_length(leg)))))
+        c.bone_rotation(f"thigh{k}.{side}", pitch(TOP_SEGMENT_SHARE * reach))
+    sway, bob = settings["swayDegrees"], settings["bob"]
+    c.bone_offset("hips", (0, 0, -bob * math.cos(2 * gait.TAU * t)))
+    c.bone_rotation("hips", roll(sway * gait.wave(t)) @ pitch(spine_flex * gait.wave(t, 2)))
+    c.bone_rotation("chest", roll(-0.5 * sway * gait.wave(t, lag=0.2)))
+    many_arms(c, lift=settings.get("armLiftDegrees", 0.0), t=t, work=0.0)
+
+
+def many_walk(c, s, t):
+    many_gait(c, s["walk"], t, spine_flex=0.6)
+
+
+def many_run(c, s, t):
+    many_gait(c, s["run"], t, spine_flex=s["run"].get("spineFlex", 1.0))
+
+
+def many_idle(c, s, t):
+    """Still on its feet, breathing: the body rises and settles, the front turns a little, the arms drift."""
+    c.bone_offset("hips", (0, 0, 0.01 * gait.wave(t, 2)))
+    c.bone_rotation("chest", pitch(1.0 * gait.wave(t, 2, lag=0.2)))
+    c.bone_rotation("head", yaw(4.0 * gait.wave(t, lag=0.25)))
+    many_arms(c, lift=4.0 * gait.wave(t, 2, lag=0.3), spread=3.0 * gait.wave(t, lag=0.1))
+
+
+def many_alert(c, s, t):
+    """It rises a little on its legs and turns its front toward what it heard; the arms lift."""
+    c.bone_offset("hips", (0, 0, 0.04))
+    c.bone_rotation("chest", pitch(5.0))
+    c.bone_rotation("head", pitch(4.0) @ yaw(10.0 * gait.wave(t)))
+    many_arms(c, lift=20.0, spread=8.0)
+
+
+def many_feed(c, s, t):
+    """Its work at rest (#10961): the body settles low on its legs and the front dips; the arms press forward in turn,
+    smoothing paste over a crack, which is also the mender's sealing at a doorway. The bearer, with no arms, settles
+    and sways, tending its pods."""
+    settings = s.get("feed", {})
+    work = gait.wave(t, 2)
+    c.bone_offset("hips", (0, 0, -settings.get("sinkMetres", 0.1)))
+    c.bone_rotation("chest", pitch(-settings.get("dipDegrees", 8.0) + 2.0 * work))
+    c.bone_rotation("hips", roll(1.5 * gait.wave(t)))
+    many_arms(c, lift=settings.get("armLiftDegrees", 35.0), spread=6.0, reach=settings.get("reachDegrees", 30.0),
+              t=t, work=1.0)
+
+
+def many_threat(c, s, t):
+    """Its threat (#10961): the bearer braces low and tips its back up toward the threat so its pods face it (they
+    split as the product's pieces); the mender rears its front up with every arm spread wide."""
+    settings = s["threat"]
+    up = gait.rise_hold_fall(t, 0.25, 0.85)
+    shake = gait.wave(t, 8)
+    c.bone_offset("hips", (0, 0, -settings.get("sinkMetres", 0.1) * up))
+    c.bone_rotation("hips", pitch(settings.get("rearDegrees", 10.0) * up) @ roll(0.6 * up * shake))
+    c.bone_rotation("chest", pitch(settings.get("chestDegrees", 5.0) * up))
+    many_arms(c, lift=settings.get("armLiftDegrees", 60.0) * up, spread=settings.get("armSpreadDegrees", 30.0) * up,
+              reach=20.0 * up, t=t * 2.0, work=0.0)
+
+
+def many_strike(c, s, t):
+    """A shove: it draws back, then drives its front forward and down at what is ahead, the arms jabbing with it."""
+    settings = s["bite"]
+    back = gait.ease_in_out(t, 0.0, 0.32) * (1.0 - gait.ease_in_out(t, 0.36, 0.46))
+    strike = gait.ease_in_out(t, 0.36, 0.48) * (1.0 - gait.ease_in_out(t, 0.72, 1.0))
+    c.bone_offset("hips", (0, -settings.get("lungeMetres", 0.15) * strike + 0.06 * back, -0.04 * strike))
+    c.bone_rotation("hips", pitch(6.0 * back - 8.0 * strike))
+    c.bone_rotation("chest", pitch(4.0 * back - 6.0 * strike))
+    many_arms(c, lift=40.0 * back + 50.0 * strike, reach=-20.0 * back + 40.0 * strike)
+
+
+def many_hurt(c, s, t):
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    c.bone_offset("hips", (0, 0.05 * hit, -0.03 * hit))
+    c.bone_rotation("hips", roll(6.0 * hit))
+    c.bone_rotation("chest", pitch(6.0 * hit))
+    many_arms(c, lift=-10.0 * hit, spread=15.0 * hit)
+
+
+def many_die(c, s, t):
+    """The feet stay where they stand while the body sinks between them (`dropShare` of its leg's reach), so the knees
+    fold under the shell, and it tips a little onto one side as it settles; the arms curl in."""
+    fall = gait.ease_in_out(t, 0.1, 0.7)
+    height = c.leg_length(next(iter(c.targets)))
+    c.bone_offset("hips", (0, 0, -s["die"].get("dropShare", 0.5) * height * fall))
+    c.bone_rotation("hips", roll(s["die"].get("tipDegrees", 10.0) * fall) @ pitch(-4.0 * fall))
+    many_arms(c, lift=-30.0 * fall, reach=-50.0 * fall)
+
+
+MANY_CLIPS = {
+    "rest": (clip_rest, False, True),
+    "idle": (many_idle, True, True),
+    "walk": (many_walk, True, True),
+    "run": (many_run, True, True),
+    "alert": (many_alert, True, True),
+    "feed": (many_feed, True, True),
+    "die": (many_die, False, False),
+    "threat": (many_threat, False, True),
+    "bite": (many_strike, False, True),
+    "hurt": (many_hurt, False, True),
+}
+
+
 @dataclass(frozen=True)
 class Family:
     bones: object
@@ -2602,6 +2781,12 @@ FAMILIES = {
     # Three legs, two in front and one behind on the middle line (#10960): the channel sifter and the stilt pack.
     "tripod": Family(tripod_bones, TRIPOD_LEGS, TRIPOD_CLIPS, (("shin", "cannon", "hoof"),), "fetlock.C", "fetlock",
                      ("thigh", "shin", "cannon", "whip"), ("hoof",), sized=True, leg_sides=TRIPOD_SIDES),
+    "many-limbed": Family(many_limbed_bones, MANY6_LEGS, MANY_CLIPS,
+                          (("thigh1", "shin1", "foot1"), ("thigh2", "shin2", "foot2"), ("thigh3", "shin3", "foot3")),
+                          "ankle3", "ankle1", MANY_LIMB_BONES, MANY_TIP_BONES, sized=True),
+    "many-limbed-armed": Family(many_limbed_bones, MANY4_LEGS, MANY_CLIPS,
+                                (("thigh1", "shin1", "foot1"), ("thigh3", "shin3", "foot3")),
+                                "ankle3", "ankle1", MANY_LIMB_BONES, MANY_TIP_BONES, sized=True),
     "strider": Family(strider_bones, BIRD_LEGS, STRIDER_CLIPS, (("shin", "cannon", "hoof"),), "fetlock", "fetlock",
                       ("thigh", "shin", "cannon", "upperarm", "forearm"), ("hoof", "hand", "claw")),
     # The strider with a pair of scythe limbs on its back (#10958).

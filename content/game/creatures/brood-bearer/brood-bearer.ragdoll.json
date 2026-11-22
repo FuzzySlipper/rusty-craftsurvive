@@ -1,0 +1,320 @@
+{
+  "$comment": "Written by authoring/tools/creatures/ragdoll.py from the built GLB. Lengths and radii are metres, masses kilograms, limits radians, damping N m s per radian.",
+  "species": "brood-bearer",
+  "hitBone": 2,
+  "bones": [
+    {
+      "joint": "hips",
+      "end": "spine",
+      "length": 0.0,
+      "radius": 0.428,
+      "mass": 320.6
+    },
+    {
+      "joint": "spine",
+      "end": "chest",
+      "length": 0.0,
+      "radius": 0.431,
+      "mass": 315.9
+    },
+    {
+      "joint": "chest",
+      "end": "neck",
+      "length": 0.0,
+      "radius": 0.346,
+      "mass": 213.2
+    },
+    {
+      "joint": "neck",
+      "end": "head",
+      "length": 0.0,
+      "radius": 0.289,
+      "mass": 154.4
+    },
+    {
+      "joint": "head",
+      "end": null,
+      "length": 0.068,
+      "radius": 0.189,
+      "mass": 97.3
+    },
+    {
+      "joint": "thigh1.L",
+      "end": "shin1.L",
+      "length": 0.0,
+      "radius": 0.228,
+      "mass": 119.3
+    },
+    {
+      "joint": "shin1.L",
+      "end": null,
+      "length": 0.136,
+      "radius": 0.14,
+      "mass": 68.7
+    },
+    {
+      "joint": "thigh1.R",
+      "end": "shin1.R",
+      "length": 0.0,
+      "radius": 0.228,
+      "mass": 119.0
+    },
+    {
+      "joint": "shin1.R",
+      "end": null,
+      "length": 0.137,
+      "radius": 0.135,
+      "mass": 66.0
+    },
+    {
+      "joint": "thigh2.L",
+      "end": "shin2.L",
+      "length": 0.0,
+      "radius": 0.329,
+      "mass": 193.1
+    },
+    {
+      "joint": "shin2.L",
+      "end": null,
+      "length": 0.16,
+      "radius": 0.141,
+      "mass": 71.3
+    },
+    {
+      "joint": "thigh2.R",
+      "end": "shin2.R",
+      "length": 0.0,
+      "radius": 0.331,
+      "mass": 194.7
+    },
+    {
+      "joint": "shin2.R",
+      "end": null,
+      "length": 0.17,
+      "radius": 0.126,
+      "mass": 62.4
+    },
+    {
+      "joint": "thigh3.L",
+      "end": "shin3.L",
+      "length": 0.0,
+      "radius": 0.217,
+      "mass": 111.7
+    },
+    {
+      "joint": "shin3.L",
+      "end": null,
+      "length": 0.138,
+      "radius": 0.125,
+      "mass": 59.4
+    },
+    {
+      "joint": "thigh3.R",
+      "end": "shin3.R",
+      "length": 0.0,
+      "radius": 0.22,
+      "mass": 114.0
+    },
+    {
+      "joint": "shin3.R",
+      "end": null,
+      "length": 0.109,
+      "radius": 0.157,
+      "mass": 78.2
+    }
+  ],
+  "links": [
+    {
+      "parent": 0,
+      "child": 1,
+      "damping": 128.2,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "swing": 0.3,
+      "twist": 0.15
+    },
+    {
+      "parent": 1,
+      "child": 2,
+      "damping": 29.4,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "swing": 0.3,
+      "twist": 0.15
+    },
+    {
+      "parent": 2,
+      "child": 3,
+      "damping": 7.7,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "swing": 0.7,
+      "twist": 0.3
+    },
+    {
+      "parent": 3,
+      "child": 4,
+      "damping": 12.8,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "swing": 0.6,
+      "twist": 0.3
+    },
+    {
+      "parent": 2,
+      "child": 5,
+      "damping": 11.1,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "swing": 1.0,
+      "twist": 0.25
+    },
+    {
+      "parent": 5,
+      "child": 6,
+      "damping": 10.4,
+      "axis": [
+        0.9636,
+        0.2673,
+        0.0
+      ],
+      "least": -0.1,
+      "most": 2.2
+    },
+    {
+      "parent": 2,
+      "child": 7,
+      "damping": 11.1,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "swing": 1.0,
+      "twist": 0.25
+    },
+    {
+      "parent": 7,
+      "child": 8,
+      "damping": 9.8,
+      "axis": [
+        0.9636,
+        -0.2673,
+        0.0
+      ],
+      "least": -0.1,
+      "most": 2.2
+    },
+    {
+      "parent": 1,
+      "child": 9,
+      "damping": 17.9,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "swing": 1.0,
+      "twist": 0.25
+    },
+    {
+      "parent": 9,
+      "child": 10,
+      "damping": 12.9,
+      "axis": [
+        0.9635,
+        0.2676,
+        0.0
+      ],
+      "least": -0.1,
+      "most": 2.2
+    },
+    {
+      "parent": 1,
+      "child": 11,
+      "damping": 18.1,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "swing": 1.0,
+      "twist": 0.25
+    },
+    {
+      "parent": 11,
+      "child": 12,
+      "damping": 11.0,
+      "axis": [
+        0.9635,
+        -0.2676,
+        -0.0
+      ],
+      "least": -0.1,
+      "most": 2.2
+    },
+    {
+      "parent": 0,
+      "child": 13,
+      "damping": 10.4,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "swing": 1.0,
+      "twist": 0.25
+    },
+    {
+      "parent": 13,
+      "child": 14,
+      "damping": 8.2,
+      "axis": [
+        0.9636,
+        0.2673,
+        -0.0
+      ],
+      "least": -0.1,
+      "most": 2.2
+    },
+    {
+      "parent": 0,
+      "child": 15,
+      "damping": 10.6,
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "swing": 1.0,
+      "twist": 0.25
+    },
+    {
+      "parent": 15,
+      "child": 16,
+      "damping": 11.1,
+      "axis": [
+        0.9636,
+        -0.2673,
+        -0.0
+      ],
+      "least": -0.1,
+      "most": 2.2
+    }
+  ]
+}

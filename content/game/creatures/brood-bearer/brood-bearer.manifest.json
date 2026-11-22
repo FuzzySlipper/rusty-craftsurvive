@@ -1,0 +1,94 @@
+{
+  "species": "brood-bearer",
+  "family": "many-limbed",
+  "body": {
+    "hindMetres": -0.69,
+    "foreMetres": 0.54
+  },
+  "legs": [
+    [
+      "thigh1.L",
+      "shin1.L",
+      "foot1.L"
+    ],
+    [
+      "thigh2.L",
+      "shin2.L",
+      "foot2.L"
+    ],
+    [
+      "thigh3.L",
+      "shin3.L",
+      "foot3.L"
+    ],
+    [
+      "thigh1.R",
+      "shin1.R",
+      "foot1.R"
+    ],
+    [
+      "thigh2.R",
+      "shin2.R",
+      "foot2.R"
+    ],
+    [
+      "thigh3.R",
+      "shin3.R",
+      "foot3.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.6,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.2187
+    },
+    "run": {
+      "seconds": 1.0,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.6
+    },
+    "alert": {
+      "seconds": 2.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "feed": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 1.8,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 1.5,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "bite": {
+      "seconds": 0.8,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "hurt": {
+      "seconds": 0.4,
+      "loops": false,
+      "plantsFeet": true
+    }
+  }
+}

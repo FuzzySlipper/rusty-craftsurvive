@@ -1,0 +1,171 @@
+{
+  "id": "brood-bearer",
+  "family": "many-limbed",
+  "about": "The brood bearer (#10961), a ruin tender about 2 m long that carries six pods of small skitterers on its back and splits them when threatened: a broad low shell on six short stout legs ending in pads, fitted to the Tripo body (authoring/assets/creatures/brood-bearer/mesh), on the many-limbed family (three leg pairs, no arms). Its six cups are empty on the body; the pods are worn pieces. Key points are metres as [side, forward, up]; paired points are the left side's, mirrored.",
+  "points": {
+    "root": [
+      0,
+      0,
+      0
+    ],
+    "root_tip": [
+      0,
+      0.3,
+      0
+    ],
+    "hips": [
+      0,
+      -0.6,
+      0.58
+    ],
+    "spine": [
+      0,
+      -0.1,
+      0.6
+    ],
+    "chest": [
+      0,
+      0.35,
+      0.58
+    ],
+    "neck": [
+      0,
+      0.6,
+      0.5
+    ],
+    "head": [
+      0,
+      0.75,
+      0.45
+    ],
+    "nose": [
+      0,
+      0.98,
+      0.4
+    ],
+    "hip1": [
+      0.42,
+      0.52,
+      0.47
+    ],
+    "knee1": [
+      0.5,
+      0.53,
+      0.27
+    ],
+    "ankle1": [
+      0.55,
+      0.54,
+      0.09
+    ],
+    "toe1": [
+      0.58,
+      0.64,
+      0.0
+    ],
+    "hip2": [
+      0.42,
+      -0.09,
+      0.47
+    ],
+    "knee2": [
+      0.5,
+      -0.09,
+      0.27
+    ],
+    "ankle2": [
+      0.55,
+      -0.09,
+      0.09
+    ],
+    "toe2": [
+      0.58,
+      0.01,
+      0.0
+    ],
+    "hip3": [
+      0.42,
+      -0.67,
+      0.47
+    ],
+    "knee3": [
+      0.5,
+      -0.68,
+      0.27
+    ],
+    "ankle3": [
+      0.55,
+      -0.69,
+      0.09
+    ],
+    "toe3": [
+      0.58,
+      -0.59,
+      0.0
+    ]
+  },
+  "clips": {
+    "fps": 30,
+    "walk": {
+      "seconds": 1.6,
+      "stride": 0.35,
+      "duty": 0.62,
+      "lift": 0.08,
+      "phases": {
+        "fore.L": 0.0,
+        "mid.R": 0.0,
+        "hind.L": 0.0,
+        "fore.R": 0.5,
+        "mid.L": 0.5,
+        "hind.R": 0.5
+      },
+      "bob": 0.015,
+      "swayDegrees": 1.5
+    },
+    "run": {
+      "seconds": 1.0,
+      "stride": 0.6,
+      "duty": 0.55,
+      "lift": 0.1,
+      "phases": {
+        "fore.L": 0.0,
+        "mid.R": 0.0,
+        "hind.L": 0.0,
+        "fore.R": 0.5,
+        "mid.L": 0.5,
+        "hind.R": 0.5
+      },
+      "bob": 0.02,
+      "swayDegrees": 2.0
+    },
+    "idle": {
+      "seconds": 4.0
+    },
+    "alert": {
+      "seconds": 2.0
+    },
+    "feed": {
+      "seconds": 3.0,
+      "sinkMetres": 0.08,
+      "dipDegrees": 4.0
+    },
+    "threat": {
+      "seconds": 1.5,
+      "rearDegrees": -8.0,
+      "chestDegrees": -3.0,
+      "sinkMetres": 0.12
+    },
+    "bite": {
+      "seconds": 0.8,
+      "lungeMetres": 0.12
+    },
+    "hurt": {
+      "seconds": 0.4
+    },
+    "die": {
+      "seconds": 1.8,
+      "tipDegrees": 6.0,
+      "dropShare": 0.3
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/mender/mesh/tripo/tripo.glb",
+  "triangles": 5999,
+  "areaSquareMetres": 6.266,
+  "charts": 371,
+  "utilization": 0.7584,
+  "masterTexels": [
+    785,
+    784
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.6068968176841736,
+      -0.714777946472168,
+      -0.00021526914497371763
+    ],
+    [
+      0.607276439666748,
+      0.7147823572158813,
+      1.6021573543548584
+    ]
+  ]
+}

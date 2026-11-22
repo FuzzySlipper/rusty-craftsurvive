@@ -1,0 +1,84 @@
+{
+  "species": "mender",
+  "family": "many-limbed-armed",
+  "body": {
+    "hindMetres": -0.43,
+    "foreMetres": 0.37
+  },
+  "legs": [
+    [
+      "thigh1.L",
+      "shin1.L",
+      "foot1.L"
+    ],
+    [
+      "thigh3.L",
+      "shin3.L",
+      "foot3.L"
+    ],
+    [
+      "thigh1.R",
+      "shin1.R",
+      "foot1.R"
+    ],
+    [
+      "thigh3.R",
+      "shin3.R",
+      "foot3.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.4,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.3571
+    },
+    "run": {
+      "seconds": 0.8,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 1.125
+    },
+    "alert": {
+      "seconds": 2.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "feed": {
+      "seconds": 2.4,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 1.6,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 1.2,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "bite": {
+      "seconds": 0.7,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "hurt": {
+      "seconds": 0.4,
+      "loops": false,
+      "plantsFeet": true
+    }
+  }
+}
