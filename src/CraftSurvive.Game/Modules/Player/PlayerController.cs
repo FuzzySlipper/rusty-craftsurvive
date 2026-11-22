@@ -86,6 +86,17 @@ internal sealed class PlayerController : IDisposable
     /// <summary>Something the player can ride, a boat (#9879); null when there is none.</summary>
     internal IPlayerCarrier? Carrier { get; set; }
 
+    /// <summary>Colliders standing in the player's session that every step meets (#10961: menders' seals across doorways); none by default.</summary>
+    internal Func<SpatialSession, IReadOnlyList<CharacterObstacle>>? Barriers { get; set; }
+
+    /// <summary>What a step meets besides the world: the boat carrying the player, and the session's barriers.</summary>
+    private ReadOnlyMemory<CharacterObstacle> Obstacles(CharacterObstacle? ride)
+    {
+        IReadOnlyList<CharacterObstacle> barriers = Barriers?.Invoke(Session) ?? [];
+        if (barriers.Count == 0) return ride is CharacterObstacle only ? new[] { only } : ReadOnlyMemory<CharacterObstacle>.Empty;
+        return ride is CharacterObstacle obstacle ? [obstacle, .. barriers] : barriers.ToArray();
+    }
+
     /// <summary>Whether the player stands or sits on the carrier now.</summary>
     internal bool Aboard => aboard;
 
@@ -701,7 +712,7 @@ internal sealed class PlayerController : IDisposable
                     playerLocal,
                     motion,
                     support,
-                    ride is CharacterObstacle obstacle ? new[] { obstacle } : ReadOnlyMemory<CharacterObstacle>.Empty,
+                    Obstacles(ride),
                     ReadOnlyMemory<CharacterMeshInstance>.Empty,
                     stepConfig,
                     Command(body, lookReceipt, commandSequence)));

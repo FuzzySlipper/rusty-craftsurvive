@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Json;
 using CraftSurvive.Game.Modules.Birds;
 using CraftSurvive.Game.Modules.Creatures;
+using CraftSurvive.Game.Modules.Dungeons;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Water;
@@ -548,7 +549,7 @@ Check.Section("kinds", () =>
     string[] hunters = ["gaunt", "axe-beak", "drift-runner"];
     string[] cave = ["root-adder", "mouldback", "drowner", "hummock", "ribbon-stalker", "stalk-bill", "drop-sloth", "draft-hound", "salt-monitor", "glass-courser", "seep-rat", "plume-neck"];
     Check.That(cave.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Cave is not null), "the cave's hunters (#10876) load, each with its cave");
-    string[] ruin = ["collector", "skitterer", "carrier", "reaper", "threshold-lurker", "shard-dweller", "wall-runner", "channel-sifter", "stilt-pack", "brood-bearer", "mender"];
+    string[] ruin = ["collector", "skitterer", "carrier", "reaper", "threshold-lurker", "shard-dweller", "wall-runner", "channel-sifter", "stilt-pack", "brood-bearer", "mender", "brood-skitterer"];
     Check.That(ruin.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt is not null && k.Cave is null), "the ruins' hunters (#10956) load, in no cave's communities");
     Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length, catalog.Kinds.Count,
         "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters and nothing else");
@@ -1611,6 +1612,56 @@ Check.Section("ruin wildlife", () =>
     Check.Throws<InvalidDataException>(() => WildlifeHeldLight.Read(noLight.RootElement), "a held light with no intensity is refused");
     using JsonDocument noWeight = JsonDocument.Parse("""{ "worn": { "pieces": "p.json", "looks": { "bare": 0 } } }""");
     Check.Throws<InvalidDataException>(() => WildlifeWorn.Read(noWeight.RootElement), "looks with no weight between them are refused");
+});
+
+Check.Section("ruin tenders", () =>
+{
+    // The brood bearer (#10961): its threat splits its pods and releases a brood of small skitterers that guard it.
+    WildlifeKind bearer = catalog.Kind("brood-bearer");
+    WildlifeBrood brood = bearer.Hunt!.Brood ?? throw new InvalidOperationException("the bearer carries no brood");
+    Check.That(bearer.Hunt.Tends && bearer.Hunt.Seals is null, "the bearer is a tender that seals nothing");
+    Check.Equal("brood-skitterer", brood.Kind, "the bearer's brood is the small skitterers Patch picked");
+    Check.Equal(6, brood.Count, "one small skitterer a pod");
+    Check.Equal(1200.0, brood.RegrowSeconds, "the pods regrow over a game day");
+    WildlifeKind hatchling = catalog.Kind("brood-skitterer");
+    Check.That(hatchling.Hunt is { Pack: not null, Rest: null, Tends: false }, "the brood hunts as a pack, awake from the moment it spills out, and fights");
+    Check.That(hatchling.MaximumHealth < catalog.Kind("skitterer").MaximumHealth && hatchling.Body.LengthMetres < catalog.Kind("skitterer").Body.LengthMetres,
+        "a small skitterer is smaller and weaker than the skitterer");
+    Check.Equal(0.0, hatchling.Population.HerdsPerSquareKilometre, "small skitterers come only from a bearer's pods");
+    WildlifeWorn pods = bearer.Mesh!.Worn ?? throw new InvalidOperationException("the bearer wears no pods");
+    Check.That(Enumerable.Range(0, 100).All(i => pods.Pick(i / 100.0) == "sealed"), "every bearer wakes with its pods sealed");
+    using JsonDocument podPieces = JsonDocument.Parse(ReadResource("Wildlife.brood-bearer.pieces.json"));
+    string[] bearerJoints = GlbJoints("Wildlife.brood-bearer.glb");
+    Check.That(podPieces.RootElement.GetProperty("looks").TryGetProperty(brood.SplitLook, out JsonElement split) && split.GetArrayLength() > 0,
+        "the pieces file has the split look the brood turns the pods to");
+    Check.That(podPieces.RootElement.GetProperty("looks").EnumerateObject().SelectMany(look => look.Value.EnumerateArray())
+        .All(piece => bearerJoints.Contains(piece.GetProperty("joint").GetString())), "the pods hang from a joint of the bearer's rig");
+
+    // The mender (#10961): it seals the doorway nearest the player; a seal hardens, and takes more blows once hard.
+    WildlifeKind mender = catalog.Kind("mender");
+    WildlifeSealing sealing = mender.Hunt!.Seals ?? throw new InvalidOperationException("the mender seals nothing");
+    Check.That(mender.Hunt.Tends && sealing.HardBlows >= 3 * sealing.FreshBlows - 1 && sealing.MostSeals == 2, "a hard seal takes about three times a fresh one's blows; two at most");
+    Check.That(sealing.Seconds is >= 3 and <= 5 && sealing.HardenSeconds == 60 && sealing.RefillSeconds == 90, "about 4 s to seal, a minute to harden, 90 s to refill");
+
+    // A doorway through x at (10, 2, 20): its opening runs 2 m along z.
+    RuinDoorway door = new(new Vector3(10, 2, 20), FacesX: true);
+    Check.That(TenderRules.Crosses(new Vector2(8, 20.5f), new Vector2(12, 20.5f), door), "a line through the opening crosses the doorway");
+    Check.That(!TenderRules.Crosses(new Vector2(8, 23), new Vector2(12, 23), door), "a line past the opening's side does not");
+    Check.That(!TenderRules.Crosses(new Vector2(8, 20), new Vector2(9.5f, 20), door), "a line that stops short of it does not");
+    Check.That(TenderRules.Distance(new Vector2(10, 20.6f), door) < 1e-5, "a point in the opening is in it");
+    Check.That(Math.Abs(TenderRules.Distance(new Vector2(10, 22), door) - 1) < 1e-5, "past the opening's side, the distance is to its edge");
+    (Vector3 min, Vector3 max) = TenderRules.SealBox(door);
+    Check.That(max.X - min.X < 0.5f && Math.Abs(max.Z - min.Z - RuinDoorway.Width) < 1e-5 && Math.Abs(max.Y - RuinDoorway.Height) < 1e-5,
+        "a seal is thin through its doorway and fills its width and height");
+    Vector2 stand = TenderRules.SealingPlace(door, new Vector2(4, 20));
+    Check.That(stand.X < 10 && Math.Abs(stand.Y - 20) < 1e-5, "a mender seals from its own side of the doorway");
+    RuinDoorway far = new(new Vector3(30, 2, 20), FacesX: false), upstairs = new(new Vector3(12, 8, 20), FacesX: true);
+    Check.Equal(door, TenderRules.DoorToSeal([far, upstairs, door], new Vector3(12, 2, 20), [], 16), "it seals the doorway nearest the player on the player's storey");
+    Check.That(TenderRules.DoorToSeal([door], new Vector3(12, 2, 20), [door], 16) is null, "not one already sealed");
+    Check.That(TenderRules.DoorToSeal([far], new Vector3(0, 2, 20), [], 16) is null, "nor one out of reach of the player");
+
+    Check.That(!TenderRules.Hard(sealing, 0) && TenderRules.BlowsToCut(sealing, 0) == sealing.FreshBlows, "a whole seal is fresh at first");
+    Check.That(TenderRules.Hard(sealing, sealing.HardenSeconds) && TenderRules.BlowsToCut(sealing, sealing.HardenSeconds) == sealing.HardBlows, "after a minute it has hardened");
 });
 
 Check.Section("debug holds", () =>

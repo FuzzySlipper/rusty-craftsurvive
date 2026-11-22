@@ -163,7 +163,8 @@ internal sealed class CreatureNavigation
         // Creatures keep out of deep water: the overlay goes on after every publication, which clears it.
         (long X, long Z) minCell = ((long)MathF.Floor((cellX - HalfExtent) / cell), (long)MathF.Floor((cellZ - HalfExtent) / cell));
         (long X, long Z) maxCell = ((long)MathF.Floor((cellX + HalfExtent) / cell), (long)MathF.Floor((cellZ + HalfExtent) / cell));
-        water.Apply(engine.Spatial, space.Session, gridId, minCell, maxCell, WaterAt, (space.CollisionRevision, bottom));
+        overlayBox = (minCell, maxCell, (space.CollisionRevision, bottom));
+        water.Apply(engine.Spatial, space.Session, gridId, minCell, maxCell, WaterAt, overlayBox.Value.Collision, Closures?.Invoke(config.CellSize));
         lastPublishMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         worstPublishMilliseconds = Math.Max(worstPublishMilliseconds, lastPublishMilliseconds);
         totalPublishMilliseconds += lastPublishMilliseconds;
@@ -187,6 +188,19 @@ internal sealed class CreatureNavigation
     /// <summary>Whether a box's bottom still suits a player's feet at this local height: they stand between its depth below and that plus the slack.</summary>
     private static bool KeepsBottom(float feetLocalY, float bottom) =>
         feetLocalY - bottom >= DepthBelow && feetLocalY - bottom <= DepthBelow + VerticalSlackMetres;
+
+    /// <summary>The cells closed over this grid besides water (#10961: whole seals' doorways), for the cell size; null for none.</summary>
+    internal Func<double, IReadOnlyList<(long X, long Z, float Floor)>>? Closures { get; init; }
+
+    /// <summary>The cell box and collision the overlay was last laid over, to lay it again.</summary>
+    private ((long X, long Z) Min, (long X, long Z) Max, object Collision)? overlayBox;
+
+    /// <summary>Lays the overlay again over what was last published (#10961): a seal grown or cut shuts or opens its doorway without a new publication.</summary>
+    internal void Reclose()
+    {
+        if (overlayBox is not { } box) return;
+        water.Apply(engine.Spatial, space.Session, gridId, box.Min, box.Max, WaterAt, box.Collision, Closures?.Invoke(config.CellSize));
+    }
 
     /// <summary>Whether this grid has been published at all.</summary>
     internal bool Published => publishedAround is not null;

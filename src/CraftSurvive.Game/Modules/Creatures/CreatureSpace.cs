@@ -50,6 +50,9 @@ internal abstract class CreatureSpace : ICreatureGround
     /// <summary>Changes whenever the water may have: samples are asked again.</summary>
     internal virtual long WaterRevision => 0;
 
+    /// <summary>The ruin doorways in this space (#10961), placed in its own metres: what a mender seals. None by default.</summary>
+    internal virtual IReadOnlyList<Dungeons.RuinDoorway> Doorways => [];
+
     /// <summary>Changes whenever the collision may have: navigation is published again, and columns are explained again.</summary>
     internal abstract object CollisionRevision { get; }
 

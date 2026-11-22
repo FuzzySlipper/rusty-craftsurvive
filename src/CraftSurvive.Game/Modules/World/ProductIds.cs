@@ -203,6 +203,14 @@ internal static class ProductIds
 
     internal const ulong WildlifeWornLimit = 0xC00UL;
 
+    /// <summary>The membranes menders grow across ruin doorways (#10961): one object a seal, at most <see cref="DoorSealLimit"/>.</summary>
+    internal const ulong DoorSealBase = 0xA_7000UL;
+
+    internal const ulong DoorSealLimit = 0x100UL;
+
+    /// <summary>The same seals as the colliders character steps meet (#10961).</summary>
+    internal const ulong DoorSealObstacleBase = 0x3_1100UL;
+
     /// <summary>The overworld places' kit pieces standing in the near ground (#9992), at most <see cref="PlaceMeshLimit"/>.</summary>
     internal const ulong PlaceMeshBase = 0x9_A000UL;
 

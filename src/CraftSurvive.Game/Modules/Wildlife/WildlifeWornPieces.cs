@@ -54,10 +54,12 @@ internal sealed class WildlifeWornPieces : IDisposable
     internal string? Forced { get; set; }
 
     /// <summary>The look an animal wears and its pieces, drawn under the ids of its body's slot.</summary>
-    internal (string Look, Part[] Parts) For(WildlifeWorn worn, int memberId, ulong seed, int slot)
+    /// <param name="wanted">The look its rules have it wear now (#10961), over its own pick and the test aid's.</param>
+    internal (string Look, Part[] Parts) For(WildlifeWorn worn, int memberId, ulong seed, int slot, string? wanted = null)
     {
         Set set = SetOf(worn.Pieces);
-        string look = Forced is { } forced && set.Looks.ContainsKey(forced) ? forced : worn.Pick(Share(memberId, seed));
+        string look = wanted is { } asked && set.Looks.ContainsKey(asked) ? asked
+            : Forced is { } forced && set.Looks.ContainsKey(forced) ? forced : worn.Pick(Share(memberId, seed));
         if (!set.Looks.TryGetValue(look, out Piece[]? pieces)) throw new InvalidDataException($"worn: '{worn.Pieces}' has no look '{look}'");
         Piece[] all = [.. pieces, .. set.Held];
         if (all.Length > WildlifeWorn.MostPieces) throw new InvalidDataException($"worn: look '{look}' has {all.Length} pieces; a body has room for {WildlifeWorn.MostPieces}");
@@ -98,6 +100,9 @@ internal sealed class WildlifeWornPieces : IDisposable
             : [];
         return sets[path] = new Set(looks, held);
     }
+
+    /// <summary>A rigid prop of wildlife's own that hangs from no joint (#10961: a mender's seal), opened once and shared.</summary>
+    internal Appearance OpenProp(string path) => Open(path);
 
     private Appearance Open(string path)
     {

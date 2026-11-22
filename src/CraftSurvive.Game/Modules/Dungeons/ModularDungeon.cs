@@ -250,6 +250,49 @@ internal static class ModularDungeon
         _ => (-1, 0),
     };
 
+    /// <summary>
+    /// A ruin's doorways (#10961: what a mender seals), from its joins: each building doorway <see cref="Open"/> cuts, as
+    /// the middle of its opening on its floor, in layout voxels, and whether it faces along x (its wall runs along z).
+    /// Cave mouths and the breach are not doorways.
+    /// </summary>
+    internal static IReadOnlyList<RuinDoorway> Doorways(IEnumerable<(int X, int Y, int Z, ModuleFace Face, SocketKind Kind)> joins) =>
+        [.. joins.Where(join => join.Kind == SocketKind.Door).Select(join =>
+        {
+            (int dx, int dz) = Step(join.Face);
+            int centreX = (join.X * ModuleCanvas.CellSize) + (ModuleCanvas.CellSize / 2);
+            int centreZ = (join.Z * ModuleCanvas.CellSize) + (ModuleCanvas.CellSize / 2);
+            int floor = (join.Y * ModuleCanvas.StoreyHeight) + BaseY + 1;
+            // The opening's voxels run either side of the cells' boundary, and either side of the cell's middle across it.
+            return new RuinDoorway(new Vector3(centreX + (dx * ModuleCanvas.CellSize / 2f), floor, centreZ + (dz * ModuleCanvas.CellSize / 2f)), dx != 0);
+        })];
+
+    /// <summary>
+    /// Whether a doorway's frame stands whole in a volume (#10961): its jambs either side of the opening, through the wall's
+    /// depth and up its height, and its lintel over it, all masonry. A wall the cave burst through leaves a way round a seal.
+    /// </summary>
+    internal static bool Framed(DungeonVolume volume, RuinDoorway door)
+    {
+        int bx = (int)MathF.Round(door.Floor.X), bz = (int)MathF.Round(door.Floor.Z), floor = (int)MathF.Round(door.Floor.Y);
+        int height = (int)RuinDoorway.Height, half = (int)(RuinDoorway.Width / 2);
+        bool Solid(int across, int through, int y) => door.FacesX
+            ? volume.At(bx + through, y, bz + across) != BlockId.Air
+            : volume.At(bx + across, y, bz + through) != BlockId.Air;
+        for (int through = -1; through <= 0; through++)
+        {
+            for (int y = floor; y < floor + height; y++)
+            {
+                if (!Solid(-half - 1, through, y) || !Solid(half, through, y)) return false;
+            }
+
+            for (int across = -half; across < half; across++)
+            {
+                if (!Solid(across, through, floor + height)) return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>A standing place in a module's cell: the cell's middle, on the floor of a storey.</summary>
     internal static DungeonCell Floor(PlacedModule module, int cellX, int storey) =>
         new((module.X + cellX) * ModuleCanvas.CellSize + (ModuleCanvas.CellSize / 2),

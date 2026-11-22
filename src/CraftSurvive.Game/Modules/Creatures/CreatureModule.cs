@@ -147,7 +147,7 @@ internal sealed partial class CreatureModule : IProductModule
         CreatureSpace space = SpaceOf(creature);
         Vector3 toward = space.ToLocal(waypoint.X, 0, waypoint.Y);
         bodiesStepped++;
-        if (CreatureBody.Step(engine.Spatial, space.Session, body, config, new Vector2(toward.X, toward.Z), travel, seconds, creature.NextBodySequence)
+        if (CreatureBody.Step(engine.Spatial, space.Session, body, config, new Vector2(toward.X, toward.Z), travel, seconds, creature.NextBodySequence, Barriers(space.Session).ToArray())
             is not CreatureBodyState moved)
         {
             bodiesRefused++;
@@ -187,7 +187,8 @@ internal sealed partial class CreatureModule : IProductModule
         if (navigations.TryGetValue(key, out CreatureNavigation? found)) return found;
         ulong grid = nextGrid.TryGetValue(space, out ulong next) ? next : FirstGridId;
         nextGrid[space] = grid + 1;
-        return navigations[key] = new CreatureNavigation(engine, space, body, grid);
+        // Whole seals (#10961) close their doorways' cells on every grid in their space.
+        return navigations[key] = new CreatureNavigation(engine, space, body, grid) { Closures = cell => SealedCells(space, cell) };
     }
 
     /// <summary>
@@ -315,6 +316,8 @@ internal sealed partial class CreatureModule : IProductModule
         if (here == walking) CloseAmbush();
         // While the test aid hides the player (#10878) nothing sees them, so a hunt turns to a search where they stand.
         HashSet<int> seeing = here is null || step < unseenUntil ? [] : Sense(playerWorld, here);
+        // A whole seal (#10961) hides those on its far side.
+        if (seals.Count > 0) seeing.RemoveWhere(id => roster.TryGet(id, out Creature seen) && SealedOff(seen, player.WorldFeetPosition));
         // A pack hunts as one: what one sees they all come for, though a bite still needs its own sight. One still lying at
         // rest calls nothing (#10878): it must wake first, at its own wake range, which a draft shortens from downwind.
         HashSet<int> alerted = HunterRules.Alerted(seeing, hunters, packAlarms, time.ElapsedSeconds,
@@ -338,6 +341,8 @@ internal sealed partial class CreatureModule : IProductModule
         // With no steps admitted nothing has moved, and a pursuer standing still is not stuck.
         // A test aid sending a creature somewhere (#10926) has it search its way there.
         if (overrides.Count > 0) SteerOverrides();
+        // A tender's errand (#10961) has it search its way somewhere of its own.
+        if (errands.Count > 0) SteerErrands(playerFeet);
         if (time.AdmittedSteps > 0) Route(player.WorldFeetPosition, here);
         routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, (here is null ? 0 : NavigationsIn(here).Sum(navigation => navigation.Queries)) - queriesBefore,
             roster.All.Count(creature => creature.Awake && creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking));
@@ -359,9 +364,10 @@ internal sealed partial class CreatureModule : IProductModule
             // Nor does one still hanging or falling from its ceiling (#10877).
             bool displaying = hunters.TryGetValue(creature.Id, out Hunter? shown) && ((shown.ThreatSeconds > 0 && shown.Kind.Hunt!.Display is not null) || shown.Member.Lift > 0);
             if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit && !displaying, time, SightScale(creature, alerted),
-                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody, WakeShare(shown, creature, playerWorld), ForcedState(creature)) is CreatureStrike strike)
+                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody, WakeShare(shown, creature, playerWorld), ForcedState(creature) ?? ErrandState(creature)) is CreatureStrike strike)
             {
-                if (hunters.TryGetValue(creature.Id, out Hunter? biting)) HunterRules.Bite(biting, strike.Attack, ClipSeconds(biting, WildlifeClipRole.Bite));
+                // A tender (#10961) strikes no blow of its own.
+                if (hunters.TryGetValue(creature.Id, out Hunter? biting)) { if (!biting.Kind.Hunt!.Tends) HunterRules.Bite(biting, strike.Attack, ClipSeconds(biting, WildlifeClipRole.Bite)); }
                 else ResolveStrike(strike);
                 playerCanBeHit = !player.Vitals.IsDown;
             }
@@ -376,6 +382,7 @@ internal sealed partial class CreatureModule : IProductModule
         }
 
         routing.RecordBodies(System.Diagnostics.Stopwatch.GetElapsedTime(bodiesStarted).TotalMilliseconds, bodiesStepped, bodiesRefused);
+        Tend(time.ElapsedSeconds, playerFeet, here);
         // The test aids that watch and label creatures (#10926): nothing while none is asked for.
         if (watchUntil > step) WatchUpdate();
         PublishLabels(here);
@@ -399,7 +406,11 @@ internal sealed partial class CreatureModule : IProductModule
     {
         double distance = CreatureSimulation.PlanarDistance(creature.Position, playerWorld);
         CreatureState state = creature.Behavior.State;
-        if (HunterRules.Advance(hunter, state, distance, ClipSeconds(hunter, WildlifeClipRole.Threat), seconds) is AttackProfile blow)
+        bool threatenedBefore = hunter.Threatened;
+        AttackProfile? closing = HunterRules.Advance(hunter, state, distance, ClipSeconds(hunter, WildlifeClipRole.Threat), seconds);
+        // A brood bearer's threat (#10961) splits its pods once its creatures have moved.
+        if (!threatenedBefore && hunter.Threatened && hunter.Kind.Hunt!.Brood is not null) broodsDue.Add(creature.Id);
+        if (closing is AttackProfile blow)
         {
             if (playerCanBeHit && HunterRules.Lands(hunter.Kind.Hunt!, distance, seesPlayer)) ResolveStrike(new CreatureStrike(creature.Id, blow));
             else cues.Raise(Cue.Swing);
@@ -679,6 +690,8 @@ internal sealed partial class CreatureModule : IProductModule
     private void Admit(Creature creature, WildlifeKind kind, HerdRecord record, int order)
     {
         hunters[creature.Id] = new Hunter(kind, record, Wildlife!.WakeHunter(record, kind, creature.Position, order), order);
+        // A bearer whose home's pods split not long ago wakes with them still split (#10961).
+        if (kind.Hunt!.Brood is WildlifeBrood brood && podsSplit.ContainsKey(record.Key)) hunters[creature.Id].Member.WornLook = brood.SplitLook;
         hunted[record.Key] = hunted.GetValueOrDefault(record.Key) + 1;
     }
 
@@ -723,6 +736,7 @@ internal sealed partial class CreatureModule : IProductModule
     public void Restart()
     {
         ambushWaiting = 0;
+        ClearTenders();
         foreach (int id in hunters.Keys.ToArray()) ForgetHunter(id);
         roster.Clear();
         director.Clear();
@@ -786,6 +800,8 @@ internal sealed partial class CreatureModule : IProductModule
         Creature? target = chosen?.Creature;
         double best = chosen?.Distance ?? double.MaxValue;
 
+        // A whole seal in reach (#10961) takes the swing before any creature further off.
+        if (SwingAtSeal(target is null ? double.MaxValue : best) is string atSeal) return atSeal;
         if (target is null || best > CharacterSheet.UnarmedReachMetres)
         {
             // With no creature in reach, the swing may find an animal instead (#10567).
@@ -812,7 +828,11 @@ internal sealed partial class CreatureModule : IProductModule
             target.LastSeen = player.WorldFeetPosition;
         }
 
-        if (hunters.TryGetValue(target.Id, out Hunter? struckHunter)) struckHunter.HurtSeconds = ClipSeconds(struckHunter, WildlifeClipRole.Hurt);
+        if (hunters.TryGetValue(target.Id, out Hunter? struckHunter))
+        {
+            struckHunter.HurtSeconds = ClipSeconds(struckHunter, WildlifeClipRole.Hurt);
+            if (struckHunter.Kind.Hunt!.Tends && !struck.IsDown) TenderStruck(target, struckHunter);
+        }
         cues.RaiseAt(struck.IsDown ? Cue.Defeat : Cue.Strike,
             SpaceOf(target).ToLocal(target.Position.X, StandingAt(target) + StruckHeightMetres, target.Position.Y));
         if (!struck.IsDown)

@@ -75,7 +75,7 @@ internal sealed class WildlifePresentation : IDisposable
     /// <param name="hunters">The hostile animals awake (#10615): the creature rules move them, and they are drawn here with the rest.</param>
     /// <param name="ambient">The small cave creatures (#10876): placeholders until they have meshes, drawn and nothing else.</param>
     internal void Sync(IReadOnlyList<WildlifeHerd> herds, IReadOnlyList<WildlifeFallen> fallen, IReadOnlyList<Creatures.WildlifeHunter> hunters, Func<WildlifeMember, float> feet, Vector2 here, double seconds,
-        IReadOnlyList<CaveAmbient>? ambient = null)
+        IReadOnlyList<CaveAmbient>? ambient = null, IReadOnlyList<Creatures.WildlifeSeal>? seals = null)
     {
         List<AppearanceFact> next = [];
         HashSet<WildlifeMember> kept = [];
@@ -131,6 +131,8 @@ internal sealed class WildlifePresentation : IDisposable
             Pose(kind.Body, PressedResponse.Flee, WildlifeActivity.Drift, creature.Member, creature.Feet, false, Appearances(kind.Id, kind.Body), next);
         }
 
+        // The menders' seals across doorways (#10961).
+        foreach (Creatures.WildlifeSeal seal in seals ?? []) next.Add(meshes.PoseSeal(seal));
         meshes.Keep(kept);
         facts = [.. next];
     }

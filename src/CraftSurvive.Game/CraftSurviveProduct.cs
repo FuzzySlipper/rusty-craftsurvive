@@ -195,6 +195,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         birds = new Modules.Birds.BirdModule(context.Engine, context.Content, terrain, player, frame, () => conditions.Time);
         parties = new Modules.Birds.PartyModule(context.Engine, context.Content, terrain, player, frame, () => conditions.Time);
         creatures.SwingElsewhere = wildlife.PlayerSwing;
+        player.Barriers = creatures.Barriers;
+        wildlife.Seals = creatures.SealFacts;
         creatures.Wildlife = wildlife;
         wildlife.HunterNear = creatures.AdmitHunter;
         wildlife.Hunters = creatures.HunterFacts;

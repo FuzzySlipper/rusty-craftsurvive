@@ -4297,6 +4297,8 @@ private static int MostBarrensPieces => Area(400);
             MainRoute = cave.MainRoute,
             FungalPockets = cave.FungalPockets,
             RuinMouth = ruin?.Mouth,
+            // Only a doorway whose frame still stands can be sealed (#10961): one in a wall the cave burst through is no way shut.
+            RuinDoorways = ruin is null ? [] : [.. ModularDungeon.Doorways(ruin.Joins).Where(door => ModularDungeon.Framed(volume, door))],
         };
         string grown = string.Join(",", Enum.GetValues<MossCardKind>().Select(k => $"{k}:{cards.Count(c => c.Kind == k)}"));
         Report report = new(new Dictionary<string, double>(Stages), [.. ShortestLog], ruin, run, Stopwatch.GetElapsedTime(generating).TotalMilliseconds);

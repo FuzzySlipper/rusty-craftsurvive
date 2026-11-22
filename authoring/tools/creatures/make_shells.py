@@ -12,7 +12,8 @@ insets where `insets` asks. Where the body would come through its underside (the
 swells over it by `clearance`, eased over its neighbours, and the run says by how much. A shell with `mesh` is a generated one instead (its prepared folder beside the species file, painted from its sheet by
 paint_from_views.py), stretched to its `box` and raised until the body clears its top. A `held` piece is a short curved blade, or with `"shape": "crescent"` a ring open on one side whose core is a separate
 `glow` part (the implement-carrier's, #10957); `light` gives it a light that rides with it. A `held` blade is a short curved blade in a
-hand's grip. Each piece is written as <name>.prop-mesh.json with <name>.png beside it, and `pieces.json` lists them
+hand's grip. A piece with `"shape": "pods"` or `"husks"` is the brood bearer's six pods (#10961), sealed or split, their
+glow its `glow` part. Each piece is written as <name>.prop-mesh.json with <name>.png beside it, and `pieces.json` lists them
 with their joints, for the product.
 """
 import json
@@ -400,6 +401,115 @@ def paint_core(size):
     return image.astype(np.uint8)
 
 
+def pod_ellipsoid(centre, radius, height, rings=5, segments=10):
+    """One closed pod, a squat ellipsoid standing in its cup: (points, uvs, triangles) in species metres."""
+    points, uvs, triangles = [], [], []
+    for i in range(rings + 1):
+        polar = math.pi * i / rings
+        for j in range(segments):
+            a = 2 * math.pi * j / segments
+            points.append(centre + np.array((radius * math.sin(polar) * math.cos(a), radius * math.sin(polar) * math.sin(a),
+                                             height * math.cos(polar))))
+            uvs.append((j / segments, i / rings))
+    for i in range(rings):
+        for j in range(segments):
+            a0, a1 = i * segments + j, i * segments + (j + 1) % segments
+            b0, b1 = a0 + segments, a1 + segments
+            triangles += [(a0, a1, b0), (a1, b1, b0)]
+    return points, uvs, triangles
+
+
+def husk_petals(centre, radius, height, petals=4, steps=4, width=4):
+    """A split pod's husk (#10961): its petals peeled back from the cup's rim, each rising a little, then curling out and
+    over until its tip hangs outward, open to the glow inside. Each petal is a curved strip with both faces drawn:
+    (points, uvs, triangles) in species metres."""
+    points, uvs, triangles = [], [], []
+    curl = height * 0.55
+    for k in range(petals):
+        heading = 2 * math.pi * (k + 0.25) / petals
+        out = np.array((math.cos(heading), math.sin(heading), 0.0))
+        across = np.array((-math.sin(heading), math.cos(heading), 0.0))
+        up = np.array((0.0, 0.0, 1.0))
+        rim = centre + out * radius * 0.9
+        start = len(points)
+        for i in range(steps + 1):
+            s = i / steps
+            # Round a circle of radius `curl` beside the rim, from straight up at the rim to past level, outward.
+            theta = math.pi * (1.0 - 1.15 * s)
+            along = out * curl + (out * math.cos(theta) + up * math.sin(theta)) * curl
+            half = radius * 0.7 * math.sin(math.pi * (0.2 + 0.8 * s)) * (1.0 - 0.4 * s) + 0.01
+            for j in range(width):
+                w = j / (width - 1) * 2 - 1
+                points.append(rim + along + across * (half * w))
+                uvs.append((j / (width - 1), s))
+        # The back face has points of its own, so the two faces' normals do not cancel.
+        count = (steps + 1) * width
+        points += points[start:start + count]
+        uvs += uvs[start:start + count]
+        for i in range(steps):
+            for j in range(width - 1):
+                a0, a1 = start + i * width + j, start + i * width + j + 1
+                b0, b1 = a0 + width, a1 + width
+                triangles += [(a0, a1, b0), (a1, b1, b0)]
+                triangles += [(a0 + count, b0 + count, a1 + count), (a1 + count, b0 + count, b1 + count)]
+    return points, uvs, triangles
+
+
+def paint_pod(width, height, rng):
+    """A sealed pod: glowing amber with a few darker veins running up it."""
+    image = np.zeros((height, width, 3))
+    for row in range(height):
+        for column in range(width):
+            colour = AMBER_LIGHT if row < height * 0.7 else AMBER
+            if column % 4 == 0 and 1 <= row < height - 1:
+                colour = AMBER
+            image[row, column] = colour + rng.integers(-6, 7, 3)
+    return np.clip(image, 0, 255).astype(np.uint8)
+
+
+def paint_husk(width, height, rng):
+    """A husk's petal: ivory outside with growth lines, its tip plum where it split."""
+    image = np.zeros((height, width, 3))
+    for row in range(height):
+        for column in range(width):
+            colour = IVORY + rng.integers(-5, 6, 3)
+            if row >= height - 2:
+                colour = PLUM_DARK
+            elif column in (0, width - 1):
+                colour = IVORY_DARK
+            elif row % 5 == 0:
+                colour = IVORY_LINE
+            image[row, column] = colour
+    return np.clip(image, 0, 255).astype(np.uint8)
+
+
+def pods_piece(spec, rng):
+    """The brood bearer's pods (#10961), all six as one piece: `shape` "pods" seals each cup with a glowing pod (its glow
+    part); "husks" is the same cups split, the petals curled back and a lens of glow left in each. `cups` lists each
+    cup's centre in species metres, `radius` and `height` its pod's size. Returns (points, uvs, triangles, image, extra)."""
+    split = spec["shape"] == "husks"
+    radius, height = spec.get("radius", 0.16), spec.get("height", 0.13)
+    shell, glow = ([], [], []), ([], [], [])
+    for cup in spec["cups"]:
+        centre = np.array(cup, dtype=float)
+        if split:
+            parts = [(shell, husk_petals(centre, radius, height)),
+                     (glow, pod_ellipsoid(centre - np.array((0, 0, height * 0.55)), radius * 0.8, height * 0.35))]
+        else:
+            # A sealed pod's seam, a thin ivory collar where it meets its cup, carries the piece's own paint.
+            parts = [(glow, pod_ellipsoid(centre, radius, height)),
+                     (shell, pod_ellipsoid(centre - np.array((0, 0, height * 0.75)), radius * 1.04, height * 0.18))]
+        for into, (points, uvs, triangles) in parts:
+            base = len(into[0])
+            into[0].extend(points)
+            into[1].extend(uvs)
+            into[2].extend((a + base, b + base, c + base) for a, b, c in triangles)
+    image = paint_husk(8, 16, rng) if split else paint_crescent(16, 8, rng)
+    core = paint_core(16) if split else paint_pod(16, 16, rng)
+    extra = [("glow", np.array(glow[0]), np.array(glow[1]), glow[2], core)]
+    return np.array(shell[0]), np.array(shell[1]), shell[2], image, extra
+
+
 def main(argv):
     species = json.loads(Path(argv[0]).read_text())
     inverse, body = read_glb(argv[1])
@@ -411,6 +521,10 @@ def main(argv):
     pieces = {}
     sources = Path(argv[0]).parent
     for name, shell in spec["pieces"].items():
+        if shell.get("shape") in ("pods", "husks"):
+            points, uvs, triangles, image, extra = pods_piece(shell, rng)
+            pieces[name] = write_piece(out, name, shell["joint"], inverse, points, uvs, triangles, image, content_root, extra=extra)
+            continue
         if "mesh" in shell:
             source = sources / shell["mesh"]
             points, uvs, triangles = fitted_mesh(shell, body, name, source)

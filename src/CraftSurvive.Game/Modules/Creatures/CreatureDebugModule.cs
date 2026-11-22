@@ -63,6 +63,9 @@ public sealed class CreatureDebugModule : IDebugCommandModule
     [DebugCommand("craft.creatures.unseen", Description = "Test aid (#10878): no creature sees the player for this many seconds (0 ends it), so hunters lose the player where they stand and search there, by the player's own light, for captures.")]
     public string Unseen(double seconds) => creatures.Unseen(seconds);
 
+    [DebugCommand("craft.creatures.tenders", Description = "Reads the ruin tenders' state (#10961): menders' seals (where, how grown, how old, blows taken), brood bearers' broods and split pods, tenders' errands, and the doorways in the player's space.")]
+    public string Tenders() => creatures.TendersReadout();
+
     [DebugCommand("craft.creatures.weaken", Description = "Assisted: leaves every creature one health, so the next blow that lands kills it where it is, as a fall from a run needs.")]
     public string Weaken() => creatures.WeakenAll();
 

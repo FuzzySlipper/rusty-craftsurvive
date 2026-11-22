@@ -610,3 +610,30 @@ by the settled recipe, which Patch saw first, then a mesh sheet and a Tripo body
   at power 1. Five stilt runners kill an idle, unarmoured 30-health player in about 4 s, even at accuracy 14 and a
   2 s cooldown. That is still gentler than a seep-rat colony of the same size. Tune a pack by `groupMaximum` and
   `cooldownTicks`; `power` barely changes it.
+
+### Many-limbed ruin tenders: the brood bearer and the mender (#10961)
+
+Each got a wildlife sheet by the settled recipe, which Patch saw first, then a mesh sheet and a Tripo body. Their gameplay
+was settled with Patch on the wiki's Ruins wildlife page ("Tenders' indirect threats"). Neither strikes a blow of its own.
+- **The many-limbed family.** The family hangs up to three leg pairs (`hip1` to `hip3`, front to back) from whichever of
+  the hips, spine and chest is nearest. It can also carry up to three pairs of handling arms (`shoulder1` to
+  `shoulder3`: upper arm, forearm, pad) under the chest. `many-limbed` is the bearer's: six legs, no arms.
+  `many-limbed-armed` is the mender's: legs 1 and 3 and all its arms.
+  - Its stems are numbered, so `MANY_LIMB_BONES` and `MANY_TIP_BONES` name each for the stand-in body.
+  - `ragdoll.py` knows `arm` (a cone) and `pad` (unsimulated).
+- **Its clips.**
+  - **Rest (`feed`):** the arms press forward in turn. This is the mender's smoothing, and its sealing.
+  - **Threat:** the bearer braces low; the mender rears with its arms spread.
+  - **Death:** the feet stay planted while the body sinks between them (`dropShare` of a leg's reach). A death that
+    splayed the legs about the hip lifted the feet off the floor, and a deep sink crumpled the bearer's flank.
+- **The bearer's mesh sheet** asked for its six cups empty, because the pods are worn pieces. The model generator still
+  drew a leg on the middle line in the front and back views, which was painted out before Tripo. Its body also has four
+  shallow openings along its flanks, which read as already-split pods.
+- **Its pods** are one worn piece hung from the spine. `make_shells.py` makes it from the species' `shells` block:
+  - `shape` `pods` is six glowing pods, in its `glow` part, sitting in the cups;
+  - `husks` is the same cups split, with petals curling back from each cup's rim over a lens of glow;
+  - the cup centres were read off a top-down heightmap of the prepared mesh.
+  The kind wears `sealed`. The product's rules switch the member's `WornLook` to `split`, and the mesh body re-dresses
+  under the same piece ids.
+- **The seal** is `content/game/creatures/mender/seal.prop-mesh.json`, made by `make_seal.py`: a bowed sheet 2 by 3 m,
+  drawn from both sides. The product stands it in the doorway and grows it up from the floor.

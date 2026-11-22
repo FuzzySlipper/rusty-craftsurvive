@@ -1,0 +1,19 @@
+{
+  "looks": {
+    "sealed": [
+      {
+        "piece": "creatures/brood-bearer/pods/pods.prop-mesh.json",
+        "joint": "spine",
+        "triangles": 1200
+      }
+    ],
+    "split": [
+      {
+        "piece": "creatures/brood-bearer/pods/husks.prop-mesh.json",
+        "joint": "spine",
+        "triangles": 1752
+      }
+    ]
+  },
+  "held": {}
+}

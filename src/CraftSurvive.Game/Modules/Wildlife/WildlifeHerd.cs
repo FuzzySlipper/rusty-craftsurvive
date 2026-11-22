@@ -80,6 +80,12 @@ internal sealed class WildlifeMember
     /// <summary>How far over its feet its body is drawn, in metres: a drop-sloth hanging from the ceiling or falling from it (#10877).</summary>
     internal float Lift { get; set; }
 
+    /// <summary>
+    /// The look its rules have it wear now, over the one its body picked (#10961): a brood bearer's pods, split once its
+    /// threat has released its brood. Null wears its own.
+    /// </summary>
+    internal string? WornLook { get; set; }
+
     /// <summary>Making for the water: having set off, it goes in, however clear of the player it has got.</summary>
     internal bool ToWater { get; set; }
 

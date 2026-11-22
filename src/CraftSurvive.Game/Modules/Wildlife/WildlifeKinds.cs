@@ -181,7 +181,34 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
 
     /// <summary>How it searches for a player it has lost (#10876); null gives up at once.</summary>
     internal WildlifeSearch? Search { get; init; }
+
+    /// <summary>The brood it carries and releases instead of fighting (#10961, the brood bearer); null for one that fights.</summary>
+    internal WildlifeBrood? Brood { get; init; }
+
+    /// <summary>The doorways it seals instead of fighting (#10961, the mender); null for one that does not.</summary>
+    internal WildlifeSealing? Seals { get; init; }
+
+    /// <summary>A tender (#10961): it threatens by what it releases or shuts, never by its own blows.</summary>
+    internal bool Tends => Brood is not null || Seals is not null;
 }
+
+/// <summary>
+/// A brood bearer's brood (#10961), settled with Patch on the wiki's Ruins wildlife page: the first time its threat shows, it
+/// splits its pods (its worn look turns to <paramref name="SplitLook"/>) and <paramref name="Count"/> animals of
+/// <paramref name="Kind"/> spill out about it, already hunting. They defend it within <paramref name="GuardMetres"/> of
+/// it, going back to it when the player is further off; it shuffles away from the player meanwhile. Its pods regrow
+/// after <paramref name="RegrowSeconds"/> (a game day).
+/// </summary>
+internal sealed record WildlifeBrood(string Kind, int Count, string SplitLook, double GuardMetres, double RegrowSeconds);
+
+/// <summary>
+/// A mender's sealing (#10961), settled with Patch on the wiki's Ruins wildlife page: seeing the player, it goes to the
+/// ruin doorway nearest the player and grows a membrane across it over <paramref name="Seconds"/>; a blow stops it. A seal
+/// blocks passage and sight. A fresh one falls to <paramref name="FreshBlows"/> blows; after <paramref name="HardenSeconds"/>
+/// it has hardened and takes <paramref name="HardBlows"/>. It seals at most <paramref name="MostSeals"/> doorways near
+/// the player, then needs <paramref name="RefillSeconds"/> before the next.
+/// </summary>
+internal sealed record WildlifeSealing(double Seconds, int FreshBlows, int HardBlows, double HardenSeconds, int MostSeals, double RefillSeconds, double ReachMetres);
 
 /// <summary>A hunter that rests (#10876) lies still, showing this clip, until it sees the player within its wake distance.</summary>
 /// <param name="Hangs">It rests hanging from the ceiling over its home and drops when it wakes (#10877: the drop-sloth).</param>
@@ -784,7 +811,19 @@ internal static class WildlifeKinds
                 : null,
             Display = hunt.TryGetProperty("display", out JsonElement display) ? new WildlifeDisplay(display.GetProperty("seconds").GetDouble(), Clip(display, WildlifeClipRole.Threat)) : null,
             Search = hunt.TryGetProperty("search", out JsonElement search) ? new WildlifeSearch(search.GetProperty("seconds").GetDouble(), Clip(search, WildlifeClipRole.Look)) : null,
+            Brood = hunt.TryGetProperty("brood", out JsonElement brood)
+                ? new WildlifeBrood(brood.GetProperty("kind").GetString()!, brood.GetProperty("count").GetInt32(), brood.GetProperty("splitLook").GetString()!,
+                    brood.GetProperty("guardMetres").GetDouble(), brood.GetProperty("regrowSeconds").GetDouble())
+                : null,
+            Seals = hunt.TryGetProperty("seals", out JsonElement seals)
+                ? new WildlifeSealing(seals.GetProperty("seconds").GetDouble(), seals.GetProperty("freshBlows").GetInt32(), seals.GetProperty("hardBlows").GetInt32(),
+                    seals.GetProperty("hardenSeconds").GetDouble(), seals.GetProperty("mostSeals").GetInt32(), seals.GetProperty("refillSeconds").GetDouble(),
+                    seals.GetProperty("reachMetres").GetDouble())
+                : null,
         };
+        if (read.Brood is { Count: <= 0 } or { GuardMetres: <= 0 } or { RegrowSeconds: <= 0 }) throw new InvalidDataException($"{id}: a brood has animals, a guard and a regrowth");
+        if (read.Seals is { Seconds: <= 0 } or { FreshBlows: <= 0 } or { MostSeals: <= 0 } or { ReachMetres: <= 0 } || read.Seals is { } sealing && sealing.HardBlows < sealing.FreshBlows)
+            throw new InvalidDataException($"{id}: a seal takes time and blows, and hardens");
         if (read.Rest is { } resting && (resting.WakeMetres <= read.ReachMetres || resting.WakeMetres > read.SightMetres))
             throw new InvalidDataException($"{id}: a resting hunter wakes beyond its reach and within its sight");
         if (read.Display is { Seconds: <= 0 } || read.Search is { Seconds: <= 0 }) throw new InvalidDataException($"{id}: a display or search lasts some time");

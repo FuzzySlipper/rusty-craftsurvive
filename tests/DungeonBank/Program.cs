@@ -1318,6 +1318,12 @@ for (ulong seed = 1; seed <= ModularSeeds; seed++)
 Console.WriteLine($"modular: {modularWalkable}/{ModularSeeds} walkable in {modularBank.Elapsed.TotalSeconds:F1} s");
 Check.That(modularWalkable >= ModularSeeds * 0.95, $"at least 95% of modular dungeons must be walkable, {modularWalkable}/{ModularSeeds} were");
 
+// A ruin's doorways (#10961, what a mender seals) come from its door joins; the breach's cave opening is not one.
+IReadOnlyList<RuinDoorway> ruinDoors = ModularDungeon.Doorways([(1, 0, 2, ModuleFace.East, SocketKind.Door), (0, 0, 0, ModuleFace.North, SocketKind.Cave)]);
+Check.That(ruinDoors.Count == 1, $"only door joins are doorways, got {ruinDoors.Count}");
+Check.That(ruinDoors[0].FacesX && ruinDoors[0].Floor == new System.Numerics.Vector3((2 * ModuleCanvas.CellSize) - 0f, ModularDungeon.BaseY + 1, (2 * ModuleCanvas.CellSize) + (ModuleCanvas.CellSize / 2)),
+    $"an east doorway stands on its cells' boundary, passed along x, on its storey's floor, got {ruinDoors[0].Floor}");
+
 // Approach C must stay walkable after its rock is sculpted, on a smaller bank (sculpting costs more).
 const int SculptedSeeds = 40;
 int sculptedWalkable = 0;

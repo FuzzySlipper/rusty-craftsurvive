@@ -214,7 +214,7 @@ internal sealed partial class WildlifeModule : IProductModule
             Vector3 elsewhere = player.WorldPosition;
             Vector2 standing = new(elsewhere.X, elsewhere.Z);
             Decay(standing, time.ElapsedSeconds);
-            Presentation.Sync([], fallen, Hunters?.Invoke() ?? [], FeetOf, standing, time.ElapsedSeconds);
+            Presentation.Sync([], fallen, Hunters?.Invoke() ?? [], FeetOf, standing, time.ElapsedSeconds, seals: Seals?.Invoke());
             UpdateRagdolls(time);
             return;
         }
@@ -247,7 +247,7 @@ internal sealed partial class WildlifeModule : IProductModule
 
         Decay(here, time.ElapsedSeconds);
         Ambience.Update(at, time.ElapsedSeconds);
-        Presentation.Sync(awake, fallen, Hunters?.Invoke() ?? [], FeetOf, here, time.ElapsedSeconds, Ambience.Creatures);
+        Presentation.Sync(awake, fallen, Hunters?.Invoke() ?? [], FeetOf, here, time.ElapsedSeconds, Ambience.Creatures, Seals?.Invoke());
         UpdateRagdolls(time);
         double milliseconds = Stopwatch.GetElapsedTime(began).TotalMilliseconds;
         cost = (cost.Total + milliseconds, cost.Count + 1, Math.Max(cost.Worst, milliseconds), cost.Steps, cost.Refused, cost.Glides);
@@ -450,6 +450,9 @@ internal sealed partial class WildlifeModule : IProductModule
 
     /// <summary>The hostile animals to draw this update.</summary>
     internal Func<IReadOnlyList<Creatures.WildlifeHunter>>? Hunters { get; set; }
+
+    /// <summary>The menders' seals to draw (#10961), from the creature rules that own them.</summary>
+    internal Func<IReadOnlyList<Creatures.WildlifeSeal>>? Seals { get; set; }
 
     /// <summary>The kinds that hunt.</summary>
     internal IEnumerable<WildlifeKind> HunterKinds => Catalog.Kinds.Where(kind => kind.Pressed == PressedResponse.Hunt);

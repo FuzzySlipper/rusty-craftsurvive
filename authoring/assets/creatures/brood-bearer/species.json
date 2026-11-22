@@ -167,5 +167,94 @@
       "tipDegrees": 6.0,
       "dropShare": 0.3
     }
+  },
+  "shells": {
+    "$comment": "The pods (#10961): six in the cups on its back, one worn piece hung from the spine; sealed until its threat splits them (the product swaps the look to split).",
+    "pieces": {
+      "pods": {
+        "shape": "pods",
+        "joint": "spine",
+        "cups": [
+          [
+            0.21,
+            0.25,
+            0.93
+          ],
+          [
+            -0.21,
+            0.25,
+            0.93
+          ],
+          [
+            0.26,
+            -0.11,
+            0.95
+          ],
+          [
+            -0.26,
+            -0.11,
+            0.95
+          ],
+          [
+            0.21,
+            -0.48,
+            0.93
+          ],
+          [
+            -0.21,
+            -0.48,
+            0.93
+          ]
+        ],
+        "radius": 0.16,
+        "height": 0.13
+      },
+      "husks": {
+        "shape": "husks",
+        "joint": "spine",
+        "cups": [
+          [
+            0.21,
+            0.25,
+            0.93
+          ],
+          [
+            -0.21,
+            0.25,
+            0.93
+          ],
+          [
+            0.26,
+            -0.11,
+            0.95
+          ],
+          [
+            -0.26,
+            -0.11,
+            0.95
+          ],
+          [
+            0.21,
+            -0.48,
+            0.93
+          ],
+          [
+            -0.21,
+            -0.48,
+            0.93
+          ]
+        ],
+        "radius": 0.16,
+        "height": 0.13
+      }
+    },
+    "looks": {
+      "sealed": [
+        "pods"
+      ],
+      "split": [
+        "husks"
+      ]
+    }
   }
 }

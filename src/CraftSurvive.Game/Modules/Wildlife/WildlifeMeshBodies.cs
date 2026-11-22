@@ -182,6 +182,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Plant(body, placement, world, scale, plant: !fallen && distance <= plantWithin, frozen: !fallen && Frozen(member));
         if (!fallen) Breathe(body, kind, member, placement, scale, seconds);
         AppearanceFact fact = new(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.Cast);
+        Redress(body, kind, member);
         Wear(body, fact, into);
         return fact;
     }
@@ -465,8 +466,40 @@ internal sealed class WildlifeMeshBodies : IDisposable
     private Body Dressed(Body body, WildlifeKind kind, WildlifeMember member)
     {
         if (kind.Mesh!.Worn is not WildlifeWorn wears) return body;
-        (body.WornLook, body.Worn) = worn.For(wears, member.Id, seed, body.Slot);
+        (body.WornLook, body.Worn) = worn.For(wears, member.Id, seed, body.Slot, member.WornLook);
         return body;
+    }
+
+    /// <summary>The membrane a mender grows across a doorway (#10961), authored across x and up y, its face along z.</summary>
+    private const string SealPiece = "creatures/mender/seal.prop-mesh.json";
+
+    /// <summary>The least a growing seal is drawn, so its first moments show.</summary>
+    private const float LeastSealGrowth = 0.05f;
+
+    /// <summary>
+    /// A seal's fact (#10961): its membrane standing in its doorway, turned to face the way through, growing up from the
+    /// floor as it is grown. Its floor point is already its space's local metres.
+    /// </summary>
+    internal AppearanceFact PoseSeal(Creatures.WildlifeSeal seal)
+    {
+        Quaternion turn = seal.FacesX ? Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2) : Quaternion.Identity;
+        Transform placement = new(seal.Floor, turn, new Vector3(1f, Math.Max(LeastSealGrowth, seal.Grown), 1f));
+        return new AppearanceFact(seal.ObjectId, false, 0, placement, worn.OpenProp(SealPiece), Visible: true, RenderLayer.Scene, ShadowCasting.Cast);
+    }
+
+    /// <summary>
+    /// A body whose rules now want another look (#10961, a brood bearer's pods splitting) changes into it: its pieces are
+    /// redrawn under the same ids, and hung from their joints again before the next snapshot that draws them. A piece the
+    /// new look has no room for is let go.
+    /// </summary>
+    private void Redress(Body body, WildlifeKind kind, WildlifeMember member)
+    {
+        if (member.WornLook is not string wanted || wanted == body.WornLook || kind.Mesh!.Worn is not WildlifeWorn wears) return;
+        ulong[] before = [.. body.Worn.Select(part => part.ObjectId)];
+        (body.WornLook, body.Worn) = worn.For(wears, member.Id, seed, body.Slot, wanted);
+        ulong[] gone = [.. before.Except(body.Worn.Select(part => part.ObjectId))];
+        if (gone.Length > 0) engine.Graphics.PublishChanges(new(ReadOnlyMemory<AppearanceFact>.Empty, gone, ReadOnlyMemory<MeshJointAttachment>.Empty));
+        body.Hung = false;
     }
 
     /// <summary>A test aid (#10956): bodies made from now wear this look (any: each its own); says which looks the kinds have.</summary>

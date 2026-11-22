@@ -53,6 +53,12 @@ internal sealed class DungeonCreatureSpace(IEngineContext engine, DungeonSpace s
 
     internal override object CollisionRevision => space;
 
+    /// <summary>The ruin's doorways (#10961), from layout voxels to the session's metres.</summary>
+    internal override IReadOnlyList<RuinDoorway> Doorways => doorways ??= [.. space.Layout.RuinDoorways.Select(door =>
+        door with { Floor = DungeonSpace.Origin + (door.Floor * (float)space.Layout.VoxelSize) })];
+
+    private IReadOnlyList<RuinDoorway>? doorways;
+
     internal override double MaximumHeightDifference => Top - Bottom;
 
     /// <summary>The session's height span: the volume's from its origin.</summary>

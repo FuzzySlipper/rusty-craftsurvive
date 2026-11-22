@@ -93,7 +93,7 @@ internal static class CreatureBody
     /// because the body is lodged in collision; the caller leaves it where it was, and stuck detection replans.
     /// </summary>
     internal static CreatureBodyState? Step(ISpatialService spatial, SpatialSession session, CreatureBodyState body,
-        CharacterControllerConfig config, Vector2 toward, double travel, double seconds, Func<ulong> sequence)
+        CharacterControllerConfig config, Vector2 toward, double travel, double seconds, Func<ulong> sequence, ReadOnlyMemory<CharacterObstacle> obstacles = default)
     {
         CreatureBodyState state = body;
         int steps = Math.Max(1, (int)Math.Ceiling(seconds / MaximumStepSeconds));
@@ -113,8 +113,9 @@ internal static class CreatureBody
             CharacterStepReceipt receipt;
             try
             {
+                // Whole seals (#10961) stand in every step as colliders.
                 receipt = spatial.ProposeCharacterStep(new CharacterStepRequest(session, state.Centre, state.Motion, default,
-                    ReadOnlyMemory<CharacterObstacle>.Empty, ReadOnlyMemory<CharacterMeshInstance>.Empty, config, command));
+                    obstacles, ReadOnlyMemory<CharacterMeshInstance>.Empty, config, command));
             }
             catch (EngineCallException refusal) when (Player.PlayerRecovery.IsPenetration(refusal))
             {

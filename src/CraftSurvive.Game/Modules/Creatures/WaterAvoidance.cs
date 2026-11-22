@@ -38,6 +38,9 @@ internal sealed class WaterAvoidance
     private object? columnsFor;
 
     internal int Closed { get; private set; }
+
+    /// <summary>A sealed doorway closes the supports within this far of its floor (#10961).</summary>
+    private const double SealedFloorSlackMetres = 1.0;
     internal int Fords { get; private set; }
     internal int Explained { get; private set; }
     internal string? LastFailure { get; private set; }
@@ -50,8 +53,9 @@ internal sealed class WaterAvoidance
     /// so a column's supports are asked again. Every request names the grid (#10925): each body's grid has its own overlay.
     /// Returns whether the Engine took the overlay.
     /// </summary>
+    /// <param name="sealedColumns">Columns closed whatever their water (#10961: a sealed doorway's), each at the floor whose supports it closes.</param>
     internal bool Apply(ISpatialService spatial, SpatialSession session, ulong gridId, (long X, long Z) min, (long X, long Z) max,
-        Func<long, long, ColumnWater?> waterAt, object collision)
+        Func<long, long, ColumnWater?> waterAt, object collision, IReadOnlyList<(long X, long Z, float Floor)>? sealedColumns = null)
     {
         ArgumentNullException.ThrowIfNull(spatial);
         ArgumentNullException.ThrowIfNull(waterAt);
@@ -92,6 +96,28 @@ internal sealed class WaterAvoidance
                     cells.Add(new NavigationTraversalCell(sample.Cell, Allowed: true, TraversalCost: FordCost));
                     fords++;
                 }
+            }
+        }
+
+        // A sealed doorway's columns (#10961) close at its floor: the supports within a storey's slack of it, not those of the
+        // storeys over and under it.
+        HashSet<PlanarNavCell> shut = [.. cells.Where(cell => !cell.Allowed).Select(cell => cell.Cell)];
+        foreach ((long x, long z, float floor) in sealedColumns ?? [])
+        {
+            if (x < min.X || x >= max.X || z < min.Z || z >= max.Z) continue;
+            if (!columns.TryGetValue((x, z), out CollisionNavigationSample[]? samples))
+            {
+                samples = spatial.ExplainCollisionNavigationColumn(new CollisionNavigationColumnRequest(session, x, z, gridId)).Samples.ToArray();
+                columns[(x, z)] = samples;
+                Explained++;
+            }
+
+            foreach (CollisionNavigationSample sample in samples)
+            {
+                if (sample.Outcome != CollisionNavigationSampleOutcome.Support || Math.Abs(sample.StandingY - floor) > SealedFloorSlackMetres || !shut.Add(sample.Cell)) continue;
+                cells.RemoveAll(cell => cell.Cell.Equals(sample.Cell));
+                cells.Add(new NavigationTraversalCell(sample.Cell, Allowed: false, TraversalCost: 1));
+                closed++;
             }
         }
 
