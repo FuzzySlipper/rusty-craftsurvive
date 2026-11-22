@@ -253,7 +253,7 @@
      70,
      170
     ],
-    "glowGain": 1.0,
+    "glowGain": 0.3,
     "light": {
      "colour": [
       0.55,

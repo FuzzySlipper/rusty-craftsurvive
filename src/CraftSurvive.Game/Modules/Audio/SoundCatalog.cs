@@ -41,6 +41,9 @@ internal static class SoundCatalog
     private const float CaveLevel = 0.45f;
     private const float WaterLevel = 0.55f;
 
+    /// <summary>How far a chime grazer's ring is heard (#10962): as far as its call reaches.</summary>
+    private const float ChimeRangeMetres = 40f;
+
     /// <summary>What is left of the other beds while the player's head is under water.</summary>
     private const float Muffled = 0.15f;
 
@@ -64,6 +67,7 @@ internal static class SoundCatalog
         [Cue.Discovery] = new(["discovery"], AudioBus.Ui, 0.4f),
         [Cue.Refused] = new(["refused"], AudioBus.Ui, 0.3f),
         [Cue.Portal] = new(["portal"], AudioBus.Sfx, 0.6f),
+        [Cue.Chime] = new(["chime"], AudioBus.Sfx, 0.75f, Placed: true, RangeMetres: ChimeRangeMetres),
     };
 
     internal static readonly IReadOnlyDictionary<AmbienceBed, string> Beds = new Dictionary<AmbienceBed, string>

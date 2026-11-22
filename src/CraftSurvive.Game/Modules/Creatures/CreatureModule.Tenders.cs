@@ -39,6 +39,27 @@ internal sealed partial class CreatureModule
     private int nextSeal;
     private bool sealsChanged;
 
+    /// <summary>
+    /// A chime grazer's ring under way (#10962): the update step it began, and whether its chime has sounded yet (once the
+    /// crest is up).
+    /// </summary>
+    private sealed record Ring(long Began, bool Chimed);
+
+    /// <summary>Each ringing grazer's ring, by creature id.</summary>
+    private readonly Dictionary<int, Ring> rings = [];
+
+    /// <summary>When each grazer's home last rang or had its ring cut, in update steps: it rings again from then.</summary>
+    private readonly Dictionary<string, long> lastRang = [];
+
+    /// <summary>The last call: how many answered it, for the readout.</summary>
+    private string lastCall = "none";
+
+    /// <summary>A ring's chime sounds once its crest has swung up: this far into the ring (the clip's rise, 0.25 of 3 s).</summary>
+    private const double ChimeAfterSeconds = 0.75;
+
+    /// <summary>The chime sounds from the crest, this high over the grazer's feet.</summary>
+    private const float ChimeHeightMetres = 1.6f;
+
     /// <summary>An errand is reached within this far.</summary>
     private const float ErrandArriveMetres = 0.8f;
 
@@ -118,6 +139,7 @@ internal sealed partial class CreatureModule
             if (!creature.Awake || !hunters.TryGetValue(creature.Id, out Hunter? hunter)) continue;
             if (hunter.Kind.Hunt!.Brood is WildlifeBrood brood) TendBearer(creature, hunter, brood, player, playerFeet);
             if (hunter.Kind.Hunt.Seals is WildlifeSealing sealing) TendMender(creature, hunter, sealing, playerFeet, here, seconds);
+            if (hunter.Kind.Hunt.Calls is WildlifeCalling calling) TendGrazer(creature, hunter, calling, player);
         }
 
         GuardBroods(player, playerFeet);
@@ -133,7 +155,8 @@ internal sealed partial class CreatureModule
 
     /// <summary>
     /// A mender that has died, been forgotten or fallen asleep (#10961) leaves no unfinished seal and holds no doorway: its
-    /// half-grown membrane goes and the doorway is free for another. A whole seal stands without it.
+    /// half-grown membrane goes and the doorway is free for another. A whole seal stands without it. A grazer gone mid-ring
+    /// (#10962) leaves no ring.
     /// </summary>
     private void DropOrphans()
     {
@@ -141,6 +164,8 @@ internal sealed partial class CreatureModule
         int dropped = seals.RemoveAll(seal => !seal.Whole && !Tending(seal.Mender));
         if (dropped > 0) lastEvent = $"{dropped} unfinished seal(s) dropped: their mender is gone";
         foreach (int mender in pendingDoors.Keys.Where(mender => !Tending(mender)).ToArray()) pendingDoors.Remove(mender);
+        // A grazer gone mid-ring (#10962) calls nobody.
+        foreach (int grazer in rings.Keys.Where(grazer => !Tending(grazer)).ToArray()) rings.Remove(grazer);
     }
 
     /// <summary>A bearer's pods regrow after its kind's while; once split, it shuffles away from a player it sees.</summary>
@@ -156,6 +181,72 @@ internal sealed partial class CreatureModule
 
         bool seen = Vector2.Distance(creature.Position, player) <= hunter.Kind.Hunt!.SightMetres;
         if (seen && !errands.ContainsKey(creature.Id)) Send(creature, TenderRules.AwayFrom(creature.Position, player, RetreatMetres), RetreatSeconds, "retreat");
+    }
+
+    /// <summary>
+    /// A chime grazer (#10962). Disturbed (hunting the player), it rings: it stands for its display's while showing its ring,
+    /// the chime sounding once its crest is up, and a ring that runs its length calls the ruin hunters about it. Then, or
+    /// while it is resting from its last ring, it walks away from a player it sees.
+    /// </summary>
+    private void TendGrazer(Creature creature, Hunter hunter, WildlifeCalling calling, Vector2 player)
+    {
+        if (rings.TryGetValue(creature.Id, out Ring? ring))
+        {
+            if (!ring.Chimed && (step - ring.Began) / HunterRules.StepsPerSecond >= ChimeAfterSeconds)
+            {
+                cues.RaiseAt(Cue.Chime, SpaceOf(creature).ToLocal(creature.Position.X, StandingAt(creature) + ChimeHeightMetres, creature.Position.Y));
+                rings[creature.Id] = ring with { Chimed = true };
+            }
+
+            if (hunter.ThreatSeconds > 0) return;
+            rings.Remove(creature.Id);
+            lastRang[hunter.Record.Key] = step;
+            Call(creature, calling);
+            Send(creature, TenderRules.AwayFrom(creature.Position, player, RetreatMetres), RetreatSeconds, "retreat");
+            return;
+        }
+
+        bool hunting = creature.Behavior.State is CreatureState.Alert or CreatureState.Pursuing or CreatureState.Attacking;
+        if (!hunting || errands.ContainsKey(creature.Id)) return;
+        double? since = lastRang.TryGetValue(hunter.Record.Key, out long rang) ? (step - rang) / HunterRules.StepsPerSecond : null;
+        if (TenderRules.RingsAgain(calling, since))
+        {
+            // Its first threat of a hunt starts the display; a later ring starts it afresh.
+            if (hunter.ThreatSeconds <= 0) hunter.ThreatSeconds = hunter.Kind.Hunt!.Display!.Seconds;
+            hunter.Threatened = true;
+            rings[creature.Id] = new Ring(step, false);
+            return;
+        }
+
+        // Resting from its last ring: no ring now, and it keeps away.
+        hunter.ThreatSeconds = 0;
+        Send(creature, TenderRules.AwayFrom(creature.Position, player, RetreatMetres), RetreatSeconds, "retreat");
+    }
+
+    /// <summary>
+    /// A ring has run its length (#10962): every other ruin hunter of the grazer's space within its call's reach, tenders
+    /// excepted, searches its way to where it rang, waking if it rested; one already after the player keeps at it.
+    /// </summary>
+    private void Call(Creature grazer, WildlifeCalling calling)
+    {
+        CreatureSpace space = SpaceOf(grazer);
+        Vector3 at = new(grazer.Position.X, StandingAt(grazer), grazer.Position.Y);
+        int answered = 0, heard = 0;
+        foreach (Creature other in roster.All)
+        {
+            if (other.Id == grazer.Id || SpaceOf(other) != space || !hunters.TryGetValue(other.Id, out Hunter? answering) || !TenderRules.Answers(answering.Kind)) continue;
+            float metres = Vector2.Distance(other.Position, grazer.Position);
+            if (metres > calling.ReachMetres) continue;
+            heard++;
+            if (other.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking) continue;
+            double seconds = TenderRules.AnswerSeconds(metres, answering.Kind.Speeds.Walk, answering.Kind.Hunt!.Search?.Seconds ?? 0);
+            other.LastSeen = at;
+            other.Behavior = other.Behavior with { State = CreatureState.Searching, SearchUntilTick = step + (long)Math.Ceiling(seconds * HunterRules.StepsPerSecond) };
+            answered++;
+        }
+
+        lastCall = string.Create(CultureInfo.InvariantCulture, $"grazer {grazer.Id} at step {step}: {answered} answered of {heard} in reach");
+        lastEvent = $"chime grazer {grazer.Id} rang: {answered} answered";
     }
 
     /// <summary>
@@ -298,6 +389,19 @@ internal sealed partial class CreatureModule
         }
 
         if (hunter.Kind.Hunt.Brood is WildlifeBrood brood && hunter.Member.WornLook != brood.SplitLook && !broodsDue.Contains(creature.Id)) broodsDue.Add(creature.Id);
+
+        // A grazer struck mid-ring (#10962) stops ringing, calls nobody, and must rest before its next ring.
+        if (hunter.Kind.Hunt.Calls is not null)
+        {
+            if (rings.Remove(creature.Id))
+            {
+                hunter.ThreatSeconds = 0;
+                lastRang[hunter.Record.Key] = step;
+                lastEvent = $"chime grazer {creature.Id} was struck: its ring was cut";
+            }
+
+            Send(creature, TenderRules.AwayFrom(creature.Position, new Vector2(playerFeet.X, playerFeet.Z), RetreatMetres), RetreatSeconds, "retreat");
+        }
     }
 
     /// <summary>Whole seals shut sight (#10961): one standing between a creature and the player hides each from the other.</summary>
@@ -375,6 +479,7 @@ internal sealed partial class CreatureModule
     internal string TendersReadout() => string.Create(CultureInfo.InvariantCulture,
         $"seals={seals.Count} [{string.Join(" | ", seals.Select(seal => $"{seal.Id} by {seal.Mender} at {seal.Door.Floor.X:F1},{seal.Door.Floor.Y:F1},{seal.Door.Floor.Z:F1} grown={seal.Grown:F2} age={seal.AgeSeconds:F0}s blows={seal.Blows}/{seal.BlowsToCut}"))}]"
         + $" broods={broodOf.Count} split={podsSplit.Count} errands=[{string.Join(" ", errands.Select(e => $"{e.Key}:{e.Value.Why}"))}]"
+        + $" rings=[{string.Join(" ", rings.Select(r => $"{r.Key}:{(step - r.Value.Began) / HunterRules.StepsPerSecond:F1}s{(r.Value.Chimed ? " chimed" : "")}"))}] rested={lastRang.Count} lastCall=[{lastCall}]"
         + $" doorways={(PlayerSpace?.Doorways.Count ?? 0)} [{string.Join(" ", (PlayerSpace?.Doorways ?? []).Select(door => $"{door.Floor.X:F0},{door.Floor.Y:F0},{door.Floor.Z:F0}{(door.FacesX ? "x" : "z")}"))}]");
 
     /// <summary>Forgets the tenders' state with the creatures (a restart).</summary>
@@ -387,6 +492,9 @@ internal sealed partial class CreatureModule
         seals.Clear();
         lastSealed.Clear();
         pendingDoors.Clear();
+        rings.Clear();
+        lastRang.Clear();
+        lastCall = "none";
         sealsChanged = true;
     }
 }

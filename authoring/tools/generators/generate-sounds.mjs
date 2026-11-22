@@ -174,6 +174,16 @@ const EFFECTS = {
   refused: () => mix(0.3,
     [envelope(tone(0.1, 110, (p) => square(p, 0.5)), 0.002, 0.06), 0.6],
     [envelope(tone(0.12, 98, (p) => square(p, 0.5)), 0.002, 0.07), 0.6, 0.14]),
+  // The chime grazer's crest ringing (#10962): a hollow bell, its inharmonic partials wavering at the crest's tremor
+  // (six times a second) as they fade, struck twice, the second fainter, over a breath of air through its slots.
+  chime: (next) => {
+    const partials = [[1, 1], [2.02, 0.5], [2.76, 0.42], [4.07, 0.22], [5.4, 0.12]];
+    const strike = (base, decay) => mix(2.4, ...partials.map(([ratio, gain]) => [
+      envelope(tone(2.4, (t) => base * ratio * (1 + 0.004 * Math.sin(2 * Math.PI * 1.3 * t)), sine), 0.004, decay / ratio ** 0.5), gain]));
+    const waver = (input) => input.map((value, i) => value * (0.72 + 0.28 * Math.sin(2 * Math.PI * 6 * i / RATE)));
+    const breath = envelope(band(noise(2.4, next), 900, 2600), 0.25, 0.6);
+    return mix(2.4, [waver(strike(247, 0.9)), 1], [waver(strike(247, 0.7)), 0.45, 0.62], [breath, 0.05]);
+  },
   portal: (next) => {
     const swell = band(noise(1.2, next), 60, 1);
     const rumble = lowPass(swell, (t) => 200 + 900 * Math.sin(Math.PI * Math.min(1, t / 1.1)));

@@ -24,6 +24,8 @@ internal enum Cue
     Discovery,
     Refused,
     Portal,
+    /// <summary>A chime grazer's crest ringing (#10962), placed where it stands and heard as far as its call reaches.</summary>
+    Chime,
 }
 
 /// <summary>

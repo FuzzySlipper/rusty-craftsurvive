@@ -4,7 +4,10 @@ using CraftSurvive.Game.Modules.Wildlife;
 
 namespace CraftSurvive.Game.Modules.Creatures;
 
-/// <summary>The tenders' rules (#10961) that need no Engine: where a seal stands and what it shuts, where a tender goes.</summary>
+/// <summary>
+/// The tenders' rules that need no Engine: where a seal stands and what it shuts, where a tender goes (#10961), and who
+/// answers a chime grazer's call (#10962).
+/// </summary>
 internal static class TenderRules
 {
     /// <summary>Whether a whole seal this old has hardened (#10961).</summary>
@@ -68,6 +71,27 @@ internal static class TenderRules
         Vector2 away = at - player;
         return at + (away.LengthSquared() < 1e-6f ? Vector2.UnitX : Vector2.Normalize(away)) * metres;
     }
+
+    /// <summary>
+    /// Whether a hunter of this kind answers a chime grazer's call (#10962): ruin life, which lives in no cave's communities,
+    /// and not a tender.
+    /// </summary>
+    internal static bool Answers(WildlifeKind kind) => kind.Hunt is { Tends: false } && kind.Cave is null;
+
+    /// <summary>Whether a grazer has rested long enough since its last ring to ring again; one that never rang has.</summary>
+    internal static bool RingsAgain(WildlifeCalling calling, double? sinceLastSeconds) => sinceLastSeconds is not double since || since >= calling.AgainSeconds;
+
+    /// <summary>
+    /// How long a hunter answering a call searches (#10962): long enough to walk to where it rang from this far, at its
+    /// walk (no slower than <see cref="SlowestAnswerMetresPerSecond"/>), and then its own search.
+    /// </summary>
+    internal static double AnswerSeconds(double metres, double walkMetresPerSecond, double searchSeconds) =>
+        (metres / Math.Max(SlowestAnswerMetresPerSecond, walkMetresPerSecond)) + searchSeconds + AnswerSlackSeconds;
+
+    private const double SlowestAnswerMetresPerSecond = 0.5;
+
+    /// <summary>Time over the walk for an answer's route to bend round walls.</summary>
+    private const double AnswerSlackSeconds = 8;
 
     /// <summary>
     /// The doorway a mender seals (#10961): the one nearest the player on the player's storey, within reach of them, that no

@@ -51,6 +51,8 @@
     <EmbeddedResource Include="../../content/game/creatures/carrier/held/pieces.json" LogicalName="Wildlife.carrier.pieces.json" />
     <EmbeddedResource Include="../../content/game/creatures/brood-bearer/brood-bearer.glb" LogicalName="Wildlife.brood-bearer.glb" />
     <EmbeddedResource Include="../../content/game/creatures/brood-bearer/pods/pieces.json" LogicalName="Wildlife.brood-bearer.pieces.json" />
+    <EmbeddedResource Include="../../content/game/creatures/chime-grazer/chime-grazer.glb" LogicalName="Wildlife.chime-grazer.glb" />
+    <EmbeddedResource Include="../../content/game/creatures/chime-grazer/crest/pieces.json" LogicalName="Wildlife.chime-grazer.pieces.json" />
     <EmbeddedResource Include="../../content/game/creatures/blindfish/blindfish.glb;../../content/game/creatures/drift-grazer/drift-grazer.glb;../../content/game/creatures/mound-shrew/mound-shrew.glb" LogicalName="Wildlife.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

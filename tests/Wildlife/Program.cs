@@ -549,7 +549,7 @@ Check.Section("kinds", () =>
     string[] hunters = ["gaunt", "axe-beak", "drift-runner"];
     string[] cave = ["root-adder", "mouldback", "drowner", "hummock", "ribbon-stalker", "stalk-bill", "drop-sloth", "draft-hound", "salt-monitor", "glass-courser", "seep-rat", "plume-neck"];
     Check.That(cave.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Cave is not null), "the cave's hunters (#10876) load, each with its cave");
-    string[] ruin = ["collector", "skitterer", "carrier", "reaper", "threshold-lurker", "shard-dweller", "wall-runner", "channel-sifter", "stilt-pack", "brood-bearer", "mender", "brood-skitterer"];
+    string[] ruin = ["collector", "skitterer", "carrier", "reaper", "threshold-lurker", "shard-dweller", "wall-runner", "channel-sifter", "stilt-pack", "brood-bearer", "mender", "brood-skitterer", "chime-grazer"];
     Check.That(ruin.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt is not null && k.Cave is null), "the ruins' hunters (#10956) load, in no cave's communities");
     Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length, catalog.Kinds.Count,
         "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters and nothing else");
@@ -1662,6 +1662,26 @@ Check.Section("ruin tenders", () =>
 
     Check.That(!TenderRules.Hard(sealing, 0) && TenderRules.BlowsToCut(sealing, 0) == sealing.FreshBlows, "a whole seal is fresh at first");
     Check.That(TenderRules.Hard(sealing, sealing.HardenSeconds) && TenderRules.BlowsToCut(sealing, sealing.HardenSeconds) == sealing.HardBlows, "after a minute it has hardened");
+
+    // The chime grazer (#10962): disturbed, it rings for about 3 s and calls the ruin hunters within about 40 m; it can ring
+    // again about 60 s after the last.
+    WildlifeKind grazer = catalog.Kind("chime-grazer");
+    WildlifeCalling calling = grazer.Hunt!.Calls ?? throw new InvalidOperationException("the grazer calls nothing");
+    Check.That(grazer.Hunt.Tends && grazer.Hunt.Brood is null && grazer.Hunt.Seals is null, "the grazer is a tender that only calls");
+    Check.That(grazer.Hunt.Display is { Seconds: >= 2.5 and <= 3.5 } && calling.ReachMetres == 40 && calling.AgainSeconds == 60,
+        "its ring lasts about 3 s, reaches about 40 m, and comes again after about 60 s");
+    Check.That(grazer.Hunt.Rest is { Clip: WildlifeClipRole.Lie } && grazer.Mesh!.Clips[WildlifeClipRole.Lie] == "graze", "it rests grazing");
+    Check.That(TenderRules.Answers(catalog.Kind("collector")) && TenderRules.Answers(catalog.Kind("skitterer")) && TenderRules.Answers(catalog.Kind("brood-skitterer")),
+        "ruin hunters answer its call");
+    Check.That(!TenderRules.Answers(grazer) && !TenderRules.Answers(mender) && !TenderRules.Answers(bearer), "tenders do not");
+    Check.That(catalog.Kinds.Where(kind => kind.Cave is not null).All(kind => !TenderRules.Answers(kind)), "nor does cave life, which keeps away from ruin life");
+    Check.That(TenderRules.RingsAgain(calling, null) && !TenderRules.RingsAgain(calling, 30) && TenderRules.RingsAgain(calling, 60), "it rings at once, then not again within a minute");
+    Check.That(TenderRules.AnswerSeconds(40, 1.0, 5) > 40 + 5 && TenderRules.AnswerSeconds(40, 0, 5) <= 40 / 0.5 + 5 + 10,
+        "an answer lasts long enough to walk there and search, however slow the walker");
+    using JsonDocument crestPieces = JsonDocument.Parse(ReadResource("Wildlife.chime-grazer.pieces.json"));
+    string[] grazerJoints = GlbJoints("Wildlife.chime-grazer.glb");
+    Check.That(crestPieces.RootElement.GetProperty("held").TryGetProperty("crest", out JsonElement crest) && grazerJoints.Contains(crest.GetProperty("joint").GetString()),
+        "its crest hangs from a joint of its rig");
 });
 
 Check.Section("debug holds", () =>

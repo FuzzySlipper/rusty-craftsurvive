@@ -1084,6 +1084,32 @@
       "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
     },
     {
+      "id": "chime-grazer",
+      "name": "Chime grazer",
+      "$comment": "A ruin tender (#10962): a long plated grazer on four slim legs that feeds on the amber growth at relic lights, its slotted crest folded back along its plates like a wing. Settled with Patch (wiki 'Ruins wildlife', Tenders' indirect threats): disturbed, it lifts its crest and rings it, and the chime calls other ruin life; a blow cuts the ring short. It never fights. Its rest is grazing.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
+      "body": { "lengthMetres": 2.5, "heightMetres": 1.0, "widthMetres": 0.8, "sizeClass": "human", "colour": "#e0d0b8" },
+      "mesh": {
+        "file": "creatures/chime-grazer/chime-grazer.glb",
+        "manifest": "creatures/chime-grazer/chime-grazer.manifest.json",
+        "ragdoll": "creatures/chime-grazer/chime-grazer.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "graze" },
+        "worn": { "pieces": "creatures/chime-grazer/crest/pieces.json", "looks": { "plain": 1 } }
+      },
+      "speeds": { "walk": 0.6, "grazeDrift": 0.2, "flee": 1.6, "turnDegrees": 60 },
+      "wariness": { "noticeMetres": 10, "actMetres": 8, "lookSeconds": 1.0, "warnSeconds": 1.0 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 10, "reachMetres": 2.0, "haltMetres": 1.6, "accuracy": 10, "power": 1, "cooldownTicks": 180, "biteWindupSeconds": 0.6, "dodgeMetres": 0.2,
+        "rest": { "wakeMetres": 8, "clip": "lie" }, "display": { "seconds": 3.0 }, "search": { "seconds": 5 },
+        "calls": { "$comment": "Settled with Patch (#10962): the ring lasts its display (about 3 s); it calls every other ruin hunter within about 40 m, tenders excepted; it can ring again about 60 s after the last.", "reachMetres": 40, "againSeconds": 60 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 30, "evasion": 10, "armour": 3, "experience": 150 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
       "id": "brood-skitterer",
       "name": "Brood skitterer",
       "$comment": "A brood bearer's brood (#10961, Patch: 'Small skitterers work'): the skitterer's body at under half its size, without its knife. Only a bearer's split pods release them, already hunting; they come at once, weak and quick, and guard their bearer.",

@@ -188,9 +188,20 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
     /// <summary>The doorways it seals instead of fighting (#10961, the mender); null for one that does not.</summary>
     internal WildlifeSealing? Seals { get; init; }
 
-    /// <summary>A tender (#10961): it threatens by what it releases or shuts, never by its own blows.</summary>
-    internal bool Tends => Brood is not null || Seals is not null;
+    /// <summary>The call it rings instead of fighting (#10962, the chime grazer); null for one that does not.</summary>
+    internal WildlifeCalling? Calls { get; init; }
+
+    /// <summary>A tender (#10961): it threatens by what it releases, shuts or calls, never by its own blows.</summary>
+    internal bool Tends => Brood is not null || Seals is not null || Calls is not null;
 }
+
+/// <summary>
+/// A chime grazer's call (#10962), settled with Patch on the wiki's Ruins wildlife page: disturbed, it rings its crest for
+/// its display's while, and a blow cuts the ring short. A ring that finishes calls every other ruin hunter of its space
+/// within <paramref name="ReachMetres"/>, tenders excepted, to search where it rang; resting ones wake to it. Then it walks
+/// away from the player, and can ring again <paramref name="AgainSeconds"/> after the last.
+/// </summary>
+internal sealed record WildlifeCalling(double ReachMetres, double AgainSeconds);
 
 /// <summary>
 /// A brood bearer's brood (#10961), settled with Patch on the wiki's Ruins wildlife page: the first time its threat shows, it
@@ -820,7 +831,12 @@ internal static class WildlifeKinds
                     seals.GetProperty("hardenSeconds").GetDouble(), seals.GetProperty("mostSeals").GetInt32(), seals.GetProperty("refillSeconds").GetDouble(),
                     seals.GetProperty("reachMetres").GetDouble())
                 : null,
+            Calls = hunt.TryGetProperty("calls", out JsonElement calls)
+                ? new WildlifeCalling(calls.GetProperty("reachMetres").GetDouble(), calls.GetProperty("againSeconds").GetDouble())
+                : null,
         };
+        if (read.Calls is { ReachMetres: <= 0 } or { AgainSeconds: <= 0 } || (read.Calls is not null && read.Display is null))
+            throw new InvalidDataException($"{id}: a call reaches somewhere, takes a rest between rings, and rings for its display's while");
         if (read.Brood is { Count: <= 0 } or { GuardMetres: <= 0 } or { RegrowSeconds: <= 0 }) throw new InvalidDataException($"{id}: a brood has animals, a guard and a regrowth");
         if (read.Seals is { Seconds: <= 0 } or { FreshBlows: <= 0 } or { MostSeals: <= 0 } or { ReachMetres: <= 0 } || read.Seals is { } sealing && sealing.HardBlows < sealing.FreshBlows)
             throw new InvalidDataException($"{id}: a seal takes time and blows, and hardens");
