@@ -75,6 +75,8 @@ def build_armature(species, family):
             bone.use_connect = (bone.head - bone.parent.tail).length < 1e-4
     bpy.ops.object.mode_set(mode="OBJECT")
     data.bones["root"].use_deform = family.root_deforms
+    for name in family.rigid_bones:
+        data.bones[name].use_deform = False
     for pb in rig.pose.bones:
         pb.rotation_mode = "QUATERNION"
     return rig
@@ -328,7 +330,7 @@ def skin(rig, mesh):
         print("automatic weights failed on the body; solving on a watertight copy")
         weights_from_watertight_copy(rig, mesh)
     # Heat weighting misses loose flaps (generated fur); those take their nearest bone outright.
-    bones = [(b.name, b.head_local, b.tail_local) for b in rig.data.bones if b.name != "root"]
+    bones = [(b.name, b.head_local, b.tail_local) for b in rig.data.bones if b.name != "root" and b.use_deform]
     unweighted = unweighted_vertices(mesh)
     if len(unweighted) > UNWEIGHTED_SHARE * len(mesh.data.vertices):
         raise SystemExit(f"automatic weights left {len(unweighted)} of {len(mesh.data.vertices)} vertices unweighted")

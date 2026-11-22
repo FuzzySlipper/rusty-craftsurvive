@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/chime-grazer/mesh/tripo/tripo.glb",
+  "triangles": 4999,
+  "areaSquareMetres": 4.343,
+  "charts": 347,
+  "utilization": 0.7531,
+  "masterTexels": [
+    723,
+    714
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.3924840986728668,
+      -1.2506574392318726,
+      -0.0005539691192097962
+    ],
+    [
+      0.3896309733390808,
+      1.2511645555496216,
+      0.9416412115097046
+    ]
+  ]
+}

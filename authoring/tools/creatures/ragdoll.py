@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[3]
 CREATURES = ROOT / "content" / "game" / "creatures"
 
 # Joints left to the clips: they follow their parent as they are.
-UNSIMULATED = ("root", "jaw", "tongue", "dome", "ruff", "ear", "hoof", "fhoof", "foot", "hand", "claw", "wing", "blade", "fan", "pad")
+UNSIMULATED = ("root", "jaw", "tongue", "dome", "ruff", "ear", "hoof", "fhoof", "foot", "hand", "claw", "wing", "blade", "fan", "pad", "crest")
 # Where a bone with several simulated children points.
 SPANS_TO = {"hips": "spine", "chest": "neck"}
 # The bone that takes the killing blow.

@@ -13,7 +13,8 @@ swells over it by `clearance`, eased over its neighbours, and the run says by ho
 paint_from_views.py), stretched to its `box` and raised until the body clears its top. A `held` piece is a short curved blade, or with `"shape": "crescent"` a ring open on one side whose core is a separate
 `glow` part (the implement-carrier's, #10957); `light` gives it a light that rides with it. A `held` blade is a short curved blade in a
 hand's grip. A piece with `"shape": "pods"` or `"husks"` is the brood bearer's six pods (#10961), sealed or split, their
-glow its `glow` part. Each piece is written as <name>.prop-mesh.json with <name>.png beside it, and `pieces.json` lists them
+glow its `glow` part. A `held` piece with `"shape": "silhouette"` is a flat blade cut from its sheet's side view, its jade
+slots its `glow` part (the chime grazer's crest, #10962). Each piece is written as <name>.prop-mesh.json with <name>.png beside it, and `pieces.json` lists them
 with their joints, for the product.
 """
 import json
@@ -251,6 +252,106 @@ def fitted_mesh(spec, body, name, source):
         print(f"{name}: raised {lift:.2f} m so the body clears its top")
         points[:, 2] += lift
     return points, uvs, triangles
+
+
+def silhouette_mesh(spec, sources):
+    """A flat grown blade cut from its sheet's side view (#10962, the chime grazer's crest): the view's silhouette as a
+    grid of `cell` metres, `length` metres long along the view's width, swelling to `thickness` within `round` of its
+    edge and closing to a knife edge at it (each face with its own edge points), both faces painted from the view at the game's texels. The view's left is
+    forward and its top up; its foot (the middle of its lowest rows) stands at `base`. Its jade slots, where the view is
+    jade (`glowHue`), are a `glow` part just proud of each face. Returns (points, uvs, triangles, image, glow) in species
+    metres, glow being (points, uvs, triangles, image)."""
+    from scipy import ndimage
+    view = np.asarray(Image.open(sources / spec["image"]).convert("RGB")).astype(float)
+    height, width = view.shape[:2]
+    ground = np.median(np.concatenate([view[:6, :6].reshape(-1, 3), view[:6, -6:].reshape(-1, 3)]), axis=0)
+    inside = ndimage.binary_fill_holes(ndimage.binary_opening(np.abs(view - ground).sum(axis=2) > 30, iterations=2))
+    rows, columns = np.nonzero(inside)
+    metres = spec["length"] / (columns.max() - columns.min() + 1)
+    foot_rows = rows >= rows.max() - max(2, int(0.03 * (rows.max() - rows.min())))
+    foot = np.array([columns[foot_rows].mean(), rows.max()])
+    # Distance to the edge, in metres, for the swell.
+    edge = ndimage.distance_transform_edt(inside) * metres
+    step = max(1, int(round(spec.get("cell", 0.02) / metres)))
+    grid_y, grid_x = np.arange(0, height, step), np.arange(0, width, step)
+    used = np.zeros((len(grid_y), len(grid_x)), bool)
+    for j in range(len(grid_y) - 1):
+        for i in range(len(grid_x) - 1):
+            used[j, i] = inside[grid_y[j]:grid_y[j + 1] + 1, grid_x[i]:grid_x[i + 1] + 1].mean() > 0.5
+    # Nodes of the used cells; a node on the outline of the used cells closes the two faces. A cell with no corner inside
+    # the outline (a strip one cell wide, at the tip) would fold flat when the outline is eased, so it goes.
+    while True:
+        corner = np.zeros((len(grid_y), len(grid_x)), int)
+        cells = np.argwhere(used)
+        for j, i in cells:
+            corner[j:j + 2, i:i + 2] += 1
+        nodes = np.argwhere(corner > 0)
+        outline = {(j, i) for j, i in nodes if corner[j, i] < 4 or j == 0 or i == 0}
+        thin = [(j, i) for j, i in cells if all(n in outline for n in ((j, i), (j, i + 1), (j + 1, i), (j + 1, i + 1)))]
+        if not thin:
+            break
+        for j, i in thin:
+            used[j, i] = False
+    # The outline steps along the grid: ease each outline node toward its outline neighbours, so the edge runs smooth.
+    position = {(j, i): np.array([float(grid_x[i]), float(grid_y[j])]) for j, i in nodes}
+    neighbours = {n: [m for m in ((n[0] + 1, n[1]), (n[0] - 1, n[1]), (n[0], n[1] + 1), (n[0], n[1] - 1)) if m in outline]
+                  for n in outline}
+    for _ in range(spec.get("smooth", 4)):
+        # A convex corner (one cell's) stays put: eased, its cell's triangle would fold flat.
+        eased = {n: 0.5 * position[n] + 0.5 * np.mean([position[m] for m in near], axis=0)
+                 if len(near) == 2 and corner[n] > 1 else position[n] for n, near in neighbours.items()}
+        position.update(eased)
+    base = np.array(spec["base"], dtype=float)
+    half, swell = spec.get("thickness", 0.12) / 2, spec.get("round", 0.05)
+    points, uvs, index = [], [], {}
+    for face, sign in ((0, 1.0), (1, -1.0)):
+        for j, i in nodes:
+            key = (j, i)
+            # Each face keeps its own outline points, where the two meet: shared, their normals would cancel.
+            x, y = position[key]
+            d = 0.0 if key in outline else edge[min(height - 1, int(y)), min(width - 1, int(x))]
+            z = sign * half * math.sqrt(min(1.0, d / swell))
+            index[(face, key)] = len(points)
+            points.append(base + np.array([z, -(x - foot[0]) * metres, (foot[1] - y) * metres]))
+            uvs.append((x / width, y / height))
+    triangles = []
+    for j, i in cells:
+        a, b, c, d = (j, i), (j, i + 1), (j + 1, i), (j + 1, i + 1)
+        for face in (0, 1):
+            p = [index[(face, n)] for n in (a, b, c, d)]
+            quad = [(p[0], p[2], p[1]), (p[1], p[2], p[3])]
+            triangles += quad if face == 0 else [(x, z, y) for x, y, z in quad]
+    points = np.array(points)
+    # The paint at the game's texels: the view box-averaged down, no blur beyond that. The backdrop takes the nearest
+    # inside colour first, so the edge texels are not greyed by it.
+    _, (near_y, near_x) = ndimage.distance_transform_edt(~inside, return_indices=True)
+    view = view[near_y, near_x]
+    texels = (max(8, int(round(width * metres * TEXELS_PER_METRE))), max(8, int(round(height * metres * TEXELS_PER_METRE))))
+    image = np.asarray(Image.fromarray(view.astype(np.uint8)).resize(texels, Image.BOX))
+    # The glow: the cells whose paint is jade, a hair proud of each face.
+    rgb = image.astype(float) / 255
+    peak, low = rgb.max(axis=2), rgb.min(axis=2)
+    chroma = peak - low
+    hue = np.degrees(np.arctan2(math.sqrt(3) * (rgb[..., 1] - rgb[..., 2]), 2 * rgb[..., 0] - rgb[..., 1] - rgb[..., 2])) % 360
+    hue_low, hue_high = spec.get("glowHue", [70, 170])
+    jade = (hue >= hue_low) & (hue <= hue_high) & (chroma > spec.get("glowChroma", 0.08))
+    glow_image = np.where(jade[..., None], np.clip(image.astype(float) * spec.get("glowGain", 1.0), 0, 255), 0).astype(np.uint8)
+    glow_points, glow_uvs, glow_triangles = [], [], []
+    lift = spec.get("glowLift", 0.004)
+    for j, i in cells:
+        x, y = (grid_x[i] + grid_x[i + 1]) / 2, (grid_y[j] + grid_y[j + 1]) / 2
+        if not jade[min(texels[1] - 1, int(y / height * texels[1])), min(texels[0] - 1, int(x / width * texels[0]))]:
+            continue
+        for face, sign in ((0, 1.0), (1, -1.0)):
+            corners = [index[(face, n)] for n in ((j, i), (j, i + 1), (j + 1, i), (j + 1, i + 1))]
+            first = len(glow_points)
+            for c in corners:
+                glow_points.append(points[c] + np.array([sign * lift, 0, 0]))
+                glow_uvs.append(uvs[c])
+            quad = [(first, first + 2, first + 1), (first + 1, first + 2, first + 3)]
+            glow_triangles += quad if face == 0 else [(x, z, y) for x, y, z in quad]
+    print(f"{spec['image']}: {len(cells)} cells of {step * metres:.3f} m, {len(outline)} on its edge, {len(glow_triangles) // 2} glow quads")
+    return points, np.array(uvs), triangles, image, (np.array(glow_points), np.array(glow_uvs), glow_triangles, glow_image)
 
 
 def blade_mesh(spec, grip, along, up):
@@ -540,13 +641,17 @@ def main(argv):
         pieces[name] = write_piece(out, name, shell["joint"], inverse, points, uvs, triangles, image, content_root)
     held = {}
     for name, piece in spec.get("held", {}).items():
-        grip = np.array(piece["grip"], dtype=float)
-        along = np.array(piece["along"], dtype=float)
+        grip = np.array(piece.get("grip", piece.get("base")), dtype=float)
+        along = np.array(piece.get("along", [0, 1, 0]), dtype=float)
         along /= np.linalg.norm(along)
-        up = np.array(piece["up"], dtype=float)
+        up = np.array(piece.get("up", [0, 0, 1]), dtype=float)
         up -= along * np.dot(up, along)
         up /= np.linalg.norm(up)
-        if piece.get("shape") == "crescent":
+        if piece.get("shape") == "silhouette":
+            points, uvs, triangles, image, glow = silhouette_mesh(piece, sources)
+            extra = [("glow", *glow)] if len(glow[2]) else []
+            held[name] = write_piece(out, name, piece["joint"], inverse, points, uvs, triangles, image, content_root, extra=extra)
+        elif piece.get("shape") == "crescent":
             points, uvs, triangles, core_points, core_uvs, core_triangles = crescent_mesh(piece, grip, along, up)
             held[name] = write_piece(out, name, piece["joint"], inverse, points, uvs, triangles, paint_crescent(48, 8, rng),
                                      content_root, extra=[("glow", core_points, core_uvs, core_triangles, paint_core(16))])
@@ -556,7 +661,8 @@ def main(argv):
         if "light" in piece:
             # A light that rides with the piece, at the piece's own point in its joint's frame (the crescent's core).
             light = dict(piece["light"])
-            at = grip - up * piece.get("radius", 0.2) if piece.get("shape") == "crescent" else grip
+            at = (np.array(piece["lightAt"], dtype=float) if "lightAt" in piece
+                  else grip - up * piece.get("radius", 0.2) if piece.get("shape") == "crescent" else grip)
             light["at"] = [round(float(v), 4) for v in to_joint(at[None, :], piece["joint"], inverse)[0]]
             held[name]["light"] = light
     looks = {look: [pieces[name] for name in names] for look, names in spec["looks"].items()}

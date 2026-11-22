@@ -1,0 +1,89 @@
+{
+  "species": "chime-grazer",
+  "family": "ungulate-crested",
+  "body": {
+    "hindMetres": -0.67,
+    "foreMetres": 0.21
+  },
+  "legs": [
+    [
+      "shin.L",
+      "cannon.L",
+      "hoof.L"
+    ],
+    [
+      "forearm.L",
+      "fcannon.L",
+      "fhoof.L"
+    ],
+    [
+      "shin.R",
+      "cannon.R",
+      "hoof.R"
+    ],
+    [
+      "forearm.R",
+      "fcannon.R",
+      "fhoof.R"
+    ]
+  ],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "walk": {
+      "seconds": 1.5,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 0.4
+    },
+    "run": {
+      "seconds": 1.0,
+      "loops": true,
+      "plantsFeet": true,
+      "speed": 1.0
+    },
+    "graze": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "alert": {
+      "seconds": 2.5,
+      "loops": true,
+      "plantsFeet": true
+    },
+    "die": {
+      "seconds": 2.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 3.0,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "bite": {
+      "seconds": 0.8,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "hurt": {
+      "seconds": 0.5,
+      "loops": false,
+      "plantsFeet": true
+    },
+    "lie": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": false
+    }
+  }
+}

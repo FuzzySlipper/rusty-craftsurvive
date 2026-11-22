@@ -637,3 +637,26 @@ was settled with Patch on the wiki's Ruins wildlife page ("Tenders' indirect thr
   under the same piece ids.
 - **The seal** is `content/game/creatures/mender/seal.prop-mesh.json`, made by `make_seal.py`: a bowed sheet 2 by 3 m,
   drawn from both sides. The product stands it in the doorway and grows it up from the floor.
+
+### The chime grazer: a folding crest (#10962)
+
+The chime grazer's body came through the Tripo web studio from `chime-grazer/mesh/reference.png`. That reference is the
+settled sheet's side view with the crest asked away, so the neck runs from the shoulder hump straight down to the
+scoop head.
+- **`ungulate-crested`.** The ungulate rig plus one `crest` bone on the chest.
+  - The family's `rigid_bones` keep the crest out of the skin, both in heat weighting and in the nearest-bone pass, so
+    the hump does not bend when the crest moves. `ragdoll.py` leaves it to the clips.
+- **The crest folds like a wing** (Patch, 2026-11-22). It is a rigid held piece on the `crest` bone. The clips turn
+  the bone between `clips.crest.foldDegrees` (lying back along the plates; a positive pitch lays it towards the tail)
+  and `raiseDegrees` (upright). `alertLift` half raises it.
+  - The ring is the `threat` clip: the crest unfolds over `ring.riseShare`, rings upright with a quick tremor while
+    the head comes up, and folds back down from `ring.foldShare`. The clip ends folded, so the walk that follows
+    starts from the crest's rest.
+- **The crest piece: `"shape": "silhouette"`** in `make_shells.py`.
+  - The crest sheet's front and back views disagreed with its side view, so the piece is cut from the side view alone
+    (`crest/crest-side.png`). Its silhouette becomes a grid of `cell` metres, swelling to `thickness` within `round` of
+    the edge and closing to a knife edge there.
+  - Both faces are painted from the view, box-reduced to 64 texels/m after the backdrop takes the nearest inside
+    colour. The view's jade texels form a `glow` part a hair proud of each face.
+  - Each face keeps its own edge points, since shared ones would have no normal. Cells one wide are trimmed, and
+    convex outline corners stay put while the outline is eased, as both would fold flat.

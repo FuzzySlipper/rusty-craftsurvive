@@ -736,6 +736,63 @@ UNGULATE_EARED_CLIPS = {
 UNGULATE_EARED_CLIPS["search"] = (eared_search, True, True)
 
 
+# ---------------------------------------------------------------- ungulate with a folding crest: the chime grazer (#10962)
+
+def ungulate_crested_bones():
+    """The ungulate's bones and one more on the chest: the crest, a rigid worn piece hinged at its foot."""
+    return ungulate_bones() + [("crest", "chest", "crest", "crest_tip", 1.0)]
+
+
+def set_crest(c, s, lift, shake=0.0):
+    """Poses the crest about its hinge (Patch, 2026-11-22: like a wing): folded back along the back plates at 0, upright
+    at 1, from the species' `crest` angles away from its bind pose (a positive pitch lays it back towards the tail);
+    `shake` adds the ring's quick tremor, in degrees."""
+    crest = s.get("crest", {})
+    fold, raised = crest.get("foldDegrees", 38.0), crest.get("raiseDegrees", -10.0)
+    c.bone_rotation("crest", pitch(fold + (raised - fold) * lift + shake))
+
+
+def crest_folded(c, s, t):
+    set_crest(c, s, 0.0, shake=0.8 * gait.wave(t, 2))
+
+
+def crest_alert(c, s, t):
+    set_crest(c, s, s.get("crest", {}).get("alertLift", 0.45) * gait.ease_in_out(t, 0.0, 0.3))
+
+
+def crest_hurt(c, s, t):
+    set_crest(c, s, 0.3 * gait.rise_hold_fall(t, 0.12, 0.3))
+
+
+def crest_die(c, s, t):
+    set_crest(c, s, 0.0, shake=8.0 * gait.ease_in_out(t, 0.3, 0.8))
+
+
+def crested_ring(c, s, t):
+    """The ring (#10962), the chime grazer's threat: it braces and lifts its head off the floor while its crest unfolds
+    from its back and swings upright, rings there with a quick tremor, and folds back down at the end."""
+    ring = s.get("ring", {})
+    up = gait.ease_in_out(t, 0.0, ring.get("riseShare", 0.25)) * (1.0 - gait.ease_in_out(t, ring.get("foldShare", 0.88), 1.0))
+    ringing = gait.ease_in_out(t, ring.get("riseShare", 0.25), ring.get("riseShare", 0.25) + 0.05) * (1.0 - gait.ease_in_out(t, ring.get("foldShare", 0.88) - 0.05, ring.get("foldShare", 0.88)))
+    tremor = ring.get("tremorDegrees", 2.5) * ringing * gait.wave(t, ring.get("tremors", 18))
+    c.bone_rotation("chest", pitch(4.0 * up))
+    c.bone_rotation("neck", pitch(ring.get("neckDegrees", 18.0) * up))
+    c.bone_rotation("neck2", pitch(8.0 * up))
+    c.bone_rotation("head", pitch(-6.0 * up + 0.6 * tremor))
+    c.bone_offset("hips", (0, 0, -0.03 * up))
+    ungulate_tail(c, t, 1.0, droop=-4.0 * up)
+    set_crest(c, s, up, shake=tremor)
+
+
+CREST_POSES = {"alert": crest_alert, "hurt": crest_hurt, "die": crest_die}
+
+UNGULATE_CRESTED_CLIPS = {
+    name: (with_ears(pose, CREST_POSES.get(name, crest_folded)), loops, plants)
+    for name, (pose, loops, plants) in UNGULATE_CLIPS.items()
+}
+UNGULATE_CRESTED_CLIPS["threat"] = (crested_ring, False, True)
+
+
 # ---------------------------------------------------------------- what two-bone families share
 
 def plain_legs(side, sign):
@@ -2759,6 +2816,9 @@ class Family:
     root_deforms: bool = True
     # The sides its legs stand on: left and right, or with "C" a leg on the middle line too (#10960, the tripods).
     leg_sides: tuple = ("L", "R")
+    # Bones that carry no skin, only a rigid worn piece (#10962, the chime grazer's crest): weighting them would bend the
+    # body under the piece whenever it moves.
+    rigid_bones: tuple = ()
 
 
 FAMILIES = {
@@ -2771,6 +2831,10 @@ FAMILIES = {
     "ungulate-eared": Family(ungulate_eared_bones, UNGULATE_LEGS, UNGULATE_EARED_CLIPS,
                              (("shin", "cannon", "hoof"), ("forearm", "fcannon", "fhoof")), "fetlock", "ffetlock",
                              ("thigh", "shin", "cannon", "upperarm", "forearm", "fcannon"), ("hoof", "fhoof")),
+    "ungulate-crested": Family(ungulate_crested_bones, UNGULATE_LEGS, UNGULATE_CRESTED_CLIPS,
+                               (("shin", "cannon", "hoof"), ("forearm", "fcannon", "fhoof")), "fetlock", "ffetlock",
+                               ("thigh", "shin", "cannon", "upperarm", "forearm", "fcannon"), ("hoof", "fhoof"),
+                               rigid_bones=("crest",)),
     "graviportal": Family(graviportal_bones, PLANTIGRADE_LEGS, GRAVIPORTAL_CLIPS,
                           (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                           ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand")),

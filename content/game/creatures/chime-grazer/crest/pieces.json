@@ -1,0 +1,27 @@
+{
+  "looks": {
+    "plain": []
+  },
+  "held": {
+    "crest": {
+      "piece": "creatures/chime-grazer/crest/crest.prop-mesh.json",
+      "joint": "crest",
+      "triangles": 3232,
+      "light": {
+        "colour": [
+          0.55,
+          0.95,
+          0.7
+        ],
+        "intensity": 1.0,
+        "range": 4.0,
+        "threatShare": 4.0,
+        "at": [
+          -0.0,
+          0.7598,
+          0.0253
+        ]
+      }
+    }
+  }
+}
