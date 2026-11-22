@@ -1098,6 +1098,23 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     }
 }
 
+// A sump's mist is uneven and flows (#10989): its volumes are thicker and thinner along the way, each drifts along the
+// passage, its mouths are marked to glow, and the laid mist leaves the eddies their share of the Engine's 64 volumes.
+{
+    MistVolume[] sump = [];
+    for (ulong mistSeed = 1; mistSeed <= 12 && sump.Length == 0; mistSeed++)
+    {
+        sump = [.. KarstCave.Generate(0x10989_0UL + mistSeed, 1d, KarstCave.Centrepiece.None).Layout.Mist.Where(m => m.Sump)];
+    }
+
+    MistVolume[] inner = [.. sump.Where(m => !m.Mouth)];
+    Console.WriteLine($"sump mist: {sump.Length} volumes, {inner.Length} inside, densities {(inner.Length == 0 ? "-" : $"{inner.Min(m => m.Density):F3}..{inner.Max(m => m.Density):F3}")}");
+    Check.That(sump.Length > 0 && sump.Any(m => m.Mouth) && inner.Length > 0, "a karst seed of the first dozen must lay a sump's mist, inside and at its mouths");
+    Check.That(sump.Length <= MistBudget.MostLaidVolumes, "the laid mist must leave the eddies their volumes");
+    Check.That(inner.Select(m => m.Density).Distinct().Count() > 1 || inner.Length == 1, "a sump's mist must be thicker and thinner along its way");
+    Check.That(inner.All(m => m.Current.Length() > 0.1f && MathF.Abs(m.Current.Y) < 1e-4f), "each volume inside must drift along the passage, level");
+}
+
 // A cave kept by the store is the cave generated (#10888 R10888-2): an underground karst cave's voxels, chunks and dressing
 // encoded and decoded again come back the same, a lake's finished surface with them, and bytes of another format are a miss.
 {

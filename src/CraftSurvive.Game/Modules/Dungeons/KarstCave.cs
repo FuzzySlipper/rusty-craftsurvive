@@ -1792,7 +1792,7 @@ internal static class KarstCave
         new Vector3(hall.RadiusX * MistSpread, MistDepth, hall.RadiusZ * MistSpread), -hall.Turn * 180f / MathF.PI, HallMistDensity);
 
     /// <summary>The most mist volumes a space places: the Engine draws at most 64 fog volumes in a view.</summary>
-    private static int MostMistVolumes => Area(64);
+    private static int MostMistVolumes => Math.Min(Area(64), MistBudget.MostLaidVolumes);
 
     /// <summary>How thick a hall's floor mist is at its heart.</summary>
     private const float HallMistDensity = 0.12f;
@@ -1807,28 +1807,70 @@ internal static class KarstCave
     /// shows only where a light reaches it, so its mouth is dark from a few metres off; with this glow the mouth reads as a
     /// pale wall of haze.
     /// </summary>
-    private static readonly Vector3 SumpMistGlow = new(0f, 0.1f, 0.1f);
+    internal static readonly Vector3 SumpMistGlow = new(0f, 0.1f, 0.1f);
     private static readonly Vector3 SumpMistSize = new(2.8f, 2.4f, 2.8f), MouthMistSize = new(4f, 2.5f, 4f);
+
+    // A sump's mist is uneven and flows (#10989; Patch, 2026-11-22: the first pass was "very pea soup"): each volume along
+    // the way is thicker or thinner, larger or smaller and a little off the line by its own draw, so banks and thinner
+    // stretches alternate; its drift runs along the passage at its own share of the current.
+    private const float SumpDensityLeast = 0.45f, SumpDensityMost = 1.3f, SumpSizeLeast = 0.7f, SumpSizeMost = 1.15f;
+    private const float SumpOffAcross = 0.7f, SumpOffUp = 0.35f, SumpCurrentLeast = 0.6f, SumpCurrentMost = 1.5f, MouthCurrent = 0.5f;
 
     /// <summary>A sump's mist: volumes along its way through and over each mouth, so the mouth reads as whiteness from outside.</summary>
     private static IEnumerable<MistVolume> SumpMist(WaterZone sump)
     {
-        Vector3? last = null;
+        List<Vector3> along = [];
         foreach (Vector3 p in sump.Path)
         {
-            if (last is Vector3 was && Vector3.Distance(was, p) < SumpMistStep)
-            {
-                continue;
-            }
+            if (along.Count == 0 || Vector3.Distance(along[^1], p) >= SumpMistStep) along.Add(p);
+        }
 
-            last = p;
-            yield return new MistVolume(p, SumpMistSize, 0f, SumpMistDensity, SumpMistGlow);
+        ulong seed = MistSeed(sump);
+        for (int i = 0; i < along.Count; i++)
+        {
+            Vector3 way = Flat(along[Math.Min(i + 1, along.Count - 1)] - along[Math.Max(i - 1, 0)]);
+            Vector3 across = new(-way.Z, 0f, way.X);
+            float size = MistLerp(SumpSizeLeast, SumpSizeMost, MistDraw(seed, i, 0));
+            Vector3 at = along[i] + (across * ((MistDraw(seed, i, 1) * 2f) - 1f) * SumpOffAcross) + new Vector3(0f, ((MistDraw(seed, i, 2) * 2f) - 1f) * SumpOffUp, 0f);
+            float density = SumpMistDensity * MistLerp(SumpDensityLeast, SumpDensityMost, MistDraw(seed, i, 3));
+            Vector3 current = way * MistLerp(SumpCurrentLeast, SumpCurrentMost, MistDraw(seed, i, 4));
+            float yaw = MathF.Atan2(way.X, way.Z) * 180f / MathF.PI;
+            yield return new MistVolume(at, SumpMistSize * size, yaw, density, SumpMistGlow, current, Sump: true);
         }
 
         foreach (Vector3 mouth in sump.Mouths)
         {
-            yield return new MistVolume(mouth + new Vector3(0f, MouthMistRise - MouthMistSize.Y * 0.5f, 0f), MouthMistSize, 0f, SumpMistDensity, SumpMistGlow);
+            // A mouth's mist spills out of the passage, slowly.
+            Vector3 nearest = along.Count == 0 ? mouth : along.MinBy(p => Vector3.DistanceSquared(p, mouth));
+            Vector3 outward = Flat(mouth - nearest);
+            yield return new MistVolume(mouth + new Vector3(0f, MouthMistRise - MouthMistSize.Y * 0.5f, 0f), MouthMistSize, 0f, SumpMistDensity, SumpMistGlow,
+                outward * MouthCurrent, Sump: true, Mouth: true);
         }
+    }
+
+    /// <summary>A horizontal direction of unit length, or none.</summary>
+    private static Vector3 Flat(Vector3 v)
+    {
+        Vector3 flat = new(v.X, 0f, v.Z);
+        return flat.LengthSquared() < 1e-6f ? Vector3.Zero : Vector3.Normalize(flat);
+    }
+
+    private static float MistLerp(float a, float b, float t) => a + ((b - a) * t);
+
+    /// <summary>A sump's own seed for its mist's draws, from where its way through begins.</summary>
+    private static ulong MistSeed(WaterZone sump)
+    {
+        Vector3 first = sump.Path.Count > 0 ? sump.Path[0] : Vector3.Zero;
+        return ((ulong)(uint)(int)MathF.Round(first.X * 4f) << 40) ^ ((ulong)(uint)(int)MathF.Round(first.Y * 4f) << 20) ^ (uint)(int)MathF.Round(first.Z * 4f);
+    }
+
+    /// <summary>One draw from 0 to 1 for a sump's volume and what is drawn (a SplitMix64 step).</summary>
+    private static float MistDraw(ulong seed, int volume, int what)
+    {
+        ulong z = seed + (0x9E3779B97F4A7C15UL * (ulong)((volume * 8) + what + 1));
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+        return (float)((z ^ (z >> 31)) >> 40) / (1 << 24);
     }
 
     // The hall's light (owner, 2026-10-19: large, bright, distant sources, every one a thing to see): giant glowing fungi
@@ -4277,7 +4319,7 @@ private static int MostBarrensPieces => Area(400);
             VoxelSize = voxelSize,
             SkyOpen = cave.SkyOpen,
             GreatHall = cave.GreatHall is not null,
-            // The Engine holds at most 64 fog volumes in a view.
+            // The Engine holds at most 64 fog volumes in a view; the eddies keep some (MistBudget).
             Mist = [.. (cave.GreatHall is Hall mistHall ? [HallMist(mistHall)] : Array.Empty<MistVolume>())
                 .Concat(cave.WaterZones.Where(z => z.Kind == WaterZoneKind.MistSump).SelectMany(SumpMist)).Take(MostMistVolumes)],
             Waterfalls = cave.Waterfalls,

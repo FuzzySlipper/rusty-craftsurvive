@@ -46,6 +46,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.readout", Description = "Reads where the player stands with dungeons: state, loading progress and cost, the nearby entrance.")]
     public string Readout() => dungeons.Readout();
 
+    [DebugCommand("craft.dungeon.mist", Description = "Test aid (#10989): reads or tunes the sump mist's look - thickness, noise (cell metres), strength, current (m/s), glow, eddyshare <n>, albedo <r,g,b>, glint <r,g,b> (the eddies' own light), eddies on|off, default - and lays it again; the readout counts its volumes and eddies against the Engine's cap.")]
+    public string Mist(string key = "", string value = "") => dungeons.TuneSumpMist(key, value);
+
     [DebugCommand("craft.dungeon.water", Description = "Reads the loaded cave's water zones (#10094): kind, surface height, open columns, cells, the extent of the open surface and its mouths, in layout metres.")]
     public string Water() => dungeons.WaterReadout();
 

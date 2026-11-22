@@ -43,12 +43,29 @@ internal enum EcologyKind
 /// </summary>
 internal readonly record struct Waterfall(Vector3 Lip, Vector3 Out, float Drop, bool Lands, float Flow, float SkyShare);
 
+/// <summary>The fog volumes a natural space's mist may use (#10989), under the Engine's cap.</summary>
+internal static class MistBudget
+{
+    /// <summary>The most fog volumes the Engine draws in a view.</summary>
+    internal const int EngineMostVolumes = 64;
+
+    /// <summary>How many eddies may stir a sump's mist at once (#10989); the laid mist keeps the rest of the cap.</summary>
+    internal const int EddySlots = 12;
+
+    /// <summary>The most volumes a cave's laid mist may use, leaving the eddies theirs.</summary>
+    internal const int MostLaidVolumes = EngineMostVolumes - EddySlots;
+}
+
 /// <summary>
 /// A mist lying in a natural space (#10094), in layout metres: an ellipsoid turned about the vertical, how thick it is at
 /// its heart (extinction per metre: a great hall's floor mist is thin, a sump's heavy), and the light it gives of itself
 /// per unit of density (linear; none for a hall's floor mist, a faint glow for a sump's, so its mouth reads from outside).
+/// A sump's mist (#10989) flows: <paramref name="Current"/> is the way its drift runs along the passage, its length this
+/// volume's share of the sump's current (a narrows runs faster), and its look is the sump mist's, tuned apart from a hall's.
+/// A <paramref name="Mouth"/>'s mist glows more, so the mouth reads from outside as a pale wall.
 /// </summary>
-internal readonly record struct MistVolume(Vector3 Centre, Vector3 HalfExtents, float YawDegrees, float Density, Vector3 Glow = default);
+internal readonly record struct MistVolume(Vector3 Centre, Vector3 HalfExtents, float YawDegrees, float Density, Vector3 Glow = default,
+    Vector3 Current = default, bool Sump = false, bool Mouth = false);
 
 /// <summary>
 /// One plant of a cave's forest under its sky (#10129), in layout metres: the flora catalog species by name, which of its

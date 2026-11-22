@@ -246,6 +246,7 @@ internal sealed partial class DungeonModule : IProductModule
 
                 CarryLantern();
                 CatchFall();
+                StirMist(step.AdmittedSteps * step.FixedDeltaSeconds);
                 // Waterfall spray is not lit by the Engine: it is shown at the light that reaches it (the day's, in a chasm open to the sky).
                 space?.Waterfalls?.Light((float)WorldClock.Daylight(conditions.Time.DayFraction));
                 break;
@@ -679,13 +680,60 @@ internal sealed partial class DungeonModule : IProductModule
     private static readonly Vector3 MistAlbedo = new(0.85f, 0.9f, 1f), MistDrift = new(0.15f, 0f, 0.05f);
     private int mistPlaced;
 
+    /// <summary>
+    /// How a sump's mist looks (#10989), apart from a hall's: how thick against its laid density, its noise cells' size and
+    /// how far they thin it (smaller and stronger than a hall's, for banks and clearer lanes), how fast its current runs
+    /// along the passage, the colour it scatters, how much of its glow shows, and whether what moves in it stirs eddies.
+    /// Its albedo is dull: a pale one threw the lantern's light straight back as a bright soup a metre off.
+    /// </summary>
+    internal sealed record SumpMistLook(float Thickness, float NoiseScale, float NoiseStrength, float CurrentMetresPerSecond, Vector3 Albedo, float GlowShare, bool Eddies)
+    {
+        internal static SumpMistLook Default { get; } = new(1f, 1.2f, 1f, 0.35f, new Vector3(0.45f, 0.48f, 0.52f), 1f, true);
+    }
+
+    /// <summary>The sump mist's look now; the live-debug tuning changes it and lays the mist again.</summary>
+    internal SumpMistLook SumpLook { get; private set; } = SumpMistLook.Default;
+
+    /// <summary>Who moves through the dungeon now besides the player, by id and feet in the session's frame: its creatures (#10989).</summary>
+    internal Func<IEnumerable<(int Id, Vector3 Feet)>>? MistMovers { get; set; }
+
+    private readonly List<(Vector3 Centre, Vector3 Half, float Yaw, float Density)> sumpMist = [];
+    private IReadOnlyList<MistVolume> laidMist = [];
+    private MistEddies? eddies;
+
+    /// <summary>The first fog volume id the eddies use, after every laid volume's.</summary>
+    private static uint EddyIds => ProductIds.DungeonMistBase + MistBudget.MostLaidVolumes;
+
+    /// <summary>How much more of its glow a sump's mouth shows than the mist inside.</summary>
+    private const float MouthGlowShare = 2.5f;
+
+    /// <summary>The player's id among the mist's movers.</summary>
+    private const int PlayerMover = -1;
+
     /// <summary>Lays a natural space's low mist (lit only by the lights within it), or clears it.</summary>
     private void Mist(IReadOnlyList<MistVolume> mist)
     {
+        laidMist = mist;
+        sumpMist.Clear();
+        SumpMistLook look = SumpLook;
         for (int i = 0; i < mist.Count; i++)
         {
-            engine.CameraView.SetFogVolume(new FogVolumeRequest(ProductIds.DungeonMistBase + (uint)i, FogVolumeShape.Ellipsoid, DungeonSpace.InSession(mist[i].Centre),
-                mist[i].HalfExtents, mist[i].YawDegrees, mist[i].Density, MistAlbedo, mist[i].Glow, MistEdge, MistNoiseScale, MistNoiseStrength, MistDrift));
+            MistVolume volume = mist[i];
+            Vector3 centre = DungeonSpace.InSession(volume.Centre);
+            if (volume.Sump)
+            {
+                float density = volume.Density * look.Thickness;
+                sumpMist.Add((centre, volume.HalfExtents, volume.YawDegrees, density));
+                // A mouth glows more of its teal and keeps the hall's broad noise, so it reads as a pale wall from outside in the
+                // dark; a pale albedo there threw the lantern back as soup a step inside. It spills slowly.
+                engine.CameraView.SetFogVolume(new FogVolumeRequest(ProductIds.DungeonMistBase + (uint)i, FogVolumeShape.Ellipsoid, centre, volume.HalfExtents,
+                    volume.YawDegrees, density, look.Albedo, volume.Glow * look.GlowShare * (volume.Mouth ? MouthGlowShare : 1f), MistEdge,
+                    volume.Mouth ? MistNoiseScale : look.NoiseScale, volume.Mouth ? MistNoiseStrength : look.NoiseStrength, volume.Current * look.CurrentMetresPerSecond));
+                continue;
+            }
+
+            engine.CameraView.SetFogVolume(new FogVolumeRequest(ProductIds.DungeonMistBase + (uint)i, FogVolumeShape.Ellipsoid, centre,
+                volume.HalfExtents, volume.YawDegrees, volume.Density, MistAlbedo, volume.Glow, MistEdge, MistNoiseScale, MistNoiseStrength, MistDrift));
         }
 
         for (int i = mist.Count; i < mistPlaced; i++)
@@ -694,6 +742,70 @@ internal sealed partial class DungeonModule : IProductModule
         }
 
         mistPlaced = mist.Count;
+        if (mist.Count == 0 || !look.Eddies) eddies?.Clear(EddyIds);
+    }
+
+    /// <summary>How thick a sump's mist is at a point in the session's frame, or null outside it.</summary>
+    private float? SumpMistAt(Vector3 point)
+    {
+        float? thickest = null;
+        foreach ((Vector3 centre, Vector3 half, float yaw, float density) in sumpMist)
+        {
+            Vector3 offset = point - centre;
+            float turn = -yaw * MathF.PI / 180f;
+            Vector3 local = new((offset.X * MathF.Cos(turn)) + (offset.Z * MathF.Sin(turn)), offset.Y, (-offset.X * MathF.Sin(turn)) + (offset.Z * MathF.Cos(turn)));
+            Vector3 scaled = local / half;
+            if (scaled.LengthSquared() <= 1f && density > (thickest ?? 0f)) thickest = density;
+        }
+
+        return thickest;
+    }
+
+    /// <summary>Moves the mist's eddies on (#10989): the player and the dungeon's creatures stir it where they move through it.</summary>
+    private void StirMist(double seconds)
+    {
+        if (sumpMist.Count == 0 || !SumpLook.Eddies) return;
+        eddies ??= new MistEddies(engine);
+        IEnumerable<(int, Vector3)> moving = [(PlayerMover, player.WorldFeetPosition), .. MistMovers?.Invoke() ?? []];
+        eddies.Step(seconds, moving, SumpMistAt, SumpLook.Albedo, KarstCave.SumpMistGlow * SumpLook.GlowShare, EddyIds);
+    }
+
+    /// <summary>
+    /// The live-debug tuning of the sump mist's look (#10989): with no key, the look and the eddies now; else one setting
+    /// (thickness, noise, strength, current, albedo r,g,b, glow, eddies on|off, eddyshare) and the mist laid again.
+    /// </summary>
+    internal string TuneSumpMist(string key, string value)
+    {
+        static float F(string text) => float.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture);
+        SumpMistLook look = SumpLook;
+        try
+        {
+            SumpLook = key switch
+            {
+                "" or "read" or "-" => look,
+                "thickness" => look with { Thickness = F(value) },
+                "noise" => look with { NoiseScale = F(value) },
+                "strength" => look with { NoiseStrength = F(value) },
+                "current" => look with { CurrentMetresPerSecond = F(value) },
+                "albedo" => look with { Albedo = value.Split(',') is [string r, string g, string b] ? new Vector3(F(r), F(g), F(b)) : throw new FormatException() },
+                "glow" => look with { GlowShare = F(value) },
+                "eddies" => look with { Eddies = value == "on" },
+                "eddyshare" or "glint" => look,
+                "default" => SumpMistLook.Default,
+                _ => throw new FormatException(),
+            };
+            if (key == "eddyshare") (eddies ??= new MistEddies(engine)).DensityShare = F(value);
+            if (key == "glint") (eddies ??= new MistEddies(engine)).Glint = value.Split(',') is [string r, string g, string b] ? new Vector3(F(r), F(g), F(b)) : throw new FormatException();
+        }
+        catch (FormatException)
+        {
+            return "craft.dungeon.mist [thickness|noise|strength|current|glow|eddyshare <n> | albedo|glint <r,g,b> | eddies on|off | default]";
+        }
+
+        if (key is not ("" or "read" or "-") && state == DungeonState.Inside) Mist(laidMist);
+        SumpMistLook now = SumpLook;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"sump mist: thickness={now.Thickness:F2} noise={now.NoiseScale:F2}m strength={now.NoiseStrength:F2} current={now.CurrentMetresPerSecond:F2}m/s albedo={now.Albedo.X:F2},{now.Albedo.Y:F2},{now.Albedo.Z:F2} glow={now.GlowShare:F2} eddies={(now.Eddies ? "on" : "off")} share={(eddies?.DensityShare ?? 1.4f):F2} glint={(eddies?.Glint.X ?? 0):F2},{(eddies?.Glint.Y ?? 0):F2},{(eddies?.Glint.Z ?? 0):F2} | laid={mistPlaced} sump={sumpMist.Count} eddiesLive={eddies?.Live ?? 0} shed={eddies?.Shed ?? 0} cap={MistBudget.EngineMostVolumes}");
     }
 
     // --- The darkness study (#10091) ---

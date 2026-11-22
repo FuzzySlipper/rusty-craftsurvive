@@ -218,6 +218,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         dungeons = new DungeonModule(context.Engine, terrain, player, conditions, sky, ui);
         // The caves under the world hold their own animals (#10876): wildlife places them from what each cave offers.
         wildlife.CavesNear = dungeons.CaveSitesNear;
+        // What moves through a sump's mist stirs it (#10989): the dungeon's creatures near the player.
+        dungeons.MistMovers = () => creatures.AwakeWithin(player.WorldFeetPosition, Modules.Dungeons.MistEddies.StirWithinMetres);
         // A cave regenerated afresh for a test (#10924) forgets its animals: hunters first, then their records.
         dungeons.ForgetCaveAnimals = key =>
         {
