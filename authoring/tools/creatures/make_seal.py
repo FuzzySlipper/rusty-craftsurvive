@@ -3,7 +3,7 @@ up from the floor, settled with Patch on the wiki's Ruins wildlife page.
 
 usage: python3 -I authoring/tools/creatures/make_seal.py <out dir> [--content-root content/game]
 
-The membrane spans the kit's doorway, 2 m across (x) and 3 m up (y), bowed a little along z, the way through; both faces
+The membrane spans the kit's doorway, 2 m across (x) and 3 m up (y) with a round top like the doorway's arch, bowed a little along z, the way through; both faces
 are drawn, each with its own points. Its paint is the game's 64 texels/m: pale shell grown thin, darker veins running up
 from the floor, a jade band where it meets the frame and plum where it grew from. Written as seal.prop-mesh.json with
 seal.png beside it.
@@ -16,6 +16,8 @@ import numpy as np
 from PIL import Image
 
 WIDTH, HEIGHT, BOW = 2.0, 3.0, 0.12
+# The round top's rise: a half circle as wide as the doorway.
+ARCH = WIDTH / 2
 COLUMNS, ROWS = 8, 10
 TEXELS_PER_METRE = 64
 SEED = 10961
@@ -35,7 +37,11 @@ def sheet():
             u = column / COLUMNS
             # It bows out most at its middle and meets the frame flat at its edges.
             bow = BOW * np.sin(np.pi * u) * np.sin(np.pi * min(1.0, v * 1.1))
-            points.append((WIDTH * (u - 0.5), HEIGHT * v, bow))
+            # Its top is round, as the kit's doorways are arched: over the arch's spring its width narrows to the arch.
+            y = HEIGHT * v
+            rise = max(0.0, (y - (HEIGHT - ARCH)) / ARCH)
+            narrow = np.sqrt(max(0.0, 1.0 - rise * rise)) if rise < 1.0 else 0.0
+            points.append((WIDTH * (u - 0.5) * (narrow if rise > 0 else 1.0), y, bow))
             uvs.append((u, 1.0 - v))
     triangles = []
     for row in range(ROWS):
