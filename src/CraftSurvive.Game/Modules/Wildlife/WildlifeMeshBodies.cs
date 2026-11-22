@@ -490,11 +490,13 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <summary>
     /// A body whose rules now want another look (#10961, a brood bearer's pods splitting) changes into it: its pieces are
     /// redrawn under the same ids, and hung from their joints again before the next snapshot that draws them. A piece the
-    /// new look has no room for is let go.
+    /// new look has no room for is let go. Rules that want no look in particular (pods regrown) put back the body's own.
     /// </summary>
     private void Redress(Body body, WildlifeKind kind, WildlifeMember member)
     {
-        if (member.WornLook is not string wanted || wanted == body.WornLook || kind.Mesh!.Worn is not WildlifeWorn wears) return;
+        if (kind.Mesh!.Worn is not WildlifeWorn wears) return;
+        string wanted = member.WornLook ?? worn.OwnLook(wears, member.Id, seed);
+        if (wanted == body.WornLook) return;
         ulong[] before = [.. body.Worn.Select(part => part.ObjectId)];
         (body.WornLook, body.Worn) = worn.For(wears, member.Id, seed, body.Slot, wanted);
         ulong[] gone = [.. before.Except(body.Worn.Select(part => part.ObjectId))];

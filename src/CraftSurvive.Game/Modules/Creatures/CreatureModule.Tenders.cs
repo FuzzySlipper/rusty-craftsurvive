@@ -105,6 +105,7 @@ internal sealed partial class CreatureModule
     /// </summary>
     private void Tend(double seconds, Vector3 playerFeet, CreatureSpace? here)
     {
+        DropOrphans();
         foreach (int id in broodsDue)
         {
             if (roster.TryGet(id, out Creature bearer) && hunters.TryGetValue(id, out Hunter? hunter)) ReleaseBrood(bearer, hunter, playerFeet);
@@ -128,6 +129,18 @@ internal sealed partial class CreatureModule
         if (!sealsChanged) return;
         sealsChanged = false;
         foreach (CreatureNavigation navigation in navigations.Values) navigation.Reclose();
+    }
+
+    /// <summary>
+    /// A mender that has died, been forgotten or fallen asleep (#10961) leaves no unfinished seal and holds no doorway: its
+    /// half-grown membrane goes and the doorway is free for another. A whole seal stands without it.
+    /// </summary>
+    private void DropOrphans()
+    {
+        bool Tending(int mender) => roster.TryGet(mender, out Creature creature) && creature.Awake && hunters.ContainsKey(mender);
+        int dropped = seals.RemoveAll(seal => !seal.Whole && !Tending(seal.Mender));
+        if (dropped > 0) lastEvent = $"{dropped} unfinished seal(s) dropped: their mender is gone";
+        foreach (int mender in pendingDoors.Keys.Where(mender => !Tending(mender)).ToArray()) pendingDoors.Remove(mender);
     }
 
     /// <summary>A bearer's pods regrow after its kind's while; once split, it shuffles away from a player it sees.</summary>

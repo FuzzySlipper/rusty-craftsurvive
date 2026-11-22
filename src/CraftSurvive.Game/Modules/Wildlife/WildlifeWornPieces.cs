@@ -58,13 +58,19 @@ internal sealed class WildlifeWornPieces : IDisposable
     internal (string Look, Part[] Parts) For(WildlifeWorn worn, int memberId, ulong seed, int slot, string? wanted = null)
     {
         Set set = SetOf(worn.Pieces);
-        string look = wanted is { } asked && set.Looks.ContainsKey(asked) ? asked
-            : Forced is { } forced && set.Looks.ContainsKey(forced) ? forced : worn.Pick(Share(memberId, seed));
+        string look = wanted is { } asked && set.Looks.ContainsKey(asked) ? asked : OwnLook(worn, memberId, seed);
         if (!set.Looks.TryGetValue(look, out Piece[]? pieces)) throw new InvalidDataException($"worn: '{worn.Pieces}' has no look '{look}'");
         Piece[] all = [.. pieces, .. set.Held];
         if (all.Length > WildlifeWorn.MostPieces) throw new InvalidDataException($"worn: look '{look}' has {all.Length} pieces; a body has room for {WildlifeWorn.MostPieces}");
         ulong first = ProductIds.WildlifeWornBase + ((ulong)slot * WildlifeWorn.MostPieces);
         return (look, [.. all.Select((piece, index) => new Part(first + (ulong)index, Open(piece.Mesh), piece.Joint, piece.Light))]);
+    }
+
+    /// <summary>The look an animal wears when its rules want none in particular: the test aid's, or else its own pick.</summary>
+    internal string OwnLook(WildlifeWorn worn, int memberId, ulong seed)
+    {
+        Set set = SetOf(worn.Pieces);
+        return Forced is { } forced && set.Looks.ContainsKey(forced) ? forced : worn.Pick(Share(memberId, seed));
     }
 
     /// <summary>Opens every piece of a kind's looks now, with the world, rather than as a hitch when the first one wakes.</summary>
