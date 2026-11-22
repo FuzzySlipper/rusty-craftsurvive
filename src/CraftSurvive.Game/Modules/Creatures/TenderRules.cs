@@ -82,6 +82,13 @@ internal static class TenderRules
     internal static bool RingsAgain(WildlifeCalling calling, double? sinceLastSeconds) => sinceLastSeconds is not double since || since >= calling.AgainSeconds;
 
     /// <summary>
+    /// What a blow does to a chime grazer (#10962): mid-ring it cuts the ring; before one, it disturbs the grazer as being
+    /// seen would, so a rested grazer starts its ring and one resting from its last ring keeps away.
+    /// </summary>
+    internal static GrazerBlow Struck(WildlifeCalling calling, bool ringing, double? sinceLastSeconds) =>
+        ringing ? GrazerBlow.CutsRing : RingsAgain(calling, sinceLastSeconds) ? GrazerBlow.StartsRing : GrazerBlow.KeepsAway;
+
+    /// <summary>
     /// How long a hunter answering a call searches (#10962): long enough to walk to where it rang from this far, at its
     /// walk (no slower than <see cref="SlowestAnswerMetresPerSecond"/>), and then its own search.
     /// </summary>
@@ -104,4 +111,17 @@ internal static class TenderRules
         return doors.Where(door => !shut.Contains(door) && InStorey(playerFeet.Y, door) && Distance(player, door) <= withinMetres)
             .OrderBy(door => Distance(player, door)).Select(door => (RuinDoorway?)door).FirstOrDefault();
     }
+}
+
+/// <summary>What a blow does to a chime grazer (#10962).</summary>
+internal enum GrazerBlow
+{
+    /// <summary>It was ringing: the ring stops, calls nobody, and the grazer rests before its next.</summary>
+    CutsRing,
+
+    /// <summary>It was rested and not ringing: it starts its ring.</summary>
+    StartsRing,
+
+    /// <summary>It is resting from its last ring: it keeps away.</summary>
+    KeepsAway,
 }

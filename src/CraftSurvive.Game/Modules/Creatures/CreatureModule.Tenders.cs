@@ -208,19 +208,27 @@ internal sealed partial class CreatureModule
 
         bool hunting = creature.Behavior.State is CreatureState.Alert or CreatureState.Pursuing or CreatureState.Attacking;
         if (!hunting || errands.ContainsKey(creature.Id)) return;
-        double? since = lastRang.TryGetValue(hunter.Record.Key, out long rang) ? (step - rang) / HunterRules.StepsPerSecond : null;
-        if (TenderRules.RingsAgain(calling, since))
+        if (TenderRules.RingsAgain(calling, SinceRang(hunter)))
         {
-            // Its first threat of a hunt starts the display; a later ring starts it afresh.
-            if (hunter.ThreatSeconds <= 0) hunter.ThreatSeconds = hunter.Kind.Hunt!.Display!.Seconds;
-            hunter.Threatened = true;
-            rings[creature.Id] = new Ring(step, false);
+            StartRing(creature, hunter);
             return;
         }
 
         // Resting from its last ring: no ring now, and it keeps away.
         hunter.ThreatSeconds = 0;
         Send(creature, TenderRules.AwayFrom(creature.Position, player, RetreatMetres), RetreatSeconds, "retreat");
+    }
+
+    /// <summary>How long since a grazer's home last rang or had its ring cut; null if it never has.</summary>
+    private double? SinceRang(Hunter hunter) => lastRang.TryGetValue(hunter.Record.Key, out long rang) ? (step - rang) / HunterRules.StepsPerSecond : null;
+
+    /// <summary>A grazer starts to ring: it stands showing its display, its first threat of a hunt or a fresh one.</summary>
+    private void StartRing(Creature creature, Hunter hunter)
+    {
+        errands.Remove(creature.Id);
+        if (hunter.ThreatSeconds <= 0) hunter.ThreatSeconds = hunter.Kind.Hunt!.Display!.Seconds;
+        hunter.Threatened = true;
+        rings[creature.Id] = new Ring(step, false);
     }
 
     /// <summary>
@@ -390,14 +398,25 @@ internal sealed partial class CreatureModule
 
         if (hunter.Kind.Hunt.Brood is WildlifeBrood brood && hunter.Member.WornLook != brood.SplitLook && !broodsDue.Contains(creature.Id)) broodsDue.Add(creature.Id);
 
-        // A grazer struck mid-ring (#10962) stops ringing, calls nobody, and must rest before its next ring.
-        if (hunter.Kind.Hunt.Calls is not null)
+        // A grazer struck mid-ring (#10962) stops ringing, calls nobody, and must rest before its next ring. Struck before it
+        // rang, the blow disturbs it as being seen would: a rested grazer starts its ring, and one resting from its last ring
+        // keeps away.
+        if (hunter.Kind.Hunt.Calls is WildlifeCalling calling)
         {
-            if (rings.Remove(creature.Id))
+            switch (TenderRules.Struck(calling, rings.ContainsKey(creature.Id), SinceRang(hunter)))
             {
-                hunter.ThreatSeconds = 0;
-                lastRang[hunter.Record.Key] = step;
-                lastEvent = $"chime grazer {creature.Id} was struck: its ring was cut";
+                case GrazerBlow.CutsRing:
+                    rings.Remove(creature.Id);
+                    hunter.ThreatSeconds = 0;
+                    lastRang[hunter.Record.Key] = step;
+                    lastEvent = $"chime grazer {creature.Id} was struck: its ring was cut";
+                    break;
+                case GrazerBlow.StartsRing:
+                    StartRing(creature, hunter);
+                    lastEvent = $"chime grazer {creature.Id} was struck: it rings";
+                    return;
+                case GrazerBlow.KeepsAway:
+                    break;
             }
 
             Send(creature, TenderRules.AwayFrom(creature.Position, new Vector2(playerFeet.X, playerFeet.Z), RetreatMetres), RetreatSeconds, "retreat");

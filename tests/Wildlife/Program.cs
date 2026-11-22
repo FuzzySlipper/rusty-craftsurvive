@@ -1676,6 +1676,12 @@ Check.Section("ruin tenders", () =>
     Check.That(!TenderRules.Answers(grazer) && !TenderRules.Answers(mender) && !TenderRules.Answers(bearer), "tenders do not");
     Check.That(catalog.Kinds.Where(kind => kind.Cave is not null).All(kind => !TenderRules.Answers(kind)), "nor does cave life, which keeps away from ruin life");
     Check.That(TenderRules.RingsAgain(calling, null) && !TenderRules.RingsAgain(calling, 30) && TenderRules.RingsAgain(calling, 60), "it rings at once, then not again within a minute");
+    // A blow (R10962-1): one before it rang disturbs a rested grazer into its ring, one mid-ring cuts it, and one while it
+    // rests from its last ring sends it away.
+    Check.Equal(GrazerBlow.StartsRing, TenderRules.Struck(calling, ringing: false, sinceLastSeconds: null), "a first blow starts its ring");
+    Check.Equal(GrazerBlow.StartsRing, TenderRules.Struck(calling, ringing: false, sinceLastSeconds: 90), "so does a blow once it has rested");
+    Check.Equal(GrazerBlow.CutsRing, TenderRules.Struck(calling, ringing: true, sinceLastSeconds: null), "a blow mid-ring cuts it");
+    Check.Equal(GrazerBlow.KeepsAway, TenderRules.Struck(calling, ringing: false, sinceLastSeconds: 30), "a blow while it rests sends it away");
     Check.That(TenderRules.AnswerSeconds(40, 1.0, 5) > 40 + 5 && TenderRules.AnswerSeconds(40, 0, 5) <= 40 / 0.5 + 5 + 10,
         "an answer lasts long enough to walk there and search, however slow the walker");
     using JsonDocument crestPieces = JsonDocument.Parse(ReadResource("Wildlife.chime-grazer.pieces.json"));
