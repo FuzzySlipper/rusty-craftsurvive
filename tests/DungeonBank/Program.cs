@@ -1113,6 +1113,30 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Check.That(sump.Length <= MistBudget.MostLaidVolumes, "the laid mist must leave the eddies their volumes");
     Check.That(inner.Select(m => m.Density).Distinct().Count() > 1 || inner.Length == 1, "a sump's mist must be thicker and thinner along its way");
     Check.That(inner.All(m => m.Current.Length() > 0.1f && MathF.Abs(m.Current.Y) < 1e-4f), "each volume inside must drift along the passage, level");
+
+    // R10989-2: the dungeon reads its movers before the creatures move, and some updates admit no time. A creature moving
+    // steadily sheds the same wake whether every update admits a step or a step and an update of none alternate.
+    static int Wakes(bool interleaved)
+    {
+        MistWake wake = new();
+        System.Numerics.Vector3 at = System.Numerics.Vector3.Zero;
+        const double step = 1.0 / 60;
+        int shed = 0;
+        for (int update = 0; update < 240; update++)
+        {
+            bool timed = !interleaved || update % 2 == 0;
+            shed += wake.Step(timed ? step : 0, [(7, at)], _ => true).Count;
+            // The creature moves after the dungeon has read it: 1.5 m/s for each step admitted.
+            if (timed) at += new System.Numerics.Vector3((float)(1.5 * step), 0f, 0f);
+        }
+
+        return shed;
+    }
+
+    int steady = Wakes(interleaved: false), alternating = Wakes(interleaved: true);
+    Console.WriteLine($"mist wake: {steady} eddies over 4 s of steps, {alternating} over 2 s with updates of no time between");
+    Check.That(steady >= 12 && alternating >= 6, "a creature moving through the mist must shed its wake, with or without updates of no time between steps");
+    Check.That(new MistWake().Step(0, [(1, System.Numerics.Vector3.One)], _ => true).Count == 0, "an update of no time sheds nothing");
 }
 
 // A cave kept by the store is the cave generated (#10888 R10888-2): an underground karst cave's voxels, chunks and dressing

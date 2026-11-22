@@ -18,12 +18,10 @@ internal sealed class MistEddies(IEngineContext engine)
     /// <summary>How near the player a creature stirs the mist: eddies further off would be lost in the mist anyway.</summary>
     internal const double StirWithinMetres = 30;
 
-    // An eddy: shed every so often by something moving at least so fast, at its body's middle a little behind it; it lives
-    // so long, grows from its first size to its last, carries on with a share of the mover's speed that falls away, and is
-    // thickest just after it is shed.
-    private const double ShedEverySeconds = 0.3, LifeSeconds = 2.4, FadeInSeconds = 0.25;
-    private const float MovingMetresPerSecond = 0.35f, BodyMiddleMetres = 0.8f, BehindMetres = 0.4f;
-    private const float FirstHalfMetres = 0.45f, LastHalfMetres = 1.3f, CarriedShare = 0.6f, CarriedHalfLifeSeconds = 0.8f;
+    // An eddy (shed where MistWake says): it lives so long, grows from its first size to its last, carries on with a share
+    // of the mover's speed that falls away, and is thickest just after it is shed.
+    private const double LifeSeconds = 2.4, FadeInSeconds = 0.25;
+    private const float FirstHalfMetres = 0.45f, LastHalfMetres = 1.3f, CarriedHalfLifeSeconds = 0.8f;
     private const float Edge = 0.8f, NoiseScaleMetres = 0.7f, NoiseStrength = 0.85f, SwirlShare = 1.6f;
 
     /// <summary>How thick a fresh eddy is, as a share of the sump's mist.</summary>
@@ -36,8 +34,7 @@ internal sealed class MistEddies(IEngineContext engine)
     internal Vector3 Glint { get; set; } = new(0.35f, 0.2f, 0.55f);
 
     private readonly Eddy?[] eddies = new Eddy?[Slots];
-    private readonly Dictionary<int, (Vector3 At, double Shed)> movers = [];
-    private double now;
+    private readonly MistWake wake = new();
 
     private sealed class Eddy(Vector3 at, Vector3 velocity, double born)
     {
@@ -58,28 +55,10 @@ internal sealed class MistEddies(IEngineContext engine)
     /// </summary>
     internal void Step(double seconds, IEnumerable<(int Id, Vector3 Feet)> moving, Func<Vector3, float?> inMist, Vector3 albedo, Vector3 glow, uint firstId)
     {
-        now += seconds;
-        HashSet<int> seen = [];
-        foreach ((int id, Vector3 feet) in moving)
-        {
-            seen.Add(id);
-            if (!movers.TryGetValue(id, out (Vector3 At, double Shed) was))
-            {
-                movers[id] = (feet, now);
-                continue;
-            }
-
-            Vector3 velocity = seconds > 0 ? (feet - was.At) / (float)seconds : Vector3.Zero;
-            movers[id] = (feet, was.Shed);
-            Vector3 flat = new(velocity.X, 0f, velocity.Z);
-            if (flat.Length() < MovingMetresPerSecond || now - was.Shed < ShedEverySeconds) continue;
-            Vector3 middle = feet + new Vector3(0f, BodyMiddleMetres, 0f) - (Vector3.Normalize(flat) * BehindMetres);
-            if (inMist(middle) is null) continue;
-            movers[id] = (feet, now);
-            ShedAt(middle, flat * CarriedShare);
-        }
-
-        foreach (int gone in movers.Keys.Where(id => !seen.Contains(id)).ToArray()) movers.Remove(gone);
+        // An update of no time moves no eddy on and sheds none (R10989-2): each keeps its volume as last set.
+        if (seconds <= 0) return;
+        foreach ((Vector3 at, Vector3 velocity) in wake.Step(seconds, moving, point => inMist(point) is not null)) ShedAt(at, velocity);
+        double now = wake.Now;
 
         for (int slot = 0; slot < Slots; slot++)
         {
@@ -114,7 +93,7 @@ internal sealed class MistEddies(IEngineContext engine)
             engine.CameraView.RemoveFogVolume(new FogVolumeRemoval(firstId + (uint)slot));
         }
 
-        movers.Clear();
+        wake.Clear();
     }
 
     /// <summary>A new eddy in a free slot, or in place of the oldest.</summary>
@@ -130,7 +109,7 @@ internal sealed class MistEddies(IEngineContext engine)
             }
         }
 
-        eddies[slot] = new Eddy(at, velocity, now);
+        eddies[slot] = new Eddy(at, velocity, wake.Now);
         Shed++;
     }
 }
