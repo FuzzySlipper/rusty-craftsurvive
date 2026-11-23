@@ -43,6 +43,7 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `add_ruff.py` (Blender) | Grows a ring of large frills round a prepared body's neck, each on its own bone, painted from the body's own mane (#10882) |
 | `split_dome.py` (Blender) | Cuts a domed back down the middle, lines the halves and builds ribbed plates under them (#10880) |
 | `tone_band.py` | Scales the saturation and value of one hue band of a reduced paint, to match the ground an animal hides in (#10880) |
+| `margin_paint.py` | Paints a ribbon body's back and belly margins into its master by the way each texel faces, keeping the head's teeth and marks (#10985) |
 
 ```sh
 blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/build_creature.py -- \
@@ -687,3 +688,40 @@ Engine work:
   shows through it. A paint with `--crumble 0` cuts clean.
 - **Cost:** none measurable. With eight bodies sweeping without a break, the median update took 2.16 ms, against 2.2 ms
   held.
+
+### The needle-mouth: a floating family (#10985)
+
+The first fog foe, from round22 option 6 on den-wiki `wandering-years/fog-wildlife`. It is a 4 m ribbon-eel that swims
+a mist sump's air.
+
+- **The sheet.** The first pass gave it a gar's narrow snout, so the second drew the head again from a crop of the
+  reference (`concept/sheet-b.png`, which Patch approved). The straight reference anchors its side view on a crop of
+  sheet B. Its first try drew the end views as upright spikes, so the spec says what an end view of a long body shows.
+- **The body.** Tripo made it round, so `prepare_mesh.py --girth 0.55 --depth 1.25` narrows it into a ribbon 0.19 m
+  wide and 0.54 m deep. Tripo painted it one lilac, so `margin_paint.py` paints violet along the back and belly by how
+  each texel faces, and keeps the head's teeth, eye and slits in their own paint. `open_mouth.py` opens the jaws.
+- **The `floater` family.** It uses the serpent's bones. Its clips swim in place, and the product holds the body up
+  (`Lift`):
+  - `idle` hovers;
+  - `walk` and `run` swim and dash;
+  - `circle` bows the body into its turn;
+  - `threat` gapes, the front drawn back into an S and the rear rising;
+  - `bite` is the lunge: the rear arches up and the tail curls over at its tip, then the front shoots out;
+  - `hurt` flinches and `die` rolls belly up.
+
+  The arch is lifted from the tail tip, so `floater_pin` moves the root to keep the neck where it rests.
+  `hurt` and `die` stay centred, where the serpent's swing about the tail tip.
+- **In game.** The kind's `hunt.fog` block holds its float, hearing, feel, circling and clicks (`WildlifeFog`).
+  `FogRules` and `CreatureModule.Fog` apply them:
+  - It hears, and does not see. A noise is heard as far as the hunt's sight times its loudness. A run and a hard
+    landing are loudest, a swing nearly so, and a walking step carries only a few metres.
+  - It senses the player only while they are in the mist with it. It bounds itself by the sump's laid mist, not the
+    mouths' glow. A player out of the mist draws it only to the edge, where it stops.
+  - After each bite it circles off on an errand, and its teeth click (`Cue.NeedleClick`) faster as it nears.
+- **Test aid:** `craft.dungeon.mistmap <metres>` maps where a fog foe may swim at that height. The sump's zone cells
+  cover only its bottom metre, so they do not bound it.
+
+| | Triangles | Paint | GLB |
+| --- | --- | --- | --- |
+| Needle-mouth | 7,485 (5,998 body, the rest the mouth's inside and teeth) | 357 x 361 at 64 texels/m | 783 KB |
+

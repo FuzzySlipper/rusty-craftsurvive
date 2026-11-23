@@ -393,6 +393,17 @@
    "retained": "authoring/assets/creatures/root-adder/ (authoring/tools/assets-sync.sh)"
   },
   {
+   "mesh": "content/game/creatures/needle-mouth/needle-mouth.glb",
+   "sha256": "79e3db306936964ec25218b2625f3cb6269657854dcf6508324bc678708639e8",
+   "manifest": "content/game/creatures/needle-mouth/needle-mouth.manifest.json",
+   "built": "authoring/tools/creatures/build_creature.py from authoring/assets/creatures/needle-mouth/species.json with --mesh mouthed.glb --texture mouthed-64.png (#10985; on the floater family, the serpent's bones swimming in the air; the mouth cut open by open_mouth.py from the species' mouthCut block); fade.png by fade_paint.py at its defaults",
+   "concept": "authoring/assets/creatures/needle-mouth/concept/sheet-b.png: Den #10985's second sheet from den-wiki wandering-years/fog-wildlife round22 option 6, its head drawn again from a crop of that reference; Patch said to mesh from it 2026-11-22 (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "authoring/assets/creatures/needle-mouth/mesh/reference.png (reference-1.png drew its end views as spikes), laid out straight for the rig from a crop of sheet B's side view; spec beside it; cut by cut_views.py",
+   "body": "Tripo web studio multi-view (H3.1, triangle topology, textured), exported GLB (mesh/tripo/tripo.glb); prepare_mesh.py --head -y --length 4.0 --triangles 6000 --texels 128 --girth 0.55 --depth 1.25 (Tripo made it round; a ribbon is narrow and deep)",
+   "reduced": "margin_paint.py --from 0.15 --to 0.55 --head-from 1.5 (violet back and belly margins, the head's teeth and marks kept), then pixel_reduce.py --factor 2 --colors 14 --luminance 0.64 --saturation 0.95 (64 texels/m); open_mouth.py adds a 2-row strip for the mouth's inside and teeth",
+   "retained": "authoring/assets/creatures/needle-mouth/ (authoring/tools/assets-sync.sh)"
+  },
+  {
    "mesh": "content/game/creatures/blindfish/blindfish.glb",
    "sha256": "f9d28ed50c6badfedafe19d547ca79090e44ef5e00b88a5f23e5d0faf8d3de58",
    "manifest": "content/game/creatures/blindfish/blindfish.manifest.json",

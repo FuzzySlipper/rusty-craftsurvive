@@ -26,6 +26,8 @@ internal enum Cue
     Portal,
     /// <summary>A chime grazer's crest ringing (#10962), placed where it stands and heard as far as its call reaches.</summary>
     Chime,
+    /// <summary>A needle-mouth's teeth clicking as it hunts (#10985), placed at its head, quicker as it nears.</summary>
+    NeedleClick,
 }
 
 /// <summary>

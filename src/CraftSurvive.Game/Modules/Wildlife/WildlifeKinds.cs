@@ -98,6 +98,9 @@ internal enum WildlifeClipRole
     /// pool, whose home is the pool's middle over a bed a few tenths of a metre down).
     /// </summary>
     Swim,
+
+    /// <summary>Circling off between attacks, the body bowed toward its turn (#10985: the needle-mouth in the mist).</summary>
+    Circle,
 }
 
 /// <summary>
@@ -239,7 +242,23 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
 
     /// <summary>A tender (#10961): it threatens by what it releases, shuts or calls, never by its own blows.</summary>
     internal bool Tends => Brood is not null || Seals is not null || Calls is not null;
+
+    /// <summary>How it lives in a mist sump (#10985, the fog foes); null for one that walks and sees.</summary>
+    internal WildlifeFog? Fog { get; init; }
 }
+
+/// <summary>
+/// A fog foe's ways (#10985), settled with Patch on the wiki's Fog wildlife page ("Roster and rules"): it swims the mist
+/// <paramref name="FloatMetres"/> over the floor, rising and falling by <paramref name="BobMetres"/> over
+/// <paramref name="BobSeconds"/>, and never leaves the mist. It hunts by sound, not sight: a noise the player makes is
+/// heard as far as its hunt's sight metres times the noise's loudness, and it comes at it while it heard one within
+/// <paramref name="HeardSeconds"/>; within <paramref name="FeelMetres"/> in the mist it senses the player however quiet.
+/// After each bite it circles off <paramref name="CircleMetres"/> from the player for <paramref name="CircleSeconds"/>
+/// before it comes again. Hunting, its teeth click every <paramref name="ClickFarSeconds"/> at the edge of its hearing,
+/// faster as it nears, to every <paramref name="ClickNearSeconds"/> at the player.
+/// </summary>
+internal sealed record WildlifeFog(double FloatMetres, double BobMetres, double BobSeconds, double HeardSeconds, double FeelMetres,
+    double CircleMetres, double CircleSeconds, double ClickFarSeconds, double ClickNearSeconds);
 
 /// <summary>
 /// A chime grazer's call (#10962), settled with Patch on the wiki's Ruins wildlife page: disturbed, it rings its crest for
@@ -880,7 +899,15 @@ internal static class WildlifeKinds
             Calls = hunt.TryGetProperty("calls", out JsonElement calls)
                 ? new WildlifeCalling(calls.GetProperty("reachMetres").GetDouble(), calls.GetProperty("againSeconds").GetDouble())
                 : null,
+            Fog = hunt.TryGetProperty("fog", out JsonElement fog)
+                ? new WildlifeFog(fog.GetProperty("floatMetres").GetDouble(), fog.GetProperty("bobMetres").GetDouble(), fog.GetProperty("bobSeconds").GetDouble(),
+                    fog.GetProperty("heardSeconds").GetDouble(), fog.GetProperty("feelMetres").GetDouble(), fog.GetProperty("circleMetres").GetDouble(),
+                    fog.GetProperty("circleSeconds").GetDouble(), fog.GetProperty("clickFarSeconds").GetDouble(), fog.GetProperty("clickNearSeconds").GetDouble())
+                : null,
         };
+        if (read.Fog is { } foe && (foe.FloatMetres <= 0 || foe.BobMetres < 0 || foe.BobSeconds <= 0 || foe.HeardSeconds <= 0 || foe.FeelMetres < read.ReachMetres
+            || foe.CircleMetres <= read.ReachMetres || foe.CircleSeconds <= 0 || foe.ClickNearSeconds <= 0 || foe.ClickFarSeconds < foe.ClickNearSeconds))
+            throw new InvalidDataException($"{id}: a fog foe floats, hears for a while, feels at least as far as it reaches, circles off beyond its reach, and clicks faster near");
         if (read.Calls is { ReachMetres: <= 0 } or { AgainSeconds: <= 0 } || (read.Calls is not null && read.Display is null))
             throw new InvalidDataException($"{id}: a call reaches somewhere, takes a rest between rings, and rings for its display's while");
         if (read.Brood is { Count: <= 0 } or { GuardMetres: <= 0 } or { RegrowSeconds: <= 0 }) throw new InvalidDataException($"{id}: a brood has animals, a guard and a regrowth");

@@ -53,11 +53,33 @@ internal sealed class Hunter(WildlifeKind kind, HerdRecord record, WildlifeMembe
     /// <summary>Falling from its ceiling, how fast, in metres a second; 0 when not falling.</summary>
     internal float FallSpeed { get; set; }
 
-    /// <summary>It stands to show its threat or bite, or is still falling: it does not walk meanwhile.</summary>
-    internal bool Holding => ThreatSeconds > 0 || BiteSeconds > 0 || (Member.Lift > 0 && !Hangs);
+    /// <summary>It stands to show its threat or bite, or is still falling: it does not walk meanwhile. A fog foe swims lifted (#10985).</summary>
+    internal bool Holding => ThreatSeconds > 0 || BiteSeconds > 0 || Falling;
 
     /// <summary>It hangs from its ceiling now, at rest.</summary>
     internal bool Hangs { get; set; }
+
+    /// <summary>A fog foe (#10985): it swims the mist lifted over its floor, hears and does not see.</summary>
+    internal bool Floats => Kind.Hunt?.Fog is not null;
+
+    /// <summary>It is falling from its ceiling (#10877): lifted, neither hanging nor swimming.</summary>
+    internal bool Falling => Member.Lift > 0 && !Hangs && !Floats;
+
+    /// <summary>A fog foe's hearing (#10985): how long ago it last heard the player, and where.</summary>
+    internal double HeardAgoSeconds { get; set; } = double.PositiveInfinity;
+
+    internal Vector3? HeardAt { get; set; }
+
+    /// <summary>How long until a hunting fog foe's teeth click again (#10985).</summary>
+    internal double ClickInSeconds { get; set; }
+
+    /// <summary>A fog foe circling off after a bite (#10985), and which way it swings first: 1 to its left, -1 to its right.</summary>
+    internal bool Circling { get; set; }
+
+    internal int CircleSide { get; } = order % 2 == 0 ? 1 : -1;
+
+    /// <summary>Where in its bob a fog foe starts, so two do not rise and fall together.</summary>
+    internal double BobPhase { get; } = (member.Id * 2.399963) % (2 * Math.PI);
 }
 
 
@@ -263,10 +285,12 @@ internal static class HunterRules
     /// <summary>
     /// How far over its floor the lowest of a hanging or falling animal's body is (R10877-2): its lift less its height, since
     /// it hangs below its grip. A swing measures its reach from there, so one overhead is out of reach until it comes down.
+    /// A fog foe swims its body's height over its lift (#10985), so its lowest point is its lift.
     /// </summary>
     internal static float BodyOffFloor(Hunter hunter)
     {
         ArgumentNullException.ThrowIfNull(hunter);
+        if (hunter.Floats) return hunter.Member.Lift;
         return Math.Max(0f, hunter.Member.Lift - (float)hunter.Kind.Body.HeightMetres);
     }
 
@@ -283,11 +307,13 @@ internal static class HunterRules
     {
         ArgumentNullException.ThrowIfNull(hunter);
         if (hunter.Hangs) return (WildlifeClipRole.Hang, "hanging from its ceiling");
-        if (hunter.Member.Lift > 0) return (WildlifeClipRole.Drop, "falling from its ceiling");
+        if (hunter.Falling) return (WildlifeClipRole.Drop, "falling from its ceiling");
         if (hunter.HurtSeconds > 0) return (WildlifeClipRole.Hurt, "flinching from a blow");
         if (hunter.BiteSeconds > 0) return (WildlifeClipRole.Bite, "biting");
         WildlifeHunt hunt = hunter.Kind.Hunt!;
         if (hunter.ThreatSeconds > 0) return (hunt.Display?.Clip ?? WildlifeClipRole.Threat, "showing its display");
+        // A fog foe circling off between lunges (#10985) swims bowed into its turn.
+        if (hunter.Circling) return (WildlifeClipRole.Circle, "circling off between lunges");
         if (speed > StandingSpeed) return speed > runsAbove ? (WildlifeClipRole.Run, "moving faster than its run starts") : (WildlifeClipRole.Walk, "moving");
         return state switch
         {

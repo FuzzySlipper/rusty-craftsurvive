@@ -184,6 +184,15 @@ const EFFECTS = {
     const breath = envelope(band(noise(2.4, next), 900, 2600), 0.25, 0.6);
     return mix(2.4, [waver(strike(247, 0.9)), 1], [waver(strike(247, 0.7)), 0.45, 0.62], [breath, 0.05]);
   },
+  // A needle-mouth's teeth clicking as it hunts (#10985): dry ticks of needle on needle, a hollow tock behind each, two
+  // or three close together; two so a quickening run of them does not machine-gun.
+  ...Object.fromEntries([1, 2].map((variant) => [`needle-click-${variant}`, (next) => {
+    const tick = (pitch) => mix(0.05,
+      [envelope(band(noise(0.05, next), 2600 + pitch, 7000), 0.0005, 0.006), 1],
+      [envelope(tone(0.04, 820 + pitch * 0.2, triangle), 0.001, 0.012), 0.25]);
+    const gaps = variant === 1 ? [0, 0.028, 0.052] : [0, 0.036];
+    return mix(0.12, ...gaps.map((at, k) => [tick(k * 400 + variant * 250), 1 - k * 0.22, at]));
+  }])),
   portal: (next) => {
     const swell = band(noise(1.2, next), 60, 1);
     const rumble = lowPass(swell, (t) => 200 + 900 * Math.sin(Math.PI * Math.min(1, t / 1.1)));

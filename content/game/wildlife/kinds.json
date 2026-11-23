@@ -520,6 +520,33 @@
       "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
     },
     {
+      "id": "needle-mouth",
+      "name": "Needle-mouth",
+      "$comment": "The first fog foe (#10985), settled with Patch on den-wiki wandering-years/fog-wildlife ('Roster and rules'): a solid ribbon-eel that swims a mist sump's air about a metre over the floor and never leaves the mist. It hunts by sound, not sight: sightMetres is how far it hears a full-loudness noise (a run, a swing, a hard landing). It comes mouth first in long lunges at its flee pace, bites, and circles off before it comes again; its teeth click faster as it nears. Its body is faded into the mist and turns solid head first as it attacks (#10984). Placed by test aid only: placement through the sumps stays with #10174.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 6 },
+      "body": { "lengthMetres": 4.0, "heightMetres": 0.55, "widthMetres": 0.2, "sizeClass": "human", "colour": "#d8d0e0" },
+      "mesh": {
+        "file": "creatures/needle-mouth/needle-mouth.glb",
+        "manifest": "creatures/needle-mouth/needle-mouth.manifest.json",
+        "ragdoll": "creatures/needle-mouth/needle-mouth.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "idle", "circle": "circle", "threat": "threat", "bite": "bite", "hurt": "hurt", "die": "die" },
+        "fade": { "paint": "creatures/needle-mouth/fade.png", "cutoff": 0.25, "rest": 0.15, "sweepSeconds": 0.35 }
+      },
+      "speeds": { "walk": 1.2, "grazeDrift": 0.4, "flee": 6.5, "turnDegrees": 150 },
+      "wariness": { "noticeMetres": 20, "actMetres": 6, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 20, "reachMetres": 2.6, "haltMetres": 2.0, "accuracy": 20, "power": 3, "cooldownTicks": 150, "biteWindupSeconds": 0.62, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 6, "clip": "idle" }, "search": { "seconds": 6, "clip": "idle" },
+        "fog": { "$comment": "#10985: it swims floatMetres over the floor, bobbing; it comes at a noise heard within heardSeconds and feels the player within feelMetres in the mist; after a bite it circles off circleMetres from the player for circleSeconds; its teeth click every clickFarSeconds at the edge of its hearing, quickening to clickNearSeconds at the player.",
+          "floatMetres": 1.0, "bobMetres": 0.12, "bobSeconds": 3.4, "heardSeconds": 4, "feelMetres": 3.0, "circleMetres": 5.0, "circleSeconds": 2.5, "clickFarSeconds": 0.9, "clickNearSeconds": 0.1 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 45, "evasion": 35, "armour": 2, "experience": 260 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
       "id": "mouldback",
       "name": "Mouldback",
       "$comment": "Cave wildlife (#10876); its own body (#10877), resting flat as one more patch of fungus.",

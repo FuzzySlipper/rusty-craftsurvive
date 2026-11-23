@@ -2087,6 +2087,157 @@ SERPENT_CLIPS = {
 }
 
 
+# ---------------------------------------------------------------- floater: the serpent's rig swimming the air (#10985)
+# The fog foes swim the mist a metre or two over the floor (den-wiki wandering-years/fog-wildlife). The product holds
+# the body up (its lift); these clips swim it in place, never touching the ground, on the serpent's bones.
+
+def floater_arch(c, settings, amount):
+    """The lifts that raise the rear into an arch behind the head and curl the tail over at its tip, by `amount`, as
+    the body's cumulative pitch from the tail tip: `archDegrees` falling to level over `archSegments`, and `curlDegrees`
+    more over the last `curlSegments`. Returns the lifts, the tail first."""
+    count = len(serpent_body(c))
+    arch, curl = settings.get("archDegrees", 60.0), settings.get("curlDegrees", 100.0)
+    arch_segments, curl_segments = settings.get("archSegments", 7), settings.get("curlSegments", 3)
+    angles = [-amount * (arch * max(0.0, 1.0 - k / arch_segments) + curl * max(0.0, 1.0 - k / curl_segments)) for k in range(count)]
+    return [angles[0]] + [angles[k] - angles[k - 1] for k in range(1, count)]
+
+
+def floater_pin(c, lifts, forward=0.0):
+    """Moves the root so the neck's base stays where it rests, `forward` metres ahead of it, whatever the lifts do to
+    the body behind: the chain runs from the tail tip, so an arch lifted at the tail would otherwise swing the head."""
+    names = serpent_body(c)
+    along = up = 0.0
+    angle = 0.0
+    for name, lift in zip(names, lifts):
+        angle += math.radians(lift)
+        length = c.rig.data.bones[name].length
+        along += length * (math.cos(angle) - 1.0)
+        up += length * math.sin(angle)
+    # Forward is Blender's -Y.
+    c.bone_offset("root", (0.0, along - forward, -up))
+
+
+def floater_front_s(c, settings, amount):
+    """The turns that draw the front back into a sideways S over the last `frontSegments`, by `amount`, the rest
+    straight: the wind-up of a lunge."""
+    count = len(serpent_body(c))
+    front = settings.get("frontSegments", 5)
+    bend = settings.get("sDegrees", 34.0) * amount
+    return [0.0] * (count - front) + [bend * math.sin(math.pi * 2.0 * (k + 0.5) / front) for k in range(front)]
+
+
+def floater_hover(c, s, t):
+    """Hanging in the mist: a slow, shallow wave runs down the body, the head steady and searching."""
+    serpent_slither(c, s["idle"], t)
+    c.bone_rotation("neck", yaw(9.0 * gait.wave(t, lag=0.25)) @ pitch(3.0 * gait.wave(t, 2)))
+    c.bone_rotation("jaw", pitch(-4.0 - 3.0 * gait.wave(t, 2, lag=0.3)))
+
+
+def floater_swim(c, s, t):
+    serpent_slither(c, s["walk"], t)
+    c.bone_rotation("jaw", pitch(-5.0))
+
+
+def floater_dash(c, s, t):
+    serpent_slither(c, s["run"], t)
+    c.bone_rotation("jaw", pitch(-10.0))
+
+
+def floater_circle(c, s, t):
+    """Circling off between lunges: the body bowed into an arc toward its turn (left), a wave still running down it,
+    the head looking in over its shoulder at what it circles."""
+    settings = s["circle"]
+    names = serpent_body(c)
+    count = len(names)
+    arc = settings.get("arcDegrees", 110.0) / count
+    wave = serpent_wave(count, settings.get("bendDegrees", 10.0), settings.get("waveSegments", 7.0), t)
+    turns = [arc + turn * (0.45 + 0.55 * math.sin(math.pi * (k + 0.5) / count)) for k, turn in enumerate(wave)]
+    heading = serpent_lay(c, turns, centre=False)
+    c.bone_rotation("root", yaw(-0.5 * heading))
+    c.bone_rotation("neck", yaw(-0.5 * heading + settings.get("lookDegrees", 25.0)))
+    c.bone_rotation("head", yaw(8.0 * gait.wave(t, lag=0.3)))
+    c.bone_rotation("jaw", pitch(-8.0))
+
+
+def floater_gape(c, s, t):
+    """It has its prey: the front drawn back into an S, the rear rising into its arch, the jaws gaping on the needles,
+    swaying a little. The lunge comes out of this."""
+    settings = s["threat"]
+    up = gait.rise_hold_fall(t, 0.25, 0.85)
+    lifts = floater_arch(c, settings, 0.6 * up)
+    serpent_lay(c, floater_front_s(c, settings, up), lifts, centre=False)
+    floater_pin(c, lifts, -settings.get("drawMetres", 0.3) * up)
+    c.bone_rotation("neck", yaw(6.0 * up * gait.wave(t, 2)))
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 55.0) * up))
+
+
+def floater_lunge(c, s, t):
+    """The lunge-bite: drawn back into the S with the rear arching up, the front shoots straight out and a little down,
+    the jaws as wide as they go; they snap shut, and it eases back. The product carries it along the passage."""
+    settings = s["bite"]
+    back = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.3, 0.42))
+    strike = gait.ease_in_out(t, 0.3, 0.44) * (1.0 - gait.ease_in_out(t, 0.62, 1.0))
+    wide = gait.ease_in_out(t, 0.08, 0.34) * (1.0 - gait.ease_in_out(t, 0.46, 0.52))
+    shut = gait.ease_in_out(t, 0.46, 0.52) * (1.0 - gait.ease_in_out(t, 0.8, 1.0))
+    arch = gait.ease_in_out(t, 0.0, 0.36) * (1.0 - gait.ease_in_out(t, 0.6, 1.0))
+    lifts = floater_arch(c, settings, arch)
+    # The dive: the front tips down at the prey as it straightens.
+    names = serpent_body(c)
+    front = settings.get("frontSegments", 5)
+    dive = settings.get("diveDegrees", 12.0) * strike
+    lifts = lifts[:-front] + [lift - dive / front for lift in lifts[-front:]]
+    serpent_lay(c, floater_front_s(c, settings, back), lifts, centre=False)
+    floater_pin(c, lifts, settings.get("reachMetres", 0.8) * strike - settings.get("drawMetres", 0.3) * back)
+    c.bone_rotation("neck", pitch(dive * 0.5))
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 70.0) * wide + 2.0 * shut))
+
+
+def floater_hurt(c, s, t):
+    """A blow lands: the body jerks into a shallow bow away from it, centred where it was, the head thrown back and the
+    jaws gaping."""
+    hit = gait.rise_hold_fall(t, 0.12, 0.3)
+    names = serpent_body(c)
+    bow = s["hurt"].get("bowDegrees", 5.0)
+    serpent_lay(c, [bow * hit * math.sin(math.pi * k / len(names)) for k in range(len(names))])
+    c.bone_rotation("neck", pitch(18.0 * hit) @ yaw(-20.0 * hit))
+    c.bone_rotation("jaw", pitch(-30.0 * hit))
+
+
+def floater_die(c, s, t):
+    """It goes limp in the air: the body slackens into a loose curve, centred where it was, and rolls belly up, the
+    jaws falling open. The product lets it sink to the floor."""
+    limp = gait.ease_in_out(t, 0.1, 0.8)
+    names = serpent_body(c)
+    curve = s["die"].get("curveDegrees", 6.0)
+    turns = [limp * curve * math.sin(math.pi * 2.2 * k / len(names)) for k in range(len(names))]
+    heading = serpent_lay(c, turns)
+    # serpent_lay centred the flat shape on the origin; the roll turns it about the ground's forward axis there, so the
+    # body is lifted and moved aside to turn about its own middle instead.
+    points = serpent_flat(c, turns)
+    cx, cy = sum(p[0] for p in points) / len(points), sum(p[1] for p in points) / len(points)
+    back = -math.radians(heading)
+    rx, ry = cx * math.cos(back) - cy * math.sin(back), cx * math.sin(back) + cy * math.cos(back)
+    angle = math.radians(s["die"].get("rollDegrees", 150.0) * limp)
+    middle = c.rig.data.bones[names[len(names) // 2]].head_local.z
+    c.bone_rotation("root", roll(math.degrees(angle)) @ yaw(-heading))
+    c.bone_offset("root", (-rx + middle * math.sin(angle), -ry, middle * (1.0 - math.cos(angle))))
+    c.bone_rotation("neck", pitch(-6.0 * limp) @ yaw(20.0 * limp))
+    c.bone_rotation("jaw", pitch(-28.0 * limp))
+
+
+FLOATER_CLIPS = {
+    "rest": (clip_rest, False, False),
+    "idle": (floater_hover, True, False),
+    "walk": (floater_swim, True, False),
+    "run": (floater_dash, True, False),
+    "circle": (floater_circle, True, False),
+    "threat": (floater_gape, False, False),
+    "bite": (floater_lunge, False, False),
+    "hurt": (floater_hurt, False, False),
+    "die": (floater_die, False, False),
+}
+
+
 # ---------------------------------------------------------------- strider: two legs and two long arms, no tail (#10956)
 
 def strider_bones():
@@ -2865,6 +3016,7 @@ FAMILIES = {
     # The low-slung legs and feet with a bending trunk and a tail as long as the species draws it (#10879).
     # No legs (#10883): body segments from the tail tip to the neck; the product pitches it between s2 and the head.
     "serpent": Family(serpent_bones, {}, SERPENT_CLIPS, (), "s2", "head", (), (), sized=True, root_deforms=False),
+    "floater": Family(serpent_bones, {}, FLOATER_CLIPS, (), "s2", "head", (), (), sized=True, root_deforms=False),
     "saurian": Family(saurian_bones, SAURIAN_LEGS, SAURIAN_CLIPS,
                       (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                       ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand"), sized=True),

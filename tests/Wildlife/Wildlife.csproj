@@ -28,6 +28,8 @@
     <Compile Include="$(ProductModules)Creatures/CreatureManifest.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Creatures/HunterRules.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Creatures/TenderRules.cs" LinkBase="Product/Creatures" />
+    <Compile Include="$(ProductModules)Creatures/FogRules.cs" LinkBase="Product/Creatures" />
+    <Compile Include="$(ProductModules)Player/PlayerFootfalls.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Dungeons/RuinDoorway.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Creatures/CreatureGround.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Rpg/CreatureBehavior.cs" LinkBase="Product/Rpg" />
@@ -44,6 +46,7 @@
     <EmbeddedResource Include="../../content/game/creatures/cave-goat/cave-goat.manifest.json" LogicalName="Wildlife.cave-goat.manifest.json" />
     <EmbeddedResource Include="../../content/game/creatures/sloth/sloth.manifest.json" LogicalName="Wildlife.sloth.manifest.json" />
     <EmbeddedResource Include="../../content/game/creatures/gaunt/gaunt.manifest.json" LogicalName="Wildlife.gaunt.manifest.json" />
+    <EmbeddedResource Include="../../content/game/creatures/needle-mouth/needle-mouth.manifest.json" LogicalName="Wildlife.needle-mouth.manifest.json" />
     <EmbeddedResource Include="../../content/game/birds/birds.json" LogicalName="Wildlife.birds.json" />
     <EmbeddedResource Include="../../content/game/creatures/*/*.ragdoll.json" LogicalName="Wildlife.%(Filename)%(Extension)" />
     <EmbeddedResource Include="../../content/game/creatures/collector/collector.glb" LogicalName="Wildlife.collector.glb" />

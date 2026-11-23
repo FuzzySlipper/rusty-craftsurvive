@@ -428,6 +428,17 @@ internal sealed class PlayerController : IDisposable
     /// <summary>Whether the player is sprinting: asking to, and moving.</summary>
     internal bool Sprinting => lastInputFrame.SprintRequested && lastInputFrame.PlanarIntent != Vector2.Zero;
 
+    /// <summary>What the player's body has done that can be heard since the creatures last asked (#10985: fog foes hunt by sound).</summary>
+    private BodySound heardSinceTaken;
+
+    /// <summary>Hands over what the body did that can be heard since the last call, and starts afresh.</summary>
+    internal BodySound TakeBodySounds()
+    {
+        BodySound taken = heardSinceTaken;
+        heardSinceTaken = BodySound.None;
+        return taken;
+    }
+
     /// <summary>Where the player last looked, as a view direction in world axes; zero before the first look.</summary>
     internal Vector3 AimForward => aimForward;
 
@@ -762,6 +773,7 @@ internal sealed class PlayerController : IDisposable
             receipt.Movement.Immersion,
             climbHeld,
             receipt.Movement.ClimbAttached));
+        heardSinceTaken |= heard;
         // Body sounds are heard as the player's own, but a landing or a splash is seen at the feet.
         Vector3 feet = receipt.Transform.Translation - (Vector3.UnitY * (PlayerBody.Height(receipt.Motion.Stance) / 2f));
         foreach ((BodySound sound, Cue cue) in BodyCues)

@@ -697,7 +697,7 @@ internal sealed partial class DungeonModule : IProductModule
     /// <summary>Who moves through the dungeon now besides the player, by id and feet in the session's frame: its creatures (#10989).</summary>
     internal Func<IEnumerable<(int Id, Vector3 Feet)>>? MistMovers { get; set; }
 
-    private readonly List<(Vector3 Centre, Vector3 Half, float Yaw, float Density)> sumpMist = [];
+    private readonly List<(Vector3 Centre, Vector3 Half, float Yaw, float Density, bool Mouth)> sumpMist = [];
     private IReadOnlyList<MistVolume> laidMist = [];
     private MistEddies? eddies;
 
@@ -723,7 +723,7 @@ internal sealed partial class DungeonModule : IProductModule
             if (volume.Sump)
             {
                 float density = volume.Density * look.Thickness;
-                sumpMist.Add((centre, volume.HalfExtents, volume.YawDegrees, density));
+                sumpMist.Add((centre, volume.HalfExtents, volume.YawDegrees, density, volume.Mouth));
                 // A mouth glows more of its teal and keeps the hall's broad noise, so it reads as a pale wall from outside in the
                 // dark; a pale albedo there threw the lantern back as soup a step inside. It spills slowly.
                 engine.CameraView.SetFogVolume(new FogVolumeRequest(ProductIds.DungeonMistBase + (uint)i, FogVolumeShape.Ellipsoid, centre, volume.HalfExtents,
@@ -745,20 +745,76 @@ internal sealed partial class DungeonModule : IProductModule
         if (mist.Count == 0 || !look.Eddies) eddies?.Clear(EddyIds);
     }
 
+    /// <summary>
+    /// Whether a point in the session's frame lies in a mist sump's mist (#10985), the bounds a fog foe swims within: in one
+    /// of the sump's laid volumes, but for its mouths' glowing walls, which spill out past the openings. Not the zone's 1 m
+    /// cells: they come from a coarse field and can cover no more than the sump's bottom metre. False with no mist laid.
+    /// </summary>
+    internal bool InSumpMist(Vector3 point)
+    {
+        foreach ((Vector3 centre, Vector3 half, float yaw, float _, bool mouth) in sumpMist)
+        {
+            if (!mouth && Within(point, centre, half, yaw)) return true;
+        }
+
+        return false;
+    }
+
+
+    /// <summary>
+    /// Test aid (#10985): a map of each mist sump of the loaded dungeon, a row a metre of z and a column a metre of x over
+    /// its extent and three metres about, at <paramref name="overBed"/> metres over the sump's floor (its surface less its
+    /// depth where it has no bed under): 'm' where a fog foe swims (its mist, '#' where its zone's cells are too), 'o' in a
+    /// mouth's glow only, 'c' in its cells only, '.' in none.
+    /// </summary>
+    internal string MistMap(float overBed)
+    {
+        if (space is not DungeonSpace current) return "no dungeon is loaded";
+        const int Around = 3;
+        List<string> maps = [];
+        foreach (WaterZone zone in current.Layout.WaterZones.Where(zone => zone.Kind == WaterZoneKind.MistSump))
+        {
+            int x0 = (int)MathF.Floor(zone.SurfaceColumns.Min(c => c.X)) - Around, x1 = (int)MathF.Ceiling(zone.SurfaceColumns.Max(c => c.X)) + Around;
+            int z0 = (int)MathF.Floor(zone.SurfaceColumns.Min(c => c.Y)) - Around, z1 = (int)MathF.Ceiling(zone.SurfaceColumns.Max(c => c.Y)) + Around;
+            float floor = zone.SurfaceColumns.Select(c => zone.BedUnder(new Vector3(c.X, 0, c.Y))).OfType<float>().DefaultIfEmpty(zone.Surface - 2).Min();
+            System.Text.StringBuilder map = new(string.Create(CultureInfo.InvariantCulture, $"sump x {x0}..{x1} z {z0}..{z1} at y {floor + overBed:F1}:"));
+            for (int z = z0; z <= z1; z++)
+            {
+                map.Append(' ');
+                for (int x = x0; x <= x1; x++)
+                {
+                    Vector3 layout = new(x + 0.5f, floor + overBed, z + 0.5f);
+                    Vector3 point = DungeonSpace.InSession(layout);
+                    bool cell = zone.Contains(layout), swims = InSumpMist(point), glows = SumpMistAt(point) is not null;
+                    map.Append(swims ? (cell ? '#' : 'm') : glows ? 'o' : cell ? 'c' : '.');
+                }
+            }
+
+            maps.Add(map.ToString());
+        }
+
+        return maps.Count == 0 ? "no mist sump" : string.Join(" | ", maps);
+    }
+
     /// <summary>How thick a sump's mist is at a point in the session's frame, or null outside it.</summary>
     private float? SumpMistAt(Vector3 point)
     {
         float? thickest = null;
-        foreach ((Vector3 centre, Vector3 half, float yaw, float density) in sumpMist)
+        foreach ((Vector3 centre, Vector3 half, float yaw, float density, bool _) in sumpMist)
         {
-            Vector3 offset = point - centre;
-            float turn = -yaw * MathF.PI / 180f;
-            Vector3 local = new((offset.X * MathF.Cos(turn)) + (offset.Z * MathF.Sin(turn)), offset.Y, (-offset.X * MathF.Sin(turn)) + (offset.Z * MathF.Cos(turn)));
-            Vector3 scaled = local / half;
-            if (scaled.LengthSquared() <= 1f && density > (thickest ?? 0f)) thickest = density;
+            if (Within(point, centre, half, yaw) && density > (thickest ?? 0f)) thickest = density;
         }
 
         return thickest;
+    }
+
+    /// <summary>Whether a point lies in a yawed ellipsoid.</summary>
+    private static bool Within(Vector3 point, Vector3 centre, Vector3 half, float yaw)
+    {
+        Vector3 offset = point - centre;
+        float turn = -yaw * MathF.PI / 180f;
+        Vector3 local = new((offset.X * MathF.Cos(turn)) + (offset.Z * MathF.Sin(turn)), offset.Y, (-offset.X * MathF.Sin(turn)) + (offset.Z * MathF.Cos(turn)));
+        return (local / half).LengthSquared() <= 1f;
     }
 
     /// <summary>Moves the mist's eddies on (#10989): the player and the dungeon's creatures stir it where they move through it.</summary>

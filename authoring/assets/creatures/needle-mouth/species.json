@@ -1,0 +1,212 @@
+{
+ "id": "needle-mouth",
+ "family": "floater",
+ "about": "The needle-mouth (#10985), the first fog foe: a ribbon-eel 4 m long that swims the mist sumps' air and lunges mouth first at noise. Its Tripo body (authoring/assets/creatures/needle-mouth/mesh, from sheet B of concept/) was slimmed across and deepened by prepare_mesh.py's --girth 0.55 --depth 1.25 into a ribbon, its back and belly margins painted violet by margin_paint.py, its mouth cut open by open_mouth.py; on the floater family, the serpent's bones swimming in the air. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre.",
+ "mouth": {
+  "hingeForward": 1.5,
+  "upper": [
+   1.98,
+   0.22
+  ],
+  "lower": [
+   1.95,
+   0.1
+  ],
+  "biteHeight": 0.16
+ },
+ "mouthCut": {
+  "hinge": [
+   1.5,
+   0.135
+  ],
+  "tip": [
+   2.02,
+   0.19
+  ],
+  "cornerMetres": 0.03,
+  "reachMetres": 0.12,
+  "depthMetres": 0.03,
+  "toothEvery": 0.03,
+  "toothMetres": 0.035,
+  "toothInsetMetres": 0.006,
+  "insideColour": [
+   74,
+   40,
+   104
+  ],
+  "toothColour": [
+   236,
+   230,
+   220
+  ]
+ },
+ "clips": {
+  "fps": 30,
+  "idle": {
+   "seconds": 4.0,
+   "bendDegrees": 5.0,
+   "waveSegments": 9.0
+  },
+  "walk": {
+   "seconds": 1.8,
+   "stride": 1.2,
+   "bendDegrees": 12.0,
+   "waveSegments": 8.0
+  },
+  "run": {
+   "seconds": 0.9,
+   "stride": 3.0,
+   "bendDegrees": 18.0,
+   "waveSegments": 8.0
+  },
+  "circle": {
+   "seconds": 1.8,
+   "arcDegrees": 120.0,
+   "bendDegrees": 10.0,
+   "waveSegments": 8.0,
+   "lookDegrees": 25.0
+  },
+  "threat": {
+   "seconds": 1.6,
+   "archDegrees": 50.0,
+   "curlDegrees": 100.0,
+   "archSegments": 7,
+   "curlSegments": 3,
+   "frontSegments": 6,
+   "sDegrees": 20.0,
+   "drawMetres": 0.3,
+   "jawDegrees": 50.0
+  },
+  "bite": {
+   "seconds": 1.3,
+   "archDegrees": 50.0,
+   "curlDegrees": 100.0,
+   "archSegments": 7,
+   "curlSegments": 3,
+   "frontSegments": 6,
+   "sDegrees": 20.0,
+   "drawMetres": 0.3,
+   "reachMetres": 0.8,
+   "diveDegrees": 12.0,
+   "jawDegrees": 60.0
+  },
+  "hurt": {
+   "seconds": 0.6
+  },
+  "die": {
+   "seconds": 2.0
+  }
+ },
+ "points": {
+  "root": [
+   0,
+   0,
+   0
+  ],
+  "root_tip": [
+   0,
+   0.5,
+   0
+  ],
+  "s0": [
+   0,
+   -1.97,
+   0.257
+  ],
+  "s1": [
+   0,
+   -1.736,
+   0.261
+  ],
+  "s2": [
+   0,
+   -1.503,
+   0.266
+  ],
+  "s3": [
+   0,
+   -1.269,
+   0.27
+  ],
+  "s4": [
+   0,
+   -1.036,
+   0.275
+  ],
+  "s5": [
+   0,
+   -0.802,
+   0.279
+  ],
+  "s6": [
+   0,
+   -0.569,
+   0.28
+  ],
+  "s7": [
+   0,
+   -0.335,
+   0.28
+  ],
+  "s8": [
+   0,
+   -0.101,
+   0.28
+  ],
+  "s9": [
+   0,
+   0.132,
+   0.28
+  ],
+  "s10": [
+   0,
+   0.366,
+   0.28
+  ],
+  "s11": [
+   0,
+   0.599,
+   0.28
+  ],
+  "s12": [
+   0,
+   0.833,
+   0.28
+  ],
+  "s13": [
+   0,
+   1.066,
+   0.28
+  ],
+  "s14": [
+   0,
+   1.3,
+   0.28
+  ],
+  "head": [
+   0,
+   1.5,
+   0.28
+  ],
+  "nose": [
+   0,
+   2.0,
+   0.24
+  ],
+  "jaw": [
+   0,
+   1.52,
+   0.135
+  ],
+  "jaw_tip": [
+   0,
+   1.96,
+   0.1
+  ],
+  "eye": [
+   0.075,
+   1.72,
+   0.37
+  ]
+ }
+}

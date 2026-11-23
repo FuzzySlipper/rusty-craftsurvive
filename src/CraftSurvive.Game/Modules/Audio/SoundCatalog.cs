@@ -44,6 +44,9 @@ internal static class SoundCatalog
     /// <summary>How far a chime grazer's ring is heard (#10962): as far as its call reaches.</summary>
     private const float ChimeRangeMetres = 40f;
 
+    /// <summary>How far a needle-mouth's teeth are heard clicking (#10985): about as far as it hears the player.</summary>
+    private const float NeedleClickRangeMetres = 20f;
+
     /// <summary>What is left of the other beds while the player's head is under water.</summary>
     private const float Muffled = 0.15f;
 
@@ -68,6 +71,7 @@ internal static class SoundCatalog
         [Cue.Refused] = new(["refused"], AudioBus.Ui, 0.3f),
         [Cue.Portal] = new(["portal"], AudioBus.Sfx, 0.6f),
         [Cue.Chime] = new(["chime"], AudioBus.Sfx, 0.75f, Placed: true, RangeMetres: ChimeRangeMetres),
+        [Cue.NeedleClick] = new(["needle-click-1", "needle-click-2"], AudioBus.Sfx, 0.6f, Placed: true, RangeMetres: NeedleClickRangeMetres),
     };
 
     internal static readonly IReadOnlyDictionary<AmbienceBed, string> Beds = new Dictionary<AmbienceBed, string>

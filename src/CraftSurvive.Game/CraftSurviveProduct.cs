@@ -220,6 +220,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         wildlife.CavesNear = dungeons.CaveSitesNear;
         // What moves through a sump's mist stirs it (#10989): the dungeon's creatures near the player.
         dungeons.MistMovers = () => creatures.AwakeWithin(player.WorldFeetPosition, Modules.Dungeons.MistEddies.StirWithinMetres);
+        // A fog foe swims within its sump's mist and never leaves it (#10985).
+        creatures.InMist = dungeons.InSumpMist;
         // A cave regenerated afresh for a test (#10924) forgets its animals: hunters first, then their records.
         dungeons.ForgetCaveAnimals = key =>
         {

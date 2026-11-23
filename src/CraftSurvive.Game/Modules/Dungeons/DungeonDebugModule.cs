@@ -49,6 +49,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.mist", Description = "Test aid (#10989): reads or tunes the sump mist's look - thickness, noise (cell metres), strength, current (m/s), glow, eddyshare <n>, albedo <r,g,b>, glint <r,g,b> (the eddies' own light), eddies on|off, default - and lays it again; the readout counts its volumes and eddies against the Engine's cap.")]
     public string Mist(string key = "", string value = "") => dungeons.TuneSumpMist(key, value);
 
+    [DebugCommand("craft.dungeon.mistmap", Description = "Test aid (#10985): maps each mist sump a metre a character at this height over its floor: 'm' where a fog foe swims ('#' with the zone's cells too), 'o' a mouth's glow only, 'c' cells only, '.' none.")]
+    public string MistMap(string overBed = "1") => dungeons.MistMap(float.Parse(overBed, System.Globalization.CultureInfo.InvariantCulture));
+
     [DebugCommand("craft.dungeon.water", Description = "Reads the loaded cave's water zones (#10094): kind, surface height, open columns, cells, the extent of the open surface and its mouths, in layout metres.")]
     public string Water() => dungeons.WaterReadout();
 

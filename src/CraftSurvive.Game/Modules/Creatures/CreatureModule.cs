@@ -155,8 +155,15 @@ internal sealed partial class CreatureModule : IProductModule
             return creature.Position;
         }
 
-        creature.Body = moved;
         Vector3 feet = space.ToWorld(CreatureBody.FeetUnder(moved.Centre, config));
+        // A fog foe in the mist never swims out of it (#10985): a step that would leave it is not taken.
+        if (!MayStep(hunter, creature.Position, StandingAt(creature), feet))
+        {
+            creature.Body = body;
+            return creature.Position;
+        }
+
+        creature.Body = moved;
         creature.Feet = feet.Y;
         return new Vector2(feet.X, feet.Z);
     }
@@ -311,6 +318,9 @@ internal sealed partial class CreatureModule : IProductModule
             creature.Awake = CreatureSpaceRules.Awake(creature.Space, Feet(creature));
         }
 
+        // Fog foes hear what the player does (#10985), and a resting one wakes to it.
+        // The player's noises are taken every update, so none waits to be heard by a foe that comes later.
+        Listen(player.WorldFeetPosition, here, time.ElapsedSeconds);
         long routingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
         long queriesBefore = here is null ? 0 : NavigationsIn(here).Sum(navigation => navigation.Queries);
         if (here == walking) CloseAmbush();
@@ -318,6 +328,8 @@ internal sealed partial class CreatureModule : IProductModule
         HashSet<int> seeing = here is null || step < unseenUntil ? [] : Sense(playerWorld, here);
         // A whole seal (#10961) hides those on its far side.
         if (seals.Count > 0) seeing.RemoveWhere(id => roster.TryGet(id, out Creature seen) && SealedOff(seen, player.WorldFeetPosition));
+        // Fog foes sense by what they hear, not by sight (#10985), and only while the player is in the mist with them.
+        if (here is not null && step >= unseenUntil && hunters.Values.Any(hunter => hunter.Floats)) SenseFog(seeing, player.WorldFeetPosition);
         // A pack hunts as one: what one sees they all come for, though a bite still needs its own sight. One still lying at
         // rest calls nothing (#10878): it must wake first, at its own wake range, which a draft shortens from downwind.
         HashSet<int> alerted = HunterRules.Alerted(seeing, hunters, packAlarms, time.ElapsedSeconds,
@@ -362,7 +374,7 @@ internal sealed partial class CreatureModule : IProductModule
             CreatureSense sense = new(alerted.Contains(creature.Id));
             // An animal showing its display does not bite until it has shown it (#10876).
             // Nor does one still hanging or falling from its ceiling (#10877).
-            bool displaying = hunters.TryGetValue(creature.Id, out Hunter? shown) && ((shown.ThreatSeconds > 0 && shown.Kind.Hunt!.Display is not null) || shown.Member.Lift > 0);
+            bool displaying = hunters.TryGetValue(creature.Id, out Hunter? shown) && ((shown.ThreatSeconds > 0 && shown.Kind.Hunt!.Display is not null) || (shown.Member.Lift > 0 && !shown.Floats));
             if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit && !displaying, time, SightScale(creature, alerted),
                 CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody, WakeShare(shown, creature, playerWorld), ForcedState(creature) ?? ErrandState(creature)) is CreatureStrike strike)
             {
@@ -407,6 +419,7 @@ internal sealed partial class CreatureModule : IProductModule
         double distance = CreatureSimulation.PlanarDistance(creature.Position, playerWorld);
         CreatureState state = creature.Behavior.State;
         bool threatenedBefore = hunter.Threatened;
+        bool wasBiting = hunter.BiteSeconds > 0;
         AttackProfile? closing = HunterRules.Advance(hunter, state, distance, ClipSeconds(hunter, WildlifeClipRole.Threat), seconds);
         // A brood bearer's threat (#10961) splits its pods once its creatures have moved.
         if (!threatenedBefore && hunter.Threatened && hunter.Kind.Hunt!.Brood is not null) broodsDue.Add(creature.Id);
@@ -443,6 +456,7 @@ internal sealed partial class CreatureModule : IProductModule
             HunterRules.Hang(hunter, state, distance > hunter.Kind.Hunt.SightMetres, seconds);
         }
 
+        if (hunter.Floats) ShowFog(creature, hunter, playerWorld, wasBiting, seconds);
         member.Clip = HunterRules.Want(hunter, state, member.Velocity.Length(), runsAbove);
     }
 
@@ -977,7 +991,7 @@ internal sealed partial class CreatureModule : IProductModule
             $"defeated={defeated} items={player.Progress.ItemsCollected} experience={player.Progress.Experience} level={player.Progress.Level} ")
             + string.Create(CultureInfo.InvariantCulture,
             $"player={vitals.Health}/{vitals.MaximumHealth} defeats={vitals.Defeats} outcome={player.Vitals.Outcome(step)} ")
-            + $"attack={lastPlayerAttack} perception={perceptionStatus} failure={lastFailure}; last={lastEvent}; {rows}";
+            + $"attack={lastPlayerAttack} perception={perceptionStatus} failure={lastFailure}; last={lastEvent};{FogReadout()} {rows}";
     }
 
     /// <summary>Publishes navigation around the player now and reports the publication.</summary>
@@ -1337,7 +1351,8 @@ internal sealed partial class CreatureModule : IProductModule
     private HashSet<int> Sense(Vector3 playerWorld, CreatureSpace here)
     {
         HashSet<int> senses = [];
-        bool Looks(Creature creature) => creature.Space == here && Senses(creature);
+        // A fog foe does not look (#10985): it hears.
+        bool Looks(Creature creature) => creature.Space == here && Senses(creature) && !(hunters.TryGetValue(creature.Id, out Hunter? hunter) && hunter.Floats);
         if (!roster.All.Any(Looks))
         {
             return senses;

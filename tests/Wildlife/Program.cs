@@ -3,6 +3,7 @@ using System.Text.Json;
 using CraftSurvive.Game.Modules.Birds;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Dungeons;
+using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Water;
@@ -551,8 +552,10 @@ Check.Section("kinds", () =>
     Check.That(cave.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Cave is not null), "the cave's hunters (#10876) load, each with its cave");
     string[] ruin = ["collector", "skitterer", "carrier", "reaper", "threshold-lurker", "shard-dweller", "wall-runner", "channel-sifter", "stilt-pack", "brood-bearer", "mender", "brood-skitterer", "chime-grazer"];
     Check.That(ruin.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt is not null && k.Cave is null), "the ruins' hunters (#10956) load, in no cave's communities");
-    Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length, catalog.Kinds.Count,
-        "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters and nothing else");
+    string[] fog = ["needle-mouth"];
+    Check.That(fog.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt?.Fog is not null && k.Cave is null), "the fog foes (#10985) load, each with its fog ways");
+    Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length + fog.Length, catalog.Kinds.Count,
+        "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters, the fog foes and nothing else");
     Check.That(Enum.GetValues<PressedResponse>().All(r => catalog.Kinds.Any(k => k.Pressed == r)), "every pressed response must have a kind that shows it");
     Check.That(Enum.GetValues<WildlifeSizeClass>().All(c => catalog.SizeClasses.ContainsKey(c)), "every size class must have a capsule");
     WildlifeKind sloth = catalog.Kind("ground-sloth");
@@ -1720,6 +1723,81 @@ Check.Section("ruin tenders", () =>
     string[] grazerJoints = GlbJoints("Wildlife.chime-grazer.glb");
     Check.That(crestPieces.RootElement.GetProperty("held").TryGetProperty("crest", out JsonElement crest) && grazerJoints.Contains(crest.GetProperty("joint").GetString()),
         "its crest hangs from a joint of its rig");
+});
+
+// The fog foes (#10985): they float in a mist sump's air, hear rather than see, never leave the mist, and circle off
+// between bites.
+Check.Section("fog foes", () =>
+{
+    WildlifeKind needle = catalog.Kind("needle-mouth");
+    WildlifeFog fog = needle.Hunt!.Fog ?? throw new InvalidOperationException("the needle-mouth has no fog block");
+    Check.That(needle.Cave is null && needle.Population.HerdsPerSquareKilometre == 0, "the needle-mouth is placed by test aid only: placement through the sumps is #10174's");
+    Check.That(needle.Mesh!.Clips.TryGetValue(WildlifeClipRole.Circle, out string? circleClip) && circleClip == "circle" && needle.Mesh.Fade is not null && needle.Mesh.Ragdoll is not null,
+        "it circles on its own clip, fades into the mist and falls as a ragdoll");
+    CreatureRig needleRig = CreatureManifest.Parse(ReadResource("Wildlife.needle-mouth.manifest.json"));
+    WildlifeRig needleClips = WildlifeRig.For(needle.Mesh, needleRig);
+    Check.That(needle.Mesh.Clips.Keys.All(role => needleClips.Clips.ContainsKey(role)), "its built body plays every clip its kind names");
+
+    // How loud the player is: running is heard furthest, walking hardly; the loudest thing done counts.
+    Check.That(FogRules.Loudness(BodySound.Footstep, sprinting: true, swung: false) == FogRules.RunningStep
+        && FogRules.Loudness(BodySound.Footstep, sprinting: false, swung: false) == FogRules.WalkingStep, "a running step is loud, a walking one quiet");
+    Check.That(FogRules.Loudness(BodySound.None, false, false) == 0 && FogRules.Loudness(BodySound.Footstep | BodySound.HardLanding, false, true) == FogRules.HardLanding,
+        "standing still is silent, and the loudest thing done counts");
+    double hear = needle.Hunt.SightMetres;
+    Check.That(FogRules.Hears(FogRules.RunningStep, hear, hear - 1) && !FogRules.Hears(FogRules.WalkingStep, hear, hear - 1) && FogRules.Hears(FogRules.WalkingStep, hear, 2),
+        "a run is heard across its hearing, a walk only close by");
+    Check.That(!FogRules.Hears(0, hear, 0.5), "silence is never heard");
+
+    // Sensing: heard lately or within its feel, and only while the player is in the mist with it.
+    Check.That(FogRules.Senses(fog, true, 0, 15) && FogRules.Senses(fog, true, 99, fog.FeelMetres - 0.1) && !FogRules.Senses(fog, true, fog.HeardSeconds + 0.1, 15),
+        "in the mist it senses a player it heard lately or one within its feel, and loses a quiet one further off");
+    Check.That(!FogRules.Senses(fog, false, 0, 1), "out of the mist it senses nothing: the mist's edge is safety");
+
+    // Circling off: beside the way it came, at its distance, and only in the mist.
+    Vector2 foe = new(3, 0), prey = Vector2.Zero;
+    Vector2 circled = FogRules.CircleTo(foe, prey, fog.CircleMetres, 1, _ => true)!.Value;
+    Check.That(Math.Abs(Vector2.Distance(circled, prey) - fog.CircleMetres) < 1e-4, "it circles off at its circling distance from the player");
+    double off = Math.Acos(Vector2.Dot(Vector2.Normalize(circled - prey), Vector2.Normalize(foe - prey))) * 180 / Math.PI;
+    Check.That(off is > 60 and < 80, $"swung {off:F0} degrees off the way it came, so it curves off along the passage");
+    Vector2 other = FogRules.CircleTo(foe, prey, fog.CircleMetres, -1, _ => true)!.Value;
+    Check.That(circled.Y * other.Y < 0, "the two sides swing opposite ways");
+    Vector2 inSump = FogRules.CircleTo(foe, prey, fog.CircleMetres, 1, point => point.Y < 0)!.Value;
+    Check.That(inSump.Y < -4, "where its first choice is out of the mist, it takes the first that is in it: the other side");
+    Vector2 passage = FogRules.CircleTo(foe, prey, fog.CircleMetres, 1, point => Math.Abs(point.Y) < 1)!.Value;
+    Check.That(Vector2.Distance(passage, new Vector2((float)fog.CircleMetres, 0)) < 1e-4, "in a passage too narrow to swing aside, it goes straight back the way it came");
+    Check.That(FogRules.CircleTo(foe, prey, fog.CircleMetres, 1, _ => false) is null, "with nowhere in the mist it stays");
+
+    // Floating: about its float, never touching the floor, and a dead one sinks.
+    float[] lifts = [.. Enumerable.Range(0, 40).Select(k => FogRules.Float(fog, k * fog.BobSeconds / 40, 0.3, false, 0, 0.1))];
+    Check.That(lifts.Min() >= fog.FloatMetres - fog.BobMetres - 1e-4 && lifts.Max() <= fog.FloatMetres + fog.BobMetres + 1e-4 && lifts.Max() - lifts.Min() > fog.BobMetres,
+        "it swims at its float, rising and falling by its bob");
+    Check.That(FogRules.Float(fog, 0, 0, true, 1f, 0.5) < 1f && FogRules.Float(fog, 0, 0, true, 0.1f, 1) == 0, "a dead one sinks to the floor and stops there");
+
+    // Clicks quicken as it comes.
+    Check.That(Math.Abs(FogRules.ClickEvery(fog, hear, hear) - fog.ClickFarSeconds) < 1e-9 && Math.Abs(FogRules.ClickEvery(fog, hear, 0) - fog.ClickNearSeconds) < 1e-9
+        && FogRules.ClickEvery(fog, hear, hear / 2) < fog.ClickFarSeconds && FogRules.ClickEvery(fog, hear, hear * 3) == fog.ClickFarSeconds,
+        "its teeth click slowly at the edge of its hearing, faster as it nears");
+
+    // A floating hunter is not falling or hanging: it swims while lifted, and a swing measures from its lowest point.
+    HerdRecord sump = new("sump", needle.Id, Vector2.Zero, 1);
+    WildlifeMember eel = WildlifeRules.Wake(sump, needle, catalog, 7, Vector2.Zero, 1, () => 1).Leader;
+    Hunter swimmer = new(needle, sump, eel);
+    eel.Lift = (float)fog.FloatMetres;
+    Check.That(swimmer.Floats && !swimmer.Falling && !swimmer.Holding, "a fog foe swims while lifted, as no falling animal does");
+    Check.That(HunterRules.Want(swimmer, CreatureState.Pursuing, 5f, 2) == WildlifeClipRole.Run, "lifted, it swims its run, not a drop");
+    Check.That(Math.Abs(HunterRules.BodyOffFloor(swimmer) - eel.Lift) < 1e-6, "its body's lowest point is its lift");
+    swimmer.Circling = true;
+    Check.That(HunterRules.Want(swimmer, CreatureState.Searching, 3f, 2) == WildlifeClipRole.Circle, "circling off, it swims bowed into its turn");
+    swimmer.BiteSeconds = 1;
+    Check.That(HunterRules.Want(swimmer, CreatureState.Attacking, 0f, 2) == WildlifeClipRole.Bite, "a bite shows before a circle");
+    Check.That(new Hunter(needle, sump, eel, 1).CircleSide == -new Hunter(needle, sump, eel, 0).CircleSide, "foes of one sump circle off to different sides");
+
+    string kindsText = ReadKinds();
+    foreach ((string from, string to) in new[] { ("\"floatMetres\": 1.0", "\"floatMetres\": 0"), ("\"feelMetres\": 3.0", "\"feelMetres\": 1.0"), ("\"clickFarSeconds\": 0.9", "\"clickFarSeconds\": 0.05") })
+    {
+        Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
+        Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"a fog block with {to} is refused");
+    }
 });
 
 Check.Section("debug holds", () =>

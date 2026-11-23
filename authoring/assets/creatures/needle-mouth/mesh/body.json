@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/needle-mouth/mesh/tripo/tripo.glb",
+  "triangles": 5998,
+  "areaSquareMetres": 4.254,
+  "charts": 489,
+  "utilization": 0.7782,
+  "masterTexels": [
+    714,
+    718
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.0929403305053711,
+      -2.0008859634399414,
+      2.840138586179819e-05
+    ],
+    [
+      0.09319965541362762,
+      1.9994406700134277,
+      0.544840395450592
+    ]
+  ]
+}
