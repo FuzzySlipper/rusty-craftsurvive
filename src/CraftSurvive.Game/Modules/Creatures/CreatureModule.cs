@@ -256,6 +256,42 @@ internal sealed partial class CreatureModule : IProductModule
         .Where(creature => creature.Awake && CreatureSimulation.PlanarDistance(creature.Position, world) <= metres)
         .Select(creature => (creature.Id, new Vector3(creature.Position.X, StandingAt(creature), creature.Position.Y)));
 
+    /// <summary>How many points along its body an awake creature stirs a mist at (#10993): its head, middle and tail.</summary>
+    internal const int BodyPoints = 3;
+
+    /// <summary>The head and tail points lie this share of the body's length either side of its middle.</summary>
+    private const float BodyPointReach = 0.35f;
+
+    /// <summary>
+    /// Where along their bodies awake creatures within some metres are (#10993): for each, its head, middle and tail at the
+    /// height of its body's middle (a fog foe's over its lift), keyed by its id and the point. A long body passing through
+    /// a sump's mist stirs it along its whole length, not at one place.
+    /// </summary>
+    internal IEnumerable<(int Key, Vector3 At)> BodyPointsWithin(Vector3 world, double metres)
+    {
+        foreach (Creature creature in roster.All)
+        {
+            if (!creature.Awake || CreatureSimulation.PlanarDistance(creature.Position, world) > metres) continue;
+            float floor = StandingAt(creature);
+            if (!hunters.TryGetValue(creature.Id, out Hunter? hunter))
+            {
+                yield return (creature.Id * BodyPoints, new Vector3(creature.Position.X, floor + 1f, creature.Position.Y));
+                continue;
+            }
+
+            WildlifeMember member = hunter.Member;
+            float middle = floor + member.Lift + ((float)hunter.Kind.Body.HeightMetres / 2f);
+            // A creature's yaw 0 faces -z.
+            Vector2 forward = new(MathF.Sin(member.Yaw), -MathF.Cos(member.Yaw));
+            float reach = (float)hunter.Kind.Body.LengthMetres * member.Size * BodyPointReach;
+            for (int k = 0; k < BodyPoints; k++)
+            {
+                Vector2 at = member.Position + (forward * reach * (1 - k));
+                yield return ((creature.Id * BodyPoints) + k, new Vector3(at.X, middle, at.Y));
+            }
+        }
+    }
+
     /// <summary>How far the nearest awake hostile creature stands from a point, in metres, or infinity when none is awake.</summary>
     internal double NearestAwakeHostileMetres(Vector3 world) => roster.All
         .Where(creature => creature.Awake && creature.Kind.Tuning.Disposition == CreatureDisposition.Hostile)

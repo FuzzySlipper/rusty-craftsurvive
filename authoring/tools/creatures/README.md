@@ -732,8 +732,11 @@ A sump's passage is drawn as the Engine's fog regions (rusty-engine #10988), not
 can part it:
 - `SumpMistRegions` fits a box over each straight run of the passage's mist volumes, at their mean thickness and
   current, within the Engine's limits (8 regions, 262,144 cells). The mouths' glowing walls stay volumes.
-- `MistStirrers` puts a fog stirrer at each mover's middle in the mist, moved every step at its speed. A creature is
-  0.9 m across and clears 0.8. The player is 0.6 m and clears 0.4, so their lantern keeps its glow in the mist.
+- `MistStirrers` puts fog stirrers in the mist, moved every step at their speed:
+  - three along each creature's body (head, middle and tail, at its swim height), each 1.1 m across and clearing the
+    mist wholly, so a fog foe carves a lane its whole length (Patch: "strengthen it");
+  - one at the player's chest, 0.6 m across and clearing 0.4, so their lantern keeps its glow in the mist.
+- The mist refills over 7 s.
 - The add-only eddies of #10989 are off by default (`craft.dungeon.mist eddies on` brings them back).
 - Tuning: `craft.dungeon.mist regions|stir on|off`, `settle`, `push`, `clear`, `radius`, and `you <radius,clear>`.
 

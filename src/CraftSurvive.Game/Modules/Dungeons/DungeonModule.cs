@@ -694,7 +694,7 @@ internal sealed partial class DungeonModule : IProductModule
     internal sealed record SumpMistLook(float Thickness, float NoiseScale, float NoiseStrength, float CurrentMetresPerSecond, Vector3 Albedo, float GlowShare, bool Eddies,
         bool Regions = true, bool Stir = true, float SettleSeconds = 4f)
     {
-        internal static SumpMistLook Default { get; } = new(1f, 1.2f, 1f, 0.35f, new Vector3(0.45f, 0.48f, 0.52f), 1f, false);
+        internal static SumpMistLook Default { get; } = new(1f, 1.2f, 1f, 0.35f, new Vector3(0.45f, 0.48f, 0.52f), 1f, false, SettleSeconds: 7f);
     }
 
     /// <summary>The sump mist's look now; the live-debug tuning changes it and lays the mist again.</summary>
@@ -702,6 +702,12 @@ internal sealed partial class DungeonModule : IProductModule
 
     /// <summary>Who moves through the dungeon now besides the player, by id and feet in the session's frame: its creatures (#10989).</summary>
     internal Func<IEnumerable<(int Id, Vector3 Feet)>>? MistMovers { get; set; }
+
+    /// <summary>The points along the dungeon's creatures' bodies that stir its mist (#10993), keyed per point, in the session's frame.</summary>
+    internal Func<IEnumerable<(int Key, Vector3 At)>>? MistBodies { get; set; }
+
+    /// <summary>The player stirs the mist from about their chest.</summary>
+    private const float PlayerStirOverFeetMetres = 1f;
 
     private readonly List<(Vector3 Centre, Vector3 Half, float Yaw, float Density, bool Mouth)> sumpMist = [];
     private IReadOnlyList<MistVolume> laidMist = [];
@@ -905,7 +911,11 @@ internal sealed partial class DungeonModule : IProductModule
         if (!stir && !eddy) return;
         (int, Vector3)[] moving = [(PlayerMover, player.WorldFeetPosition), .. MistMovers?.Invoke() ?? []];
         // What moves through a sump's fog regions parts and clears them, and its wake refills (#10993).
-        if (stir) (stirrers ??= new MistStirrers(engine)).Step(seconds, moving, InSumpMist, StirrerIds);
+        if (stir)
+        {
+            (int, Vector3)[] points = [(PlayerMover, player.WorldFeetPosition + (Vector3.UnitY * PlayerStirOverFeetMetres)), .. MistBodies?.Invoke() ?? []];
+            (stirrers ??= new MistStirrers(engine)).Step(seconds, points, InSumpMist, StirrerIds);
+        }
         if (!eddy) return;
         eddies ??= new MistEddies(engine);
         eddies.Step(seconds, moving, SumpMistAt, SumpLook.Albedo, KarstCave.SumpMistGlow * SumpLook.GlowShare, EddyIds);
@@ -959,7 +969,7 @@ internal sealed partial class DungeonModule : IProductModule
         if (key is not ("" or "read" or "-") && state == DungeonState.Inside) Mist(laidMist);
         SumpMistLook now = SumpLook;
         return string.Create(CultureInfo.InvariantCulture,
-            $"sump mist: thickness={now.Thickness:F2} noise={now.NoiseScale:F2}m strength={now.NoiseStrength:F2} current={now.CurrentMetresPerSecond:F2}m/s albedo={now.Albedo.X:F2},{now.Albedo.Y:F2},{now.Albedo.Z:F2} glow={now.GlowShare:F2} eddies={(now.Eddies ? "on" : "off")} share={(eddies?.DensityShare ?? 1.4f):F2} glint={(eddies?.Glint.X ?? 0):F2},{(eddies?.Glint.Y ?? 0):F2},{(eddies?.Glint.Z ?? 0):F2} regions={(now.Regions ? "on" : "off")} stir={(now.Stir ? "on" : "off")} settle={now.SettleSeconds:F1}s push={(stirrers?.Push ?? 0.8f):F2} clear={(stirrers?.ClearShare ?? 0.8f):F2} radius={(stirrers?.Radius ?? 0.9f):F2} you={(stirrers?.PlayerRadius ?? 0.6f):F2},{(stirrers?.PlayerClear ?? 0.4f):F2} | laid={mistPlaced} sump={sumpMist.Count} regionsLaid={regionsPlaced} cells={sumpRegions.Sum(region => region.Cells)} [{string.Join(" ", sumpRegions.Select(region => string.Create(CultureInfo.InvariantCulture, $"{region.Centre.X:F1},{region.Centre.Z:F1}/{region.HalfExtents.X:F1}x{region.HalfExtents.Y:F1}x{region.HalfExtents.Z:F1}@{region.YawDegrees:F0}")))}] stirrersLive={stirrers?.Live ?? 0} eddiesLive={eddies?.Live ?? 0} shed={eddies?.Shed ?? 0} cap={MistBudget.EngineMostVolumes}");
+            $"sump mist: thickness={now.Thickness:F2} noise={now.NoiseScale:F2}m strength={now.NoiseStrength:F2} current={now.CurrentMetresPerSecond:F2}m/s albedo={now.Albedo.X:F2},{now.Albedo.Y:F2},{now.Albedo.Z:F2} glow={now.GlowShare:F2} eddies={(now.Eddies ? "on" : "off")} share={(eddies?.DensityShare ?? 1.4f):F2} glint={(eddies?.Glint.X ?? 0):F2},{(eddies?.Glint.Y ?? 0):F2},{(eddies?.Glint.Z ?? 0):F2} regions={(now.Regions ? "on" : "off")} stir={(now.Stir ? "on" : "off")} settle={now.SettleSeconds:F1}s push={(stirrers?.Push ?? 1f):F2} clear={(stirrers?.ClearShare ?? 1f):F2} radius={(stirrers?.Radius ?? 1.1f):F2} you={(stirrers?.PlayerRadius ?? 0.6f):F2},{(stirrers?.PlayerClear ?? 0.4f):F2} | laid={mistPlaced} sump={sumpMist.Count} regionsLaid={regionsPlaced} cells={sumpRegions.Sum(region => region.Cells)} [{string.Join(" ", sumpRegions.Select(region => string.Create(CultureInfo.InvariantCulture, $"{region.Centre.X:F1},{region.Centre.Z:F1}/{region.HalfExtents.X:F1}x{region.HalfExtents.Y:F1}x{region.HalfExtents.Z:F1}@{region.YawDegrees:F0}")))}] stirrersLive={stirrers?.Live ?? 0} eddiesLive={eddies?.Live ?? 0} shed={eddies?.Shed ?? 0} cap={MistBudget.EngineMostVolumes}");
     }
 
     // --- The darkness study (#10091) ---
