@@ -61,8 +61,10 @@ internal readonly record struct CreatureBehaviorState(
     /// <summary>A new creature of a kind: lying at rest where it lives, for a kind that rests.</summary>
     internal static CreatureBehaviorState SpawnedFor(BehaviorTuning tuning) => new(tuning.Calm, LastAttackTick: -1);
 
-    internal bool CanAttack(long tick, BehaviorTuning tuning) =>
-        State == CreatureState.Attacking && (LastAttackTick < 0 || tick - LastAttackTick >= tuning.AttackCooldownTicks);
+    internal bool CanAttack(long tick, BehaviorTuning tuning) => State == CreatureState.Attacking && CooledDown(tick, tuning);
+
+    /// <summary>Whether its last attack's cooldown has run out (or it never attacked), whatever it is doing now.</summary>
+    internal bool CooledDown(long tick, BehaviorTuning tuning) => LastAttackTick < 0 || tick - LastAttackTick >= tuning.AttackCooldownTicks;
 
     internal CreatureBehaviorState AfterAttack(long tick) => this with { LastAttackTick = tick };
 }

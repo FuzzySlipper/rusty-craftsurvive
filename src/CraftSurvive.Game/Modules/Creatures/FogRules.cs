@@ -115,6 +115,23 @@ internal static class FogRules
     }
 
     /// <summary>
+    /// What a darter (#10986) does this update: dart in, loop on, or leave its course as it is. Hunting or searching, it
+    /// loops round the player; when they come within its dart and its bite is ready it drops its loop and darts. Its
+    /// readiness is its cooldown and a clear line, not whether it is already attacking: a looping darter is held searching
+    /// by its loop (R10986-1). One within its dart that cannot bite yet loops away; one on another errand (circling off),
+    /// mid-bite or resting keeps its course.
+    /// </summary>
+    /// <param name="looping">Whether it is on its loop now.</param>
+    /// <param name="otherErrand">Whether it is on some other errand, such as circling off after a bite.</param>
+    internal static DarterMove Darter(WildlifeFog fog, double distance, CreatureState state, bool looping, bool otherErrand, bool biting, bool cooledDown, bool clearLine)
+    {
+        ArgumentNullException.ThrowIfNull(fog);
+        if (Darts(fog, distance, cooledDown && clearLine)) return looping ? DarterMove.Dart : DarterMove.Keep;
+        if (looping || otherErrand || biting || state is not (CreatureState.Pursuing or CreatureState.Attacking or CreatureState.Searching)) return DarterMove.Keep;
+        return DarterMove.Loop;
+    }
+
+    /// <summary>
     /// Whether a fog foe makes its sound in this state: the needle-mouth's teeth click while it hunts; the fade-ribbon
     /// flutters whenever it swims, resting or dead excepted, so it is sensed before it is seen (#10986).
     /// </summary>
@@ -151,4 +168,12 @@ internal static class FogRules
         double near = 1 - Math.Clamp(distance / Math.Max(hearMetres, 1e-6), 0, 1);
         return fog.ClickFarSeconds + ((fog.ClickNearSeconds - fog.ClickFarSeconds) * near);
     }
+}
+
+/// <summary>What a darter does this update (#10986): keeps its course, drops its loop to dart in, or sets off on its loop.</summary>
+internal enum DarterMove
+{
+    Keep,
+    Dart,
+    Loop,
 }

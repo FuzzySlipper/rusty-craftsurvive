@@ -1833,6 +1833,29 @@ Check.Section("darters", () =>
     Check.That(!FogRules.Darts(fog, 1, ready: false), "within its dart but unable to bite yet, it loops away rather than waiting in the player's face");
     Check.That(!FogRules.Darts(needle, 0.5, ready: true), "a needle-mouth never holds off to dart: it lunges");
 
+    // What it does, from its loop (R10986-1): its loop holds it searching, and that must not keep it from darting.
+    double inDart = fog.DartMetres!.Value - 0.2, outDart = fog.DartMetres!.Value + 1;
+    BehaviorTuning tuning = BehaviorTuning.Hostile with { AttackCooldownTicks = ribbon.Hunt.CooldownTicks };
+    CreatureBehaviorState looper = new(CreatureState.Searching, LastAttackTick: -1);
+    Check.That(looper.CooledDown(500, tuning) && !looper.CanAttack(500, tuning),
+        "a looping darter that never bit has cooled down, though it cannot attack until it is attacking");
+    CreatureBehaviorState bitLately = looper with { LastAttackTick = 450 };
+    Check.That(!bitLately.CooledDown(450 + tuning.AttackCooldownTicks - 1, tuning) && bitLately.CooledDown(450 + tuning.AttackCooldownTicks, tuning),
+        "one that bit lately cools down over its cooldown, looping or not");
+    DarterMove Move(double distance, CreatureState state = CreatureState.Searching, bool looping = true, bool other = false, bool biting = false, bool cooled = true, bool clear = true) =>
+        FogRules.Darter(fog, distance, state, looping, other, biting, cooled, clear);
+    Check.Equal(DarterMove.Dart, Move(inDart), "looping, with its bite cooled and a clear line, the player coming within its dart sends it in");
+    Check.Equal(DarterMove.Keep, Move(outDart), "the player further off, it keeps to its loop");
+    Check.Equal(DarterMove.Keep, Move(inDart, cooled: false), "still cooling down, it keeps to its loop");
+    Check.Equal(DarterMove.Keep, Move(inDart, clear: false), "with no clear line, it keeps to its loop");
+    Check.Equal(DarterMove.Keep, Move(inDart, CreatureState.Pursuing, looping: false), "already coming in, ready, it keeps coming");
+    Check.Equal(DarterMove.Loop, Move(inDart, CreatureState.Attacking, looping: false, cooled: false), "in the player's face and cooling down, it loops away");
+    Check.Equal(DarterMove.Loop, Move(outDart, CreatureState.Pursuing, looping: false), "hunting out of its dart, it sets off on its loop");
+    Check.Equal(DarterMove.Loop, Move(outDart, CreatureState.Searching, looping: false), "searching where it heard the player, it loops there rather than coming in");
+    Check.Equal(DarterMove.Keep, Move(outDart, CreatureState.Searching, looping: false, other: true), "circling off after a bite, it finishes that first");
+    Check.Equal(DarterMove.Keep, Move(inDart, CreatureState.Attacking, looping: false, biting: true, cooled: false), "mid-bite it keeps biting");
+    Check.Equal(DarterMove.Keep, Move(outDart, CreatureState.Resting, looping: false), "at rest it stays at rest");
+
     // Looping: round the player at its loop's distance, a step at a time on its own side, so it goes all the way round.
     Vector2 prey = Vector2.Zero, at = new((float)fog.CircleMetres, 0);
     double turned = 0;

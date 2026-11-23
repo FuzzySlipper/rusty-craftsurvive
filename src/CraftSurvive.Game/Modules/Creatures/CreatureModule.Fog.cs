@@ -164,18 +164,17 @@ internal sealed partial class CreatureModule
     private void Loop(Creature creature, Hunter hunter, WildlifeFog fog, Vector2 player, double distance)
     {
         bool looping = errands.TryGetValue(creature.Id, out Errand? errand) && errand.Why == LoopErrand;
-        bool ready = creature.Behavior.CanAttack(step, creature.Kind.Tuning) && fogClear.Contains(creature.Id);
-        if (FogRules.Darts(fog, distance, ready))
+        DarterMove move = FogRules.Darter(fog, distance, creature.Behavior.State, looping, errand is not null && !looping, hunter.BiteSeconds > 0,
+            creature.Behavior.CooledDown(step, creature.Kind.Tuning), fogClear.Contains(creature.Id));
+        if (move == DarterMove.Dart)
         {
-            if (!looping) return;
             errands.Remove(creature.Id);
             creature.Behavior = creature.Behavior with { State = CreatureState.Pursuing, SearchUntilTick = -1 };
             lastLoop = string.Create(CultureInfo.InvariantCulture, $"{creature.Id} at step {step} darts in at {distance:F1} m");
             return;
         }
 
-        // Hunting it loops; searching where it last heard the player it loops there too, rather than coming in.
-        if (looping || errand is not null || hunter.BiteSeconds > 0 || creature.Behavior.State is not (CreatureState.Pursuing or CreatureState.Attacking or CreatureState.Searching)) return;
+        if (move != DarterMove.Loop) return;
         float floor = StandingAt(creature);
         if (FogRules.LoopTo(creature.Position, player, fog.CircleMetres, fog.LoopDegrees, hunter.CircleSide, point => FeetInMist(point, floor)) is Vector2 to)
         {
