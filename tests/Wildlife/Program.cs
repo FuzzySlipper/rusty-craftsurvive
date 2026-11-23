@@ -1844,6 +1844,22 @@ Check.Section("swim chain", () =>
     Check.That(Width(chain, swim.WaveSpeed) > Width(chain, 0f) * 2f, "its wave lashes wider swimming fast than hovering");
     Vector3[] waved = chain.Step(swim, head, Vector3.UnitZ, swim.WaveSpeed, 0.37, 0);
     Check.That(waved[^1] == chain.Points[^1] && Vector3.Distance(waved[^2], chain.Points[^2]) < 1e-4f, "its head and neck stay out of the wave");
+    // Its head eases after its facing (Patch: it "snaps less"): in and out of a turn, the short way round, never past it.
+    float angle = 0f, rate = 0f, widest = 0f;
+    float[] path = new float[90];
+    for (int k = 0; k < path.Length; k++)
+    {
+        SwimChain.Ease(ref angle, ref rate, MathF.PI / 2, swim.TurnEaseSeconds, (float)Step);
+        path[k] = angle;
+        widest = MathF.Max(widest, angle);
+    }
+
+    Check.That(path[0] < 0.05f && MathF.Abs(path[^1] - (MathF.PI / 2)) < 0.02f && widest <= (MathF.PI / 2) + 1e-4f,
+        "a quarter turn starts gently, settles within its ease and never swings past");
+    Check.That(path[1] - path[0] < path[10] - path[9], "it speeds into a turn rather than jumping");
+    float across = 3f, across2 = 0f;
+    SwimChain.Ease(ref across, ref across2, -3f, swim.TurnEaseSeconds, (float)Step);
+    Check.That(across > 3f || across < -3f, "from 3 to -3 radians it turns the short way, across the back");
     Quaternion turn = SwimChain.FromTo(Vector3.UnitZ, Vector3.UnitX);
     Check.That(Vector3.Distance(Vector3.Transform(Vector3.UnitZ, turn), Vector3.UnitX) < 1e-4f && SwimChain.FromTo(Vector3.UnitY, Vector3.UnitY) == Quaternion.Identity,
         "a bone is turned from its rest direction to its new one the shortest way");

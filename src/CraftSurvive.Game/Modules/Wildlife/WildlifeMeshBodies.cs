@@ -108,6 +108,11 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
         internal float SwimWeight { get; set; }
 
+        /// <summary>Which way its head faces as it eases after its body's facing (#10995), and how fast it turns now.</summary>
+        internal float SwimYaw { get; set; }
+
+        internal float SwimTurnRate { get; set; }
+
         /// <summary>Whether its pose now carries the swim's overrides, so they are cleared once when it stops swimming.</summary>
         internal bool Swimming { get; set; }
 
@@ -489,8 +494,16 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Vector3 ToFrame(Vector3 model) => placement.Translation + Vector3.Transform(model * scale, placement.Rotation);
         Quaternion back = Quaternion.Inverse(placement.Rotation);
         Vector3 ToModel(Vector3 frame) => Vector3.Transform(frame - placement.Translation, back) / scale;
-        Vector3 head = ToFrame(rest.Points[^1]);
-        Vector3 heading = Vector3.Transform(Vector3.UnitZ, placement.Rotation);
+        // The head turns after the body's facing, easing in and out, about the body's middle.
+        Vector3 facing = Vector3.Transform(Vector3.UnitZ, placement.Rotation);
+        float yaw = MathF.Atan2(facing.X, facing.Z);
+        if (body.Swim is null) (body.SwimYaw, body.SwimTurnRate) = (yaw, 0f);
+        float swimYaw = body.SwimYaw, turnRate = body.SwimTurnRate;
+        SwimChain.Ease(ref swimYaw, ref turnRate, yaw, swim.TurnEaseSeconds, (float)Math.Max(0, seconds));
+        (body.SwimYaw, body.SwimTurnRate) = (swimYaw, turnRate);
+        Quaternion eased = Quaternion.CreateFromAxisAngle(Vector3.UnitY, swimYaw);
+        Vector3 head = placement.Translation + Vector3.Transform(rest.Points[^1] * scale, eased);
+        Vector3 heading = Vector3.Transform(Vector3.UnitZ, eased);
         if (body.Swim is null)
         {
             body.Swim = new SwimChain([.. rest.Points.Select(ToFrame)]);

@@ -748,6 +748,9 @@ motion direction could impact their animation more"):
   - The head point goes where the creature swims, and each point carries on with its own motion and is dragged after the
     one ahead at its rest spacing. So the body takes the line the head swam, and the tail whips through a sharp turn.
   - Below `HoverShare` of its wave's speed it eases straight behind the head.
+  - The head turns after the body's facing on a critically damped spring (`turnEaseSeconds`), easing in and out of a turn
+    instead of swinging round at the facing's constant rate (Patch: it should snap less).
+  - A strike's tail arch, the clip showing through at `strikeWeight`, stays (Patch: "the arch looks good").
   - A sideways wave travels down it, wider the faster it swims, and quiet over the head's share.
 - `WildlifeMeshBodies.Swim` places each body joint in the mesh's space over the clip, turned from its rest direction. The
   jaw and head stay the clip's.

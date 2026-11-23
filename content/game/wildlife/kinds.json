@@ -533,8 +533,8 @@
         "scale": 1.0,
         "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "idle", "circle": "circle", "threat": "threat", "bite": "bite", "hurt": "hurt", "die": "die" },
         "fade": { "paint": "creatures/needle-mouth/fade.png", "cutoff": 0.25, "rest": 0.15, "sweepSeconds": 0.35 },
-        "swim": { "$comment": "#10995: its body follows its head on a chain, a wave down it as wide as waveMetres at waveSpeed (its lunge) and idleWaveMetres hovering, waveLengthMetres crest to crest, quiet over the head's share; the tail lags (lagHead to lagTail a second), it straightens as it slows, and a threat or bite shows its clip through by strikeWeight.",
-          "waveMetres": 0.22, "idleWaveMetres": 0.05, "waveSpeed": 6.5, "waveLengthMetres": 2.0, "headStillShare": 0.2, "lagHead": 30, "lagTail": 6, "straighten": 1.5, "strikeWeight": 0.35 }
+        "swim": { "$comment": "#10995: its body follows its head on a chain, a wave down it as wide as waveMetres at waveSpeed (its lunge) and idleWaveMetres hovering, waveLengthMetres crest to crest, quiet over the head's share; the tail lags (lagHead to lagTail a second), it straightens as it slows, a threat or bite shows its clip through by strikeWeight, and its head eases after its facing over turnEaseSeconds.",
+          "waveMetres": 0.22, "idleWaveMetres": 0.05, "waveSpeed": 6.5, "waveLengthMetres": 2.0, "headStillShare": 0.2, "lagHead": 30, "lagTail": 6, "straighten": 1.5, "strikeWeight": 0.35, "turnEaseSeconds": 0.35 }
       },
       "speeds": { "walk": 1.2, "grazeDrift": 0.4, "flee": 6.5, "turnDegrees": 150 },
       "wariness": { "noticeMetres": 20, "actMetres": 6, "lookSeconds": 1, "warnSeconds": 1 },

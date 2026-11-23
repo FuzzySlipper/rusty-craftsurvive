@@ -13,21 +13,24 @@ namespace CraftSurvive.Game.Modules.Wildlife;
 /// <item>each point carrying on with the motion it had, losing it at <paramref name="LagHead"/> a second by the head and
 /// only <paramref name="LagTail"/> at the tail, so a sharp turn whips through the tail;</item>
 /// <item>easing straight behind the head at <paramref name="Straighten"/> a second as it slows;</item>
-/// <item>giving way to its clip by <paramref name="StrikeWeight"/> while it threatens or bites, so a strike's arch shows.</item>
+/// <item>giving way to its clip by <paramref name="StrikeWeight"/> while it threatens or bites, so a strike's arch shows;</item>
+/// <item>its head turning after the way it faces over about <paramref name="TurnEaseSeconds"/>, easing in and out of a turn
+/// rather than swinging at once (Patch, 2026-11-22: the head's turn "snaps less").</item>
 /// </list>
 /// </summary>
 internal sealed record WildlifeSwim(float WaveMetres, float IdleWaveMetres, float WaveSpeed, float WaveLengthMetres, float HeadStillShare,
-    float LagHead, float LagTail, float Straighten, float StrikeWeight)
+    float LagHead, float LagTail, float Straighten, float StrikeWeight, float TurnEaseSeconds)
 {
     internal static WildlifeSwim? Read(JsonElement mesh)
     {
         if (!mesh.TryGetProperty("swim", out JsonElement swim)) return null;
         WildlifeSwim read = new(swim.GetProperty("waveMetres").GetSingle(), swim.GetProperty("idleWaveMetres").GetSingle(), swim.GetProperty("waveSpeed").GetSingle(),
             swim.GetProperty("waveLengthMetres").GetSingle(), swim.GetProperty("headStillShare").GetSingle(), swim.GetProperty("lagHead").GetSingle(),
-            swim.GetProperty("lagTail").GetSingle(), swim.GetProperty("straighten").GetSingle(), swim.GetProperty("strikeWeight").GetSingle());
+            swim.GetProperty("lagTail").GetSingle(), swim.GetProperty("straighten").GetSingle(), swim.GetProperty("strikeWeight").GetSingle(),
+            swim.GetProperty("turnEaseSeconds").GetSingle());
         if (read.WaveMetres < 0 || read.IdleWaveMetres < 0 || read.WaveSpeed <= 0 || read.WaveLengthMetres <= 0 || read.HeadStillShare is < 0 or >= 1
-            || read.LagTail <= 0 || read.LagHead < read.LagTail || read.Straighten < 0 || read.StrikeWeight is < 0 or > 1)
-            throw new InvalidDataException("swim: a wave, a lag slowing from head to tail, a straightening and a strike weight from 0 to 1");
+            || read.LagTail <= 0 || read.LagHead < read.LagTail || read.Straighten < 0 || read.StrikeWeight is < 0 or > 1 || read.TurnEaseSeconds <= 0)
+            throw new InvalidDataException("swim: a wave, a lag slowing from head to tail, a straightening, a strike weight from 0 to 1 and a turn's ease");
         return read;
     }
 }
@@ -147,6 +150,23 @@ internal sealed class SwimChain
     {
         Vector3 flat = new(v.X, 0f, v.Z);
         return flat.LengthSquared() < 1e-10f ? Vector3.UnitZ : Vector3.Normalize(flat);
+    }
+
+    /// <summary>
+    /// Moves an angle (radians) after a wanted one as a critically damped spring settling in about
+    /// <paramref name="easeSeconds"/>: a turn eases in and out, the shortest way round, and never overshoots.
+    /// </summary>
+    internal static void Ease(ref float angle, ref float rate, float wanted, float easeSeconds, float seconds)
+    {
+        if (seconds <= 0) return;
+        float omega = 2f / easeSeconds;
+        float apart = MathF.IEEERemainder(wanted - angle, 2f * MathF.PI);
+        // Exact for a constant wanted angle over the step, so a long step stays stable.
+        float decay = MathF.Exp(-omega * seconds);
+        float x = -apart, v = rate;
+        float next = (x + ((v + (omega * x)) * seconds)) * decay;
+        rate = (v - (omega * (v + (omega * x)) * seconds)) * decay;
+        angle = MathF.IEEERemainder(wanted + next, 2f * MathF.PI);
     }
 
     /// <summary>The turn that takes one direction to another, the shortest way.</summary>
