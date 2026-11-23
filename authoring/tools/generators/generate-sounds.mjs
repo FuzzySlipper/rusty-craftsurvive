@@ -193,6 +193,19 @@ const EFFECTS = {
     const gaps = variant === 1 ? [0, 0.028, 0.052] : [0, 0.036];
     return mix(0.12, ...gaps.map((at, k) => [tick(k * 400 + variant * 250), 1 - k * 0.22, at]));
   }])),
+  // A fade-ribbon's membrane in the air (#10986): a dry papery flutter, quick soft slaps of thin skin on air, uneven,
+  // swelling and fading; two at different paces so a run of them does not repeat.
+  ...Object.fromEntries([1, 2].map((variant) => [`ribbon-flutter-${variant}`, (next) => {
+    const seconds = variant === 1 ? 0.42 : 0.36;
+    const rate = variant === 1 ? 19 : 24;
+    const paper = band(noise(seconds, next), 900 + variant * 200, 5200);
+    const slaps = paper.map((value, i) => {
+      const t = i / RATE;
+      const beat = (t * rate + 0.18 * Math.sin(2 * Math.PI * 3.1 * t)) % 1;
+      return value * Math.exp(-beat * 9) * Math.sin(Math.PI * Math.min(1, t / seconds));
+    });
+    return mix(seconds, [slaps, 1], [envelope(band(noise(seconds, next), 300, 900), 0.08, 0.2), 0.12]);
+  }])),
   portal: (next) => {
     const swell = band(noise(1.2, next), 60, 1);
     const rumble = lowPass(swell, (t) => 200 + 900 * Math.sin(Math.PI * Math.min(1, t / 1.1)));

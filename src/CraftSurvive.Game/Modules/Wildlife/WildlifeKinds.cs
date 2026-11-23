@@ -119,11 +119,14 @@ internal sealed record WildlifeMesh(string File, string Manifest, float Scale, I
 /// A body faded into the mist (#10984: the fog foes, seen only when they attack). <paramref name="Paint"/> is the kind's
 /// paint with its fade in the alpha (authoring/tools/creatures/fade_paint.py): the cutoff plus a little at the tail,
 /// rising to 1 at the head. It is drawn masked at <paramref name="Cutoff"/>, and each animal's own alpha chooses how much
-/// of it shows, from the head back: <paramref name="Rest"/> of its length at rest, all of it while it threatens, bites,
-/// is hurt or dies, sweeping between the two over <paramref name="SweepSeconds"/>.
+/// of it shows, from the head back: <paramref name="Rest"/> of its length at rest, <see cref="Strike"/> of it (all, unless
+/// its rear always fades, as the fade-ribbon's does, #10986) while it threatens, bites, is hurt or dies, sweeping between
+/// the two over <paramref name="SweepSeconds"/>. Fallen, all of it shows.
 /// </summary>
 internal sealed record WildlifeFade(string Paint, float Cutoff, float Rest, float SweepSeconds)
 {
+    internal float Strike { get; init; } = 1f;
+
     /// <summary>How far over the cutoff the paint's tail stays (fade_paint.py's TAIL_MARGIN), so a whole body draws whole.</summary>
     internal const float TailMargin = 0.02f;
 
@@ -131,7 +134,11 @@ internal sealed record WildlifeFade(string Paint, float Cutoff, float Rest, floa
     {
         if (!mesh.TryGetProperty("fade", out JsonElement fade)) return null;
         WildlifeFade read = new(fade.GetProperty("paint").GetString()!, fade.GetProperty("cutoff").GetSingle(),
-            fade.GetProperty("rest").GetSingle(), fade.GetProperty("sweepSeconds").GetSingle());
+            fade.GetProperty("rest").GetSingle(), fade.GetProperty("sweepSeconds").GetSingle())
+        {
+            Strike = fade.TryGetProperty("strike", out JsonElement strike) ? strike.GetSingle() : 1f,
+        };
+        if (read.Strike < read.Rest || read.Strike > 1) throw new InvalidDataException("fade: a strike shows at least its rest, and at most the whole body");
         if (read.Cutoff is <= 0 or >= 1 - TailMargin) throw new InvalidDataException("fade: the cutoff must lie between 0 and 1, under the tail's margin");
         if (read.Rest is < 0 or > 1) throw new InvalidDataException("fade: rest is a share of the body, 0 to 1");
         if (read.SweepSeconds <= 0) throw new InvalidDataException("fade: the sweep needs a positive time");
@@ -260,9 +267,32 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
 /// After each bite it circles off <paramref name="CircleMetres"/> from the player for <paramref name="CircleSeconds"/>
 /// before it comes again. Hunting, its teeth click every <paramref name="ClickFarSeconds"/> at the edge of its hearing,
 /// faster as it nears, to every <paramref name="ClickNearSeconds"/> at the player.
+/// <para>
+/// Its sound is its own (<see cref="Sound"/>): the needle-mouth clicks its teeth while it hunts, the fade-ribbon (#10986)
+/// flutters whenever it swims, at the same paces. A darter (<see cref="DartMetres"/>, the fade-ribbon before the line,
+/// #10173, exists) does not come at the player from afar: sensing them, it loops round them <paramref name="CircleMetres"/>
+/// off, <see cref="LoopDegrees"/> round at a time, and darts in to bite only when they come within its dart.
+/// </para>
 /// </summary>
 internal sealed record WildlifeFog(double FloatMetres, double BobMetres, double BobSeconds, double HeardSeconds, double FeelMetres,
-    double CircleMetres, double CircleSeconds, double ClickFarSeconds, double ClickNearSeconds);
+    double CircleMetres, double CircleSeconds, double ClickFarSeconds, double ClickNearSeconds)
+{
+    internal FogSound Sound { get; init; } = FogSound.Click;
+
+    internal double? DartMetres { get; init; }
+
+    internal double LoopDegrees { get; init; } = DefaultLoopDegrees;
+
+    /// <summary>How far round the player a darter loops at a time, unless its kind says.</summary>
+    internal const double DefaultLoopDegrees = 50;
+}
+
+/// <summary>A fog foe's own sound (#10986): the needle-mouth's teeth click while it hunts; the fade-ribbon flutters whenever it swims.</summary>
+internal enum FogSound
+{
+    Click,
+    Flutter,
+}
 
 /// <summary>
 /// A chime grazer's call (#10962), settled with Patch on the wiki's Ruins wildlife page: disturbed, it rings its crest for
@@ -660,6 +690,13 @@ internal static class WildlifeKinds
         };
     }
 
+    /// <summary>A fog foe's sound by its name in kinds.json (#10986).</summary>
+    private static readonly Dictionary<string, FogSound> FogSounds = new(StringComparer.Ordinal)
+    {
+        ["click"] = FogSound.Click,
+        ["flutter"] = FogSound.Flutter,
+    };
+
     private static readonly Dictionary<string, CaveHabitat> CaveHabitatNames = new(StringComparer.Ordinal)
     {
         ["mouth"] = CaveHabitat.Mouth,
@@ -910,11 +947,20 @@ internal static class WildlifeKinds
                 ? new WildlifeFog(fog.GetProperty("floatMetres").GetDouble(), fog.GetProperty("bobMetres").GetDouble(), fog.GetProperty("bobSeconds").GetDouble(),
                     fog.GetProperty("heardSeconds").GetDouble(), fog.GetProperty("feelMetres").GetDouble(), fog.GetProperty("circleMetres").GetDouble(),
                     fog.GetProperty("circleSeconds").GetDouble(), fog.GetProperty("clickFarSeconds").GetDouble(), fog.GetProperty("clickNearSeconds").GetDouble())
+                {
+                    Sound = fog.TryGetProperty("sound", out JsonElement sound)
+                        ? FogSounds.TryGetValue(sound.GetString() ?? "", out FogSound named) ? named : throw new InvalidDataException($"{id}: a fog foe's sound is {string.Join(" or ", FogSounds.Keys)}")
+                        : FogSound.Click,
+                    DartMetres = fog.TryGetProperty("dartMetres", out JsonElement dart) ? dart.GetDouble() : null,
+                    LoopDegrees = fog.TryGetProperty("loopDegrees", out JsonElement loop) ? loop.GetDouble() : WildlifeFog.DefaultLoopDegrees,
+                }
                 : null,
         };
         if (read.Fog is { } foe && (foe.FloatMetres <= 0 || foe.BobMetres < 0 || foe.BobSeconds <= 0 || foe.HeardSeconds <= 0 || foe.FeelMetres < read.ReachMetres
             || foe.CircleMetres <= read.ReachMetres || foe.CircleSeconds <= 0 || foe.ClickNearSeconds <= 0 || foe.ClickFarSeconds < foe.ClickNearSeconds))
             throw new InvalidDataException($"{id}: a fog foe floats, hears for a while, feels at least as far as it reaches, circles off beyond its reach, and clicks faster near");
+        if (read.Fog is { DartMetres: double darts } darter && (darts < read.ReachMetres || darts >= darter.CircleMetres || darter.LoopDegrees is <= 0 or > 180))
+            throw new InvalidDataException($"{id}: a darter darts from at least its reach, inside the loop it swims, a part of the way round at a time");
         if (read.Calls is { ReachMetres: <= 0 } or { AgainSeconds: <= 0 } || (read.Calls is not null && read.Display is null))
             throw new InvalidDataException($"{id}: a call reaches somewhere, takes a rest between rings, and rings for its display's while");
         if (read.Brood is { Count: <= 0 } or { GuardMetres: <= 0 } or { RegrowSeconds: <= 0 }) throw new InvalidDataException($"{id}: a brood has animals, a guard and a regrowth");

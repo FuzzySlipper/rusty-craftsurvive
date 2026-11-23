@@ -47,6 +47,9 @@ internal static class SoundCatalog
     /// <summary>How far a needle-mouth's teeth are heard clicking (#10985): about as far as it hears the player.</summary>
     private const float NeedleClickRangeMetres = 20f;
 
+    /// <summary>How far a fade-ribbon's flutter is heard (#10986): it is sensed by it before it is seen.</summary>
+    private const float RibbonFlutterRangeMetres = 18f;
+
     /// <summary>What is left of the other beds while the player's head is under water.</summary>
     private const float Muffled = 0.15f;
 
@@ -72,6 +75,7 @@ internal static class SoundCatalog
         [Cue.Portal] = new(["portal"], AudioBus.Sfx, 0.6f),
         [Cue.Chime] = new(["chime"], AudioBus.Sfx, 0.75f, Placed: true, RangeMetres: ChimeRangeMetres),
         [Cue.NeedleClick] = new(["needle-click-1", "needle-click-2"], AudioBus.Sfx, 0.6f, Placed: true, RangeMetres: NeedleClickRangeMetres),
+        [Cue.RibbonFlutter] = new(["ribbon-flutter-1", "ribbon-flutter-2"], AudioBus.Sfx, 0.5f, Placed: true, RangeMetres: RibbonFlutterRangeMetres),
     };
 
     internal static readonly IReadOnlyDictionary<AmbienceBed, string> Beds = new Dictionary<AmbienceBed, string>

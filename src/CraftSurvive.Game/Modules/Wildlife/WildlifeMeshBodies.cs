@@ -514,6 +514,9 @@ internal sealed class WildlifeMeshBodies : IDisposable
         {
             Vector3 at = ToModel(drawn[i]), next = ToModel(drawn[i + 1]);
             Quaternion turn = SwimChain.FromTo(rest.Points[i + 1] - rest.Points[i], next - at);
+            // A ribbon twists about its length as it swims (#10986).
+            float twist = body.Swim.Twists[i];
+            if (twist != 0f && (next - at).LengthSquared() > 1e-10f) turn = Quaternion.CreateFromAxisAngle(Vector3.Normalize(next - at), twist) * turn;
             overrides[i] = JointOverride.Place(rest.Joints[i], PoseSpace.Model, at, Quaternion.Normalize(turn * rest.Turns[i]), body.SwimWeight);
         }
 
@@ -662,12 +665,12 @@ internal sealed class WildlifeMeshBodies : IDisposable
     private const float FadeAlphaStep = 1f / 256;
 
     /// <summary>
-    /// Moves a faded body (#10984) toward what it should show: the whole of it while it attacks, is hurt or dies, else its
-    /// rest; its alpha is sent only when it changes.
+    /// Moves a faded body (#10984) toward what it should show: its strike's share while it attacks, is hurt or dies, all of
+    /// it fallen, else its rest; its alpha is sent only when it changes.
     /// </summary>
     private void Fade(Body body, WildlifeFade fade, WildlifeMember member, bool fallen, double seconds)
     {
-        float wanted = ForcedFade ?? (fallen || WildlifeFade.Solid(member.Clip) ? 1 : fade.Rest);
+        float wanted = ForcedFade ?? (fallen ? 1 : WildlifeFade.Solid(member.Clip) ? fade.Strike : fade.Rest);
         body.FadeShown = fade.Toward(body.FadeShown, wanted, seconds);
         float alpha = fade.AlphaFor(body.FadeShown);
         if (MathF.Abs(alpha - body.FadeAlpha) < FadeAlphaStep) return;

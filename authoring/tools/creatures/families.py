@@ -1868,14 +1868,15 @@ def serpent_body(c):
     return sorted((name for name in c.rig.pose.bones.keys() if name.startswith("body")), key=lambda name: int(name[4:]))
 
 
-def serpent_lay(c, turns, lifts=None, centre=True):
-    """Lays the body by a turn (degrees to the left) and a lift (degrees up) at each segment, the tail first. With
-    `centre`, turns and moves the whole snake so its head points forward and the flat shape is centred on the origin,
-    where its capsule is. Returns the head's heading before that turn, in degrees."""
+def serpent_lay(c, turns, lifts=None, centre=True, rolls=None):
+    """Lays the body by a turn (degrees to the left), a lift (degrees up) and a roll (degrees about its length) at each
+    segment, the tail first. With `centre`, turns and moves the whole snake so its head points forward and the flat
+    shape is centred on the origin, where its capsule is. Returns the head's heading before that turn, in degrees."""
     names = serpent_body(c)
     lifts = lifts or [0.0] * len(names)
-    for name, turn, lift in zip(names, turns, lifts):
-        c.bone_rotation(name, yaw(turn) @ pitch(lift))
+    rolls = rolls or [0.0] * len(names)
+    for name, turn, lift, twist in zip(names, turns, lifts, rolls):
+        c.bone_rotation(name, yaw(turn) @ pitch(lift) @ roll(twist))
     heading = sum(turns)
     if not centre:
         return heading
@@ -1939,14 +1940,29 @@ def serpent_wave(count, amplitude, wavelength_segments, t):
     return [amplitude * math.sin(gait.TAU * (t + k / wavelength_segments)) for k in range(count)]
 
 
+def serpent_twist(count, settings, t):
+    """A ribbon's twist (#10986, the fade-ribbon): each segment's roll, so a wave of turning its flat face to its edge
+    and back runs down the body, `rollDegrees` at its widest over `rollSegments` segments, none at the neck. Nothing
+    without `rollDegrees`. Each segment's roll is on its parent's, so this is the change in the running twist."""
+    amplitude = settings.get("rollDegrees", 0.0)
+    if not amplitude:
+        return [0.0] * count
+    wavelength = settings.get("rollSegments", 10.0)
+    # The twist grows from nothing at the neck to its whole width a third of the way down, and runs tailward.
+    twist = [amplitude * min(1.0, 3.0 * (count - k) / count) * math.sin(gait.TAU * (t + k / wavelength)) for k in range(count)]
+    twist[-1] = 0.0
+    return [twist[0]] + [twist[k] - twist[k - 1] for k in range(1, count)]
+
+
 def serpent_slither(c, settings, t):
     """Lateral undulation in place: a wave of turns runs down the body from the head to the tail, so the snake moves
-    forward through it at the clip's speed; the root turns against the wave and the head steers to keep looking ahead."""
+    forward through it at the clip's speed; the root turns against the wave and the head steers to keep looking ahead.
+    A ribbon's twist (`rollDegrees`) runs down it too."""
     names = serpent_body(c)
     count = len(names)
     turns = serpent_wave(count, settings["bendDegrees"], settings.get("waveSegments", 7.0), t)
     turns = [turn * (0.45 + 0.55 * math.sin(math.pi * (k + 0.5) / count)) for k, turn in enumerate(turns)]
-    heading = serpent_lay(c, turns, centre=False)
+    heading = serpent_lay(c, turns, centre=False, rolls=serpent_twist(count, settings, t))
     c.bone_rotation("root", yaw(-0.5 * heading))
     c.bone_rotation("neck", yaw(-0.5 * heading) @ pitch(settings.get("headLiftDegrees", 4.0)))
     c.bone_rotation("head", pitch(-settings.get("headLiftDegrees", 4.0)))
@@ -2152,7 +2168,7 @@ def floater_circle(c, s, t):
     arc = settings.get("arcDegrees", 110.0) / count
     wave = serpent_wave(count, settings.get("bendDegrees", 10.0), settings.get("waveSegments", 7.0), t)
     turns = [arc + turn * (0.45 + 0.55 * math.sin(math.pi * (k + 0.5) / count)) for k, turn in enumerate(wave)]
-    heading = serpent_lay(c, turns, centre=False)
+    heading = serpent_lay(c, turns, centre=False, rolls=serpent_twist(count, settings, t))
     c.bone_rotation("root", yaw(-0.5 * heading))
     c.bone_rotation("neck", yaw(-0.5 * heading + settings.get("lookDegrees", 25.0)))
     c.bone_rotation("head", yaw(8.0 * gait.wave(t, lag=0.3)))
@@ -2190,6 +2206,28 @@ def floater_lunge(c, s, t):
     floater_pin(c, lifts, settings.get("reachMetres", 0.8) * strike - settings.get("drawMetres", 0.3) * back)
     c.bone_rotation("neck", pitch(dive * 0.5))
     c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 70.0) * wide + 2.0 * shut))
+
+
+def floater_gnaw(c, s, t):
+    """Worrying at something just ahead and below (#10986: the fade-ribbon gnaws at the player's line): the front drawn
+    into a shallow S with the head tipped down, the head shaking from side to side as the jaws snap `bites` times a
+    cycle (an even count: the head shakes once each two bites, so the loop closes), a ripple running down the body
+    behind. It loops."""
+    settings = s["gnaw"]
+    names = serpent_body(c)
+    count = len(names)
+    bites = settings.get("bites", 4)
+    wave = serpent_wave(count, settings.get("bendDegrees", 6.0), settings.get("waveSegments", 6.0), t)
+    front = floater_front_s(c, settings, 1.0)
+    turns = [w * (1.0 - k / count) + f for k, (w, f) in enumerate(zip(wave, front))]
+    front_segments = settings.get("frontSegments", 5)
+    dive = settings.get("diveDegrees", 18.0)
+    lifts = [0.0] * (count - front_segments) + [-dive / front_segments] * front_segments
+    serpent_lay(c, turns, lifts, centre=False)
+    shake = settings.get("shakeDegrees", 12.0) * math.sin(2.0 * math.pi * bites * t / 2.0)
+    c.bone_rotation("neck", yaw(shake) @ pitch(dive * 0.5))
+    snap = 0.5 - 0.5 * math.cos(2.0 * math.pi * bites * t)
+    c.bone_rotation("jaw", pitch(-settings.get("jawDegrees", 22.0) * snap))
 
 
 def floater_hurt(c, s, t):
@@ -2233,6 +2271,7 @@ FLOATER_CLIPS = {
     "circle": (floater_circle, True, False),
     "threat": (floater_gape, False, False),
     "bite": (floater_lunge, False, False),
+    "gnaw": (floater_gnaw, True, False),
     "hurt": (floater_hurt, False, False),
     "die": (floater_die, False, False),
 }

@@ -1,0 +1,59 @@
+{
+ "id": "fade-ribbon",
+ "family": "floater",
+ "about": "The fade-ribbon (#10986), the fog foe that cuts the line: a broad, paper-thin membrane 5 m long that swims a mist sump's air behind a long needle head. Its body was built straight from the side view of sheet B (concept/) by sheet_membrane.py --fill --rim: the sheet's twist filled in, a violet rim painted along both edges, a 9 cm head easing to a 2.4 cm membrane. On the floater family, the serpent's bones swimming in the air, with a gnaw clip for the line. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre.",
+ "mouth": {
+  "hingeForward": 1.87,
+  "upper": [2.4, 0.305],
+  "lower": [2.4, 0.287],
+  "biteHeight": 0.296
+ },
+ "mouthCut": {
+  "hinge": [1.87, 0.296],
+  "tip": [2.5, 0.296],
+  "cornerMetres": 0.03,
+  "reachMetres": 0.06,
+  "depthMetres": 0.008,
+  "toothEvery": 0.025,
+  "toothMetres": 0.012,
+  "toothInsetMetres": 0.002,
+  "insideColour": [74, 40, 104],
+  "toothColour": [236, 230, 220]
+ },
+ "clips": {
+  "fps": 30,
+  "idle": {"seconds": 4.0, "bendDegrees": 6.0, "waveSegments": 7.0, "rollDegrees": 25.0, "rollSegments": 12.0},
+  "walk": {"seconds": 2.0, "stride": 1.4, "bendDegrees": 14.0, "waveSegments": 6.0, "rollDegrees": 40.0, "rollSegments": 10.0},
+  "run": {"seconds": 1.0, "stride": 3.2, "bendDegrees": 18.0, "waveSegments": 6.0, "rollDegrees": 30.0, "rollSegments": 8.0},
+  "circle": {"seconds": 2.0, "arcDegrees": 160.0, "bendDegrees": 12.0, "waveSegments": 6.0, "lookDegrees": 30.0, "rollDegrees": 45.0, "rollSegments": 10.0},
+  "threat": {"seconds": 1.2, "archDegrees": 12.0, "curlDegrees": 0.0, "archSegments": 6, "curlSegments": 1, "frontSegments": 5, "sDegrees": 26.0, "drawMetres": 0.25, "jawDegrees": 30.0},
+  "bite": {"seconds": 0.8, "archDegrees": 10.0, "curlDegrees": 0.0, "archSegments": 6, "curlSegments": 1, "frontSegments": 5, "sDegrees": 26.0, "drawMetres": 0.25, "reachMetres": 1.2, "diveDegrees": 6.0, "jawDegrees": 32.0},
+  "gnaw": {"seconds": 1.2, "bites": 4, "jawDegrees": 22.0, "shakeDegrees": 12.0, "frontSegments": 5, "sDegrees": 10.0, "diveDegrees": 18.0, "bendDegrees": 6.0, "waveSegments": 6.0},
+  "hurt": {"seconds": 0.6},
+  "die": {"seconds": 2.2}
+ },
+ "points": {
+  "root": [0, 0, 0],
+  "root_tip": [0, 0.5, 0],
+  "s0": [0, -2.45, 0.306],
+  "s1": [0, -2.175, 0.306],
+  "s2": [0, -1.9, 0.306],
+  "s3": [0, -1.625, 0.306],
+  "s4": [0, -1.35, 0.306],
+  "s5": [0, -1.075, 0.306],
+  "s6": [0, -0.8, 0.306],
+  "s7": [0, -0.525, 0.306],
+  "s8": [0, -0.25, 0.306],
+  "s9": [0, 0.025, 0.306],
+  "s10": [0, 0.3, 0.306],
+  "s11": [0, 0.575, 0.306],
+  "s12": [0, 0.85, 0.306],
+  "s13": [0, 1.125, 0.306],
+  "s14": [0, 1.4, 0.306],
+  "head": [0, 1.6, 0.306],
+  "nose": [0, 2.5, 0.3],
+  "jaw": [0, 1.87, 0.29],
+  "jaw_tip": [0, 2.48, 0.29],
+  "eye": [0.045, 1.825, 0.34]
+ }
+}

@@ -552,7 +552,7 @@ Check.Section("kinds", () =>
     Check.That(cave.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Cave is not null), "the cave's hunters (#10876) load, each with its cave");
     string[] ruin = ["collector", "skitterer", "carrier", "reaper", "threshold-lurker", "shard-dweller", "wall-runner", "channel-sifter", "stilt-pack", "brood-bearer", "mender", "brood-skitterer", "chime-grazer"];
     Check.That(ruin.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt is not null && k.Cave is null), "the ruins' hunters (#10956) load, in no cave's communities");
-    string[] fog = ["needle-mouth"];
+    string[] fog = ["needle-mouth", "fade-ribbon"];
     Check.That(fog.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt?.Fog is not null && k.Cave is null), "the fog foes (#10985) load, each with its fog ways");
     Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length + fog.Length, catalog.Kinds.Count,
         "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters, the fog foes and nothing else");
@@ -1802,6 +1802,96 @@ Check.Section("fog foes", () =>
     {
         Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
         Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"a fog block with {to} is refused");
+    }
+});
+
+// The fade-ribbon (#10986): a darter until the line (#10173) exists. It loops round the player in the mist and darts in
+// only when they come at it; it flutters whenever it swims; its rear always fades; it twists as it swims.
+Check.Section("darters", () =>
+{
+    WildlifeKind ribbon = catalog.Kind("fade-ribbon");
+    WildlifeFog fog = ribbon.Hunt!.Fog ?? throw new InvalidOperationException("the fade-ribbon has no fog block");
+    WildlifeFog needle = catalog.Kind("needle-mouth").Hunt!.Fog!;
+    Check.That(ribbon.Cave is null && ribbon.Population.HerdsPerSquareKilometre == 0, "the fade-ribbon is placed by test aid only: placement through the sumps is #10174's");
+    CreatureRig rig = CreatureManifest.Parse(ReadResource("Wildlife.fade-ribbon.manifest.json"));
+    WildlifeRig clips = WildlifeRig.For(ribbon.Mesh!, rig);
+    Check.That(ribbon.Mesh!.Clips.Keys.All(role => clips.Clips.ContainsKey(role)) && rig.Clips.ContainsKey("gnaw"),
+        "its built body plays every clip its kind names, and has its gnaw for the line");
+    Check.That(fog.Sound == FogSound.Flutter && needle.Sound == FogSound.Click, "the ribbon flutters, the needle-mouth clicks");
+    Check.That(fog.DartMetres is double dart && dart >= ribbon.Hunt.ReachMetres && dart < fog.CircleMetres && needle.DartMetres is null,
+        "the ribbon darts from within its loop and from no further than it bites; the needle-mouth is no darter");
+
+    // Its sound: a flutter whenever it swims, so it is heard before it is seen; the needle-mouth's clicks only while it hunts.
+    Check.That(FogRules.Sounds(FogSound.Flutter, CreatureState.Idle) && FogRules.Sounds(FogSound.Flutter, CreatureState.Searching)
+        && FogRules.Sounds(FogSound.Flutter, CreatureState.Pursuing), "the ribbon flutters wandering, looping and hunting");
+    Check.That(!FogRules.Sounds(FogSound.Flutter, CreatureState.Resting) && !FogRules.Sounds(FogSound.Flutter, CreatureState.Dead), "but not at rest or dead");
+    Check.That(FogRules.Sounds(FogSound.Click, CreatureState.Pursuing) && !FogRules.Sounds(FogSound.Click, CreatureState.Searching), "the needle-mouth clicks only while it hunts");
+
+    // Darting: only when the player comes within its dart, as one driving it off does.
+    Check.That(FogRules.Darts(fog, fog.DartMetres!.Value - 0.1, ready: true) && !FogRules.Darts(fog, fog.DartMetres!.Value + 0.1, ready: true),
+        "it darts in when the player comes within its dart, and not before");
+    Check.That(!FogRules.Darts(fog, 1, ready: false), "within its dart but unable to bite yet, it loops away rather than waiting in the player's face");
+    Check.That(!FogRules.Darts(needle, 0.5, ready: true), "a needle-mouth never holds off to dart: it lunges");
+
+    // Looping: round the player at its loop's distance, a step at a time on its own side, so it goes all the way round.
+    Vector2 prey = Vector2.Zero, at = new((float)fog.CircleMetres, 0);
+    double turned = 0;
+    for (int k = 0; k < 8; k++)
+    {
+        Vector2 next = FogRules.LoopTo(at, prey, fog.CircleMetres, fog.LoopDegrees, 1, _ => true)!.Value;
+        Check.That(Math.Abs(Vector2.Distance(next, prey) - fog.CircleMetres) < 1e-4, "it loops at its loop's distance from the player");
+        double step = Math.Atan2((at.X * next.Y) - (at.Y * next.X), Vector2.Dot(at, next)) * 180 / Math.PI;
+        Check.That(Math.Abs(step - fog.LoopDegrees) < 1e-3, $"each step of its loop goes {fog.LoopDegrees:F0} degrees round, the same way ({step:F1})");
+        turned += step;
+        at = next;
+    }
+
+    Check.That(turned >= 360, "looping, it swims all the way round the player");
+    Vector2 start = new((float)fog.CircleMetres, 0);
+    Vector2 other = FogRules.LoopTo(start, prey, fog.CircleMetres, fog.LoopDegrees, -1, _ => true)!.Value;
+    Check.That(other.Y < 0, "a foe on the other side loops the other way round");
+    Vector2 blocked = FogRules.LoopTo(start, prey, fog.CircleMetres, fog.LoopDegrees, 1, point => point.Y <= 0)!.Value;
+    Check.That(blocked.Y < 0, "where its way round leaves the mist, it turns back the other way");
+    Vector2 narrow = FogRules.LoopTo(start, prey, fog.CircleMetres, fog.LoopDegrees, 1, point => point.Y < 1.8)!.Value;
+    double shortStep = Math.Atan2(narrow.Y, narrow.X) * 180 / Math.PI;
+    Check.That(narrow.Y > 0 && shortStep < fog.LoopDegrees, $"where the mist leaves less room it goes less far round ({shortStep:F0} degrees)");
+    Check.That(FogRules.LoopTo(start, prey, fog.CircleMetres, fog.LoopDegrees, 1, _ => false) is null, "with nowhere in the mist it stays");
+
+    // Its rear always fades: attacking, it shows only part of itself.
+    WildlifeFade fade = ribbon.Mesh.Fade!;
+    Check.That(fade.Strike < 1 && fade.Strike > fade.Rest && fade.AlphaFor(fade.Strike) < 1, "attacking, it shows more of itself than at rest, but never its rear");
+    Check.That(catalog.Kind("needle-mouth").Mesh!.Fade!.Strike == 1, "a needle-mouth attacking shows all of itself");
+
+    // It twists as it swims: none at the head, wider fast than hovering.
+    WildlifeSwim swim = ribbon.Mesh.Swim!;
+    Check.That(swim.TwistDegrees > swim.IdleTwistDegrees && swim.IdleTwistDegrees > 0 && catalog.Kind("needle-mouth").Mesh!.Swim!.TwistDegrees == 0,
+        "the ribbon twists, more fast than hovering; the needle-mouth does not");
+    Vector3[] laid = [.. Enumerable.Range(0, 16).Select(k => new Vector3(0f, 1f, k * 0.33f))];
+    float Widest(float speed)
+    {
+        SwimChain chain = new(laid);
+        chain.Lay(new Vector3(0f, 1f, 0f), Vector3.UnitZ);
+        float widest = 0f;
+        for (int k = 0; k < 120; k++)
+        {
+            chain.Step(swim, new Vector3(0f, 1f, 0f), Vector3.UnitZ, speed, 1.0 / 30);
+            widest = MathF.Max(widest, chain.Twists.Max(MathF.Abs));
+            Check.That(chain.Twists[^1] == 0f || MathF.Abs(chain.Twists[^1]) < 1e-6f, "its head end does not twist");
+        }
+
+        return widest;
+    }
+
+    float lashing = Widest(swim.WaveSpeed), hovering = Widest(0f);
+    Check.That(lashing > hovering * 1.5f && lashing <= (swim.TwistDegrees * MathF.PI / 180f) + 1e-4f,
+        $"its twist is wider swimming fast ({lashing * 180 / MathF.PI:F0} degrees) than hovering ({hovering * 180 / MathF.PI:F0}), and no wider than its kind's");
+
+    string kindsText = ReadKinds();
+    foreach ((string from, string to) in new[] { ("\"dartMetres\": 3.2", "\"dartMetres\": 6.0"), ("\"dartMetres\": 3.2", "\"dartMetres\": 1.0"), ("\"sound\": \"flutter\"", "\"sound\": \"hum\""),
+        ("\"strike\": 0.7", "\"strike\": 0.05"), ("\"twistDegrees\": 50", "\"twistDegrees\": -5") })
+    {
+        Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
+        Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"a darter with {to} is refused");
     }
 });
 

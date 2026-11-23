@@ -1,0 +1,63 @@
+{
+  "species": "fade-ribbon",
+  "family": "floater",
+  "body": {
+    "hindMetres": -1.9,
+    "foreMetres": 1.6
+  },
+  "legs": [],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "walk": {
+      "seconds": 2.0,
+      "loops": true,
+      "plantsFeet": false,
+      "speed": 0.7
+    },
+    "run": {
+      "seconds": 1.0,
+      "loops": true,
+      "plantsFeet": false,
+      "speed": 3.2
+    },
+    "circle": {
+      "seconds": 2.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 1.2,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "bite": {
+      "seconds": 0.8,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "gnaw": {
+      "seconds": 1.2,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "hurt": {
+      "seconds": 0.6,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "die": {
+      "seconds": 2.2,
+      "loops": false,
+      "plantsFeet": false
+    }
+  }
+}

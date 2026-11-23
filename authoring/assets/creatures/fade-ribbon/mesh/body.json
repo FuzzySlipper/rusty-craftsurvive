@@ -1,0 +1,24 @@
+{
+  "source": "authoring/assets/creatures/fade-ribbon/mesh/generated.glb",
+  "triangles": 5999,
+  "areaSquareMetres": 4.033,
+  "charts": 2,
+  "utilization": 0.7305,
+  "masterTexels": [
+    639,
+    183
+  ],
+  "masterTexelsPerMetre": 128,
+  "boundsBlender": [
+    [
+      -0.0454474613070488,
+      -2.500000238418579,
+      0.0
+    ],
+    [
+      0.0454474575817585,
+      2.5,
+      0.6250000596046448
+    ]
+  ]
+}

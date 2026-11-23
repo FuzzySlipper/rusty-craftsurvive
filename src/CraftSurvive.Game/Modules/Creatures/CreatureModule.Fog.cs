@@ -22,7 +22,7 @@ internal sealed partial class CreatureModule
     /// </summary>
     private const float MistTestRiseMetres = 1.0f;
 
-    /// <summary>A fog foe's teeth click from about its head: this far over its lift.</summary>
+    /// <summary>A fog foe's teeth click from about its head: this far over its lift. A ribbon flutters from its middle, at its lift.</summary>
     private const float ClickOverLiftMetres = 0.3f;
 
     /// <summary>How loud the player was in the last update, and how many noises fog foes have heard, for the readout.</summary>
@@ -32,6 +32,9 @@ internal sealed partial class CreatureModule
 
     /// <summary>The last fog foe's circling off after a bite: where to, or why it stayed.</summary>
     private string lastCircle = "none";
+
+    /// <summary>The last darter's loop round the player or dart in (#10986).</summary>
+    private string lastLoop = "none";
 
     private bool FeetInMist(Vector3 feet) => InMist?.Invoke(feet + (Vector3.UnitY * MistTestRiseMetres)) ?? false;
 
@@ -114,12 +117,15 @@ internal sealed partial class CreatureModule
 
         Vector2 player = new(playerWorld.X, playerWorld.Z);
         double distance = CreatureSimulation.PlanarDistance(creature.Position, playerWorld);
-        if (creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking)
+        // Its own sound (#10986): the needle-mouth's teeth click from its head while it hunts; the fade-ribbon flutters
+        // from its middle whenever it swims. Either quickens as it nears.
+        if (FogRules.Sounds(fog.Sound, creature.Behavior.State))
         {
             hunter.ClickInSeconds -= seconds;
             if (hunter.ClickInSeconds <= 0)
             {
-                cues.RaiseAt(Cue.NeedleClick, SpaceOf(creature).ToLocal(creature.Position.X, StandingAt(creature) + member.Lift + ClickOverLiftMetres, creature.Position.Y));
+                (Cue cue, float over) = fog.Sound == FogSound.Flutter ? (Cue.RibbonFlutter, 0f) : (Cue.NeedleClick, ClickOverLiftMetres);
+                cues.RaiseAt(cue, SpaceOf(creature).ToLocal(creature.Position.X, StandingAt(creature) + member.Lift + over, creature.Position.Y));
                 hunter.ClickInSeconds = FogRules.ClickEvery(fog, hunter.Kind.Hunt.SightMetres, distance);
             }
         }
@@ -128,6 +134,7 @@ internal sealed partial class CreatureModule
             hunter.ClickInSeconds = 0;
         }
 
+        if (fog.DartMetres is not null) Loop(creature, hunter, fog, player, distance);
         if (!wasBiting || hunter.BiteSeconds > 0 || hunter.Circling) return;
         float floor = StandingAt(creature);
         if (FogRules.CircleTo(creature.Position, player, fog.CircleMetres, hunter.CircleSide, point => FeetInMist(point, floor)) is Vector2 to)
@@ -145,9 +152,45 @@ internal sealed partial class CreatureModule
     /// <summary>The errand a fog foe circles off on.</summary>
     private const string CircleErrand = "circle";
 
+    /// <summary>The errand a darter loops round the player on (#10986).</summary>
+    private const string LoopErrand = "loop";
+
+    /// <summary>
+    /// A darter (#10986: the fade-ribbon, before the line exists) hunting or searching: it loops round the player, a step of
+    /// its loop at a time, while they stay out of its dart; when they come within it, as one driving it off does, it drops
+    /// its loop and darts in to bite. After the bite it circles off as any fog foe does, then loops again. One within its
+    /// dart that cannot bite yet (cooling down, or with no clear line) loops away rather than waiting in the player's face.
+    /// </summary>
+    private void Loop(Creature creature, Hunter hunter, WildlifeFog fog, Vector2 player, double distance)
+    {
+        bool looping = errands.TryGetValue(creature.Id, out Errand? errand) && errand.Why == LoopErrand;
+        bool ready = creature.Behavior.CanAttack(step, creature.Kind.Tuning) && fogClear.Contains(creature.Id);
+        if (FogRules.Darts(fog, distance, ready))
+        {
+            if (!looping) return;
+            errands.Remove(creature.Id);
+            creature.Behavior = creature.Behavior with { State = CreatureState.Pursuing, SearchUntilTick = -1 };
+            lastLoop = string.Create(CultureInfo.InvariantCulture, $"{creature.Id} at step {step} darts in at {distance:F1} m");
+            return;
+        }
+
+        // Hunting it loops; searching where it last heard the player it loops there too, rather than coming in.
+        if (looping || errand is not null || hunter.BiteSeconds > 0 || creature.Behavior.State is not (CreatureState.Pursuing or CreatureState.Attacking or CreatureState.Searching)) return;
+        float floor = StandingAt(creature);
+        if (FogRules.LoopTo(creature.Position, player, fog.CircleMetres, fog.LoopDegrees, hunter.CircleSide, point => FeetInMist(point, floor)) is Vector2 to)
+        {
+            Send(creature, to, fog.CircleSeconds, LoopErrand);
+            lastLoop = string.Create(CultureInfo.InvariantCulture, $"{creature.Id} at step {step} loops to {to.X:F1},{to.Y:F1}");
+        }
+        else
+        {
+            lastLoop = string.Create(CultureInfo.InvariantCulture, $"{creature.Id} at step {step} stayed: no place {fog.CircleMetres:F1} m round in the mist");
+        }
+    }
+
     /// <summary>A fog foe's part of the readout: how loud the player was, how many noises were heard, and each foe's hearing.</summary>
     private string FogReadout() => hunters.Values.Any(hunter => hunter.Floats)
         ? string.Create(CultureInfo.InvariantCulture,
-            $" fog: loudness={lastLoudness:F1} heard={noisesHeard} circle={lastCircle} [{string.Join(" ", hunters.Where(pair => pair.Value.Floats).Select(pair => string.Create(CultureInfo.InvariantCulture, $"{pair.Key}:ago={Math.Min(pair.Value.HeardAgoSeconds, 999):F1},lift={pair.Value.Member.Lift:F2},circling={pair.Value.Circling},clear={fogClear.Contains(pair.Key)}")))}]")
+            $" fog: loudness={lastLoudness:F1} heard={noisesHeard} circle={lastCircle} loop={lastLoop} [{string.Join(" ", hunters.Where(pair => pair.Value.Floats).Select(pair => string.Create(CultureInfo.InvariantCulture, $"{pair.Key}:ago={Math.Min(pair.Value.HeardAgoSeconds, 999):F1},lift={pair.Value.Member.Lift:F2},circling={pair.Value.Circling},clear={fogClear.Contains(pair.Key)}")))}]")
         : "";
 }

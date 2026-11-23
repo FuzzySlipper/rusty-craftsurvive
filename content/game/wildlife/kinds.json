@@ -549,6 +549,37 @@
       "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
     },
     {
+      "id": "fade-ribbon",
+      "name": "Fade-ribbon",
+      "$comment": "The fog foe that cuts the line (#10986), settled with Patch on den-wiki wandering-years/fog-wildlife ('Roster and rules'): a broad, paper-thin membrane 5 m long that swims a mist sump's air behind a long needle head, its rear always fading out, and never leaves the mist. Until the line (#10173) exists it hunts the player as a darter: hearing them in the mist it loops round them, and darts in to bite only when they come at it, then circles away. It flutters whenever it swims, so it is heard before it is seen. Placed by test aid only: placement through the sumps stays with #10174.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 6 },
+      "body": { "lengthMetres": 5.0, "heightMetres": 0.6, "widthMetres": 0.09, "sizeClass": "human", "colour": "#ddd4e6" },
+      "mesh": {
+        "file": "creatures/fade-ribbon/fade-ribbon.glb",
+        "manifest": "creatures/fade-ribbon/fade-ribbon.manifest.json",
+        "ragdoll": "creatures/fade-ribbon/fade-ribbon.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "idle", "circle": "circle", "threat": "threat", "bite": "bite", "hurt": "hurt", "die": "die" },
+        "fade": { "$comment": "Its rear always fades out: attacking it shows only strike of its length.", "paint": "creatures/fade-ribbon/fade.png", "cutoff": 0.25, "rest": 0.12, "strike": 0.7, "sweepSeconds": 0.3 },
+        "swim": { "$comment": "#10995 as the needle-mouth's, looser at the tail, and twisting as a ribbon does (#10986): a wave of turning its face to its edge, twistWaveMetres crest to crest, twistDegrees at waveSpeed and idleTwistDegrees hovering.",
+          "waveMetres": 0.3, "idleWaveMetres": 0.08, "waveSpeed": 7.0, "waveLengthMetres": 2.4, "headStillShare": 0.2, "lagHead": 25, "lagTail": 4, "straighten": 1.2, "strikeWeight": 0.35, "turnEaseSeconds": 0.3,
+          "twistDegrees": 50, "idleTwistDegrees": 20, "twistWaveMetres": 3.0 }
+      },
+      "speeds": { "walk": 1.8, "grazeDrift": 0.5, "flee": 7.0, "turnDegrees": 200 },
+      "wariness": { "noticeMetres": 18, "actMetres": 6, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 18, "reachMetres": 2.4, "haltMetres": 1.8, "accuracy": 22, "power": 2, "cooldownTicks": 120, "biteWindupSeconds": 0.3, "dodgeMetres": 0.6,
+        "rest": { "wakeMetres": 6, "clip": "idle" }, "search": { "seconds": 6, "clip": "idle" },
+        "fog": { "$comment": "#10986: as the needle-mouth's (#10985), but it flutters (sound) whenever it swims, every clickFarSeconds far off to clickNearSeconds at the player; and it is a darter: within its hearing it loops round the player circleMetres off, loopDegrees round at a time for up to circleSeconds, and darts in only when they come within dartMetres.",
+          "floatMetres": 1.3, "bobMetres": 0.15, "bobSeconds": 4.0, "heardSeconds": 5, "feelMetres": 3.0, "circleMetres": 5.5, "circleSeconds": 3.0, "clickFarSeconds": 1.2, "clickNearSeconds": 0.35,
+          "sound": "flutter", "dartMetres": 3.2, "loopDegrees": 50 } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 30, "evasion": 50, "armour": 0, "experience": 220 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
       "id": "mouldback",
       "name": "Mouldback",
       "$comment": "Cave wildlife (#10876); its own body (#10877), resting flat as one more patch of fungus.",

@@ -15,19 +15,35 @@ namespace CraftSurvive.Game.Modules.Wildlife;
 /// <item>easing straight behind the head at <paramref name="Straighten"/> a second as it slows;</item>
 /// <item>giving way to its clip by <paramref name="StrikeWeight"/> while it threatens or bites, so a strike's arch shows;</item>
 /// <item>its head turning after the way it faces over about <paramref name="TurnEaseSeconds"/>, easing in and out of a turn
-/// rather than swinging at once (Patch, 2026-11-22: the head's turn "snaps less").</item>
+/// rather than swinging at once (Patch, 2026-11-22: the head's turn "snaps less");</item>
+/// <item>a ribbon's twist (#10986, the fade-ribbon): a wave of turning its flat face to its edge and back, running down it
+/// <see cref="TwistWaveMetres"/> from crest to crest, <see cref="TwistDegrees"/> at its fastest and
+/// <see cref="IdleTwistDegrees"/> hovering; none without them.</item>
 /// </list>
 /// </summary>
 internal sealed record WildlifeSwim(float WaveMetres, float IdleWaveMetres, float WaveSpeed, float WaveLengthMetres, float HeadStillShare,
     float LagHead, float LagTail, float Straighten, float StrikeWeight, float TurnEaseSeconds)
 {
+    internal float TwistDegrees { get; init; }
+
+    internal float IdleTwistDegrees { get; init; }
+
+    internal float TwistWaveMetres { get; init; } = 1f;
+
     internal static WildlifeSwim? Read(JsonElement mesh)
     {
         if (!mesh.TryGetProperty("swim", out JsonElement swim)) return null;
         WildlifeSwim read = new(swim.GetProperty("waveMetres").GetSingle(), swim.GetProperty("idleWaveMetres").GetSingle(), swim.GetProperty("waveSpeed").GetSingle(),
             swim.GetProperty("waveLengthMetres").GetSingle(), swim.GetProperty("headStillShare").GetSingle(), swim.GetProperty("lagHead").GetSingle(),
             swim.GetProperty("lagTail").GetSingle(), swim.GetProperty("straighten").GetSingle(), swim.GetProperty("strikeWeight").GetSingle(),
-            swim.GetProperty("turnEaseSeconds").GetSingle());
+            swim.GetProperty("turnEaseSeconds").GetSingle())
+        {
+            TwistDegrees = swim.TryGetProperty("twistDegrees", out JsonElement twist) ? twist.GetSingle() : 0f,
+            IdleTwistDegrees = swim.TryGetProperty("idleTwistDegrees", out JsonElement idleTwist) ? idleTwist.GetSingle() : 0f,
+            TwistWaveMetres = swim.TryGetProperty("twistWaveMetres", out JsonElement twistWave) ? twistWave.GetSingle() : 1f,
+        };
+        if (read.TwistDegrees < 0 || read.IdleTwistDegrees < 0 || read.TwistWaveMetres <= 0)
+            throw new InvalidDataException("swim: a twist is no wider than it is, along a wave of some length");
         if (read.WaveMetres < 0 || read.IdleWaveMetres < 0 || read.WaveSpeed <= 0 || read.WaveLengthMetres <= 0 || read.HeadStillShare is < 0 or >= 1
             || read.LagTail <= 0 || read.LagHead < read.LagTail || read.Straighten < 0 || read.StrikeWeight is < 0 or > 1 || read.TurnEaseSeconds <= 0)
             throw new InvalidDataException("swim: a wave, a lag slowing from head to tail, a straightening, a strike weight from 0 to 1 and a turn's ease");
@@ -49,7 +65,9 @@ internal sealed class SwimChain
     private readonly Vector3[] before;
     private readonly float total;
     private double travel;
+    private double twisted;
     private float pace;
+    private float[] twists = [];
 
     /// <summary>Slower than this share of its wave's speed it hovers, and eases straight; the wave keeps a slow drift there too.</summary>
     internal const float HoverShare = 0.15f;
@@ -98,7 +116,9 @@ internal sealed class SwimChain
         // The wave runs down the body as fast as the body swims, and at a slow drift while it hovers: it moves on by this
         // update's pace alone, so a change of speed changes how fast it runs from now on, never where it has got to.
         pace += (speed - pace) * (1f - MathF.Exp(-dt / PaceEaseSeconds));
-        travel = (travel + (Math.Max(pace, swim.WaveSpeed * HoverShare) * dt)) % swim.WaveLengthMetres;
+        double run = Math.Max(pace, swim.WaveSpeed * HoverShare) * dt;
+        travel = (travel + run) % swim.WaveLengthMetres;
+        twisted = (twisted + run) % swim.TwistWaveMetres;
         if (dt <= 0) return Waved(swim);
         // Only near a hover does it ease straight: swimming, it follows its head's line.
         float slow = 1f - Math.Clamp(speed / (swim.WaveSpeed * HoverShare), 0f, 1f);
@@ -123,11 +143,19 @@ internal sealed class SwimChain
         return Waved(swim);
     }
 
+    /// <summary>
+    /// How far each point's segment, to the point ahead, is twisted about its length after the last step, in radians, tail
+    /// first: nothing at the head, the twist's wave growing past the head's still share as the wave's does.
+    /// </summary>
+    internal IReadOnlyList<float> Twists => twists;
+
     /// <summary>The points with the wave across them: nothing at the head, growing to its whole width past the head's still share.</summary>
     private Vector3[] Waved(WildlifeSwim swim)
     {
         float fast = Math.Clamp(pace / swim.WaveSpeed, 0f, 1f);
         float width = swim.IdleWaveMetres + ((swim.WaveMetres - swim.IdleWaveMetres) * fast);
+        float twist = (swim.IdleTwistDegrees + ((swim.TwistDegrees - swim.IdleTwistDegrees) * fast)) * MathF.PI / 180f;
+        if (twists.Length != points.Length) twists = new float[points.Length];
         Vector3[] drawn = new Vector3[points.Length];
         float along = 0f;
         drawn[^1] = points[^1];
@@ -140,6 +168,7 @@ internal sealed class SwimChain
             Vector3 side = tangent == Vector3.Zero ? Vector3.Zero : new Vector3(-tangent.Z, 0f, tangent.X);
             float phase = (float)((travel + along) / swim.WaveLengthMetres * 2 * Math.PI);
             drawn[i] = points[i] + (side * width * grow * MathF.Sin(phase));
+            twists[i] = twist * grow * MathF.Sin((float)((twisted + along) / swim.TwistWaveMetres * 2 * Math.PI));
         }
 
         return drawn;

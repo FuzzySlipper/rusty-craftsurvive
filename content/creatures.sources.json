@@ -404,6 +404,17 @@
    "retained": "authoring/assets/creatures/needle-mouth/ (authoring/tools/assets-sync.sh)"
   },
   {
+   "mesh": "content/game/creatures/fade-ribbon/fade-ribbon.glb",
+   "sha256": "c5b9b1f66b8922a604a7d40a2e3d9ca16ca5cf2ec75ea12f671867de2dd48b2e",
+   "manifest": "content/game/creatures/fade-ribbon/fade-ribbon.manifest.json",
+   "built": "authoring/tools/creatures/build_creature.py from authoring/assets/creatures/fade-ribbon/species.json with --mesh mouthed.glb --texture mouthed-64.png (#10986; on the floater family with a gnaw clip and a ribbon's twist in its swims; the mouth cut open by open_mouth.py from the species' mouthCut block); fade.png by fade_paint.py at its defaults",
+   "concept": "authoring/assets/creatures/fade-ribbon/concept/sheet-b.png: Den #10986's second sheet from den-wiki wandering-years/fog-wildlife round22 options 5 and 3; Patch said to mesh from it 2026-11-23 (GPT image via ~/.claude/skills/codex-image-gen)",
+   "reference": "authoring/assets/creatures/fade-ribbon/mesh/side.png, sheet B's side view cropped",
+   "body": "no generator: sheet_membrane.py side.png generated.glb --fill --rim 7a4fb0 (straightened, the sheet's twist filled in, a violet rim painted, a 9 cm head easing to a 2.4 cm membrane); prepare_mesh.py --head +x --length 5.0 --triangles 6000 --texels 128",
+   "reduced": "pixel_reduce.py --factor 2 --colors 14 --luminance 0.64 --saturation 0.95 --erode 1 (64 texels/m; the default erosion ate the thin snout); open_mouth.py adds a 2-row strip for the mouth's inside and teeth",
+   "retained": "authoring/assets/creatures/fade-ribbon/ (authoring/tools/assets-sync.sh)"
+  },
+  {
    "mesh": "content/game/creatures/blindfish/blindfish.glb",
    "sha256": "f9d28ed50c6badfedafe19d547ca79090e44ef5e00b88a5f23e5d0faf8d3de58",
    "manifest": "content/game/creatures/blindfish/blindfish.manifest.json",

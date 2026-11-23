@@ -48,6 +48,7 @@
     <EmbeddedResource Include="../../content/game/creatures/sloth/sloth.manifest.json" LogicalName="Wildlife.sloth.manifest.json" />
     <EmbeddedResource Include="../../content/game/creatures/gaunt/gaunt.manifest.json" LogicalName="Wildlife.gaunt.manifest.json" />
     <EmbeddedResource Include="../../content/game/creatures/needle-mouth/needle-mouth.manifest.json" LogicalName="Wildlife.needle-mouth.manifest.json" />
+    <EmbeddedResource Include="../../content/game/creatures/fade-ribbon/fade-ribbon.manifest.json" LogicalName="Wildlife.fade-ribbon.manifest.json" />
     <EmbeddedResource Include="../../content/game/birds/birds.json" LogicalName="Wildlife.birds.json" />
     <EmbeddedResource Include="../../content/game/creatures/*/*.ragdoll.json" LogicalName="Wildlife.%(Filename)%(Extension)" />
     <EmbeddedResource Include="../../content/game/creatures/collector/collector.glb" LogicalName="Wildlife.collector.glb" />

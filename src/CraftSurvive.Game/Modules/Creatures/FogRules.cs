@@ -1,13 +1,14 @@
 using System.Numerics;
 using CraftSurvive.Game.Modules.Player;
+using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Wildlife;
 
 namespace CraftSurvive.Game.Modules.Creatures;
 
 /// <summary>
 /// The fog foes' ways as Engine-free rules (#10985; den-wiki wandering-years/fog-wildlife, "Roster and rules"): how loud
-/// what the player does is, who hears it, when one senses the player, where it circles off to, how it floats and how
-/// fast its teeth click. The creature module reads the world and applies these.
+/// what the player does is, who hears it, when one senses the player, where it circles off to, where a darter loops
+/// (#10986), how it floats and how often it makes its sound. The creature module reads the world and applies these.
 /// </summary>
 internal static class FogRules
 {
@@ -73,6 +74,55 @@ internal static class FogRules
 
         return null;
     }
+
+    /// <summary>
+    /// Where a darter (#10986) loops to next while the player stays out of its dart: <paramref name="metres"/> from the
+    /// player, <paramref name="degrees"/> further round them from where it is, on its own side, so it swims round and
+    /// round them. Where the mist leaves no room that way (a narrow passage) it tries less far round, then the other way;
+    /// null when no such place is in the mist.
+    /// </summary>
+    /// <param name="side">Which way round it swims: 1 to its left, -1 to its right (each foe keeps its own).</param>
+    internal static Vector2? LoopTo(Vector2 creature, Vector2 player, double metres, double degrees, int side, Func<Vector2, bool> inMist)
+    {
+        ArgumentNullException.ThrowIfNull(inMist);
+        Vector2 from = creature - player;
+        double bearing = from.LengthSquared() > 1e-6f ? Math.Atan2(from.Y, from.X) : 0;
+        foreach (int way in (int[])[side, -side])
+        {
+            foreach (double share in LoopShares)
+            {
+                double turn = bearing + (way * share * degrees * Math.PI / 180);
+                Vector2 to = player + (new Vector2((float)Math.Cos(turn), (float)Math.Sin(turn)) * (float)metres);
+                if (inMist(to)) return to;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>How much of its loop's step round a darter tries, in order, where the mist leaves less room.</summary>
+    private static readonly double[] LoopShares = [1, 0.6, 0.3];
+
+    /// <summary>
+    /// Whether a darter (#10986) darts in now: the player has come within its dart, as one driving it off does, and its
+    /// bite is <paramref name="ready"/> (cooled down, along a clear line). One within its dart that cannot bite yet does
+    /// not wait in the player's face: it loops away, and darts when it can.
+    /// </summary>
+    internal static bool Darts(WildlifeFog fog, double distance, bool ready)
+    {
+        ArgumentNullException.ThrowIfNull(fog);
+        return ready && fog.DartMetres is double dart && distance <= dart;
+    }
+
+    /// <summary>
+    /// Whether a fog foe makes its sound in this state: the needle-mouth's teeth click while it hunts; the fade-ribbon
+    /// flutters whenever it swims, resting or dead excepted, so it is sensed before it is seen (#10986).
+    /// </summary>
+    internal static bool Sounds(FogSound sound, CreatureState state) => sound switch
+    {
+        FogSound.Flutter => state is not (CreatureState.Resting or CreatureState.Dead),
+        _ => state is CreatureState.Pursuing or CreatureState.Attacking,
+    };
 
     /// <summary>
     /// How high over its floor a fog foe swims now: its float, rising and falling over its bob, from its own phase. A

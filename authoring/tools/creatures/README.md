@@ -44,6 +44,7 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `split_dome.py` (Blender) | Cuts a domed back down the middle, lines the halves and builds ribbed plates under them (#10880) |
 | `tone_band.py` | Scales the saturation and value of one hue band of a reduced paint, to match the ground an animal hides in (#10880) |
 | `margin_paint.py` | Paints a ribbon body's back and belly margins into its master by the way each texel faces, keeping the head's teeth and marks (#10985) |
+| `sheet_membrane.py` | Builds a thin membrane body straight from a side view, with no generator: straightened, a twist filled in, a rim painted (#10986) |
 
 ```sh
 blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/build_creature.py -- \
@@ -753,9 +754,44 @@ motion direction could impact their animation more"):
   - A strike's tail arch, the clip showing through at `strikeWeight`, stays (Patch: "the arch looks good").
   - A sideways wave travels down it, wider the faster it swims, and quiet over the head's share. It keeps its own
     phase and eases its pace after the body's speed (`PaceEaseSeconds`), so speeding up or slowing never jumps the tail.
+  - A ribbon twists as well (#10986): a wave of turning its flat face to its edge and back runs down it,
+    `twistWaveMetres` crest to crest, `twistDegrees` at its wave's speed and `idleTwistDegrees` hovering. Each joint is
+    turned about the way its segment points. Without them it does not twist.
 - `WildlifeMeshBodies.Swim` places each body joint in the mesh's space over the clip, turned from its rest direction. The
   jaw and head stay the clip's.
   - While it threatens or bites, the clip shows through by `strikeWeight`, so a strike keeps its arch.
   - A flinch mostly swims, and death gives the body back to its ragdoll.
 - Test aid: `craft.wildlife.swim on|off` compares a body with its clips alone.
 
+### The fade-ribbon: a membrane, and a darter (#10986)
+
+The fog foe that cuts the line, from round22 options 5 and 3 on den-wiki `wandering-years/fog-wildlife`: a broad,
+paper-thin membrane 5 m long behind a long needle head, its rear always fading out.
+
+- **The sheet.** Sheet A came out short and pale; sheet B (`concept/sheet-b.png`, which Patch said to mesh from) is long,
+  broad and violet-rimmed.
+- **The body, with no generator: `sheet_membrane.py`.** Tripo rounds out what it is shown, and this body is an outline.
+  - Sheet B's side view (`mesh/side.png`) is straightened column by column, so a body drawn in a wave rests straight.
+  - `--fill` takes the depth behind the head from the outline's upper envelope, tapering to `--tail-share` at the
+    trailing end: the sheet drew a twist, which straightened reads as a waist. The stretched paint is calmed along the
+    length so the twist's dark band does not show.
+  - `--rim` paints a violet margin along both edges with a darker edge line one game texel deep, since the sheet's own
+    rim is too fine for 64 texels/m.
+  - Each face is a grid over the outline, rounded by how far it lies inside it: 9 cm across at the head easing to
+    2.4 cm. The result goes on to `prepare_mesh.py --head +x`.
+  - `pixel_reduce.py --erode 1`: the default erosion of 4 ate the thin snout.
+- **Clips.** The floater family's, its swims twisting (`rollDegrees`, `rollSegments` in a clip's settings, through
+  `serpent_twist`), and a `gnaw` for the line: the head shaking as the jaws snap, the front tipped down. Its bite is
+  a quick dart with little arch. In game the swim chain twists it too.
+- **In game.** Its kind's `hunt.fog` block adds three things to the needle-mouth's ways:
+  - `sound: flutter`: it flutters whenever it swims, not only while it hunts, so it is heard before it is seen
+    (`Cue.RibbonFlutter`, from `generate-sounds.mjs`).
+  - `dartMetres` and `loopDegrees`: until the line (#10173) exists it is a darter. Hearing the player in the mist, it
+    loops round them `circleMetres` off, `loopDegrees` round at a time (`FogRules.LoopTo`); in a passage too narrow
+    to go round, it weaves to and fro at that distance. It darts in only when the player comes within `dartMetres`
+    and its bite is ready, then circles off; one that cannot bite yet loops away rather than waiting in their face.
+  - Its mesh's `fade.strike` is 0.7: attacking, it shows its front, and its rear stays faded.
+
+| | Triangles | Paint | GLB |
+| --- | --- | --- | --- |
+| Fade-ribbon | 6,599 (the rest of 6,000 the mouth's inside and 72 teeth) | 319 x 93 at 64 texels/m | 534 KB |

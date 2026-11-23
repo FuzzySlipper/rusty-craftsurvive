@@ -28,6 +28,8 @@ internal enum Cue
     Chime,
     /// <summary>A needle-mouth's teeth clicking as it hunts (#10985), placed at its head, quicker as it nears.</summary>
     NeedleClick,
+    /// <summary>A fade-ribbon's membrane fluttering as it swims (#10986), placed at its middle, quicker as it nears.</summary>
+    RibbonFlutter,
 }
 
 /// <summary>
