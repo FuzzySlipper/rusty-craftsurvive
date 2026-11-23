@@ -46,7 +46,7 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.readout", Description = "Reads where the player stands with dungeons: state, loading progress and cost, the nearby entrance.")]
     public string Readout() => dungeons.Readout();
 
-    [DebugCommand("craft.dungeon.mist", Description = "Test aid (#10989): reads or tunes the sump mist's look - thickness, noise (cell metres), strength, current (m/s), glow, eddyshare <n>, albedo <r,g,b>, glint <r,g,b> (the eddies' own light), eddies on|off, default - and lays it again; the readout counts its volumes and eddies against the Engine's cap.")]
+    [DebugCommand("craft.dungeon.mist", Description = "Test aid (#10989): reads or tunes the sump mist's look - thickness, noise (cell metres), strength, current (m/s), glow, eddyshare <n>, albedo <r,g,b>, glint <r,g,b> (the eddies' own light), eddies on|off, and since #10993 regions on|off (the passage as fog regions), stir on|off, settle <s>, push|clear|radius <n> (a creature's stirrer), you <radius,clear> (the player's), default - and lays it again; the readout counts its volumes, regions, cells, stirrers and eddies.")]
     public string Mist(string key = "", string value = "") => dungeons.TuneSumpMist(key, value);
 
     [DebugCommand("craft.dungeon.mistmap", Description = "Test aid (#10985): maps each mist sump a metre a character at this height over its floor: 'm' where a fog foe swims ('#' with the zone's cells too), 'o' a mouth's glow only, 'c' cells only, '.' none.")]

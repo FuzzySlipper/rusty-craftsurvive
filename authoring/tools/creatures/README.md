@@ -715,8 +715,9 @@ a mist sump's air.
   `FogRules` and `CreatureModule.Fog` apply them:
   - It hears, and does not see. A noise is heard as far as the hunt's sight times its loudness. A run and a hard
     landing are loudest, a swing nearly so, and a walking step carries only a few metres.
-  - It senses the player only while they are in the mist with it. It bounds itself by the sump's laid mist, not the
-    mouths' glow. A player out of the mist draws it only to the edge, where it stops.
+  - It senses the player only while they are in the mist with it. It bounds itself by the sump's mist (its fog regions
+    since #10993, or its laid volumes), not the mouths' glow. A player out of the mist draws it only to the edge, where it
+    stops.
   - After each bite it circles off on an errand, and its teeth click (`Cue.NeedleClick`) faster as it nears.
 - **Test aid:** `craft.dungeon.mistmap <metres>` maps where a fog foe may swim at that height. The sump's zone cells
   cover only its bottom metre, so they do not bound it.
@@ -724,4 +725,15 @@ a mist sump's air.
 | | Triangles | Paint | GLB |
 | --- | --- | --- | --- |
 | Needle-mouth | 7,485 (5,998 body, the rest the mouth's inside and teeth) | 357 x 361 at 64 texels/m | 783 KB |
+
+### The mist that fog foes part (#10993)
+
+A sump's passage is drawn as the Engine's fog regions (rusty-engine #10988), not added volumes, so what swims through it
+can part it:
+- `SumpMistRegions` fits a box over each straight run of the passage's mist volumes, at their mean thickness and
+  current, within the Engine's limits (8 regions, 262,144 cells). The mouths' glowing walls stay volumes.
+- `MistStirrers` puts a fog stirrer at each mover's middle in the mist, moved every step at its speed. A creature is
+  0.9 m across and clears 0.8. The player is 0.6 m and clears 0.4, so their lantern keeps its glow in the mist.
+- The add-only eddies of #10989 are off by default (`craft.dungeon.mist eddies on` brings them back).
+- Tuning: `craft.dungeon.mist regions|stir on|off`, `settle`, `push`, `clear`, `radius`, and `you <radius,clear>`.
 

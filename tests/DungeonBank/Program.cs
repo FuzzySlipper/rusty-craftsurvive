@@ -1137,6 +1137,25 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Console.WriteLine($"mist wake: {steady} eddies over 4 s of steps, {alternating} over 2 s with updates of no time between");
     Check.That(steady >= 12 && alternating >= 6, "a creature moving through the mist must shed its wake, with or without updates of no time between steps");
     Check.That(new MistWake().Step(0, [(1, System.Numerics.Vector3.One)], _ => true).Count == 0, "an update of no time sheds nothing");
+
+    // #10993: the sump's passage becomes the Engine's fog regions, a straight run of its volumes at a time, within the
+    // Engine's limits, each box covering its volumes' centres and drifting along the passage as they did.
+    (List<MistRegion> regions, int covered) = SumpMistRegions.Fit(inner, SumpMistRegions.EngineMostRegions, SumpMistRegions.EngineMostCellsInScene);
+    Console.WriteLine($"sump regions: {regions.Count} over {covered} of {inner.Length} volumes, {regions.Sum(r => r.Cells)} cells, "
+        + string.Join(" ", regions.Select(r => $"{r.HalfExtents.X:F1}x{r.HalfExtents.Y:F1}x{r.HalfExtents.Z:F1}@{r.YawDegrees:F0}/{r.CellMetres:F2}m")));
+    Check.That(covered == inner.Length && regions.Count > 0, "a sump's whole passage must fit the Engine's fog regions");
+    Check.That(regions.All(r => r.Cells <= SumpMistRegions.EngineMostCellsPerRegion) && regions.Sum(r => r.Cells) <= SumpMistRegions.EngineMostCellsInScene,
+        "its regions must keep within the Engine's cells per region and in all");
+    Check.That(regions.All(r => SumpMistRegions.CellsAlong(r.HalfExtents.X, r.CellMetres) <= SumpMistRegions.EngineMostCellsPerAxis
+        && SumpMistRegions.CellsAlong(r.HalfExtents.Y, r.CellMetres) <= SumpMistRegions.EngineMostCellsPerAxis
+        && SumpMistRegions.CellsAlong(r.HalfExtents.Z, r.CellMetres) <= SumpMistRegions.EngineMostCellsPerAxis), "and within its cells along an axis");
+    Check.That(inner.All(m => regions.Any(r => r.Contains(m.Centre))), "every volume's heart must lie in a region");
+    Check.That(regions.All(r => r.Current.Length() > 0.1f && r.Density > 0f), "each region must drift along its passage and hold mist");
+    (List<MistRegion> one, int first) = SumpMistRegions.Fit(inner, 1, SumpMistRegions.EngineMostCellsInScene);
+    Check.That(one.Count == 1 && first >= 1 && first <= SumpMistRegions.MostVolumesPerRun, "with one region left, it covers only the first run, the rest left as volumes");
+    Check.That(SumpMistRegions.Fit(inner, SumpMistRegions.EngineMostRegions, 10).Regions.Count == 0, "with no cells left, no region is laid");
+    MistRegion huge = new(System.Numerics.Vector3.Zero, new System.Numerics.Vector3(30f, 4f, 30f), 0f, SumpMistRegions.CellFor(new System.Numerics.Vector3(30f, 4f, 30f)), 1f, default, default);
+    Check.That(huge.Cells <= SumpMistRegions.EngineMostCellsPerRegion && huge.CellMetres > SumpMistRegions.CellMetres, "a box too big for quarter-metre cells takes coarser ones");
 }
 
 // A cave kept by the store is the cave generated (#10888 R10888-2): an underground karst cave's voxels, chunks and dressing

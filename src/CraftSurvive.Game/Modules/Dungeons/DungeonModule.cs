@@ -686,9 +686,15 @@ internal sealed partial class DungeonModule : IProductModule
     /// along the passage, the colour it scatters, how much of its glow shows, and whether what moves in it stirs eddies.
     /// Its albedo is dull: a pale one threw the lantern's light straight back as a bright soup a metre off.
     /// </summary>
-    internal sealed record SumpMistLook(float Thickness, float NoiseScale, float NoiseStrength, float CurrentMetresPerSecond, Vector3 Albedo, float GlowShare, bool Eddies)
+    /// <remarks>
+    /// Since #10993 a sump's passage is drawn as the Engine's fog regions (<paramref name="Regions"/>), which settle back
+    /// over <paramref name="SettleSeconds"/> after what moves through them (<paramref name="Stir"/>) parts and clears them.
+    /// The add-only eddies of #10989 are off by default: they thickened the mist where a body passed, against the parting.
+    /// </remarks>
+    internal sealed record SumpMistLook(float Thickness, float NoiseScale, float NoiseStrength, float CurrentMetresPerSecond, Vector3 Albedo, float GlowShare, bool Eddies,
+        bool Regions = true, bool Stir = true, float SettleSeconds = 4f)
     {
-        internal static SumpMistLook Default { get; } = new(1f, 1.2f, 1f, 0.35f, new Vector3(0.45f, 0.48f, 0.52f), 1f, true);
+        internal static SumpMistLook Default { get; } = new(1f, 1.2f, 1f, 0.35f, new Vector3(0.45f, 0.48f, 0.52f), 1f, false);
     }
 
     /// <summary>The sump mist's look now; the live-debug tuning changes it and lays the mist again.</summary>
@@ -701,6 +707,16 @@ internal sealed partial class DungeonModule : IProductModule
     private IReadOnlyList<MistVolume> laidMist = [];
     private MistEddies? eddies;
 
+    /// <summary>The sumps' passages as the Engine's fog regions (#10993), in the session's frame, and what stirs them.</summary>
+    private readonly List<MistRegion> sumpRegions = [];
+    private int regionsPlaced;
+    private MistStirrers? stirrers;
+
+    /// <summary>The fog regions' and stirrers' ids: their own, apart from the volumes'.</summary>
+    private static uint RegionIds => ProductIds.DungeonMistBase;
+
+    private static uint StirrerIds => ProductIds.DungeonMistBase;
+
     /// <summary>The first fog volume id the eddies use, after every laid volume's.</summary>
     private static uint EddyIds => ProductIds.DungeonMistBase + MistBudget.MostLaidVolumes;
 
@@ -708,17 +724,56 @@ internal sealed partial class DungeonModule : IProductModule
     private const float MouthGlowShare = 2.5f;
 
     /// <summary>The player's id among the mist's movers.</summary>
-    private const int PlayerMover = -1;
+    private const int PlayerMover = MistStirrers.PlayerId;
 
-    /// <summary>Lays a natural space's low mist (lit only by the lights within it), or clears it.</summary>
+    /// <summary>
+    /// Lays a natural space's low mist (lit only by the lights within it), or clears it. A sump's passage, a straight run of
+    /// its volumes at a time, becomes the Engine's fog regions while they last (#10993); its mouths and what no region
+    /// covers stay volumes.
+    /// </summary>
     private void Mist(IReadOnlyList<MistVolume> mist)
     {
         laidMist = mist;
         sumpMist.Clear();
+        sumpRegions.Clear();
         SumpMistLook look = SumpLook;
+        HashSet<int> inRegions = [];
+        if (look.Regions)
+        {
+            int regionsLeft = SumpMistRegions.EngineMostRegions, cellsLeft = SumpMistRegions.EngineMostCellsInScene;
+            foreach ((int start, int count) in SumpPassages(mist))
+            {
+                (List<MistRegion> regions, int covered) = SumpMistRegions.Fit([.. mist.Skip(start).Take(count)], regionsLeft, cellsLeft);
+                for (int k = 0; k < covered; k++) inRegions.Add(start + k);
+                foreach (MistRegion region in regions)
+                {
+                    sumpRegions.Add(region with { Centre = DungeonSpace.InSession(region.Centre) });
+                    regionsLeft--;
+                    cellsLeft -= region.Cells;
+                }
+            }
+        }
+
+        for (int r = 0; r < sumpRegions.Count; r++)
+        {
+            MistRegion region = sumpRegions[r];
+            engine.CameraView.SetFogRegion(new FogRegionRequest(RegionIds + (uint)r, region.Centre, region.HalfExtents, region.YawDegrees, region.CellMetres,
+                region.Density * look.Thickness, look.Albedo, region.Glow * look.GlowShare, MistEdge, look.NoiseScale, look.NoiseStrength,
+                region.Current * look.CurrentMetresPerSecond, look.SettleSeconds));
+        }
+
+        for (int r = sumpRegions.Count; r < regionsPlaced; r++)
+        {
+            engine.CameraView.RemoveFogRegion(new FogRegionRemoval(RegionIds + (uint)r));
+        }
+
+        regionsPlaced = sumpRegions.Count;
+        int laid = 0;
         for (int i = 0; i < mist.Count; i++)
         {
+            if (inRegions.Contains(i)) continue;
             MistVolume volume = mist[i];
+            uint id = ProductIds.DungeonMistBase + (uint)laid++;
             Vector3 centre = DungeonSpace.InSession(volume.Centre);
             if (volume.Sump)
             {
@@ -726,23 +781,38 @@ internal sealed partial class DungeonModule : IProductModule
                 sumpMist.Add((centre, volume.HalfExtents, volume.YawDegrees, density, volume.Mouth));
                 // A mouth glows more of its teal and keeps the hall's broad noise, so it reads as a pale wall from outside in the
                 // dark; a pale albedo there threw the lantern back as soup a step inside. It spills slowly.
-                engine.CameraView.SetFogVolume(new FogVolumeRequest(ProductIds.DungeonMistBase + (uint)i, FogVolumeShape.Ellipsoid, centre, volume.HalfExtents,
+                engine.CameraView.SetFogVolume(new FogVolumeRequest(id, FogVolumeShape.Ellipsoid, centre, volume.HalfExtents,
                     volume.YawDegrees, density, look.Albedo, volume.Glow * look.GlowShare * (volume.Mouth ? MouthGlowShare : 1f), MistEdge,
                     volume.Mouth ? MistNoiseScale : look.NoiseScale, volume.Mouth ? MistNoiseStrength : look.NoiseStrength, volume.Current * look.CurrentMetresPerSecond));
                 continue;
             }
 
-            engine.CameraView.SetFogVolume(new FogVolumeRequest(ProductIds.DungeonMistBase + (uint)i, FogVolumeShape.Ellipsoid, centre,
+            engine.CameraView.SetFogVolume(new FogVolumeRequest(id, FogVolumeShape.Ellipsoid, centre,
                 volume.HalfExtents, volume.YawDegrees, volume.Density, MistAlbedo, volume.Glow, MistEdge, MistNoiseScale, MistNoiseStrength, MistDrift));
         }
 
-        for (int i = mist.Count; i < mistPlaced; i++)
+        for (int i = laid; i < mistPlaced; i++)
         {
             engine.CameraView.RemoveFogVolume(new FogVolumeRemoval(ProductIds.DungeonMistBase + (uint)i));
         }
 
-        mistPlaced = mist.Count;
+        mistPlaced = laid;
         if (mist.Count == 0 || !look.Eddies) eddies?.Clear(EddyIds);
+        if (sumpRegions.Count == 0 || !look.Stir) stirrers?.Clear(StirrerIds);
+    }
+
+    /// <summary>Each sump's passage in the laid mist: a run of its volumes along the way through, its mouths left out.</summary>
+    private static IEnumerable<(int Start, int Count)> SumpPassages(IReadOnlyList<MistVolume> mist)
+    {
+        int start = -1;
+        for (int i = 0; i <= mist.Count; i++)
+        {
+            bool passage = i < mist.Count && mist[i].Sump && !mist[i].Mouth;
+            if (passage && start < 0) start = i;
+            if (passage || start < 0) continue;
+            yield return (start, i - start);
+            start = -1;
+        }
     }
 
     /// <summary>
@@ -752,6 +822,11 @@ internal sealed partial class DungeonModule : IProductModule
     /// </summary>
     internal bool InSumpMist(Vector3 point)
     {
+        foreach (MistRegion region in sumpRegions)
+        {
+            if (region.Contains(point)) return true;
+        }
+
         foreach ((Vector3 centre, Vector3 half, float yaw, float _, bool mouth) in sumpMist)
         {
             if (!mouth && Within(point, centre, half, yaw)) return true;
@@ -800,6 +875,12 @@ internal sealed partial class DungeonModule : IProductModule
     private float? SumpMistAt(Vector3 point)
     {
         float? thickest = null;
+        foreach (MistRegion region in sumpRegions)
+        {
+            float density = region.Density * SumpLook.Thickness;
+            if (region.Contains(point) && density > (thickest ?? 0f)) thickest = density;
+        }
+
         foreach ((Vector3 centre, Vector3 half, float yaw, float density, bool _) in sumpMist)
         {
             if (Within(point, centre, half, yaw) && density > (thickest ?? 0f)) thickest = density;
@@ -820,15 +901,20 @@ internal sealed partial class DungeonModule : IProductModule
     /// <summary>Moves the mist's eddies on (#10989): the player and the dungeon's creatures stir it where they move through it.</summary>
     private void StirMist(double seconds)
     {
-        if (sumpMist.Count == 0 || !SumpLook.Eddies) return;
+        bool stir = sumpRegions.Count > 0 && SumpLook.Stir, eddy = sumpMist.Count + sumpRegions.Count > 0 && SumpLook.Eddies;
+        if (!stir && !eddy) return;
+        (int, Vector3)[] moving = [(PlayerMover, player.WorldFeetPosition), .. MistMovers?.Invoke() ?? []];
+        // What moves through a sump's fog regions parts and clears them, and its wake refills (#10993).
+        if (stir) (stirrers ??= new MistStirrers(engine)).Step(seconds, moving, InSumpMist, StirrerIds);
+        if (!eddy) return;
         eddies ??= new MistEddies(engine);
-        IEnumerable<(int, Vector3)> moving = [(PlayerMover, player.WorldFeetPosition), .. MistMovers?.Invoke() ?? []];
         eddies.Step(seconds, moving, SumpMistAt, SumpLook.Albedo, KarstCave.SumpMistGlow * SumpLook.GlowShare, EddyIds);
     }
 
     /// <summary>
-    /// The live-debug tuning of the sump mist's look (#10989): with no key, the look and the eddies now; else one setting
-    /// (thickness, noise, strength, current, albedo r,g,b, glow, eddies on|off, eddyshare) and the mist laid again.
+    /// The live-debug tuning of the sump mist's look (#10989, #10993): with no key, the look, its regions, stirrers and eddies
+    /// now; else one setting (thickness, noise, strength, current, albedo r,g,b, glow, regions|stir|eddies on|off, settle,
+    /// push, clear, radius, eddyshare) and the mist laid again.
     /// </summary>
     internal string TuneSumpMist(string key, string value)
     {
@@ -846,22 +932,34 @@ internal sealed partial class DungeonModule : IProductModule
                 "albedo" => look with { Albedo = value.Split(',') is [string r, string g, string b] ? new Vector3(F(r), F(g), F(b)) : throw new FormatException() },
                 "glow" => look with { GlowShare = F(value) },
                 "eddies" => look with { Eddies = value == "on" },
-                "eddyshare" or "glint" => look,
+                "regions" => look with { Regions = value == "on" },
+                "stir" => look with { Stir = value == "on" },
+                "settle" => look with { SettleSeconds = F(value) },
+                "eddyshare" or "glint" or "push" or "clear" or "radius" or "you" => look,
                 "default" => SumpMistLook.Default,
                 _ => throw new FormatException(),
             };
             if (key == "eddyshare") (eddies ??= new MistEddies(engine)).DensityShare = F(value);
             if (key == "glint") (eddies ??= new MistEddies(engine)).Glint = value.Split(',') is [string r, string g, string b] ? new Vector3(F(r), F(g), F(b)) : throw new FormatException();
+            if (key == "push") (stirrers ??= new MistStirrers(engine)).Push = F(value);
+            if (key == "clear") (stirrers ??= new MistStirrers(engine)).ClearShare = F(value);
+            if (key == "radius") (stirrers ??= new MistStirrers(engine)).Radius = F(value);
+            if (key == "you")
+            {
+                if (value.Split(',') is not [string r, string c]) throw new FormatException();
+                stirrers ??= new MistStirrers(engine);
+                (stirrers.PlayerRadius, stirrers.PlayerClear) = (F(r), F(c));
+            }
         }
         catch (FormatException)
         {
-            return "craft.dungeon.mist [thickness|noise|strength|current|glow|eddyshare <n> | albedo|glint <r,g,b> | eddies on|off | default]";
+            return "craft.dungeon.mist [thickness|noise|strength|current|glow|settle|push|clear|radius|eddyshare <n> | you <radius,clear> | albedo|glint <r,g,b> | regions|stir|eddies on|off | default]";
         }
 
         if (key is not ("" or "read" or "-") && state == DungeonState.Inside) Mist(laidMist);
         SumpMistLook now = SumpLook;
         return string.Create(CultureInfo.InvariantCulture,
-            $"sump mist: thickness={now.Thickness:F2} noise={now.NoiseScale:F2}m strength={now.NoiseStrength:F2} current={now.CurrentMetresPerSecond:F2}m/s albedo={now.Albedo.X:F2},{now.Albedo.Y:F2},{now.Albedo.Z:F2} glow={now.GlowShare:F2} eddies={(now.Eddies ? "on" : "off")} share={(eddies?.DensityShare ?? 1.4f):F2} glint={(eddies?.Glint.X ?? 0):F2},{(eddies?.Glint.Y ?? 0):F2},{(eddies?.Glint.Z ?? 0):F2} | laid={mistPlaced} sump={sumpMist.Count} eddiesLive={eddies?.Live ?? 0} shed={eddies?.Shed ?? 0} cap={MistBudget.EngineMostVolumes}");
+            $"sump mist: thickness={now.Thickness:F2} noise={now.NoiseScale:F2}m strength={now.NoiseStrength:F2} current={now.CurrentMetresPerSecond:F2}m/s albedo={now.Albedo.X:F2},{now.Albedo.Y:F2},{now.Albedo.Z:F2} glow={now.GlowShare:F2} eddies={(now.Eddies ? "on" : "off")} share={(eddies?.DensityShare ?? 1.4f):F2} glint={(eddies?.Glint.X ?? 0):F2},{(eddies?.Glint.Y ?? 0):F2},{(eddies?.Glint.Z ?? 0):F2} regions={(now.Regions ? "on" : "off")} stir={(now.Stir ? "on" : "off")} settle={now.SettleSeconds:F1}s push={(stirrers?.Push ?? 0.8f):F2} clear={(stirrers?.ClearShare ?? 0.8f):F2} radius={(stirrers?.Radius ?? 0.9f):F2} you={(stirrers?.PlayerRadius ?? 0.6f):F2},{(stirrers?.PlayerClear ?? 0.4f):F2} | laid={mistPlaced} sump={sumpMist.Count} regionsLaid={regionsPlaced} cells={sumpRegions.Sum(region => region.Cells)} [{string.Join(" ", sumpRegions.Select(region => string.Create(CultureInfo.InvariantCulture, $"{region.Centre.X:F1},{region.Centre.Z:F1}/{region.HalfExtents.X:F1}x{region.HalfExtents.Y:F1}x{region.HalfExtents.Z:F1}@{region.YawDegrees:F0}")))}] stirrersLive={stirrers?.Live ?? 0} eddiesLive={eddies?.Live ?? 0} shed={eddies?.Shed ?? 0} cap={MistBudget.EngineMostVolumes}");
     }
 
     // --- The darkness study (#10091) ---
