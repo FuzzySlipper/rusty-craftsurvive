@@ -39,6 +39,8 @@
     <RustyEngineProductAmbientOcclusion>enabled</RustyEngineProductAmbientOcclusion>
     <RustyEngineProductAmbientOcclusionStrength>1</RustyEngineProductAmbientOcclusionStrength>
     <RustyEngineProductAmbientOcclusionRadius>1.25</RustyEngineProductAmbientOcclusionRadius>
+    <!-- Turns on the Engine's occlusion culling of hidden opaque parts and splats; disabled is the off switch. -->
+    <RustyEngineProductOcclusionCulling>enabled</RustyEngineProductOcclusionCulling>
     <RustyEngineProductLifecycleMode>realtime</RustyEngineProductLifecycleMode>
     <RustyEngineProductFixedStepHz>60</RustyEngineProductFixedStepHz>
     <RustyEngineProductFixedStepMaxCatchUpSteps>4</RustyEngineProductFixedStepMaxCatchUpSteps>
