@@ -329,6 +329,7 @@ internal sealed partial class CreatureModule : IProductModule
         // A whole seal (#10961) hides those on its far side.
         if (seals.Count > 0) seeing.RemoveWhere(id => roster.TryGet(id, out Creature seen) && SealedOff(seen, player.WorldFeetPosition));
         // Fog foes sense by what they hear, not by sight (#10985), and only while the player is in the mist with them.
+        fogClear.Clear();
         if (here is not null && step >= unseenUntil && hunters.Values.Any(hunter => hunter.Floats)) SenseFog(seeing, player.WorldFeetPosition);
         // A pack hunts as one: what one sees they all come for, though a bite still needs its own sight. One still lying at
         // rest calls nothing (#10878): it must wake first, at its own wake range, which a draft shortens from downwind.
@@ -375,7 +376,9 @@ internal sealed partial class CreatureModule : IProductModule
             // An animal showing its display does not bite until it has shown it (#10876).
             // Nor does one still hanging or falling from its ceiling (#10877).
             bool displaying = hunters.TryGetValue(creature.Id, out Hunter? shown) && ((shown.ThreatSeconds > 0 && shown.Kind.Hunt!.Display is not null) || (shown.Member.Lift > 0 && !shown.Floats));
-            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit && !displaying, time, SightScale(creature, alerted),
+            // A fog foe hunts what it hears, but bites only along a clear line (R10985-1): never through a wall.
+            bool clear = FogRules.ClearToBite(shown?.Floats == true, fogClear.Contains(creature.Id));
+            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit && !displaying && clear, time, SightScale(creature, alerted),
                 CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody, WakeShare(shown, creature, playerWorld), ForcedState(creature) ?? ErrandState(creature)) is CreatureStrike strike)
             {
                 // A tender (#10961) strikes no blow of its own.
@@ -387,7 +390,7 @@ internal sealed partial class CreatureModule : IProductModule
             Follow(creature);
             if (hunters.TryGetValue(creature.Id, out Hunter? hunter))
             {
-                Show(creature, hunter, playerWorld, playerCanBeHit, seeing.Contains(creature.Id), time.ElapsedSeconds);
+                Show(creature, hunter, playerWorld, playerCanBeHit, seeing.Contains(creature.Id) && FogRules.ClearToBite(hunter.Floats, fogClear.Contains(creature.Id)), time.ElapsedSeconds);
                 if (overrides.Count > 0) HoldClip(creature, hunter);
                 playerCanBeHit = playerCanBeHit && !player.Vitals.IsDown;
             }
@@ -1351,8 +1354,8 @@ internal sealed partial class CreatureModule : IProductModule
     private HashSet<int> Sense(Vector3 playerWorld, CreatureSpace here)
     {
         HashSet<int> senses = [];
-        // A fog foe does not look (#10985): it hears.
-        bool Looks(Creature creature) => creature.Space == here && Senses(creature) && !(hunters.TryGetValue(creature.Id, out Hunter? hunter) && hunter.Floats);
+        // A fog foe hunts by what it hears (#10985), but still looks: its sight is only the clear line a bite needs (R10985-1).
+        bool Looks(Creature creature) => creature.Space == here && Senses(creature);
         if (!roster.All.Any(Looks))
         {
             return senses;

@@ -1753,6 +1753,11 @@ Check.Section("fog foes", () =>
         "in the mist it senses a player it heard lately or one within its feel, and loses a quiet one further off");
     Check.That(!FogRules.Senses(fog, false, 0, 1), "out of the mist it senses nothing: the mist's edge is safety");
 
+    // A bite needs a clear line (R10985-1): hearing passes walls, teeth do not; any other hunter's sight already decides.
+    Check.That(FogRules.ClearToBite(floats: true, clearLine: true) && !FogRules.ClearToBite(floats: true, clearLine: false),
+        "a fog foe that heard the player through a wall hunts them but bites only along a clear line");
+    Check.That(FogRules.ClearToBite(floats: false, clearLine: false), "a hunter that sees bites as its sight allows");
+
     // Circling off: beside the way it came, at its distance, and only in the mist.
     Vector2 foe = new(3, 0), prey = Vector2.Zero;
     Vector2 circled = FogRules.CircleTo(foe, prey, fog.CircleMetres, 1, _ => true)!.Value;

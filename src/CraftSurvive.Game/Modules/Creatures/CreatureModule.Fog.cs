@@ -60,17 +60,23 @@ internal sealed partial class CreatureModule
         }
     }
 
+    /// <summary>The fog foes with a clear line to the player this update, from the Engine's sight: only they may bite (R10985-1).</summary>
+    private readonly HashSet<int> fogClear = [];
+
     /// <summary>
     /// What fog foes sense, in place of sight: one senses the player while they are in the mist with it and it heard them
-    /// lately or they are within its feel. One that heard them but does not sense them goes to where it heard them.
+    /// lately or they are within its feel. One that heard them but does not sense them goes to where it heard them. The
+    /// Engine's sight, asked as for any hunter, decides only whether a bite has a clear line.
     /// </summary>
     private void SenseFog(HashSet<int> seeing, Vector3 playerFeet)
     {
         bool playerInMist = FeetInMist(playerFeet);
+        fogClear.Clear();
         foreach ((int id, Hunter hunter) in hunters)
         {
             if (hunter.Kind.Hunt?.Fog is not WildlifeFog fog || !roster.TryGet(id, out Creature creature) || !creature.Awake) continue;
-            seeing.Remove(id);
+            // What the Engine's sight found is kept as the clear line a bite needs; the hunt itself goes by hearing.
+            if (seeing.Remove(id)) fogClear.Add(id);
             if (FogRules.Senses(fog, playerInMist, hunter.HeardAgoSeconds, CreatureSimulation.PlanarDistance(creature.Position, playerFeet)))
             {
                 seeing.Add(id);
@@ -142,6 +148,6 @@ internal sealed partial class CreatureModule
     /// <summary>A fog foe's part of the readout: how loud the player was, how many noises were heard, and each foe's hearing.</summary>
     private string FogReadout() => hunters.Values.Any(hunter => hunter.Floats)
         ? string.Create(CultureInfo.InvariantCulture,
-            $" fog: loudness={lastLoudness:F1} heard={noisesHeard} circle={lastCircle} [{string.Join(" ", hunters.Where(pair => pair.Value.Floats).Select(pair => string.Create(CultureInfo.InvariantCulture, $"{pair.Key}:ago={Math.Min(pair.Value.HeardAgoSeconds, 999):F1},lift={pair.Value.Member.Lift:F2},circling={pair.Value.Circling}")))}]")
+            $" fog: loudness={lastLoudness:F1} heard={noisesHeard} circle={lastCircle} [{string.Join(" ", hunters.Where(pair => pair.Value.Floats).Select(pair => string.Create(CultureInfo.InvariantCulture, $"{pair.Key}:ago={Math.Min(pair.Value.HeardAgoSeconds, 999):F1},lift={pair.Value.Member.Lift:F2},circling={pair.Value.Circling},clear={fogClear.Contains(pair.Key)}")))}]")
         : "";
 }

@@ -41,6 +41,12 @@ internal static class FogRules
         playerInMist && (heardAgoSeconds <= fog.HeardSeconds || distance <= fog.FeelMetres);
 
     /// <summary>
+    /// Whether a hunter may start or land a bite (R10985-1): any but a fog foe as its sight already decides, a fog foe only
+    /// along a clear line to the player. It hunts by what it hears, and hearing passes walls that teeth do not.
+    /// </summary>
+    internal static bool ClearToBite(bool floats, bool clearLine) => !floats || clearLine;
+
+    /// <summary>
     /// The angles at which a fog foe tries to circle off, in order (degrees), off the way from the player back to it: well
     /// to one side, then the other, then less so, and last straight back along the way it came, where a narrow passage
     /// leaves no room to either side.
