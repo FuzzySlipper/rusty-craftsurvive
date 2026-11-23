@@ -740,3 +740,18 @@ can part it:
 - The add-only eddies of #10989 are off by default (`craft.dungeon.mist eddies on` brings them back).
 - Tuning: `craft.dungeon.mist regions|stir on|off`, `settle`, `push`, `clear`, `radius`, and `you <radius,clear>`.
 
+### Swimmers' bodies follow their heads (#10995)
+
+A kind's mesh `swim` block draws its body over its clips, from where it swims (Patch: "procedurally animated so their
+motion direction could impact their animation more"):
+- `SwimChain`, a Verlet chain on the serpent rig: `body1`..`bodyN`, then `neck`, with the head point leading.
+  - The head point goes where the creature swims, and each point carries on with its own motion and is dragged after the
+    one ahead at its rest spacing. So the body takes the line the head swam, and the tail whips through a sharp turn.
+  - Below `HoverShare` of its wave's speed it eases straight behind the head.
+  - A sideways wave travels down it, wider the faster it swims, and quiet over the head's share.
+- `WildlifeMeshBodies.Swim` places each body joint in the mesh's space over the clip, turned from its rest direction. The
+  jaw and head stay the clip's.
+  - While it threatens or bites, the clip shows through by `strikeWeight`, so a strike keeps its arch.
+  - A flinch mostly swims, and death gives the body back to its ragdoll.
+- Test aid: `craft.wildlife.swim on|off` compares a body with its clips alone.
+

@@ -48,6 +48,9 @@ public sealed class WildlifeDebugModule : IDebugCommandModule
     [DebugCommand("craft.wildlife.floor", Description = "Cave wildlife (#10876): the floor a small creature finds at a point (x y z) and a step to each side, for diagnosis.")]
     public string Floor(double x, double y, double z) => wildlife.FloorReadout(x, y, z);
 
+    [DebugCommand("craft.wildlife.swim", Description = "Test aid (#10995): on or off, whether swimmers' bodies follow their heads over their clips (their kind's mesh swim block); off leaves their clips alone, to compare. Gives the state either way.")]
+    public string Swim(string state = "") => wildlife.SwimSwitch(state);
+
     [DebugCommand("craft.wildlife.weaken", Description = "Test aid (#10621): leaves every awake animal one health, so the next blow that lands kills it.")]
     public string Weaken() => wildlife.WeakenAll();
 

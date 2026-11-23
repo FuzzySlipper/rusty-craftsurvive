@@ -101,6 +101,16 @@ internal sealed class WildlifeMeshBodies : IDisposable
         /// <summary>Its body in the physics world, once it has fallen as one.</summary>
         internal DynamicsRagdoll? Ragdoll { get; set; }
 
+        /// <summary>A swimmer's body following its head (#10995): its chain, its own clock and how far it now holds the clips.</summary>
+        internal SwimChain? Swim { get; set; }
+
+        internal double SwimClock { get; set; }
+
+        internal float SwimWeight { get; set; }
+
+        /// <summary>Whether its pose now carries the swim's overrides, so they are cleared once when it stops swimming.</summary>
+        internal bool Swimming { get; set; }
+
         /// <summary>The space it stands or lies in (#10876); null for the walking session's frame.</summary>
         internal Creatures.CreatureSpace? Space { get; set; }
 
@@ -177,6 +187,8 @@ internal sealed class WildlifeMeshBodies : IDisposable
             Sit(body, kind, member, feet, seconds);
         }
 
+        bool swims = swimming && kind.Mesh!.Swim is not null && body.Ragdoll is null && !fallen;
+
         if (kind.Mesh!.Fade is WildlifeFade fade) Fade(body, fade, member, fallen, seconds);
 
         float scale = kind.Mesh!.Scale * WildlifeClips.Scale(member, kind);
@@ -187,6 +199,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Vector3 world = new(member.Position.X, body.Height + member.Lift, member.Position.Y);
         Transform placement = new(ToLocal(body, world), Quaternion.Concatenate(lift, turn), new Vector3(scale));
         Plant(body, placement, world, scale, plant: !fallen && distance <= plantWithin, frozen: !fallen && Frozen(member));
+        if (swims || body.Swimming) Swim(body, kind, member, placement, scale, swims && !Frozen(member), seconds);
         if (!fallen) Breathe(body, kind, member, placement, scale, seconds);
         AppearanceFact fact = new(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.Cast);
         Redress(body, kind, member);
@@ -407,6 +420,96 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
         // Between casts the body rides its feet.
         body.Height = feet;
+    }
+
+    /// <summary>A swimmer's chain at rest (#10995): its joints tail first, their rest places and turns in the mesh's space, and the head's place.</summary>
+    private sealed record SwimRest(uint[] Joints, Vector3[] Points, Quaternion[] Turns);
+
+    private readonly Dictionary<RenderResource, SwimRest> swimRests = [];
+
+    /// <summary>Whether swimmers follow their heads (#10995); a test aid turns it off to compare with their clips alone.</summary>
+    private bool swimming = true;
+
+    /// <summary>Test aid (#10995): turns the swim on or off, and gives its state.</summary>
+    internal string SwimSwitch(string state)
+    {
+        if (state is "on" or "off") swimming = state == "on";
+        return $"swim {(swimming ? "on" : "off")}";
+    }
+
+    /// <summary>The serpent rig's chain (#10883): body1 at the tail tip forward to the last body segment, then the neck, and the head's place.</summary>
+    private const string BodyJointStem = "body", NeckJoint = "neck", HeadJoint = "head";
+
+    /// <summary>How fast a swimmer's hold on its clips eases toward what its clip wants, a share a second.</summary>
+    private const float SwimWeightRate = 6f;
+
+    /// <summary>A flinch still mostly swims; dying gives the body back to its clip or its ragdoll.</summary>
+    private const float HurtSwimWeight = 0.7f;
+
+    private SwimRest RestOf(Opened open)
+    {
+        if (swimRests.TryGetValue(open.Mesh, out SwimRest? rest)) return rest;
+        List<string> names = [.. open.Joints.Where(name => name.StartsWith(BodyJointStem, StringComparison.Ordinal) && int.TryParse(name.AsSpan(BodyJointStem.Length), out _))
+            .OrderBy(name => int.Parse(name.AsSpan(BodyJointStem.Length), CultureInfo.InvariantCulture)), NeckJoint, HeadJoint];
+        uint[] joints = [.. names.Select(open.Joint)];
+        ReadOnlySpan<JointPose> pose = engine.Animation.SampleModelJointPose(AnimationModelPoseSampleRequest.OfClip(open.Mesh, "", 0f, new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), false)).Span;
+        Vector3[] points = new Vector3[joints.Length];
+        Quaternion[] turns = new Quaternion[joints.Length];
+        for (int i = 0; i < joints.Length; i++) (points[i], turns[i]) = (pose[(int)joints[i]].Model.Translation, pose[(int)joints[i]].Model.Rotation);
+        return swimRests[open.Mesh] = new SwimRest(joints[..^1], points, turns);
+    }
+
+    /// <summary>
+    /// A swimmer's body follows its head (#10995): the head goes where the creature swims, its body is dragged after it on
+    /// a chain with a wave down it, and each body joint is placed and turned there over the clip, which keeps the jaws and
+    /// head. While it threatens or bites the clip shows through, so a strike keeps its arch; dying it stops.
+    /// </summary>
+    private void Swim(Body body, WildlifeKind kind, WildlifeMember member, Transform placement, float scale, bool swims, double seconds)
+    {
+        WildlifeSwim swim = kind.Mesh!.Swim!;
+        float wanted = !swims || body.Tier != WildlifeTier.Full ? 0f
+            : body.Playing switch
+            {
+                WildlifeClipRole.Threat or WildlifeClipRole.Bite => swim.StrikeWeight,
+                WildlifeClipRole.Hurt => HurtSwimWeight,
+                WildlifeClipRole.Die => 0f,
+                _ => 1f,
+            };
+        body.SwimWeight += (wanted - body.SwimWeight) * (1f - MathF.Exp(-SwimWeightRate * (float)Math.Max(0, seconds)));
+        if (wanted == 0f && body.SwimWeight < 0.02f)
+        {
+            if (body.Swimming) engine.Animation.SetPose(new(body.Instance, ReadOnlyMemory<TwoBoneIk>.Empty, body.Overrides));
+            body.Swimming = false;
+            body.Swim = null;
+            return;
+        }
+
+        if (!body.Published) return;
+        SwimRest rest = RestOf(body.Kind);
+        Vector3 ToFrame(Vector3 model) => placement.Translation + Vector3.Transform(model * scale, placement.Rotation);
+        Quaternion back = Quaternion.Inverse(placement.Rotation);
+        Vector3 ToModel(Vector3 frame) => Vector3.Transform(frame - placement.Translation, back) / scale;
+        Vector3 head = ToFrame(rest.Points[^1]);
+        Vector3 heading = Vector3.Transform(Vector3.UnitZ, placement.Rotation);
+        if (body.Swim is null)
+        {
+            body.Swim = new SwimChain([.. rest.Points.Select(ToFrame)]);
+            body.Swim.Lay(head, heading);
+        }
+
+        body.SwimClock += Math.Max(0, seconds);
+        Vector3[] drawn = body.Swim.Step(swim, head, heading, member.Velocity.Length(), body.SwimClock, seconds);
+        JointOverride[] overrides = new JointOverride[rest.Joints.Length + body.Overrides.Length];
+        for (int i = 0; i < rest.Joints.Length; i++)
+        {
+            Vector3 at = ToModel(drawn[i]), next = ToModel(drawn[i + 1]);
+            Quaternion turn = SwimChain.FromTo(rest.Points[i + 1] - rest.Points[i], next - at);
+            overrides[i] = JointOverride.Place(rest.Joints[i], PoseSpace.Model, at, Quaternion.Normalize(turn * rest.Turns[i]), body.SwimWeight);
+        }
+
+        body.Overrides.CopyTo(overrides, rest.Joints.Length);
+        engine.Animation.SetPose(new(body.Instance, ReadOnlyMemory<TwoBoneIk>.Empty, overrides));
+        body.Swimming = true;
     }
 
     /// <summary>Plants the feet near the player, while the clip keeps them on the ground; otherwise the clip's own pose stands.</summary>

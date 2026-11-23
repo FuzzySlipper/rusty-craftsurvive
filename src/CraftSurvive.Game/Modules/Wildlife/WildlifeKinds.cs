@@ -109,7 +109,11 @@ internal enum WildlifeClipRole
 /// placeholder.
 /// </summary>
 internal sealed record WildlifeMesh(string File, string Manifest, float Scale, IReadOnlyDictionary<WildlifeClipRole, string> Clips, string? Ragdoll = null,
-    WildlifeBreath? Breath = null, WildlifeWorn? Worn = null, WildlifeFade? Fade = null);
+    WildlifeBreath? Breath = null, WildlifeWorn? Worn = null, WildlifeFade? Fade = null)
+{
+    /// <summary>How its body follows its head as it swims (#10995), drawn over its clips; null for one its clips alone pose.</summary>
+    internal WildlifeSwim? Swim { get; init; }
+}
 
 /// <summary>
 /// A body faded into the mist (#10984: the fog foes, seen only when they attack). <paramref name="Paint"/> is the kind's
@@ -780,7 +784,10 @@ internal static class WildlifeKinds
         }
 
         return new WildlifeMesh(mesh.GetProperty("file").GetString()!, mesh.GetProperty("manifest").GetString()!, mesh.GetProperty("scale").GetSingle(), clips,
-            mesh.TryGetProperty("ragdoll", out JsonElement ragdoll) ? ragdoll.GetString() : null, breath, WildlifeWorn.Read(mesh), WildlifeFade.Read(mesh));
+            mesh.TryGetProperty("ragdoll", out JsonElement ragdoll) ? ragdoll.GetString() : null, breath, WildlifeWorn.Read(mesh), WildlifeFade.Read(mesh))
+        {
+            Swim = WildlifeSwim.Read(mesh),
+        };
     }
 
     private static WildlifeKind ReadKind(JsonElement kind, Dictionary<WildlifeSizeClass, WildlifeCapsule> classes,

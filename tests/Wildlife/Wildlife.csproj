@@ -10,6 +10,7 @@
     <!-- Wildlife's rules (#10567) are Engine-free: kinds read from the product's own content, herd
          behaviour, region seeding and the population ledger, checked without a host. -->
     <Compile Include="$(ProductModules)Wildlife/WildlifeKinds.cs" LinkBase="Product/Wildlife" />
+    <Compile Include="$(ProductModules)Wildlife/SwimChain.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/WildlifeBreath.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/WildlifeHerd.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Wildlife/WildlifeRules.cs" LinkBase="Product/Wildlife" />

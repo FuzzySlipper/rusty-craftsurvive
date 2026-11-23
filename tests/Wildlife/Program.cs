@@ -1805,6 +1805,51 @@ Check.Section("fog foes", () =>
     }
 });
 
+// A swimmer's body follows its head (#10995): dragged after it on a chain at its rest spacing, the tail lagging through a
+// turn, a wave down it that grows with speed and leaves the head still.
+Check.Section("swim chain", () =>
+{
+    WildlifeSwim swim = catalog.Kind("needle-mouth").Mesh!.Swim ?? throw new InvalidOperationException("the needle-mouth does not swim");
+    WildlifeSwim still = swim with { WaveMetres = 0, IdleWaveMetres = 0 };
+    Vector3[] rest = [.. Enumerable.Range(0, 16).Select(k => new Vector3(0f, 1f, k * 0.25f))];
+    float Spacing(IReadOnlyList<Vector3> p, int i) => Vector3.Distance(p[i], p[i + 1]);
+    bool Kept(IReadOnlyList<Vector3> p) => Enumerable.Range(0, p.Count - 1).All(i => MathF.Abs(Spacing(p, i) - 0.25f) < 1e-3f);
+
+    SwimChain chain = new(rest);
+    chain.Lay(new Vector3(0f, 1f, 0f), Vector3.UnitX);
+    Check.That(Kept(chain.Points) && MathF.Abs(chain.Points[0].X + 3.75f) < 1e-3f, "laid out, it lies straight behind its head at its rest spacing");
+    const double Step = 1.0 / 60;
+    Vector3 head = Vector3.Zero with { Y = 1f };
+    for (int k = 0; k < 120; k++)
+    {
+        head += new Vector3(3f * (float)Step, 0f, 0f);
+        chain.Step(still, head, Vector3.UnitX, 3f, k * Step, Step);
+    }
+
+    Check.That(Kept(chain.Points) && chain.Points.All(p => MathF.Abs(p.Z) < 1e-3f), "swimming straight, it stays straight and keeps its spacing");
+    // A sharp turn: the head swings round to swim along +z; the tail still lies along the old line a moment after.
+    for (int k = 0; k < 12; k++)
+    {
+        head += new Vector3(0f, 0f, 3f * (float)Step);
+        chain.Step(still, head, Vector3.UnitZ, 3f, k * Step, Step);
+    }
+
+    Check.That(Kept(chain.Points), "through a turn it keeps its spacing");
+    Check.That(chain.Points[^3].Z > 0.1f && MathF.Abs(chain.Points[0].Z) < 0.05f, "through a turn the head end swings round while the tail still lies along the way it came");
+    for (int k = 0; k < 240; k++) chain.Step(still, head, Vector3.UnitZ, 0f, k * Step, Step);
+    Check.That(chain.Points.Take(15).All(p => p.Z < head.Z + 1e-3f) && MathF.Abs(chain.Points[0].X - head.X) < 0.3f,
+        "stopped, it eases straight out behind its head");
+
+    float Width(SwimChain c, float speed) => Enumerable.Range(0, 60).Max(k => c.Step(swim, head, Vector3.UnitZ, speed, k / 30.0, 0)[0].X - c.Points[0].X);
+    Check.That(Width(chain, swim.WaveSpeed) > Width(chain, 0f) * 2f, "its wave lashes wider swimming fast than hovering");
+    Vector3[] waved = chain.Step(swim, head, Vector3.UnitZ, swim.WaveSpeed, 0.37, 0);
+    Check.That(waved[^1] == chain.Points[^1] && Vector3.Distance(waved[^2], chain.Points[^2]) < 1e-4f, "its head and neck stay out of the wave");
+    Quaternion turn = SwimChain.FromTo(Vector3.UnitZ, Vector3.UnitX);
+    Check.That(Vector3.Distance(Vector3.Transform(Vector3.UnitZ, turn), Vector3.UnitX) < 1e-4f && SwimChain.FromTo(Vector3.UnitY, Vector3.UnitY) == Quaternion.Identity,
+        "a bone is turned from its rest direction to its new one the shortest way");
+    Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(ReadKinds().Replace("\"strikeWeight\": 0.35", "\"strikeWeight\": 1.5", StringComparison.Ordinal)), "a strike weight past 1 is refused");
+});
+
 Check.Section("debug holds", () =>
 {
     Vector2 near = new(12, 0);

@@ -910,6 +910,9 @@ internal sealed partial class WildlifeModule : IProductModule
     }
 
     /// <summary>Test aid: leaves every awake animal one health.</summary>
+    /// <summary>Test aid (#10995): swimmers' bodies following their heads, on or off.</summary>
+    internal string SwimSwitch(string state) => Presentation.Meshes.SwimSwitch(state);
+
     internal string WeakenAll()
     {
         foreach (WildlifeMember member in awake.SelectMany(herd => herd.Members)) member.Combat = member.Combat with { Health = 1 };
