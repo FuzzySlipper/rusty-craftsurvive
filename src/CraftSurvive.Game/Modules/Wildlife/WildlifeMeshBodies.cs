@@ -101,10 +101,8 @@ internal sealed class WildlifeMeshBodies : IDisposable
         /// <summary>Its body in the physics world, once it has fallen as one.</summary>
         internal DynamicsRagdoll? Ragdoll { get; set; }
 
-        /// <summary>A swimmer's body following its head (#10995): its chain, its own clock and how far it now holds the clips.</summary>
+        /// <summary>A swimmer's body following its head (#10995): its chain and how far it now holds the clips.</summary>
         internal SwimChain? Swim { get; set; }
-
-        internal double SwimClock { get; set; }
 
         internal float SwimWeight { get; set; }
 
@@ -510,8 +508,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
             body.Swim.Lay(head, heading);
         }
 
-        body.SwimClock += Math.Max(0, seconds);
-        Vector3[] drawn = body.Swim.Step(swim, head, heading, member.Velocity.Length(), body.SwimClock, seconds);
+        Vector3[] drawn = body.Swim.Step(swim, head, heading, member.Velocity.Length(), seconds);
         JointOverride[] overrides = new JointOverride[rest.Joints.Length + body.Overrides.Length];
         for (int i = 0; i < rest.Joints.Length; i++)
         {

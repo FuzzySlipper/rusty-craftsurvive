@@ -1823,7 +1823,7 @@ Check.Section("swim chain", () =>
     for (int k = 0; k < 120; k++)
     {
         head += new Vector3(3f * (float)Step, 0f, 0f);
-        chain.Step(still, head, Vector3.UnitX, 3f, k * Step, Step);
+        chain.Step(still, head, Vector3.UnitX, 3f, Step);
     }
 
     Check.That(Kept(chain.Points) && chain.Points.All(p => MathF.Abs(p.Z) < 1e-3f), "swimming straight, it stays straight and keeps its spacing");
@@ -1831,19 +1831,43 @@ Check.Section("swim chain", () =>
     for (int k = 0; k < 12; k++)
     {
         head += new Vector3(0f, 0f, 3f * (float)Step);
-        chain.Step(still, head, Vector3.UnitZ, 3f, k * Step, Step);
+        chain.Step(still, head, Vector3.UnitZ, 3f, Step);
     }
 
     Check.That(Kept(chain.Points), "through a turn it keeps its spacing");
     Check.That(chain.Points[^3].Z > 0.1f && MathF.Abs(chain.Points[0].Z) < 0.05f, "through a turn the head end swings round while the tail still lies along the way it came");
-    for (int k = 0; k < 240; k++) chain.Step(still, head, Vector3.UnitZ, 0f, k * Step, Step);
+    for (int k = 0; k < 240; k++) chain.Step(still, head, Vector3.UnitZ, 0f, Step);
     Check.That(chain.Points.Take(15).All(p => p.Z < head.Z + 1e-3f) && MathF.Abs(chain.Points[0].X - head.X) < 0.3f,
         "stopped, it eases straight out behind its head");
 
-    float Width(SwimChain c, float speed) => Enumerable.Range(0, 60).Max(k => c.Step(swim, head, Vector3.UnitZ, speed, k / 30.0, 0)[0].X - c.Points[0].X);
-    Check.That(Width(chain, swim.WaveSpeed) > Width(chain, 0f) * 2f, "its wave lashes wider swimming fast than hovering");
-    Vector3[] waved = chain.Step(swim, head, Vector3.UnitZ, swim.WaveSpeed, 0.37, 0);
+    float Width(SwimChain c, float speed) => Enumerable.Range(0, 60).Max(_ => c.Step(swim, head, Vector3.UnitZ, speed, 1.0 / 30)[0].X - c.Points[0].X);
+    float hovering = Width(chain, 0f), lashing = Width(chain, swim.WaveSpeed);
+    Check.That(lashing > hovering * 2f, "its wave lashes wider swimming fast than hovering");
+    Vector3[] waved = chain.Step(swim, head, Vector3.UnitZ, swim.WaveSpeed, 0.37);
     Check.That(waved[^1] == chain.Points[^1] && Vector3.Distance(waved[^2], chain.Points[^2]) < 1e-4f, "its head and neck stay out of the wave");
+    // A change of speed long into a swim changes how fast the wave runs from then on, not where it has got to (R10995-1),
+    // and its width eases after it: the tail never jumps sideways in a frame as the creature speeds up or slows.
+    SwimChain cruising = new(rest);
+    Vector3 lead = new(0f, 1f, 0f);
+    cruising.Lay(lead, Vector3.UnitZ);
+    float Tail(float speed)
+    {
+        lead += new Vector3(0f, 0f, speed * (float)Step);
+        Vector3[] drawn = cruising.Step(swim, lead, Vector3.UnitZ, speed, Step);
+        return drawn[0].X - cruising.Points[0].X;
+    }
+
+    float last = 0f, steadiest = 0f;
+    for (int k = 0; k < 3600; k++)
+    {
+        float now = Tail(3f);
+        if (k > 0) steadiest = MathF.Max(steadiest, MathF.Abs(now - last));
+        last = now;
+    }
+
+    float faster = Tail(3.01f), slower = Tail(1f);
+    Check.That(MathF.Abs(faster - last) <= steadiest + 1e-3f && MathF.Abs(slower - faster) <= steadiest + 1e-3f,
+        "a minute into a swim, speeding up or slowing moves its tail no further in a frame than swimming steadily does");
     // Its head eases after its facing (Patch: it "snaps less"): in and out of a turn, the short way round, never past it.
     float angle = 0f, rate = 0f, widest = 0f;
     float[] path = new float[90];

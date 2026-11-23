@@ -751,7 +751,8 @@ motion direction could impact their animation more"):
   - The head turns after the body's facing on a critically damped spring (`turnEaseSeconds`), easing in and out of a turn
     instead of swinging round at the facing's constant rate (Patch: it should snap less).
   - A strike's tail arch, the clip showing through at `strikeWeight`, stays (Patch: "the arch looks good").
-  - A sideways wave travels down it, wider the faster it swims, and quiet over the head's share.
+  - A sideways wave travels down it, wider the faster it swims, and quiet over the head's share. It keeps its own
+    phase and eases its pace after the body's speed (`PaceEaseSeconds`), so speeding up or slowing never jumps the tail.
 - `WildlifeMeshBodies.Swim` places each body joint in the mesh's space over the clip, turned from its rest direction. The
   jaw and head stay the clip's.
   - While it threatens or bites, the clip shows through by `strikeWeight`, so a strike keeps its arch.

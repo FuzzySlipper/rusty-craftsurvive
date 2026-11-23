@@ -48,9 +48,14 @@ internal sealed class SwimChain
     private readonly Vector3[] points;
     private readonly Vector3[] before;
     private readonly float total;
+    private double travel;
+    private float pace;
 
     /// <summary>Slower than this share of its wave's speed it hovers, and eases straight; the wave keeps a slow drift there too.</summary>
     internal const float HoverShare = 0.15f;
+
+    /// <summary>The wave's pace eases after the body's speed over about this long, so a lunge's start or end widens or calms it rather than jumping.</summary>
+    internal const float PaceEaseSeconds = 0.3f;
 
     /// <param name="rest">The chain's points at rest, tail first and the head point last, in any frame: only their spacing is kept.</param>
     internal SwimChain(IReadOnlyList<Vector3> rest)
@@ -85,13 +90,16 @@ internal sealed class SwimChain
     /// </summary>
     /// <param name="heading">Which way the creature faces, along the ground.</param>
     /// <param name="speed">How fast it swims, metres a second.</param>
-    /// <param name="clock">The simulation time, which the wave travels by.</param>
-    internal Vector3[] Step(WildlifeSwim swim, Vector3 head, Vector3 heading, float speed, double clock, double seconds)
+    internal Vector3[] Step(WildlifeSwim swim, Vector3 head, Vector3 heading, float speed, double seconds)
     {
         ArgumentNullException.ThrowIfNull(swim);
         Vector3 back = -Flat(heading);
         float dt = (float)Math.Max(0, seconds);
-        if (dt <= 0) return Waved(swim, speed, clock);
+        // The wave runs down the body as fast as the body swims, and at a slow drift while it hovers: it moves on by this
+        // update's pace alone, so a change of speed changes how fast it runs from now on, never where it has got to.
+        pace += (speed - pace) * (1f - MathF.Exp(-dt / PaceEaseSeconds));
+        travel = (travel + (Math.Max(pace, swim.WaveSpeed * HoverShare) * dt)) % swim.WaveLengthMetres;
+        if (dt <= 0) return Waved(swim);
         // Only near a hover does it ease straight: swimming, it follows its head's line.
         float slow = 1f - Math.Clamp(speed / (swim.WaveSpeed * HoverShare), 0f, 1f);
         float straighten = 1f - MathF.Exp(-swim.Straighten * slow * dt);
@@ -112,16 +120,14 @@ internal sealed class SwimChain
             points[i] = Toward(points[i + 1], eased, lengths[i], back);
         }
 
-        return Waved(swim, speed, clock);
+        return Waved(swim);
     }
 
     /// <summary>The points with the wave across them: nothing at the head, growing to its whole width past the head's still share.</summary>
-    private Vector3[] Waved(WildlifeSwim swim, float speed, double clock)
+    private Vector3[] Waved(WildlifeSwim swim)
     {
-        float fast = Math.Clamp(speed / swim.WaveSpeed, 0f, 1f);
+        float fast = Math.Clamp(pace / swim.WaveSpeed, 0f, 1f);
         float width = swim.IdleWaveMetres + ((swim.WaveMetres - swim.IdleWaveMetres) * fast);
-        // The wave runs down the body as fast as the body swims, and at a slow drift while it hovers.
-        double travel = Math.Max(speed, swim.WaveSpeed * HoverShare) * clock;
         Vector3[] drawn = new Vector3[points.Length];
         float along = 0f;
         drawn[^1] = points[^1];
