@@ -15,9 +15,14 @@ namespace CraftSurvive.Game.Modules.Creatures;
 /// </summary>
 internal sealed partial class CreatureModule
 {
-    private readonly Dictionary<int, FixtureState> fixtures = [];
+    /// <summary>
+    /// Each fixture's state, by its record (R10963-1): a fixture is solitary, one to its record, so what it has spent and how
+    /// far it has recovered outlasts its creature sleeping, or being forgotten and woken again, as a bearer's split pods
+    /// do. Only its death forgets it.
+    /// </summary>
+    private readonly Dictionary<string, FixtureState> fixtures = new(StringComparer.Ordinal);
 
-    /// <summary>Shut bowers, by creature id: their walls stand as colliders.</summary>
+    /// <summary>Shut bowers, by creature id: their walls stand as colliders while they are awake.</summary>
     private readonly HashSet<int> shutBowers = [];
 
     /// <summary>Vessels that split this update: their broods spill once the creatures have moved, as a bearer's do.</summary>
@@ -59,14 +64,26 @@ internal sealed partial class CreatureModule
         WildlifeFixture fixture = hunter.Kind.Hunt!.Fixture!;
         WildlifeMember member = hunter.Member;
         Vector3 feet = player.WorldFeetPosition;
-        if (!fixtures.TryGetValue(creature.Id, out FixtureState? state))
+        if (!fixtures.TryGetValue(hunter.Record.Key, out FixtureState? state))
         {
-            state = fixtures[creature.Id] = new FixtureState();
+            state = fixtures[hunter.Record.Key] = new FixtureState();
             // Placed by hand it faces the player; #10955's placement faces it out of its recess.
             Vector2 toPlayer = new Vector2(feet.X, feet.Z) - creature.Position;
-            if (toPlayer.LengthSquared() > 1e-6f) member.Yaw = MathF.Atan2(toPlayer.X, -toPlayer.Y);
-            if (fixture.CeilingMetres > 0) member.Lift = (CeilingOver(creature) ?? (float)fixture.CeilingMetres) - (float)fixture.CeilingMetres;
+            state.Yaw = toPlayer.LengthSquared() > 1e-6f ? MathF.Atan2(toPlayer.X, -toPlayer.Y) : member.Yaw;
         }
+
+        // Its body keeps its facing and its lift to its ceiling, whatever creature wakes for it.
+        member.Yaw = state.Yaw;
+        if (fixture.CeilingMetres > 0 && !hangingLifted.Contains(creature.Id))
+        {
+            member.Lift = (CeilingOver(creature) ?? (float)fixture.CeilingMetres) - (float)fixture.CeilingMetres;
+            hangingLifted.Add(creature.Id);
+        }
+
+        // A shut bower woken again stands its wall again.
+        if (fixture.Act == FixtureAct.Closes && state.Phase == FixturePhase.Acting && shutBowers.Add(creature.Id)) sealsChanged = true;
+        // The time it slept counts (R10963-1): its vessels regrow and it recovers as if it had been watched.
+        seconds = FixtureRules.Elapsed(state, step, seconds);
 
         bool sameFloor = Math.Abs(feet.Y - StandingAt(creature)) <= CreatureSimulation.MeleeHeightMetres;
         double metres = sameFloor ? CreatureSimulation.PlanarDistance(creature.Position, feet) : double.PositiveInfinity;
@@ -211,7 +228,7 @@ internal sealed partial class CreatureModule
     /// <summary>A blow landed on a fixture (#10963): it may cut a hold short, cut a shut bower open, or smash a vessel.</summary>
     private void FixtureStruck(Creature creature, Hunter hunter)
     {
-        if (!fixtures.TryGetValue(creature.Id, out FixtureState? state)) return;
+        if (!fixtures.TryGetValue(hunter.Record.Key, out FixtureState? state)) return;
         WildlifeFixture fixture = hunter.Kind.Hunt!.Fixture!;
         state.StruckPending = true;
         state.HurtSeconds = ClipSeconds(hunter, WildlifeClipRole.Hurt);
@@ -228,7 +245,7 @@ internal sealed partial class CreatureModule
         Vector3 feet = player.WorldFeetPosition;
         foreach (int id in shutBowers)
         {
-            if (!roster.TryGet(id, out Creature bower) || !Rooted(bower, out Hunter hunter) || !fixtures.TryGetValue(id, out FixtureState? state)) continue;
+            if (!roster.TryGet(id, out Creature bower) || !bower.Awake || !Rooted(bower, out Hunter hunter) || !fixtures.TryGetValue(hunter.Record.Key, out FixtureState? state)) continue;
             WildlifeFixture fixture = hunter.Kind.Hunt!.Fixture!;
             if (CreatureSimulation.PlanarDistance(bower.Position, feet) > fixture.WallMetres) continue;
             FixtureEffect effect = FixtureRules.Blow(fixture, state);
@@ -243,18 +260,28 @@ internal sealed partial class CreatureModule
     }
 
     /// <summary>
-    /// A fixture gone (#10963) holds nothing: a seizer that died, was forgotten or slept lets the player go, and a bower
-    /// that did leaves no wall.
+    /// A fixture asleep, gone or dead holds nothing (R10963-1): a seizer lets the player go, and a bower stands no wall while
+    /// it sleeps. Its state is kept, by its record, unless it died; a creature gone takes its shut wall with it, and the
+    /// bower stands it again when it wakes.
     /// </summary>
     private void DropGoneFixtures()
     {
-        foreach (int id in fixtures.Keys.Where(id => !roster.TryGet(id, out Creature creature) || !creature.Awake || !hunters.ContainsKey(id)).ToArray())
-        {
-            fixtures.Remove(id);
-            if (player.Hazards.SeizedBy == id) player.Hazards.Release();
-            if (shutBowers.Remove(id)) sealsChanged = true;
-        }
+        bool Holding(int id) => roster.TryGet(id, out Creature creature) && creature.Awake && hunters.ContainsKey(id);
+        if (player.Hazards.SeizedBy is int holder && !Holding(holder)) player.Hazards.Release();
+        if (shutBowers.RemoveWhere(id => !roster.TryGet(id, out _) || !hunters.ContainsKey(id)) > 0) sealsChanged = true;
+        hangingLifted.RemoveWhere(id => !roster.TryGet(id, out _));
     }
+
+    /// <summary>A fixture killed (#10963) is forgotten: a killed fixture stays dead, and nothing of it is kept.</summary>
+    private void ForgetFixture(Hunter fallen)
+    {
+        if (fallen.Kind.Hunt!.Fixture is null) return;
+        fixtures.Remove(fallen.Record.Key);
+        DropGoneFixtures();
+    }
+
+    /// <summary>Hanging fixtures whose bodies have been lifted to their own ceiling, by creature id.</summary>
+    private readonly HashSet<int> hangingLifted = [];
 
     /// <summary>The walls shut bowers stand as (#10963): a ring of blocks round each, in its session.</summary>
     private IEnumerable<CharacterObstacle> BowerWalls(SpatialSession session)
@@ -262,7 +289,7 @@ internal sealed partial class CreatureModule
         Vector3 half = new(WallBlockMetres / 2, 0, WallBlockMetres / 2);
         foreach (int id in shutBowers)
         {
-            if (!roster.TryGet(id, out Creature bower) || !Rooted(bower, out Hunter hunter)) continue;
+            if (!roster.TryGet(id, out Creature bower) || !bower.Awake || !Rooted(bower, out Hunter hunter)) continue;
             CreatureSpace space = SpaceOf(bower);
             if (!space.Session.Equals(session)) continue;
             float ring = (float)hunter.Kind.Hunt!.Fixture!.WallMetres;
@@ -280,11 +307,12 @@ internal sealed partial class CreatureModule
 
     /// <summary>The fixtures' readout (#10963): each one's phase, and the player's hold and numbing.</summary>
     internal string FixturesReadout() => string.Create(CultureInfo.InvariantCulture,
-        $"fixtures=[{string.Join(" | ", fixtures.Select(f => FixtureLine(f.Key, f.Value)))}] shut=[{string.Join(" ", shutBowers)}] player=[{player.Hazards.Readout()} stamina={player.Stamina.Current:F0}/{player.Stamina.Maximum}] last=[{lastFixture}]");
+        $"fixtures=[{string.Join(" | ", hunters.Values.Where(h => h.Kind.Hunt!.Fixture is not null && fixtures.ContainsKey(h.Record.Key)).Select(h => FixtureLine(h, fixtures[h.Record.Key])))}] kept={fixtures.Count} shut=[{string.Join(" ", shutBowers)}] player=[{player.Hazards.Readout()} stamina={player.Stamina.Current:F0}/{player.Stamina.Maximum}] last=[{lastFixture}]");
 
-    private string FixtureLine(int id, FixtureState state)
+    private string FixtureLine(Hunter hunter, FixtureState state)
     {
-        if (!roster.TryGet(id, out Creature creature) || !hunters.TryGetValue(id, out Hunter? hunter)) return $"{id} gone";
+        int id = hunters.First(pair => pair.Value == hunter).Key;
+        if (!roster.TryGet(id, out Creature creature)) return $"{id} gone";
         double metres = CreatureSimulation.PlanarDistance(creature.Position, player.WorldFeetPosition);
         return string.Create(CultureInfo.InvariantCulture,
             $"{id} {hunter.Kind.Id} {state.Phase} {state.Seconds:F1}s player={metres:F1}m sensed={state.LastFacts.PlayerMetres:F1}m hittable={state.LastFacts.PlayerCanBeHit} sees={state.LastFacts.SeesPlayer} health={creature.Combat.Health}/{creature.Combat.MaximumHealth} blows={state.Blows} spent={state.Spent} lost={hunter.Member.Lost.Count} clip={hunter.Member.NamedClip ?? hunter.Member.Clip.ToString()} lift={hunter.Member.Lift:F2}");
@@ -294,6 +322,7 @@ internal sealed partial class CreatureModule
     {
         fixtures.Clear();
         hatchesDue.Clear();
+        hangingLifted.Clear();
         shutBowers.Clear();
         lastFixture = "none";
     }

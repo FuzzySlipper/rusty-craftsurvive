@@ -919,8 +919,9 @@ internal sealed partial class CreatureModule : IProductModule
         roster.Remove(target.Id);
         director.Remove(target.Id);
         presentation.Sync(roster);
-        // A fixture killed (#10963) lets go of the player and leaves no wall.
-        DropGoneFixtures();
+        // A fixture killed (#10963) lets go of the player, leaves no wall, and is forgotten.
+        if (fallen is not null) ForgetFixture(fallen);
+        else DropGoneFixtures();
         defeated++;
         EncounterReward reward = EncounterResolutionRules.Reward(
             target.Kind.ExperienceAward,

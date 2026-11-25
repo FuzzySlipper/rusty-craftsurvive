@@ -86,6 +86,12 @@ internal sealed class FixtureState
     /// <summary>A blow landed on it since it last decided; the module sets it, the next step reads it.</summary>
     internal bool StruckPending { get; set; }
 
+    /// <summary>The update step it was last tended at; -1 before its first.</summary>
+    internal long LastStep { get; set; } = -1;
+
+    /// <summary>Which way it faces (a creature's yaw), kept for whichever creature wakes for it.</summary>
+    internal float Yaw { get; set; }
+
     /// <summary>What it last sensed, for the readout.</summary>
     internal FixtureFacts LastFacts { get; set; }
 
@@ -299,6 +305,19 @@ internal static class FixtureRules
             default:
                 return FixtureEffect.None;
         }
+    }
+
+    /// <summary>
+    /// How long a fixture's step covers (R10963-1): the update's seconds, or, waking after it slept, all the while since it
+    /// was last tended at <paramref name="stepsPerSecond"/> steps a second, so its vessels regrow and it recovers over the
+    /// time it slept as over time watched. Records this step as its last.
+    /// </summary>
+    internal static double Elapsed(FixtureState state, long step, double seconds, double stepsPerSecond = HunterRules.StepsPerSecond)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        double since = state.LastStep < 0 ? 0 : (step - state.LastStep) / stepsPerSecond;
+        state.LastStep = step;
+        return Math.Max(seconds, since);
     }
 
     /// <summary>The parts a fixture has lost by its health (a vault filter's lobes, #10963): a part for each share of it gone.</summary>

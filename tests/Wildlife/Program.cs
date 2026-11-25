@@ -2090,6 +2090,32 @@ Check.Section("fixtures", () =>
     Check.Equal(vessel.Parts, smashed.Spent, "smash all four and it has nothing left to hatch");
     Check.That(Run(vessel, smashed, 5, _ => At(6)).Count == 0, "and it hatches no more");
 
+    // Asleep, a fixture keeps what it has spent (R10963-1), and the time it slept counts once it wakes.
+    FixtureState sleeper = new();
+    long tick = 0;
+    double Tended(FixtureState state, double seconds)
+    {
+        tick += (long)Math.Round(seconds * HunterRules.StepsPerSecond);
+        return FixtureRules.Elapsed(state, tick, seconds);
+    }
+
+    for (double t = 0; t < 70; t += Step) FixtureRules.Step(vessel, sleeper, At(6), Tended(sleeper, Step));
+    Check.Equal(vessel.Parts, sleeper.Spent, "a vessel watched long enough spends all its vessels");
+    tick += (long)(600 * HunterRules.StepsPerSecond);
+    double woke = Tended(sleeper, Step);
+    Check.That(Math.Abs(woke - 600 - Step) < 1e-6, $"waking after ten minutes asleep, its step covers the time it slept ({woke:F1} s)");
+    FixtureRules.Step(vessel, sleeper, At(40, sees: false), woke);
+    Check.Equal(vessel.Parts, sleeper.Spent, "a short sleep does not regrow its vessels: they are still spent when it wakes");
+    Check.That(Run(vessel, sleeper, 5, _ => At(6)).Count == 0, "and it hatches nothing on waking");
+    tick += (long)(vessel.Brood!.RegrowSeconds * HunterRules.StepsPerSecond);
+    FixtureRules.Step(vessel, sleeper, At(40, sees: false), Tended(sleeper, Step));
+    Check.Equal(0, sleeper.Spent, "asleep past its regrowth, it wakes with its vessels whole again");
+    FixtureState holding = new();
+    Run(unfolder, holding, unfolder.TellSeconds + 0.5, _ => At(near));
+    Check.Equal(FixturePhase.Acting, holding.Phase, "an unfolder holds the player");
+    Check.Equal(FixtureEffect.Release, FixtureRules.Step(unfolder, holding, At(double.PositiveInfinity, canBeHit: false), 30), "waking after the player has gone, it lets go");
+    Check.Equal(FixtureEffect.None, FixtureRules.Step(unfolder, holding, At(near), 1), "and folded away, it rests before it seizes again");
+
     // The kinds refuse a fixture without what its act needs.
     string kindsText = ReadKinds();
     foreach ((string from, string to) in new[]
