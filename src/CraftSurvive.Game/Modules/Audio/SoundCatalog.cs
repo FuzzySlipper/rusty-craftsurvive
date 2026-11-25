@@ -50,6 +50,9 @@ internal static class SoundCatalog
     /// <summary>How far a fade-ribbon's flutter is heard (#10986): it is sensed by it before it is seen.</summary>
     private const float RibbonFlutterRangeMetres = 18f;
 
+    /// <summary>How far a gulper's throat pulse is heard (#10987): well beyond its reach, so it is heard before it is met.</summary>
+    private const float GulperPulseRangeMetres = 16f;
+
     /// <summary>What is left of the other beds while the player's head is under water.</summary>
     private const float Muffled = 0.15f;
 
@@ -76,6 +79,7 @@ internal static class SoundCatalog
         [Cue.Chime] = new(["chime"], AudioBus.Sfx, 0.75f, Placed: true, RangeMetres: ChimeRangeMetres),
         [Cue.NeedleClick] = new(["needle-click-1", "needle-click-2"], AudioBus.Sfx, 0.6f, Placed: true, RangeMetres: NeedleClickRangeMetres),
         [Cue.RibbonFlutter] = new(["ribbon-flutter-1", "ribbon-flutter-2"], AudioBus.Sfx, 0.5f, Placed: true, RangeMetres: RibbonFlutterRangeMetres),
+        [Cue.GulperPulse] = new(["gulper-pulse"], AudioBus.Sfx, 0.6f, Placed: true, RangeMetres: GulperPulseRangeMetres),
     };
 
     internal static readonly IReadOnlyDictionary<AmbienceBed, string> Beds = new Dictionary<AmbienceBed, string>

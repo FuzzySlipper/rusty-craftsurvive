@@ -415,6 +415,15 @@
    "retained": "authoring/assets/creatures/fade-ribbon/ (authoring/tools/assets-sync.sh)"
   },
   {
+   "mesh": "content/game/creatures/gulper/gulper.glb",
+   "sha256": "e21aa2e6102923c5b003bdddc9b69bc075a9ca876712a73153b8f84578b11b08",
+   "manifest": "content/game/creatures/gulper/gulper.manifest.json",
+   "built": "authoring/tools/creatures/build_creature.py from authoring/assets/creatures/gulper/species.json with --mesh body.glb --texture body-64.png (#10987; the gulper family: body, two jaws from the hinge and a twelve-bone tail; weights set by weigh_gulper, not heat); fade.png by fade_paint.py --chain head,jaw,body,tail1..tail12",
+   "concept": "authoring/assets/creatures/gulper/concept/sheet-b.png: Den #10987's second sheet from den-wiki wandering-years/fog-wildlife first spread concept 3 (the folded gulper); Patch said to mesh from it 2026-11-25 (GPT image via ~/.claude/skills/codex-image-gen)",
+   "body": "no generator: make_gulper.py from the species' gulper block (rails, membranes, throat, body, tail and 76 teeth, rest half open, painted at 64 texels/m)",
+   "retained": "authoring/assets/creatures/gulper/ (authoring/tools/assets-sync.sh)"
+  },
+  {
    "mesh": "content/game/creatures/blindfish/blindfish.glb",
    "sha256": "f9d28ed50c6badfedafe19d547ca79090e44ef5e00b88a5f23e5d0faf8d3de58",
    "manifest": "content/game/creatures/blindfish/blindfish.manifest.json",

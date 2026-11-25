@@ -343,8 +343,11 @@ Check.Section("ragdolls", () =>
 
         // A snake (#10883) has no hips or chest: its chain starts at its tail tip, and the blow lands mid-body.
         bool snake = joints.Contains("body1");
-        Check.That(rig.Bones[0].Joint == (snake ? "body1" : "hips"), $"{kind.Id}'s ragdoll starts from its hips (a snake from its tail), which the fall follows");
-        Check.That(snake ? joints[rig.HitBone].StartsWith("body", StringComparison.Ordinal) : joints[rig.HitBone] == "chest", $"{kind.Id}'s killing blow lands on its chest (a snake mid-body)");
+        // A gulper (#10987) is one body between its jaws and its tail: it starts and takes the blow there.
+        bool gulper = joints.Contains("body") && joints.Contains("tail1");
+        Check.That(rig.Bones[0].Joint == (snake ? "body1" : gulper ? "body" : "hips"), $"{kind.Id}'s ragdoll starts from its hips (a snake from its tail, a gulper from its body), which the fall follows");
+        Check.That(snake ? joints[rig.HitBone].StartsWith("body", StringComparison.Ordinal) : joints[rig.HitBone] == (gulper ? "body" : "chest"),
+            $"{kind.Id}'s killing blow lands on its chest (a snake mid-body, a gulper on its body)");
         Check.That(rig.Bones.All(bone => bone.Radius > 0 && bone.Mass > 0), $"{kind.Id}'s bones have a body");
         Check.That(rig.Bones.All(bone => bone.End is null ? bone.Length > 0 : joints.Contains(bone.End)), $"{kind.Id}'s bones end at a bone or in a length");
 
@@ -552,7 +555,7 @@ Check.Section("kinds", () =>
     Check.That(cave.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Cave is not null), "the cave's hunters (#10876) load, each with its cave");
     string[] ruin = ["collector", "skitterer", "carrier", "reaper", "threshold-lurker", "shard-dweller", "wall-runner", "channel-sifter", "stilt-pack", "brood-bearer", "mender", "brood-skitterer", "chime-grazer"];
     Check.That(ruin.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt is not null && k.Cave is null), "the ruins' hunters (#10956) load, in no cave's communities");
-    string[] fog = ["needle-mouth", "fade-ribbon"];
+    string[] fog = ["needle-mouth", "fade-ribbon", "gulper"];
     Check.That(fog.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt?.Fog is not null && k.Cave is null), "the fog foes (#10985) load, each with its fog ways");
     Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length + fog.Length, catalog.Kinds.Count,
         "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters, the fog foes and nothing else");
@@ -1915,6 +1918,56 @@ Check.Section("darters", () =>
     {
         Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
         Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"a darter with {to} is refused");
+    }
+});
+
+// The gulper (#10987): a waiter. It never comes at the player, but holds still while it hears them, strikes once they are
+// within its reach, withdraws while it cools down, and rests when it hears nothing; its throat pulses even at rest.
+Check.Section("waiters", () =>
+{
+    WildlifeKind gulper = catalog.Kind("gulper");
+    WildlifeFog fog = gulper.Hunt!.Fog ?? throw new InvalidOperationException("the gulper has no fog block");
+    Check.That(gulper.Cave is null && gulper.Population.HerdsPerSquareKilometre == 0 && gulper.GroupMaximum == 1,
+        "the gulper is placed by test aid only, one at a time: placement through the sumps is #10174's");
+    CreatureRig rig = CreatureManifest.Parse(ReadResource("Wildlife.gulper.manifest.json"));
+    WildlifeRig clips = WildlifeRig.For(gulper.Mesh!, rig);
+    Check.That(gulper.Mesh!.Clips.Keys.All(role => clips.Clips.ContainsKey(role)) && gulper.Mesh.Fade is not null && gulper.Mesh.Ragdoll is not null,
+        "its built body plays every clip its kind names, fades into the mist and falls as a ragdoll");
+    Check.That(fog.Waits && fog.DartMetres is null && fog.Sound == FogSound.Pulse && !catalog.Kind("needle-mouth").Hunt!.Fog!.Waits,
+        "the gulper waits and pulses; the needle-mouth does not wait");
+    Check.That(FogRules.Sounds(FogSound.Pulse, CreatureState.Resting) && FogRules.Sounds(FogSound.Pulse, CreatureState.Searching) && !FogRules.Sounds(FogSound.Pulse, CreatureState.Dead),
+        "its throat pulses even at rest, so it is heard before it is reached, and stops when it dies");
+    Check.That(gulper.Hunt.CooldownTicks >= 8 * HunterRules.StepsPerSecond, "a long while passes before it strikes again");
+
+    double reach = gulper.Hunt.ReachMetres, near = reach - 0.3, far = reach + 1.5;
+    WaiterMove Move(double distance, CreatureState state = CreatureState.Searching, bool senses = true, bool holding = true, bool other = false, bool biting = false, bool cooled = true, bool clear = true) =>
+        FogRules.Waiter(distance, reach, state, senses, holding, other, biting, cooled, clear);
+    Check.Equal(WaiterMove.Hold, Move(far, CreatureState.Pursuing, holding: false), "hearing the player out of its reach, it holds still where it hangs rather than coming at them");
+    Check.Equal(WaiterMove.Hold, Move(far, CreatureState.Alert, holding: false), "woken, it holds still");
+    Check.Equal(WaiterMove.Keep, Move(far), "holding, it keeps holding while the player stays out of its reach");
+    Check.Equal(WaiterMove.Strike, Move(near), "the player within its reach, cooled and along a clear line, it strikes");
+    Check.Equal(WaiterMove.Keep, Move(near, CreatureState.Attacking, holding: false), "striking, it keeps on with its bite");
+    Check.Equal(WaiterMove.Keep, Move(near, clear: false), "with no clear line, it keeps holding: never a bite through rock");
+    Check.Equal(WaiterMove.Withdraw, Move(near, cooled: false), "within its reach while it is still cooling down, it withdraws");
+    Check.Equal(WaiterMove.Withdraw, Move(near, CreatureState.Attacking, holding: false, cooled: false), "and so does one left facing the player after its bite");
+    Check.Equal(WaiterMove.Rest, Move(far, senses: false), "hearing nothing, it rests where it holds");
+    Check.Equal(WaiterMove.Keep, Move(near, other: true, cooled: false), "withdrawing, it finishes withdrawing");
+    Check.Equal(WaiterMove.Keep, Move(near, CreatureState.Attacking, holding: false, biting: true), "mid-bite it keeps biting");
+    Check.Equal(WaiterMove.Keep, Move(near, CreatureState.Resting, holding: false), "at rest it stays at rest until a noise or its feel wakes it");
+    Check.That(fog.FeelMetres >= reach && gulper.Hunt.Rest!.WakeMetres > reach, "it feels and wakes to a quiet player before they are within its reach");
+    // Withdrawing: at its distance where the mist allows, nearer where it does not, but never within its reach.
+    Vector2 foe = new(2.5f, 0), prey = Vector2.Zero;
+    Vector2 open = FogRules.WithdrawTo(foe, prey, fog.CircleMetres, reach + 0.5, 1, _ => true)!.Value;
+    Check.That(Math.Abs(Vector2.Distance(open, prey) - fog.CircleMetres) < 1e-4, "with room, it withdraws to its full distance");
+    Vector2 cramped = FogRules.WithdrawTo(foe, prey, fog.CircleMetres, reach + 0.5, 1, point => point.Length() < reach + 1.2)!.Value;
+    Check.That(cramped.Length() is var got && got > reach && got < reach + 1.2, $"where the mist leaves little room, it withdraws as far as it can ({got:F1} m), beyond its reach");
+    Check.That(FogRules.WithdrawTo(foe, prey, fog.CircleMetres, reach + 0.5, 1, point => point.Length() < reach) is null, "with no room beyond its reach, it has nowhere to withdraw");
+
+    string kindsText = ReadKinds();
+    foreach ((string from, string to) in new[] { ("\"sound\": \"pulse\", \"waits\": true", "\"sound\": \"pulse\", \"waits\": true, \"dartMetres\": 3.4"), ("\"feelMetres\": 3.4", "\"feelMetres\": 2.0") })
+    {
+        Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
+        Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"a waiter with {to} is refused");
     }
 });
 

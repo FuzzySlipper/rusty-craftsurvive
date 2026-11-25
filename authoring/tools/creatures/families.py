@@ -2277,6 +2277,139 @@ FLOATER_CLIPS = {
 }
 
 
+# ---------------------------------------------------------------- gulper: almost all mouth (#10987)
+# The fog foe that waits (den-wiki wandering-years/fog-wildlife): two jaw rails hinged behind a cheek membrane on each side,
+# a small body and a long ribbon tail. Its body (make_gulper.py) rests half open, `gulper.restOpenDegrees` between the
+# rails, so the membranes have their span; build_creature.py weights each point forward of the hinge between the upper
+# jaw (`head`) and the lower (`jaw`) by where it lies, so the membranes stretch as the jaw opens and fold as it shuts.
+
+def gulper_bones(points):
+    """The root, the body from its back to the hinge, the upper and lower jaws from the hinge to their tips, and the tail
+    as a chain back from the body (tail1 on t0..t1)."""
+    count = max(k for k in range(64) if f"t{k}" in points)
+    bones = [
+        ("root", None, "root", "root_tip", 1.0),
+        ("body", "root", "body", "hinge", 1.0),
+        ("head", "body", "hinge", "nose", 1.0),
+        ("jaw", "body", "hinge", "jaw_tip", 1.0),
+    ]
+    bones += [(f"tail{k}", "body" if k == 1 else f"tail{k - 1}", f"t{k - 1}", f"t{k}", 1.0) for k in range(1, count + 1)]
+    return bones
+
+
+def gulper_tail(c):
+    return sorted((name for name in c.rig.pose.bones.keys() if name.startswith("tail")), key=lambda name: int(name[4:]))
+
+
+def gulper_jaws(c, s, opened):
+    """The jaws `opened` degrees apart: each rail turns half the way from the body's rest, the clips' `restOpenDegrees`
+    (which must match the body's, `gulper.restOpenDegrees`; build_creature.py checks)."""
+    turn = (opened - s["restOpenDegrees"]) / 2
+    c.bone_rotation("head", pitch(turn))
+    c.bone_rotation("jaw", pitch(-turn))
+
+
+def gulper_tail_pose(c, settings, t, loop=1.0, wave=0.0, cycles=1.0):
+    """The tail hanging back from the body, curling into its loop over its last `loopBones` by `loop` (1 is a whole turn),
+    a wave of `wave` degrees running down it, and a twist along the ribbon."""
+    names = gulper_tail(c)
+    count = len(names)
+    loop_bones = settings.get("loopBones", 5)
+    turn = 360.0 * loop / loop_bones
+    twist = settings.get("twistDegrees", 25.0)
+    for k, name in enumerate(names):
+        curl = -turn if k >= count - loop_bones else 0.0
+        sway = wave * math.sin(gait.TAU * (cycles * t - k / count))
+        c.bone_rotation(name, pitch(curl + 0.4 * sway) @ yaw(sway) @ roll(twist * math.sin(gait.TAU * (cycles * t - 0.5 * k / count))))
+
+
+def gulper_hang(c, s, t):
+    """Hanging still in the mist: the jaw shut but for a slow throat pulse that parts it a little, twice a clip, the body
+    swelling with it, the tail's loop drifting."""
+    settings = s["idle"]
+    pulse = max(0.0, gait.wave(t, settings.get("pulses", 2))) ** 3
+    gulper_jaws(c, s, settings.get("shutDegrees", 10.0) + settings.get("pulseDegrees", 8.0) * pulse)
+    c.bone_rotation("body", pitch(1.5 * pulse))
+    gulper_tail_pose(c, settings, t, wave=settings.get("tailWaveDegrees", 6.0))
+
+
+def gulper_drift(c, s, t, clip="walk"):
+    """Swimming the mist slowly, the jaw shut, a wave running down the tail and its loop."""
+    settings = s[clip]
+    gulper_jaws(c, s, settings.get("shutDegrees", 10.0))
+    c.bone_rotation("body", yaw(settings.get("bodyDegrees", 3.0) * gait.wave(t)))
+    gulper_tail_pose(c, settings, t, loop=settings.get("loop", 0.8), wave=settings.get("tailWaveDegrees", 14.0), cycles=settings.get("cycles", 1.0))
+
+
+def gulper_surge(c, s, t):
+    gulper_drift(c, s, t, "run")
+
+
+def gulper_withdraw(c, s, t):
+    """After its bite it withdraws into the mist: the jaw shut, the body drawn back and down, the tail coiling tighter."""
+    settings = s["circle"]
+    gulper_jaws(c, s, settings.get("shutDegrees", 10.0))
+    c.bone_rotation("body", pitch(-settings.get("dipDegrees", 6.0)))
+    gulper_tail_pose(c, settings, t, loop=settings.get("loop", 1.2), wave=settings.get("tailWaveDegrees", 18.0), cycles=2.0)
+
+
+def gulper_gape(c, s, t):
+    """It has something within reach: the jaw opens slowly to its gape, the membranes stretching taut, and holds,
+    trembling a little."""
+    settings = s["threat"]
+    up = gait.rise_hold_fall(t, 0.4, 0.9)
+    tremble = 1.5 * gait.wave(t, 6)
+    gulper_jaws(c, s, settings.get("shutDegrees", 10.0) + (settings.get("gapeDegrees", 75.0) - settings.get("shutDegrees", 10.0)) * up + tremble * up)
+    gulper_tail_pose(c, settings, t, wave=8.0)
+
+
+def gulper_bite(c, s, t):
+    """The one huge bite: the jaw flies open to its widest, the whole mouth thrusts forward, and it slams shut, then eases
+    back."""
+    settings = s["bite"]
+    shut = settings.get("shutDegrees", 10.0)
+    wide = gait.ease_in_out(t, 0.0, 0.3) * (1.0 - gait.ease_in_out(t, 0.42, 0.5))
+    thrust = gait.ease_in_out(t, 0.15, 0.45) * (1.0 - gait.ease_in_out(t, 0.6, 1.0))
+    gulper_jaws(c, s, shut + (settings.get("gapeDegrees", 90.0) - shut) * wide)
+    # Forward is Blender's -Y.
+    c.bone_offset("root", (0.0, -settings.get("reachMetres", 0.9) * thrust, 0.0))
+    c.bone_rotation("body", pitch(-6.0 * thrust))
+    gulper_tail_pose(c, settings, t, loop=1.0 - 0.5 * thrust, wave=20.0 * thrust)
+
+
+def gulper_hurt(c, s, t):
+    """A blow lands: it jerks back, the jaw starting open, the tail whipping."""
+    hit = gait.rise_hold_fall(t, 0.15, 0.35)
+    gulper_jaws(c, s, 10.0 + 25.0 * hit)
+    c.bone_offset("root", (0.0, 0.25 * hit, 0.0))
+    c.bone_rotation("body", pitch(10.0 * hit))
+    gulper_tail_pose(c, s["hurt"], t, wave=30.0 * hit, cycles=2.0)
+
+
+def gulper_die(c, s, t):
+    """It goes slack: the jaw falls open, it rolls over, the tail's loop uncurling. The product lets it sink."""
+    limp = gait.ease_in_out(t, 0.1, 0.8)
+    gulper_jaws(c, s, 10.0 + 45.0 * limp)
+    c.bone_rotation("root", roll(s["die"].get("rollDegrees", 150.0) * limp))
+    middle = c.rig.data.bones["body"].head_local.z
+    angle = math.radians(s["die"].get("rollDegrees", 150.0) * limp)
+    c.bone_offset("root", (middle * math.sin(angle), 0.0, middle * (1.0 - math.cos(angle))))
+    gulper_tail_pose(c, s["die"], t, loop=1.0 - 0.8 * limp)
+
+
+GULPER_CLIPS = {
+    "rest": (clip_rest, False, False),
+    "idle": (gulper_hang, True, False),
+    "walk": (gulper_drift, True, False),
+    "run": (gulper_surge, True, False),
+    "circle": (gulper_withdraw, True, False),
+    "threat": (gulper_gape, False, False),
+    "bite": (gulper_bite, False, False),
+    "hurt": (gulper_hurt, False, False),
+    "die": (gulper_die, False, False),
+}
+
+
 # ---------------------------------------------------------------- strider: two legs and two long arms, no tail (#10956)
 
 def strider_bones():
@@ -3056,6 +3189,7 @@ FAMILIES = {
     # No legs (#10883): body segments from the tail tip to the neck; the product pitches it between s2 and the head.
     "serpent": Family(serpent_bones, {}, SERPENT_CLIPS, (), "s2", "head", (), (), sized=True, root_deforms=False),
     "floater": Family(serpent_bones, {}, FLOATER_CLIPS, (), "s2", "head", (), (), sized=True, root_deforms=False),
+    "gulper": Family(gulper_bones, {}, GULPER_CLIPS, (), "body", "hinge", (), (), sized=True, root_deforms=False),
     "saurian": Family(saurian_bones, SAURIAN_LEGS, SAURIAN_CLIPS,
                       (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                       ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand"), sized=True),

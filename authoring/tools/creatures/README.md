@@ -45,6 +45,7 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `tone_band.py` | Scales the saturation and value of one hue band of a reduced paint, to match the ground an animal hides in (#10880) |
 | `margin_paint.py` | Paints a ribbon body's back and belly margins into its master by the way each texel faces, keeping the head's teeth and marks (#10985) |
 | `sheet_membrane.py` | Builds a thin membrane body straight from a side view, with no generator: straightened, a twist filled in, a rim painted (#10986) |
+| `make_gulper.py` | Builds the gulper's body from its species' `gulper` block, with no generator: jaw rails, membranes, throat, body, tail and teeth, painted at 64 texels/m (#10987) |
 
 ```sh
 blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/build_creature.py -- \
@@ -795,3 +796,36 @@ paper-thin membrane 5 m long behind a long needle head, its rear always fading o
 | | Triangles | Paint | GLB |
 | --- | --- | --- | --- |
 | Fade-ribbon | 6,599 (the rest of 6,000 the mouth's inside and 72 teeth) | 319 x 93 at 64 texels/m | 534 KB |
+
+### The gulper: almost all mouth, and a waiter (#10987)
+
+The fog foe that waits, from the first spread's concept 3 (the folded gulper) on den-wiki `wandering-years/fog-wildlife`.
+
+- **The sheet.** Sheet A was drawn in hard flat facets with a pale throat, comb-even teeth and a stub tail; sheet B
+  (`concept/sheet-b.png`, which Patch said to mesh from) fixed them.
+- **The body, with no generator: `make_gulper.py`.** A generated mesh closes the jaws and fuses the membranes, so the
+  body is built from the species' `gulper` block: two jaw rails 2.5 m long hinged behind a cheek membrane on each side
+  (two faces, ribbed like a fan from the hinge, the front edge scalloped), a throat funnel, a small body, a ribbon tail
+  and uneven needles. It rests half open (`restOpenDegrees`), so the membranes have their span. Every part is its own
+  piece with its own block of one 512x256 paint drawn at 64 texels/m.
+- **The `gulper` family.** `root`, `body` (its back to the hinge), `head` and `jaw` (the upper and lower rails, both from
+  the hinge) and a tail chain `tail1`..`tailN`. Its clips: `idle` hangs with the jaw just parted and a slow throat pulse,
+  `walk` and `run` swim with the tail's loop drifting, `circle` withdraws, `threat` gapes slowly, `bite` flies open to
+  about 95 degrees, thrusts and slams shut, `hurt` and `die`. The clips' `restOpenDegrees` must match the body's.
+- **Weights: `weigh_gulper` in `build_creature.py`**, set rather than solved, since bone heat cannot part loose pieces.
+  A piece along one rail (a rail, a tooth) follows that jaw wholly; the membranes and throat follow both by where each
+  point lies across the gape, easing onto the body within `hingeBlendMetres` of the hinge, so they stretch as the jaw
+  opens and fold as it shuts. The tail runs along its chain. None of the other pins run.
+- **Ragdoll.** `ragdoll.py` spans the gulper's `body` to its `head` and carries the lower jaw's skin with the upper
+  (`CARRIED_BY`): with its parent the body would be a sphere as wide as the gape.
+- **In game.** Its kind's `hunt.fog` block makes it a waiter (`waits`) with a throat `pulse`:
+  - It never comes at the player. Hearing or feeling them in the mist, it holds still where it hangs (a `hold` errand);
+    once they are within its reach with its bite cooled and a clear line, it strikes: one heavy bite.
+  - After the bite, and whenever they come within its reach while it cools down (`cooldownTicks`, 12 s), it withdraws
+    as far as the mist allows, down to just past its reach (`FogRules.WithdrawTo`). Hearing nothing, it rests.
+  - Its throat pulses (`Cue.GulperPulse`) even at rest, every `clickFarSeconds` to `clickNearSeconds`, so it is heard
+    before it is reached. `FogRules.Waiter` decides; `CreatureModule.Fog.Wait` applies.
+
+| | Triangles | Paint | GLB |
+| --- | --- | --- | --- |
+| Gulper | 4,800 | 512 x 256 at 64 texels/m | 983 KB |

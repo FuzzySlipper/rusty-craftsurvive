@@ -271,7 +271,9 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
 /// Its sound is its own (<see cref="Sound"/>): the needle-mouth clicks its teeth while it hunts, the fade-ribbon (#10986)
 /// flutters whenever it swims, at the same paces. A darter (<see cref="DartMetres"/>, the fade-ribbon before the line,
 /// #10173, exists) does not come at the player from afar: sensing them, it loops round them <paramref name="CircleMetres"/>
-/// off, <see cref="LoopDegrees"/> round at a time, and darts in to bite only when they come within its dart.
+/// off, <see cref="LoopDegrees"/> round at a time, and darts in to bite only when they come within its dart. A waiter
+/// (<see cref="Waits"/>, the gulper, #10987) holds still where it hangs while it hears them, strikes once they are within
+/// its reach, and withdraws until its cooldown has passed.
 /// </para>
 /// </summary>
 internal sealed record WildlifeFog(double FloatMetres, double BobMetres, double BobSeconds, double HeardSeconds, double FeelMetres,
@@ -283,15 +285,22 @@ internal sealed record WildlifeFog(double FloatMetres, double BobMetres, double 
 
     internal double LoopDegrees { get; init; } = DefaultLoopDegrees;
 
+    /// <summary>A waiter (#10987, the gulper) does not come at the player: it holds still where it hangs, strikes once they are within its reach, then withdraws until its long cooldown passes.</summary>
+    internal bool Waits { get; init; }
+
     /// <summary>How far round the player a darter loops at a time, unless its kind says.</summary>
     internal const double DefaultLoopDegrees = 50;
 }
 
-/// <summary>A fog foe's own sound (#10986): the needle-mouth's teeth click while it hunts; the fade-ribbon flutters whenever it swims.</summary>
+/// <summary>
+/// A fog foe's own sound (#10986): the needle-mouth's teeth click while it hunts; the fade-ribbon flutters whenever it
+/// swims; the gulper's throat pulses slow and low whenever it lives (#10987), so it is heard before it is reached.
+/// </summary>
 internal enum FogSound
 {
     Click,
     Flutter,
+    Pulse,
 }
 
 /// <summary>
@@ -695,6 +704,7 @@ internal static class WildlifeKinds
     {
         ["click"] = FogSound.Click,
         ["flutter"] = FogSound.Flutter,
+        ["pulse"] = FogSound.Pulse,
     };
 
     private static readonly Dictionary<string, CaveHabitat> CaveHabitatNames = new(StringComparer.Ordinal)
@@ -953,6 +963,7 @@ internal static class WildlifeKinds
                         : FogSound.Click,
                     DartMetres = fog.TryGetProperty("dartMetres", out JsonElement dart) ? dart.GetDouble() : null,
                     LoopDegrees = fog.TryGetProperty("loopDegrees", out JsonElement loop) ? loop.GetDouble() : WildlifeFog.DefaultLoopDegrees,
+                    Waits = fog.TryGetProperty("waits", out JsonElement waits) && waits.GetBoolean(),
                 }
                 : null,
         };
@@ -961,6 +972,8 @@ internal static class WildlifeKinds
             throw new InvalidDataException($"{id}: a fog foe floats, hears for a while, feels at least as far as it reaches, circles off beyond its reach, and clicks faster near");
         if (read.Fog is { DartMetres: double darts } darter && (darts < read.ReachMetres || darts >= darter.CircleMetres || darter.LoopDegrees is <= 0 or > 180))
             throw new InvalidDataException($"{id}: a darter darts from at least its reach, inside the loop it swims, a part of the way round at a time");
+        if (read.Fog is { Waits: true } waiter && (waiter.DartMetres is not null || waiter.FeelMetres < read.ReachMetres))
+            throw new InvalidDataException($"{id}: a waiter does not dart, and feels at least as far as it strikes");
         if (read.Calls is { ReachMetres: <= 0 } or { AgainSeconds: <= 0 } || (read.Calls is not null && read.Display is null))
             throw new InvalidDataException($"{id}: a call reaches somewhere, takes a rest between rings, and rings for its display's while");
         if (read.Brood is { Count: <= 0 } or { GuardMetres: <= 0 } or { RegrowSeconds: <= 0 }) throw new InvalidDataException($"{id}: a brood has animals, a guard and a regrowth");

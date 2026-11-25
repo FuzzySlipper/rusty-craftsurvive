@@ -66,6 +66,9 @@ internal sealed partial class CreatureModule
     /// <summary>The fog foes with a clear line to the player this update, from the Engine's sight: only they may bite (R10985-1).</summary>
     private readonly HashSet<int> fogClear = [];
 
+    /// <summary>The fog foes that sense the player this update, by hearing or feel (#10987: a waiter rests when it no longer does).</summary>
+    private readonly HashSet<int> fogSensing = [];
+
     /// <summary>
     /// What fog foes sense, in place of sight: one senses the player while they are in the mist with it and it heard them
     /// lately or they are within its feel. One that heard them but does not sense them goes to where it heard them. The
@@ -75,6 +78,7 @@ internal sealed partial class CreatureModule
     {
         bool playerInMist = FeetInMist(playerFeet);
         fogClear.Clear();
+        fogSensing.Clear();
         foreach ((int id, Hunter hunter) in hunters)
         {
             if (hunter.Kind.Hunt?.Fog is not WildlifeFog fog || !roster.TryGet(id, out Creature creature) || !creature.Awake) continue;
@@ -83,6 +87,7 @@ internal sealed partial class CreatureModule
             if (FogRules.Senses(fog, playerInMist, hunter.HeardAgoSeconds, CreatureSimulation.PlanarDistance(creature.Position, playerFeet)))
             {
                 seeing.Add(id);
+                fogSensing.Add(id);
             }
             else if (hunter.HeardAgoSeconds <= fog.HeardSeconds && hunter.HeardAt is Vector3 heard)
             {
@@ -124,7 +129,12 @@ internal sealed partial class CreatureModule
             hunter.ClickInSeconds -= seconds;
             if (hunter.ClickInSeconds <= 0)
             {
-                (Cue cue, float over) = fog.Sound == FogSound.Flutter ? (Cue.RibbonFlutter, 0f) : (Cue.NeedleClick, ClickOverLiftMetres);
+                (Cue cue, float over) = fog.Sound switch
+                {
+                    FogSound.Flutter => (Cue.RibbonFlutter, 0f),
+                    FogSound.Pulse => (Cue.GulperPulse, 0f),
+                    _ => (Cue.NeedleClick, ClickOverLiftMetres),
+                };
                 cues.RaiseAt(cue, SpaceOf(creature).ToLocal(creature.Position.X, StandingAt(creature) + member.Lift + over, creature.Position.Y));
                 hunter.ClickInSeconds = FogRules.ClickEvery(fog, hunter.Kind.Hunt.SightMetres, distance);
             }
@@ -135,9 +145,14 @@ internal sealed partial class CreatureModule
         }
 
         if (fog.DartMetres is not null) Loop(creature, hunter, fog, player, distance);
+        if (fog.Waits) Wait(creature, hunter, fog, player, distance);
         if (!wasBiting || hunter.BiteSeconds > 0 || hunter.Circling) return;
         float floor = StandingAt(creature);
-        if (FogRules.CircleTo(creature.Position, player, fog.CircleMetres, hunter.CircleSide, point => FeetInMist(point, floor)) is Vector2 to)
+        // A waiter (#10987) withdraws as far as the mist allows; the others circle off at their distance or stay.
+        Vector2? off = fog.Waits
+            ? FogRules.WithdrawTo(creature.Position, player, fog.CircleMetres, hunter.Kind.Hunt.ReachMetres + WithdrawPastReachMetres, hunter.CircleSide, point => FeetInMist(point, floor))
+            : FogRules.CircleTo(creature.Position, player, fog.CircleMetres, hunter.CircleSide, point => FeetInMist(point, floor));
+        if (off is Vector2 to)
         {
             Send(creature, to, fog.CircleSeconds, CircleErrand);
             hunter.Circling = true;
@@ -154,6 +169,62 @@ internal sealed partial class CreatureModule
 
     /// <summary>The errand a darter loops round the player on (#10986).</summary>
     private const string LoopErrand = "loop";
+
+    /// <summary>The errand a waiter holds still on (#10987): where it hangs, for as long as it hears the player.</summary>
+    private const string HoldErrand = "hold";
+
+    /// <summary>A waiter withdraws at least this far beyond its reach.</summary>
+    private const double WithdrawPastReachMetres = 0.5;
+
+    /// <summary>How long a waiter's hold may last before it is renewed, seconds: far longer than any wait.</summary>
+    private const double HoldSeconds = 3600;
+
+    /// <summary>The last waiter's hold, strike, withdrawal or rest (#10987).</summary>
+    private string lastWait = "none";
+
+    /// <summary>
+    /// A waiter (#10987, the gulper) hearing the player: it holds still where it hangs, strikes once they come within its
+    /// reach, withdraws while it is still cooling down from its last bite, and rests where it is when it no longer senses
+    /// them. After a bite it withdraws as any fog foe circles off.
+    /// </summary>
+    private void Wait(Creature creature, Hunter hunter, WildlifeFog fog, Vector2 player, double distance)
+    {
+        bool holding = errands.TryGetValue(creature.Id, out Errand? errand) && errand.Why == HoldErrand;
+        WaiterMove move = FogRules.Waiter(distance, hunter.Kind.Hunt!.ReachMetres, creature.Behavior.State, fogSensing.Contains(creature.Id), holding,
+            errand is not null && !holding, hunter.BiteSeconds > 0, creature.Behavior.CooledDown(step, creature.Kind.Tuning), fogClear.Contains(creature.Id));
+        switch (move)
+        {
+            case WaiterMove.Hold:
+                Send(creature, creature.Position, HoldSeconds, HoldErrand, stays: true);
+                lastWait = string.Create(CultureInfo.InvariantCulture, $"{creature.Id} at step {step} holds at {distance:F1} m");
+                break;
+            case WaiterMove.Strike:
+                errands.Remove(creature.Id);
+                creature.Behavior = creature.Behavior with { State = CreatureState.Pursuing, SearchUntilTick = -1 };
+                lastWait = string.Create(CultureInfo.InvariantCulture, $"{creature.Id} at step {step} strikes at {distance:F1} m");
+                break;
+            case WaiterMove.Withdraw:
+                errands.Remove(creature.Id);
+                float floor = StandingAt(creature);
+                Vector2? away = FogRules.WithdrawTo(creature.Position, player, fog.CircleMetres, hunter.Kind.Hunt.ReachMetres + WithdrawPastReachMetres, hunter.CircleSide,
+                    point => FeetInMist(point, floor));
+                if (away is Vector2 to)
+                {
+                    Send(creature, to, fog.CircleSeconds, CircleErrand);
+                    hunter.Circling = true;
+                }
+
+                lastWait = away is Vector2 at
+                    ? string.Create(CultureInfo.InvariantCulture, $"{creature.Id} at step {step} withdraws at {distance:F1} m to {at.X:F1},{at.Y:F1}, cooling down")
+                    : string.Create(CultureInfo.InvariantCulture, $"{creature.Id} at step {step} has no room in the mist to withdraw at {distance:F1} m");
+                break;
+            case WaiterMove.Rest:
+                errands.Remove(creature.Id);
+                creature.Behavior = creature.Behavior with { State = creature.Kind.Tuning.Calm, SearchUntilTick = -1 };
+                lastWait = string.Create(CultureInfo.InvariantCulture, $"{creature.Id} at step {step} rests, hearing nothing");
+                break;
+        }
+    }
 
     /// <summary>
     /// A darter (#10986: the fade-ribbon, before the line exists) hunting or searching: it loops round the player, a step of
@@ -190,6 +261,6 @@ internal sealed partial class CreatureModule
     /// <summary>A fog foe's part of the readout: how loud the player was, how many noises were heard, and each foe's hearing.</summary>
     private string FogReadout() => hunters.Values.Any(hunter => hunter.Floats)
         ? string.Create(CultureInfo.InvariantCulture,
-            $" fog: loudness={lastLoudness:F1} heard={noisesHeard} circle={lastCircle} loop={lastLoop} [{string.Join(" ", hunters.Where(pair => pair.Value.Floats).Select(pair => string.Create(CultureInfo.InvariantCulture, $"{pair.Key}:ago={Math.Min(pair.Value.HeardAgoSeconds, 999):F1},lift={pair.Value.Member.Lift:F2},circling={pair.Value.Circling},clear={fogClear.Contains(pair.Key)}")))}]")
+            $" fog: loudness={lastLoudness:F1} heard={noisesHeard} circle={lastCircle} loop={lastLoop} wait={lastWait} [{string.Join(" ", hunters.Where(pair => pair.Value.Floats).Select(pair => string.Create(CultureInfo.InvariantCulture, $"{pair.Key}:ago={Math.Min(pair.Value.HeardAgoSeconds, 999):F1},lift={pair.Value.Member.Lift:F2},circling={pair.Value.Circling},clear={fogClear.Contains(pair.Key)}")))}]")
         : "";
 }

@@ -1,0 +1,209 @@
+{
+ "id": "gulper",
+ "family": "gulper",
+ "about": "The gulper (#10987), the fog foe that waits: almost all mouth, two jaw rails 2.5 m long hinged behind a cheek membrane on each side, over a small body and a long ribbon tail; it hangs still in the thickest mist and bites once when the player passes close. Its body is built by make_gulper.py from the gulper block (no generator: a generated mesh closes the jaws and fuses the membranes), in its rest pose half open, and weighted by the gape block. Key points are metres as [side, forward, up] from the ground under the body's bounding-box centre.",
+ "gulper": {
+  "hinge": [
+   0,
+   0.3,
+   0.75
+  ],
+  "restOpenDegrees": 30,
+  "jawMetres": 2.5,
+  "railHalfWidth": [
+   0.075,
+   0.012
+  ],
+  "railHalfDepth": [
+   0.06,
+   0.012
+  ],
+  "membraneShare": 0.72,
+  "membraneBulgeMetres": 0.14,
+  "throatShare": 0.28,
+  "throatDepthMetres": 0.3,
+  "bodyCentre": [
+   0,
+   -0.08,
+   0.75
+  ],
+  "bodyRadii": [
+   0.2,
+   0.42,
+   0.24
+  ],
+  "tailStart": [
+   0,
+   -0.45,
+   0.75
+  ],
+  "tailMetres": 2.6,
+  "tailBones": 12,
+  "tailHalfHeight": [
+   0.07,
+   0.02
+  ],
+  "teethPerRail": 38,
+  "hingeBlendMetres": 0.2
+ },
+ "clips": {
+  "fps": 30,
+  "restOpenDegrees": 30,
+  "idle": {
+   "seconds": 4.0,
+   "pulses": 2,
+   "shutDegrees": 10.0,
+   "pulseDegrees": 7.0,
+   "tailWaveDegrees": 6.0,
+   "loopBones": 8,
+   "twistDegrees": 25.0
+  },
+  "walk": {
+   "seconds": 3.0,
+   "stride": 1.5,
+   "shutDegrees": 10.0,
+   "tailWaveDegrees": 14.0,
+   "loop": 0.8,
+   "loopBones": 8,
+   "twistDegrees": 30.0
+  },
+  "run": {
+   "seconds": 1.5,
+   "stride": 3.0,
+   "shutDegrees": 10.0,
+   "tailWaveDegrees": 22.0,
+   "loop": 0.6,
+   "loopBones": 8,
+   "twistDegrees": 35.0,
+   "cycles": 1.0
+  },
+  "circle": {
+   "seconds": 2.0,
+   "shutDegrees": 10.0,
+   "dipDegrees": 6.0,
+   "tailWaveDegrees": 18.0,
+   "loop": 1.2,
+   "loopBones": 8,
+   "twistDegrees": 30.0
+  },
+  "threat": {
+   "seconds": 1.8,
+   "shutDegrees": 10.0,
+   "gapeDegrees": 75.0,
+   "loopBones": 8
+  },
+  "bite": {
+   "seconds": 1.4,
+   "shutDegrees": 10.0,
+   "gapeDegrees": 95.0,
+   "reachMetres": 0.9,
+   "loopBones": 8
+  },
+  "hurt": {
+   "seconds": 0.6,
+   "loopBones": 8
+  },
+  "die": {
+   "seconds": 2.4,
+   "rollDegrees": 150.0,
+   "loopBones": 8
+  }
+ },
+ "points": {
+  "root": [
+   0,
+   0,
+   0
+  ],
+  "root_tip": [
+   0,
+   0.5,
+   0
+  ],
+  "body": [
+   0,
+   -0.45,
+   0.75
+  ],
+  "hinge": [
+   0,
+   0.3,
+   0.75
+  ],
+  "nose": [
+   0,
+   2.715,
+   1.397
+  ],
+  "jaw_tip": [
+   0,
+   2.715,
+   0.103
+  ],
+  "t0": [
+   0,
+   -0.45,
+   0.75
+  ],
+  "t1": [
+   0,
+   -0.6667,
+   0.75
+  ],
+  "t2": [
+   0,
+   -0.8833,
+   0.75
+  ],
+  "t3": [
+   0,
+   -1.1,
+   0.75
+  ],
+  "t4": [
+   0,
+   -1.3167,
+   0.75
+  ],
+  "t5": [
+   0,
+   -1.5333,
+   0.75
+  ],
+  "t6": [
+   0,
+   -1.75,
+   0.75
+  ],
+  "t7": [
+   0,
+   -1.9667,
+   0.75
+  ],
+  "t8": [
+   0,
+   -2.1833,
+   0.75
+  ],
+  "t9": [
+   0,
+   -2.4,
+   0.75
+  ],
+  "t10": [
+   0,
+   -2.6167,
+   0.75
+  ],
+  "t11": [
+   0,
+   -2.8333,
+   0.75
+  ],
+  "t12": [
+   0,
+   -3.05,
+   0.75
+  ]
+ }
+}

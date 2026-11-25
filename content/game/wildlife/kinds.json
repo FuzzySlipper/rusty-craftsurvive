@@ -580,6 +580,34 @@
       "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
     },
     {
+      "id": "gulper",
+      "name": "Gulper",
+      "$comment": "The fog foe that waits (#10987), settled with Patch on den-wiki wandering-years/fog-wildlife ('Roster and rules'): almost all mouth, two jaw rails 2.5 m long over a small body and a ribbon tail, hanging still in the thickest mist. It is a waiter: it never comes at the player, but holds still while it hears them and strikes once they pass within its reach, one huge bite, then withdraws and keeps off for its long cooldown. Its throat pulses slow and low even at rest, so it is heard before it is reached. At most one per sump. Placed by test aid only: placement through the sumps stays with #10174.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 12 },
+      "body": { "lengthMetres": 5.8, "heightMetres": 1.3, "widthMetres": 0.4, "sizeClass": "human", "colour": "#e2dcd6" },
+      "mesh": {
+        "file": "creatures/gulper/gulper.glb",
+        "manifest": "creatures/gulper/gulper.manifest.json",
+        "ragdoll": "creatures/gulper/gulper.ragdoll.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "idle", "circle": "circle", "threat": "threat", "bite": "bite", "hurt": "hurt", "die": "die" },
+        "fade": { "paint": "creatures/gulper/fade.png", "cutoff": 0.25, "rest": 0.08, "sweepSeconds": 0.25 }
+      },
+      "speeds": { "walk": 0.8, "grazeDrift": 0.3, "flee": 3.0, "turnDegrees": 60 },
+      "wariness": { "noticeMetres": 8, "actMetres": 4, "lookSeconds": 1, "warnSeconds": 1 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 8, "reachMetres": 3.2, "haltMetres": 2.8, "accuracy": 24, "power": 7, "cooldownTicks": 720, "biteWindupSeconds": 0.65, "dodgeMetres": 0.8,
+        "rest": { "wakeMetres": 3.4, "clip": "idle" },
+        "fog": { "$comment": "#10987: a waiter. It hangs floatMetres over the floor, barely bobbing; it hears a full noise as far as sightMetres and feels the player within feelMetres; it holds still while it senses them, strikes once they are within its reach, withdraws circleMetres off for circleSeconds after a bite and whenever they come within its reach while it cools down (cooldownTicks), and rests where it is when it hears nothing. Its throat pulses every clickFarSeconds, quickening to clickNearSeconds at the player.",
+          "floatMetres": 1.2, "bobMetres": 0.06, "bobSeconds": 6.0, "heardSeconds": 3, "feelMetres": 3.4, "circleMetres": 6.0, "circleSeconds": 3.0, "clickFarSeconds": 4.0, "clickNearSeconds": 2.0,
+          "sound": "pulse", "waits": true } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 90, "evasion": 15, "armour": 4, "experience": 380 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
       "id": "mouldback",
       "name": "Mouldback",
       "$comment": "Cave wildlife (#10876); its own body (#10877), resting flat as one more patch of fungus.",

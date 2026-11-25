@@ -630,6 +630,86 @@ def pin_dome(species, mesh):
           f"{len(plate)} plate vertices stay")
 
 
+def weigh_gulper(species, rig, mesh):
+    """
+    The gulper's weights (#10987), set rather than solved: its body (make_gulper.py) is loose pieces in its rest pose half
+    open, which bone heat cannot part.
+    - A piece forward of the hinge that lies along one rail (a rail, or a tooth) follows that jaw wholly: `head` for the
+      upper, `jaw` for the lower.
+    - The membranes and the throat follow both, each point by where it lies across the gape (its angle about the hinge
+      between the rails), so they stretch as the jaw opens and fold as it shuts; within `hingeBlendMetres` of the hinge
+      they ease onto the body.
+    - The body follows `body`; the tail runs along its chain, each point between the two tail bones it lies between.
+    """
+    spec = species["gulper"]
+    if species["clips"].get("restOpenDegrees") != spec["restOpenDegrees"]:
+        raise SystemExit("gulper: the clips' restOpenDegrees must be the body's gulper.restOpenDegrees")
+    bpy.ops.object.select_all(action="DESELECT")
+    mesh.select_set(True)
+    rig.select_set(True)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.parent_set(type="ARMATURE_NAME")
+    hinge_f, hinge_u = spec["hinge"][1], spec["hinge"][2]
+    half = math.radians(spec["restOpenDegrees"] / 2)
+    blend = spec.get("hingeBlendMetres", 0.2)
+    tail_start, tail_length, tail_bones = spec["tailStart"][1], spec["tailMetres"], spec["tailBones"]
+    verts = mesh.data.vertices
+
+    def across(vertex):
+        f, u = -vertex.co.y, vertex.co.z
+        angle = math.atan2(u - hinge_u, max(f - hinge_f, 1e-6))
+        return min(max((half - angle) / (2 * half), 0.0), 1.0)
+
+    def smooth(x):
+        x = min(max(x, 0.0), 1.0)
+        return x * x * (3 - 2 * x)
+
+    weights = {}
+    kinds = {"rigid": 0, "stretching": 0, "body": 0, "tail": 0}
+    for piece in mesh_pieces(mesh).values():
+        mean_f = sum(-verts[i].co.y for i in piece) / len(piece)
+        if mean_f < hinge_f:
+            if min(-verts[i].co.y for i in piece) < tail_start - 0.05:
+                kinds["tail"] += 1
+                for i in piece:
+                    along = (tail_start - (-verts[i].co.y)) / tail_length * tail_bones - 0.5
+                    k = min(max(int(math.floor(along)), 0), tail_bones - 1)
+                    frac = min(max(along - k, 0.0), 1.0) if k + 1 < tail_bones else 0.0
+                    weights[i] = {f"tail{k + 1}": 1.0 - frac} | ({f"tail{k + 2}": frac} if frac > 0 else {})
+            else:
+                kinds["body"] += 1
+                for i in piece:
+                    weights[i] = {"body": 1.0}
+            continue
+        shares = [across(verts[i]) for i in piece]
+        mean = sum(shares) / len(shares)
+        if len(piece) <= RIGID_PIECE_VERTICES or mean < RAIL_SHARE or mean > 1.0 - RAIL_SHARE:
+            kinds["rigid"] += 1
+            bone = "head" if mean < 0.5 else "jaw"
+            for i in piece:
+                weights[i] = {bone: 1.0}
+            continue
+        kinds["stretching"] += 1
+        for i, share in zip(piece, shares):
+            onto = smooth((-verts[i].co.y - hinge_f) / blend)
+            weights[i] = {"head": onto * (1.0 - share), "jaw": onto * share, "body": 1.0 - onto}
+    for i, bones in weights.items():
+        for bone, weight in bones.items():
+            if weight > 0.0:
+                group = mesh.vertex_groups.get(bone) or mesh.vertex_groups.new(name=bone)
+                group.add([i], weight, "REPLACE")
+    missing = len(verts) - len(weights)
+    if missing:
+        raise SystemExit(f"gulper: {missing} vertices have no weight")
+    print(f"gulper weights: {kinds['rigid']} rigid pieces (rails and teeth), {kinds['stretching']} stretching (membranes, throat), "
+          f"{kinds['body']} body, {kinds['tail']} tail")
+
+
+# A gulper's piece this small is a tooth; one lying within this share of the gape from a rail is that rail's.
+RIGID_PIECE_VERTICES = 8
+RAIL_SHARE = 0.15
+
+
 def pin_ruff(species, mesh):
     """
     A ruff grown by add_ruff.py (#10882) is a loose piece per frill: every loose piece follows the ruff bone whose line
@@ -928,15 +1008,19 @@ def main(argv):
     texture = argv[argv.index("--texture") + 1] if "--texture" in argv else None
     emission = argv[argv.index("--emission") + 1] if "--emission" in argv else None
     mesh = import_mesh(mesh_path, texture, emission) if mesh_path else build_proxy(species, rig, family)
-    skin(rig, mesh)
-    pin_shell(species, mesh)
-    pin_regions(species, mesh)
-    pin_islands(mesh)
-    pin_mouth(species, mesh)
-    pin_ears(species, mesh)
-    pin_tongue(species, mesh)
-    pin_dome(species, mesh)
-    pin_ruff(species, mesh)
+    if "gulper" in species:
+        # Its weights are set whole: no heat, and none of the pins below, which would give its loose pieces one bone each.
+        weigh_gulper(species, rig, mesh)
+    else:
+        skin(rig, mesh)
+        pin_shell(species, mesh)
+        pin_regions(species, mesh)
+        pin_islands(mesh)
+        pin_mouth(species, mesh)
+        pin_ears(species, mesh)
+        pin_tongue(species, mesh)
+        pin_dome(species, mesh)
+        pin_ruff(species, mesh)
     controls = Controls(rig, family)
     points = species["points"]
     manifest = {

@@ -76,6 +76,25 @@ internal static class FogRules
     }
 
     /// <summary>
+    /// Where a waiter (#10987) withdraws to: off to one side of the way it came as it circles off, at
+    /// <paramref name="metres"/> from the player where the mist allows, or nearer, half a metre at a time down to
+    /// <paramref name="least"/> (just out of its reach), so it withdraws even where the mist leaves little room. Null when
+    /// no such place is in the mist.
+    /// </summary>
+    internal static Vector2? WithdrawTo(Vector2 creature, Vector2 player, double metres, double least, int side, Func<Vector2, bool> inMist)
+    {
+        for (double distance = metres; distance >= least - 1e-9; distance -= WithdrawStepMetres)
+        {
+            if (CircleTo(creature, player, distance, side, inMist) is Vector2 to) return to;
+        }
+
+        return null;
+    }
+
+    /// <summary>How much nearer a waiter tries each time it finds no room to withdraw.</summary>
+    internal const double WithdrawStepMetres = 0.5;
+
+    /// <summary>
     /// Where a darter (#10986) loops to next while the player stays out of its dart: <paramref name="metres"/> from the
     /// player, <paramref name="degrees"/> further round them from where it is, on its own side, so it swims round and
     /// round them. Where the mist leaves no room that way (a narrow passage) it tries less far round, then the other way;
@@ -132,11 +151,34 @@ internal static class FogRules
     }
 
     /// <summary>
+    /// What a waiter (#10987, the gulper) does this update. It never comes at the player: hearing them, it holds still
+    /// where it hangs; once they are within its reach with its bite cooled and a clear line, it strikes; within its reach
+    /// while it is still cooling down, it withdraws; when it no longer senses them it rests where it is. One on another
+    /// errand (withdrawing), mid-bite, resting or dead keeps its course.
+    /// </summary>
+    /// <param name="senses">Whether it senses the player now (by hearing or feel, in the mist).</param>
+    /// <param name="holding">Whether it is holding still now.</param>
+    internal static WaiterMove Waiter(double distance, double reach, CreatureState state, bool senses, bool holding, bool otherErrand, bool biting, bool cooledDown, bool clearLine)
+    {
+        if (state is CreatureState.Dead or CreatureState.Resting || biting || otherErrand) return WaiterMove.Keep;
+        if (!senses) return holding ? WaiterMove.Rest : WaiterMove.Keep;
+        if (distance <= reach)
+        {
+            if (!cooledDown) return WaiterMove.Withdraw;
+            if (clearLine) return holding ? WaiterMove.Strike : WaiterMove.Keep;
+        }
+
+        return holding ? WaiterMove.Keep : WaiterMove.Hold;
+    }
+
+    /// <summary>
     /// Whether a fog foe makes its sound in this state: the needle-mouth's teeth click while it hunts; the fade-ribbon
-    /// flutters whenever it swims, resting or dead excepted, so it is sensed before it is seen (#10986).
+    /// flutters whenever it swims, resting or dead excepted, so it is sensed before it is seen (#10986); the gulper's
+    /// throat pulses even at rest, so it is heard before it is reached (#10987).
     /// </summary>
     internal static bool Sounds(FogSound sound, CreatureState state) => sound switch
     {
+        FogSound.Pulse => state is not CreatureState.Dead,
         FogSound.Flutter => state is not (CreatureState.Resting or CreatureState.Dead),
         _ => state is CreatureState.Pursuing or CreatureState.Attacking,
     };
@@ -176,4 +218,14 @@ internal enum DarterMove
     Keep,
     Dart,
     Loop,
+}
+
+/// <summary>What a waiter does this update (#10987): keeps its course, holds still, strikes, withdraws, or rests where it is.</summary>
+internal enum WaiterMove
+{
+    Keep,
+    Hold,
+    Strike,
+    Withdraw,
+    Rest,
 }

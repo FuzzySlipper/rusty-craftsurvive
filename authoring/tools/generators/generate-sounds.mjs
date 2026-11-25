@@ -206,6 +206,13 @@ const EFFECTS = {
     });
     return mix(seconds, [slaps, 1], [envelope(band(noise(seconds, next), 300, 900), 0.08, 0.2), 0.12]);
   }])),
+  // A gulper's throat pulsing where it hangs (#10987): a slow, low, wet double beat, the second softer, a breath of
+  // air drawn through its gape behind it; it plays every few seconds, so it is heard before it is reached.
+  'gulper-pulse': (next) => {
+    const beat = (hz, decay) => envelope(tone(0.5, glide(hz, hz * 0.7, 0.4), sine), 0.02, decay);
+    const breath = envelope(lowPass(noise(1.1, next), () => 260), 0.3, 0.5);
+    return mix(1.1, [beat(58, 0.22), 1], [beat(52, 0.18), 0.6, 0.26], [breath, 0.35, 0.1]);
+  },
   portal: (next) => {
     const swell = band(noise(1.2, next), 60, 1);
     const rumble = lowPass(swell, (t) => 200 + 900 * Math.sin(Math.PI * Math.min(1, t / 1.1)));

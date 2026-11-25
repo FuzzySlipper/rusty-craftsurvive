@@ -30,6 +30,8 @@ internal enum Cue
     NeedleClick,
     /// <summary>A fade-ribbon's membrane fluttering as it swims (#10986), placed at its middle, quicker as it nears.</summary>
     RibbonFlutter,
+    /// <summary>A gulper's throat pulsing slow and low where it hangs (#10987), heard before it is reached.</summary>
+    GulperPulse,
 }
 
 /// <summary>

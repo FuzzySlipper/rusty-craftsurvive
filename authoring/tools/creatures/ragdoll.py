@@ -28,7 +28,11 @@ CREATURES = ROOT / "content" / "game" / "creatures"
 # Joints left to the clips: they follow their parent as they are.
 UNSIMULATED = ("root", "jaw", "tongue", "dome", "ruff", "ear", "hoof", "fhoof", "foot", "hand", "claw", "wing", "blade", "fan", "pad", "crest")
 # Where a bone with several simulated children points.
-SPANS_TO = {"hips": "spine", "chest": "neck"}
+# The gulper's body (#10987) runs from its back, where its tail starts, to its hinge, where its jaws start.
+SPANS_TO = {"hips": "spine", "chest": "neck", "body": "head"}
+# A kept joint whose skin goes with another than its parent: a gulper's lower jaw (#10987) hangs from its body beside
+# the upper, and with the body it would make the body a sphere as wide as the gape.
+CARRIED_BY = {"jaw": "head"}
 # The bone that takes the killing blow.
 HIT_BONE = "chest"
 
@@ -170,11 +174,15 @@ def simulated(joint):
 
 
 def carried(rig, joint):
-    """A joint and everything below it that the clips keep: what its body stands for."""
+    """A joint and everything below it that the clips keep: what its body stands for. A kept joint named in CARRIED_BY
+    goes with that joint instead of its parent."""
     found = [joint]
     for child in rig.children(joint):
-        if not simulated(child):
+        if not simulated(child) and CARRIED_BY.get(child, joint) == joint:
             found += carried(rig, child)
+    for kept, carrier in CARRIED_BY.items():
+        if carrier == joint and kept in rig.names and kept not in rig.children(joint):
+            found += carried(rig, kept)
     return found
 
 
