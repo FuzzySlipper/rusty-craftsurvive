@@ -82,8 +82,10 @@ internal sealed partial class CreatureModule
 
         // A shut bower woken again stands its wall again.
         if (fixture.Act == FixtureAct.Closes && state.Phase == FixturePhase.Acting && shutBowers.Add(creature.Id)) sealsChanged = true;
-        // The time it slept counts (R10963-1): its vessels regrow and it recovers as if it had been watched.
-        seconds = FixtureRules.Elapsed(state, step, seconds);
+        // The time it slept counts (R10963-1), run with nobody there before this update's own step (R10963-2): its vessels
+        // regrow and it recovers, a bower empties and opens, and none of it lands on a player who has just come back.
+        double slept = FixtureRules.Slept(state, step, seconds);
+        if (slept > 0) Apply(creature, hunter, fixture, FixtureRules.Sleep(fixture, state, slept), feet);
 
         bool sameFloor = Math.Abs(feet.Y - StandingAt(creature)) <= CreatureSimulation.MeleeHeightMetres;
         double metres = sameFloor ? CreatureSimulation.PlanarDistance(creature.Position, feet) : double.PositiveInfinity;

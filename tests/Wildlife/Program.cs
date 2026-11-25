@@ -2090,31 +2090,69 @@ Check.Section("fixtures", () =>
     Check.Equal(vessel.Parts, smashed.Spent, "smash all four and it has nothing left to hatch");
     Check.That(Run(vessel, smashed, 5, _ => At(6)).Count == 0, "and it hatches no more");
 
-    // Asleep, a fixture keeps what it has spent (R10963-1), and the time it slept counts once it wakes.
-    FixtureState sleeper = new();
+    // Asleep, a fixture keeps what it has spent (R10963-1), and the time it slept is run with nobody there before the
+    // update it wakes in (R10963-2).
     long tick = 0;
-    double Tended(FixtureState state, double seconds)
+    FixtureEffect Tend(WildlifeFixture fixture, FixtureState state, FixtureFacts facts, double seconds)
     {
         tick += (long)Math.Round(seconds * HunterRules.StepsPerSecond);
-        return FixtureRules.Elapsed(state, tick, seconds);
+        double slept = FixtureRules.Slept(state, tick, seconds);
+        FixtureEffect asleep = slept > 0 ? FixtureRules.Sleep(fixture, state, slept) : FixtureEffect.None;
+        return asleep | FixtureRules.Step(fixture, state, facts, seconds);
     }
 
-    for (double t = 0; t < 70; t += Step) FixtureRules.Step(vessel, sleeper, At(6), Tended(sleeper, Step));
+    List<FixtureEffect> TendFor(WildlifeFixture fixture, FixtureState state, double seconds, FixtureFacts facts)
+    {
+        List<FixtureEffect> done = [];
+        for (double t = 0; t < seconds - 1e-9; t += Step)
+        {
+            FixtureEffect effect = Tend(fixture, state, facts, Step);
+            if (effect != FixtureEffect.None) done.Add(effect);
+        }
+
+        return done;
+    }
+
+    FixtureState sleeper = new();
+    TendFor(vessel, sleeper, 70, At(6));
     Check.Equal(vessel.Parts, sleeper.Spent, "a vessel watched long enough spends all its vessels");
     tick += (long)(600 * HunterRules.StepsPerSecond);
-    double woke = Tended(sleeper, Step);
-    Check.That(Math.Abs(woke - 600 - Step) < 1e-6, $"waking after ten minutes asleep, its step covers the time it slept ({woke:F1} s)");
-    FixtureRules.Step(vessel, sleeper, At(40, sees: false), woke);
-    Check.Equal(vessel.Parts, sleeper.Spent, "a short sleep does not regrow its vessels: they are still spent when it wakes");
-    Check.That(Run(vessel, sleeper, 5, _ => At(6)).Count == 0, "and it hatches nothing on waking");
+    Check.That(TendFor(vessel, sleeper, 5, At(6)).Count == 0 && sleeper.Spent == vessel.Parts,
+        "asleep ten minutes, it wakes still spent and hatches nothing: a short sleep does not regrow its vessels");
     tick += (long)(vessel.Brood!.RegrowSeconds * HunterRules.StepsPerSecond);
-    FixtureRules.Step(vessel, sleeper, At(40, sees: false), Tended(sleeper, Step));
+    Tend(vessel, sleeper, At(40, sees: false), Step);
     Check.Equal(0, sleeper.Spent, "asleep past its regrowth, it wakes with its vessels whole again");
+
     FixtureState holding = new();
-    Run(unfolder, holding, unfolder.TellSeconds + 0.5, _ => At(near));
+    TendFor(unfolder, holding, unfolder.TellSeconds + 0.5, At(near));
     Check.Equal(FixturePhase.Acting, holding.Phase, "an unfolder holds the player");
-    Check.Equal(FixtureEffect.Release, FixtureRules.Step(unfolder, holding, At(double.PositiveInfinity, canBeHit: false), 30), "waking after the player has gone, it lets go");
-    Check.Equal(FixtureEffect.None, FixtureRules.Step(unfolder, holding, At(near), 1), "and folded away, it rests before it seizes again");
+    tick += (long)(30 * HunterRules.StepsPerSecond);
+    FixtureEffect woken = Tend(unfolder, holding, At(near), Step);
+    Check.That(woken.HasFlag(FixtureEffect.Release) && !woken.HasFlag(FixtureEffect.Seize) && !woken.HasFlag(FixtureEffect.Hurt),
+        "an unfolder that slept through its hold lets go, and does not seize or hurt the player it wakes beside");
+    Check.That(TendFor(unfolder, holding, unfolder.RestSeconds - 31, At(near)).Count == 0, "it rests out the rest of its while first");
+
+    // A shut bower asleep (R10963-2): its sleep is an empty bower's, and none of it is damage banked against the player.
+    FixtureState shutAsleep = new();
+    TendFor(bower, shutAsleep, bower.TellSeconds + 0.2, At(1));
+    Check.Equal(FixturePhase.Acting, shutAsleep.Phase, "the bower has shut on the player");
+    tick += (long)(60 * HunterRules.StepsPerSecond);
+    FixtureEffect bowerWoke = Tend(bower, shutAsleep, At(1), Step);
+    Check.That(bowerWoke.HasFlag(FixtureEffect.Open) && !bowerWoke.HasFlag(FixtureEffect.Hurt),
+        "asleep a minute, it emptied and opened after its while, and hurts nobody on waking");
+    List<FixtureEffect> returned = TendFor(bower, shutAsleep, 4, At(1));
+    Check.That(returned.Count(e => e.HasFlag(FixtureEffect.Hurt)) <= 1 && returned.Count(e => e.HasFlag(FixtureEffect.Close)) <= 1,
+        "the player back under it meets an open bower that must creak and shut again: no hurt but its own pace");
+    FixtureState napped = new();
+    TendFor(bower, napped, bower.TellSeconds + 0.2, At(1));
+    tick += (long)(10 * HunterRules.StepsPerSecond);
+    List<FixtureEffect> afterNap = TendFor(bower, napped, 4, At(1));
+    Check.That(napped.Phase == FixturePhase.Acting && afterNap.Count(e => e.HasFlag(FixtureEffect.Hurt)) == 2,
+        $"asleep ten seconds, less than its while, it is still shut, and hurts the player inside once every two seconds ({afterNap.Count(e => e.HasFlag(FixtureEffect.Hurt))} in 4 s)");
+    FixtureState lurch = new();
+    Run(bower, lurch, bower.TellSeconds + 0.2, _ => At(1));
+    Check.Equal(FixtureEffect.Hurt, FixtureRules.Step(bower, lurch, At(1), 60), "one long step hurts once");
+    Check.That(Run(bower, lurch, 1, _ => At(1)).Count(e => e.Effect == FixtureEffect.Hurt) <= 1, "and banks nothing for the steps after it");
 
     // The kinds refuse a fixture without what its act needs.
     string kindsText = ReadKinds();

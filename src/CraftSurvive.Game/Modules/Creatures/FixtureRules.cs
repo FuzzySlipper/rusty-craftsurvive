@@ -278,7 +278,8 @@ internal static class FixtureRules
     {
         state.SinceHurt += seconds;
         if (state.SinceHurt < fixture.DamageEverySeconds) return FixtureEffect.None;
-        state.SinceHurt -= fixture.DamageEverySeconds;
+        // One hurt at a time: a long step banks no more (R10963-2).
+        state.SinceHurt = Math.Min(state.SinceHurt - fixture.DamageEverySeconds, fixture.DamageEverySeconds / 2);
         return FixtureEffect.Hurt;
     }
 
@@ -308,16 +309,56 @@ internal static class FixtureRules
     }
 
     /// <summary>
-    /// How long a fixture's step covers (R10963-1): the update's seconds, or, waking after it slept, all the while since it
-    /// was last tended at <paramref name="stepsPerSecond"/> steps a second, so its vessels regrow and it recovers over the
-    /// time it slept as over time watched. Records this step as its last.
+    /// How long a fixture slept before this update (R10963-1): all the while since it was last tended, at
+    /// <paramref name="stepsPerSecond"/> steps a second, beyond this update's own <paramref name="seconds"/>; 0 while it
+    /// is tended update by update. Records this step as its last.
     /// </summary>
-    internal static double Elapsed(FixtureState state, long step, double seconds, double stepsPerSecond = HunterRules.StepsPerSecond)
+    internal static double Slept(FixtureState state, long step, double seconds, double stepsPerSecond = HunterRules.StepsPerSecond)
     {
         ArgumentNullException.ThrowIfNull(state);
         double since = state.LastStep < 0 ? 0 : (step - state.LastStep) / stepsPerSecond;
         state.LastStep = step;
-        return Math.Max(seconds, since);
+        double slept = since - seconds;
+        return slept > SleptAtLeastSeconds ? slept : 0;
+    }
+
+    /// <summary>Less than this between tendings is the ordinary rhythm of updates, not sleep.</summary>
+    internal const double SleptAtLeastSeconds = 1.0;
+
+    /// <summary>Sleep is run in steps no longer than this, so each phase it passes through ends when it would have.</summary>
+    internal const double SleepStepSeconds = 0.5;
+
+    /// <summary>
+    /// A fixture's time asleep (R10963-2), run with nobody there: a hold lets go, a shut bower empties and opens after its
+    /// while, a lash comes down on nothing, and a vessel swelling settles without hatching; spent vessels regrow over it.
+    /// Nothing it does asleep touches the player. Returns what it did (a release, an opening) for the module to apply,
+    /// before the update's own step runs with what the fixture senses now.
+    /// </summary>
+    internal static FixtureEffect Sleep(WildlifeFixture fixture, FixtureState state, double seconds)
+    {
+        ArgumentNullException.ThrowIfNull(fixture);
+        ArgumentNullException.ThrowIfNull(state);
+        FixtureFacts away = new(double.PositiveInfinity, false, false, false, false);
+        if (fixture.Act == FixtureAct.Hatches && state.Phase == FixturePhase.Telling) state.Enter(FixturePhase.Resting);
+        FixtureEffect done = FixtureEffect.None;
+        double left = seconds;
+        // Until it has settled to rest, step it through its phases; at rest, only its regrowth is left.
+        while (left > 0 && state.Phase != FixturePhase.Resting)
+        {
+            double step = Math.Min(left, SleepStepSeconds);
+            done |= Step(fixture, state, away, step);
+            left -= step;
+        }
+
+        if (left > 0)
+        {
+            state.Seconds += left;
+            state.SinceSpent += left;
+            state.HurtSeconds = 0;
+            done |= Step(fixture, state, away, 0);
+        }
+
+        return done & (FixtureEffect.Release | FixtureEffect.Open);
     }
 
     /// <summary>The parts a fixture has lost by its health (a vault filter's lobes, #10963): a part for each share of it gone.</summary>
