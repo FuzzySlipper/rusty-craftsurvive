@@ -30,6 +30,7 @@
     <Compile Include="$(ProductModules)Creatures/HunterRules.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Creatures/TenderRules.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Creatures/FogRules.cs" LinkBase="Product/Creatures" />
+    <Compile Include="$(ProductModules)Creatures/FixtureRules.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Player/PlayerFootfalls.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Dungeons/RuinDoorway.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Creatures/CreatureGround.cs" LinkBase="Product/Creatures" />
@@ -50,6 +51,8 @@
     <EmbeddedResource Include="../../content/game/creatures/needle-mouth/needle-mouth.manifest.json" LogicalName="Wildlife.needle-mouth.manifest.json" />
     <EmbeddedResource Include="../../content/game/creatures/fade-ribbon/fade-ribbon.manifest.json" LogicalName="Wildlife.fade-ribbon.manifest.json" />
     <EmbeddedResource Include="../../content/game/creatures/gulper/gulper.manifest.json" LogicalName="Wildlife.gulper.manifest.json" />
+    <EmbeddedResource Include="../../content/game/creatures/niche-unfolder/niche-unfolder.manifest.json;../../content/game/creatures/vault-filter/vault-filter.manifest.json;../../content/game/creatures/folding-bower/folding-bower.manifest.json;../../content/game/creatures/brood-vessel/brood-vessel.manifest.json" LogicalName="Wildlife.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../content/game/creatures/vault-filter/vault-filter.glb" LogicalName="Wildlife.vault-filter.glb" />
     <EmbeddedResource Include="../../content/game/birds/birds.json" LogicalName="Wildlife.birds.json" />
     <EmbeddedResource Include="../../content/game/creatures/*/*.ragdoll.json" LogicalName="Wildlife.%(Filename)%(Extension)" />
     <EmbeddedResource Include="../../content/game/creatures/collector/collector.glb" LogicalName="Wildlife.collector.glb" />

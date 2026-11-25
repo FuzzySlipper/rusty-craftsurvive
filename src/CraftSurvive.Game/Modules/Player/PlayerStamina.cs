@@ -55,8 +55,14 @@ internal sealed class PlayerStamina
 
     internal float Current { get; private set; }
 
-    /// <summary>Whether there is enough to take hold of a face.</summary>
-    internal bool CanTakeHold => Current >= Maximum * TakeHoldShare;
+    /// <summary>Whether there is enough to take hold of a face; a numbed body (#10963) takes hold of nothing.</summary>
+    internal bool CanTakeHold => !Numbed && Current >= Maximum * TakeHoldShare;
+
+    /// <summary>Numbed by a vault filter's sting (#10963): stamina does not come back, and nothing is taken hold of.</summary>
+    internal bool Numbed { get; set; }
+
+    /// <summary>Whether the body has stamina to sprint with: none while numbed (#10963) or spent.</summary>
+    internal bool CanSprint => !Numbed && !Exhausted;
 
     /// <summary>Whether a climber has nothing left to hold on with.</summary>
     internal bool Exhausted => Current <= 0f;
@@ -79,11 +85,21 @@ internal sealed class PlayerStamina
         {
             PlayerExertion.Climbing => -ClimbDrainPerSecond * poorer,
             PlayerExertion.Hanging => -HangDrainPerSecond * poorer,
-            PlayerExertion.Resting => RecoveryPerSecond,
+            PlayerExertion.Resting => Numbed ? 0f : RecoveryPerSecond,
             _ => 0f,
         };
         Current = Math.Clamp(Current + (change * (float)seconds), 0f, Maximum);
     }
+
+    /// <summary>Spends stamina outright (#10963: a seized player struggling against the hold).</summary>
+    internal void Spend(float amount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(amount);
+        Current = Math.Max(0f, Current - amount);
+    }
+
+    /// <summary>Empties the bar (#10963: a vault filter's sting).</summary>
+    internal void Empty() => Current = 0f;
 
     /// <summary>A full bar, of a new size when the character's has changed.</summary>
     internal void Refill(int maximum)

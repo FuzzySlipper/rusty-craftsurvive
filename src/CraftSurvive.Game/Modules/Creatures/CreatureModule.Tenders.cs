@@ -127,6 +127,8 @@ internal sealed partial class CreatureModule
     private void Tend(double seconds, Vector3 playerFeet, CreatureSpace? here)
     {
         DropOrphans();
+        DropGoneFixtures();
+        HatchDue(playerFeet);
         foreach (int id in broodsDue)
         {
             if (roster.TryGet(id, out Creature bearer) && hunters.TryGetValue(id, out Hunter? hunter)) ReleaseBrood(bearer, hunter, playerFeet);
@@ -274,30 +276,40 @@ internal sealed partial class CreatureModule
             return;
         }
 
+        int released = Spill(bearer, kind, brood.Count, playerFeet);
+        lastEvent = string.Create(CultureInfo.InvariantCulture, $"brood bearer {bearer.Id} split its pods: {released} of {brood.Count} {kind.Id} out");
+    }
+
+    /// <summary>
+    /// A brood spills out of its parent toward the player (#10961, and a brood vessel's, #10963): <paramref name="count"/>
+    /// animals of <paramref name="kind"/>, already hunting as a pack, each guarding the parent. Returns how many came out.
+    /// </summary>
+    private int Spill(Creature parent, WildlifeKind kind, int count, Vector3 playerFeet)
+    {
         Vector2 player = new(playerFeet.X, playerFeet.Z);
-        Vector2 toward = player - bearer.Position;
-        Vector2 spill = bearer.Position + (toward.LengthSquared() < 1e-6f ? Vector2.UnitX : Vector2.Normalize(toward)) * BroodSpillMetres;
-        float floor = StandingAt(bearer);
-        CreatureSpace space = SpaceOf(bearer);
-        HerdRecord record = new($"{kind.Id}@brood#{++hunterRegions}", kind.Id, spill, brood.Count) { Floor = floor + 1f };
+        Vector2 toward = player - parent.Position;
+        Vector2 spill = parent.Position + (toward.LengthSquared() < 1e-6f ? Vector2.UnitX : Vector2.Normalize(toward)) * BroodSpillMetres;
+        float floor = StandingAt(parent);
+        CreatureSpace space = SpaceOf(parent);
+        HerdRecord record = new($"{kind.Id}@brood#{++hunterRegions}", kind.Id, spill, count) { Floor = floor + 1f };
         int first = nextId;
         if (space != walking || walking.UnderRock(new Vector3(spill.X, floor, spill.Y)))
-            PlaceCaveHunter(record, kind, new Vector3(spill.X, floor + 1f, spill.Y), brood.Count, space);
+            PlaceCaveHunter(record, kind, new Vector3(spill.X, floor + 1f, spill.Y), count, space);
         else
-            PlaceHunter(record, kind, spill, 0, (int)Math.Ceiling(BroodSpillMetres * 2), count: brood.Count);
+            PlaceHunter(record, kind, spill, 0, (int)Math.Ceiling(BroodSpillMetres * 2), count: count);
 
         int released = 0;
         for (int id = first; id < nextId; id++)
         {
             if (!roster.TryGet(id, out Creature hatched)) continue;
-            broodOf[id] = bearer.Id;
+            broodOf[id] = parent.Id;
             hatched.Behavior = hatched.Behavior with { State = CreatureState.Alert };
             hatched.LastSeen = playerFeet;
             released++;
         }
 
         if (kind.Hunt!.Pack is WildlifePack pack) packAlarms[record.Key] = pack.AlarmSeconds;
-        lastEvent = string.Create(CultureInfo.InvariantCulture, $"brood bearer {bearer.Id} split its pods: {released} of {brood.Count} {kind.Id} out");
+        return released;
     }
 
     /// <summary>
@@ -314,7 +326,9 @@ internal sealed partial class CreatureModule
                 continue;
             }
 
-            if (!roster.TryGet(bearerId, out Creature bearer) || !hunters.TryGetValue(bearerId, out Hunter? hunter) || hunter.Kind.Hunt!.Brood is not WildlifeBrood brood)
+            // A bearer's brood, or a brood vessel's (#10963).
+            if (!roster.TryGet(bearerId, out Creature bearer) || !hunters.TryGetValue(bearerId, out Hunter? hunter)
+                || (hunter.Kind.Hunt!.Brood ?? hunter.Kind.Hunt.Fixture?.Brood) is not WildlifeBrood brood)
             {
                 broodOf.Remove(id);
                 continue;
@@ -438,12 +452,12 @@ internal sealed partial class CreatureModule
     /// the creatures'.
     /// </summary>
     internal IReadOnlyList<CharacterObstacle> Barriers(SpatialSession session) =>
-        seals.Count == 0 ? [] : [.. seals.Where(seal => seal.Whole && seal.Space.Session.Equals(session)).Select(seal =>
+        seals.Count == 0 && shutBowers.Count == 0 ? [] : [.. seals.Where(seal => seal.Whole && seal.Space.Session.Equals(session)).Select(seal =>
         {
             (Vector3 min, Vector3 max) = TenderRules.SealBox(seal.Door);
             Transform pose = new(seal.Space.ToLocal(seal.Door.Floor), Quaternion.Identity, Vector3.One);
             return new CharacterObstacle(ProductIds.DoorSealObstacleBase + (ulong)seal.Id, pose, min, max, CollisionEnabled: true, Vector3.Zero, Vector3.Zero);
-        })];
+        }), .. BowerWalls(session)];
 
     /// <summary>The navigation cells whole seals close in a space (#10961): each doorway's columns, at its floor, in local cells of this size.</summary>
     internal IReadOnlyList<(long X, long Z, float Floor)> SealedCells(CreatureSpace space, double cell)
@@ -515,6 +529,7 @@ internal sealed partial class CreatureModule
         lastRang.Clear();
         lastCall = "none";
         sealsChanged = true;
+        ClearFixtures();
     }
 }
 

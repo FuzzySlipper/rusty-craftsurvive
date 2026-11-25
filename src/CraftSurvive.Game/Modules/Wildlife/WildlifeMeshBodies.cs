@@ -88,7 +88,16 @@ internal sealed class WildlifeMeshBodies : IDisposable
         internal bool Published { get; set; }
 
         /// <summary>What every pose of this body carries: a young animal's larger head.</summary>
-        internal JointOverride[] Overrides { get; init; } = [];
+        internal JointOverride[] Base { get; init; } = [];
+
+        /// <summary>What its poses carry now: its base, and any joints its rules have it lose (#10963).</summary>
+        internal JointOverride[] Overrides { get; set; } = [];
+
+        /// <summary>The joints it shows lost, as their names joined.</summary>
+        internal string LostShown { get; set; } = "";
+
+        /// <summary>The clip it plays by name over its role (#10963), if any.</summary>
+        internal string? PlayingName { get; set; }
         internal bool Planted { get; set; }
         internal Vector3 PlantedAt { get; set; }
         internal Quaternion PlantedTurn { get; set; }
@@ -334,11 +343,35 @@ internal sealed class WildlifeMeshBodies : IDisposable
         }
 
         if (herd is not null) WildlifeClips.Advance(member, herd, rig, animation, seconds);
+        Lose(body, member);
+        // A fixture's rules (#10963) may name a clip over its role's: a hold, a recovery, a count of spent vessels.
+        if (member.NamedClip is string named && rig.Rig.Clips.TryGetValue(named, out CreatureClip? namedClip))
+        {
+            if (body.PlayingName == named || (held && body.Playing is not null)) return;
+            engine.Animation.SetPlayback(new(body.Instance, AnimationPlaybackKind.Play, namedClip.Name, namedClip.Loops ? AnimationLoopMode.Repeat : AnimationLoopMode.Once,
+                1, 1, true, (float)animation.FadeSeconds, true, 0));
+            (body.Playing, body.PlayingName, body.Rate, body.Paused) = (member.Clip, named, 1, false);
+            return;
+        }
+
         float rate = WildlifeClips.Rate(member.Clip, member.Velocity.Length(), rig, animation, WildlifeClips.Scale(member, kind));
-        if (body.Playing == member.Clip && Math.Abs(rate - body.Rate) < animation.RateStep) return;
+        if (body.PlayingName is null && body.Playing == member.Clip && Math.Abs(rate - body.Rate) < animation.RateStep) return;
         if (held && body.Playing is not null) return;
-        Start(body, member, member.Clip, rate, restart: body.Playing != member.Clip);
+        Start(body, member, member.Clip, rate, restart: body.Playing != member.Clip || body.PlayingName is not null);
     }
+
+    /// <summary>Shrinks to nothing the joints the animal's rules have it lose (#10963: a vault filter's cut lobes), over its base pose.</summary>
+    private void Lose(Body body, WildlifeMember member)
+    {
+        string lost = string.Join(',', member.Lost);
+        if (lost == body.LostShown) return;
+        body.LostShown = lost;
+        body.Overrides = [.. body.Base, .. member.Lost.Select(joint => JointOverride.LocalScale(body.Kind.Joint(joint), LostScale, 1))];
+        engine.Animation.SetPose(new(body.Instance, ReadOnlyMemory<TwoBoneIk>.Empty, body.Overrides));
+    }
+
+    /// <summary>A lost joint is drawn this small: nothing to see, without a degenerate transform.</summary>
+    private const float LostScale = 0.001f;
 
     private void Start(Body body, WildlifeMember member, WildlifeClipRole role, float rate, bool restart)
     {
@@ -350,6 +383,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         engine.Animation.SetPlayback(new(body.Instance, AnimationPlaybackKind.Play, clip.Name, loop, rate, 1, restart, (float)animation.FadeSeconds, true, start));
         if (restart) body.ClipShare = clip.Seconds > 0 ? (float)(start / clip.Seconds) : 0f;
         body.Playing = role;
+        body.PlayingName = null;
         body.Rate = rate;
         body.Paused = false;
     }
@@ -591,7 +625,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         AnimationInstance instance = engine.Animation.CreateInstance(new(appearance, objectId));
         JointOverride[] overrides = [JointOverride.LocalScale(open.Joint(young.HeadJoint), young.HeadScale, 1)];
         engine.Animation.SetPose(new(instance, ReadOnlyMemory<TwoBoneIk>.Empty, overrides));
-        return Dressed(new Body(open, slot, objectId, appearance, instance) { Overrides = overrides }, kind, member);
+        return Dressed(new Body(open, slot, objectId, appearance, instance) { Base = overrides, Overrides = overrides }, kind, member);
     }
 
     /// <summary>Gives a body of a kind that wears pieces (#10956) its look and the pieces of it.</summary>
@@ -817,7 +851,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
     /// <summary>What an animal's mesh plays now (#10926): the clip and its rate, its detail tier, whether its feet are planted, its pitch.</summary>
     internal string BodyReadout(WildlifeMember member) => bodies.Find(member) is Body body
         ? string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"playing={body.Playing?.ToString() ?? "none"} look={body.WornLook ?? "-"} paused={body.Paused} rate={body.Rate:F2} tier={body.Tier} planted={body.Planted} pitch={body.Pitch * 180 / MathF.PI:F1} fell={body.Fell}{(body.FadeAlpha >= 0 ? $" fade={body.FadeShown:F2} alpha={body.FadeAlpha:F3}" : "")} {PoseReadout(body)}")
+            $"playing={body.Playing?.ToString() ?? "none"}{(body.PlayingName is string named ? $" named={named}" : "")}{(body.LostShown.Length > 0 ? $" lost={body.LostShown}" : "")} look={body.WornLook ?? "-"} paused={body.Paused} rate={body.Rate:F2} tier={body.Tier} planted={body.Planted} pitch={body.Pitch * 180 / MathF.PI:F1} fell={body.Fell}{(body.FadeAlpha >= 0 ? $" fade={body.FadeShown:F2} alpha={body.FadeAlpha:F3}" : "")} {PoseReadout(body)}")
         : "no mesh body";
 
     /// <summary>

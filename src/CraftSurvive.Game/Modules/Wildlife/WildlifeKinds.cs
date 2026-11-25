@@ -254,6 +254,9 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
     /// <summary>A tender (#10961): it threatens by what it releases, shuts or calls, never by its own blows.</summary>
     internal bool Tends => Brood is not null || Seals is not null || Calls is not null;
 
+    /// <summary>A ruin fixture's hazard (#10963); null for a creature that moves. A fixture is rooted where it grows.</summary>
+    internal WildlifeFixture? Fixture { get; init; }
+
     /// <summary>How it lives in a mist sump (#10985, the fog foes); null for one that walks and sees.</summary>
     internal WildlifeFog? Fog { get; init; }
 }
@@ -301,6 +304,69 @@ internal enum FogSound
     Click,
     Flutter,
     Pulse,
+}
+
+/// <summary>What a ruin fixture does when it acts (#10963).</summary>
+internal enum FixtureAct
+{
+    /// <summary>The niche unfolder: it seizes the player and holds them, drawing them toward its recess.</summary>
+    Seizes,
+
+    /// <summary>The vault filter: it drops its lobes on the player beneath it, stinging and numbing them.</summary>
+    Numbs,
+
+    /// <summary>The folding bower: it folds shut on the player lingering under it and digests them until they cut out.</summary>
+    Closes,
+
+    /// <summary>The brood vessel: while the player lingers in its sight, it splits a vessel at a time, each a small skitterer.</summary>
+    Hatches,
+}
+
+/// <summary>
+/// A ruin fixture's hazard (#10963), settled with Patch on the wiki's Ruins wildlife page ("Fixtures as hazards"). It is
+/// rooted, and acts only on a player within <paramref name="ReachMetres"/> of its middle (in sight, for one that hatches):
+/// it shows its tell for <paramref name="TellSeconds"/>, acts for <paramref name="ActSeconds"/> (a seizure's longest hold,
+/// a filter's lash before its lobes rise, a vessel's pause between splits), and rests <paramref name="RestSeconds"/>
+/// before it can act again (a bower: after it empties). <paramref name="Damage"/> lands every
+/// <paramref name="DamageEverySeconds"/> while it holds or digests, or once with a filter's sting.
+/// </summary>
+internal sealed record WildlifeFixture(FixtureAct Act, double ReachMetres, double TellSeconds, double ActSeconds, double RestSeconds, int Damage, double DamageEverySeconds)
+{
+    /// <summary>A seizure draws the player toward the recess this fast.</summary>
+    internal double DrawMetresPerSecond { get; init; }
+
+    /// <summary>Sprinting against a seizure this long breaks free, spending <see cref="StruggleStaminaPerSecond"/> meanwhile.</summary>
+    internal double StruggleSeconds { get; init; }
+
+    internal double StruggleStaminaPerSecond { get; init; }
+
+    /// <summary>A filter's sting numbs this long, landing this far into its act.</summary>
+    internal double NumbSeconds { get; init; }
+
+    internal double StrikeAfterSeconds { get; init; }
+
+    /// <summary>The parts it loses one by one (a filter's lobes, by its health; a vessel's vessels), and the joints that are them.</summary>
+    internal int Parts { get; init; }
+
+    internal IReadOnlyList<string> PartJoints { get; init; } = [];
+
+    /// <summary>The blows that cut a bower's membrane through, or smash one of a vessel's vessels.</summary>
+    internal int Blows { get; init; }
+
+    /// <summary>A hanging fixture's mesh hangs from a ceiling this high over its feet; it is drawn lifted to its own ceiling. 0 stands on the floor.</summary>
+    internal double CeilingMetres { get; init; }
+
+    /// <summary>A shut bower's wall stands in a ring this far from its middle.</summary>
+    internal double WallMetres { get; init; }
+
+    /// <summary>What a vessel hatches, one animal a split, and how long its spent vessels take to regrow.</summary>
+    internal WildlifeBrood? Brood { get; init; }
+
+    /// <summary>
+    /// The clips its acts play beyond the roles, by name: `hold` (held or shut), `recover` (folding away, rising, opening),
+    /// and a vessel's `whole`, `swell`, `split` and `spent`, where {0} is the count of vessels spent.
+    /// </summary>
+    internal IReadOnlyDictionary<string, string> Clips { get; init; } = new Dictionary<string, string>();
 }
 
 /// <summary>
@@ -953,6 +1019,7 @@ internal static class WildlifeKinds
             Calls = hunt.TryGetProperty("calls", out JsonElement calls)
                 ? new WildlifeCalling(calls.GetProperty("reachMetres").GetDouble(), calls.GetProperty("againSeconds").GetDouble())
                 : null,
+            Fixture = hunt.TryGetProperty("fixture", out JsonElement fixture) ? ReadFixture(fixture, id) : null,
             Fog = hunt.TryGetProperty("fog", out JsonElement fog)
                 ? new WildlifeFog(fog.GetProperty("floatMetres").GetDouble(), fog.GetProperty("bobMetres").GetDouble(), fog.GetProperty("bobSeconds").GetDouble(),
                     fog.GetProperty("heardSeconds").GetDouble(), fog.GetProperty("feelMetres").GetDouble(), fog.GetProperty("circleMetres").GetDouble(),
@@ -982,6 +1049,58 @@ internal static class WildlifeKinds
         if (read.Rest is { } resting && (resting.WakeMetres <= read.ReachMetres || resting.WakeMetres > read.SightMetres))
             throw new InvalidDataException($"{id}: a resting hunter wakes beyond its reach and within its sight");
         if (read.Display is { Seconds: <= 0 } || read.Search is { Seconds: <= 0 }) throw new InvalidDataException($"{id}: a display or search lasts some time");
+        return read;
+    }
+
+    private static readonly Dictionary<string, FixtureAct> FixtureActs = new(StringComparer.Ordinal)
+    {
+        ["seizes"] = FixtureAct.Seizes,
+        ["numbs"] = FixtureAct.Numbs,
+        ["closes"] = FixtureAct.Closes,
+        ["hatches"] = FixtureAct.Hatches,
+    };
+
+    private static WildlifeFixture ReadFixture(JsonElement fixture, string id)
+    {
+        double Number(string name) => fixture.TryGetProperty(name, out JsonElement value) ? value.GetDouble() : 0;
+        string act = fixture.GetProperty("act").GetString() ?? "";
+        WildlifeFixture read = new(
+            FixtureActs.TryGetValue(act, out FixtureAct named) ? named : throw new InvalidDataException($"{id}: a fixture's act is {string.Join(" or ", FixtureActs.Keys)}"),
+            Number("reachMetres"), Number("tellSeconds"), Number("actSeconds"), Number("restSeconds"),
+            fixture.TryGetProperty("damage", out JsonElement damage) ? damage.GetInt32() : 0, Number("damageEverySeconds"))
+        {
+            DrawMetresPerSecond = Number("drawMetresPerSecond"),
+            StruggleSeconds = Number("struggleSeconds"),
+            StruggleStaminaPerSecond = Number("struggleStaminaPerSecond"),
+            NumbSeconds = Number("numbSeconds"),
+            StrikeAfterSeconds = Number("strikeAfterSeconds"),
+            Parts = fixture.TryGetProperty("parts", out JsonElement parts) ? parts.GetInt32() : 0,
+            PartJoints = fixture.TryGetProperty("partJoints", out JsonElement joints) ? [.. joints.EnumerateArray().Select(joint => joint.GetString()!)] : [],
+            Blows = fixture.TryGetProperty("blows", out JsonElement blows) ? blows.GetInt32() : 0,
+            CeilingMetres = Number("ceilingMetres"),
+            WallMetres = Number("wallMetres"),
+            Brood = fixture.TryGetProperty("brood", out JsonElement brood)
+                ? new WildlifeBrood(brood.GetProperty("kind").GetString()!, brood.GetProperty("count").GetInt32(), "", brood.GetProperty("guardMetres").GetDouble(), brood.GetProperty("regrowSeconds").GetDouble())
+                : null,
+            Clips = fixture.TryGetProperty("clips", out JsonElement clips)
+                ? clips.EnumerateObject().Where(clip => !clip.Name.StartsWith('$')).ToDictionary(clip => clip.Name, clip => clip.Value.GetString()!, StringComparer.Ordinal)
+                : new Dictionary<string, string>(),
+        };
+        if (read.ReachMetres <= 0 || read.TellSeconds <= 0 || read.ActSeconds <= 0 || read.RestSeconds <= 0)
+            throw new InvalidDataException($"{id}: a fixture reaches somewhere, tells, acts and rests");
+        bool fits = read.Act switch
+        {
+            FixtureAct.Seizes => read.Damage > 0 && read.DamageEverySeconds > 0 && read.StruggleSeconds > 0 && read.StruggleStaminaPerSecond > 0 && read.DrawMetresPerSecond >= 0
+                && read.Clips.ContainsKey("hold") && read.Clips.ContainsKey("recover"),
+            FixtureAct.Numbs => read.Damage > 0 && read.NumbSeconds > 0 && read.StrikeAfterSeconds < read.ActSeconds && read.Parts > 0 && read.PartJoints.Count == read.Parts
+                && read.Clips.ContainsKey("recover"),
+            FixtureAct.Closes => read.Damage > 0 && read.DamageEverySeconds > 0 && read.Blows > 0 && read.WallMetres > read.ReachMetres
+                && read.Clips.ContainsKey("hold") && read.Clips.ContainsKey("recover"),
+            FixtureAct.Hatches => read.Parts > 0 && read.Blows > 0 && read.Brood is { Count: > 0, GuardMetres: > 0, RegrowSeconds: > 0 }
+                && new[] { "whole", "swell", "split", "spent" }.All(read.Clips.ContainsKey),
+            _ => false,
+        };
+        if (!fits) throw new InvalidDataException($"{id}: a fixture that {act} lacks what its act needs (see WildlifeFixture)");
         return read;
     }
 

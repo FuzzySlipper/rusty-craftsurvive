@@ -211,6 +211,11 @@ internal static class ProductIds
     /// <summary>The same seals as the colliders character steps meet (#10961).</summary>
     internal const ulong DoorSealObstacleBase = 0x3_1100UL;
 
+    /// <summary>The walls of shut folding bowers as colliders character steps meet (#10963): a few for each bower, at most <see cref="FixtureObstacleLimit"/>.</summary>
+    internal const ulong FixtureObstacleBase = 0x3_1200UL;
+
+    internal const ulong FixtureObstacleLimit = 0x400UL;
+
     /// <summary>The overworld places' kit pieces standing in the near ground (#9992), at most <see cref="PlaceMeshLimit"/>.</summary>
     internal const ulong PlaceMeshBase = 0x9_A000UL;
 

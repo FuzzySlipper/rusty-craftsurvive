@@ -408,6 +408,14 @@ internal sealed partial class CreatureModule : IProductModule
         {
             // A creature a test aid froze (#10926) does nothing: no rules, no move, its clip held.
             if (overrides.Count > 0 && Frozen(creature)) continue;
+            // A fixture (#10963) is rooted: its own rules, no move.
+            if (Rooted(creature, out Hunter fixture))
+            {
+                TendFixture(creature, fixture, seeing, playerCanBeHit, time.ElapsedSeconds);
+                playerCanBeHit = playerCanBeHit && !player.Vitals.IsDown;
+                continue;
+            }
+
             CreatureSense sense = new(alerted.Contains(creature.Id));
             // An animal showing its display does not bite until it has shown it (#10876).
             // Nor does one still hanging or falling from its ceiling (#10877).
@@ -852,6 +860,13 @@ internal sealed partial class CreatureModule : IProductModule
             roster.All.Where(creature => creature.Awake && creature.Space == here).Select(creature => (creature, StandingAt(creature) + BodyOffFloor(creature))), player.WorldFeetPosition);
         Creature? target = chosen?.Creature;
         double best = chosen?.Distance ?? double.MaxValue;
+        // Inside a shut bower (#10963) the swing lands on its membrane; held by a fixture, on the fixture holding them.
+        if (SwingAtBower() is string atBower) return atBower;
+        if (player.Hazards.SeizedBy is int holder && roster.TryGet(holder, out Creature holding))
+        {
+            target = holding;
+            best = 0;
+        }
 
         // A whole seal in reach (#10961) takes the swing before any creature further off.
         if (SwingAtSeal(target is null ? double.MaxValue : best) is string atSeal) return atSeal;
@@ -885,6 +900,7 @@ internal sealed partial class CreatureModule : IProductModule
         {
             struckHunter.HurtSeconds = ClipSeconds(struckHunter, WildlifeClipRole.Hurt);
             if (struckHunter.Kind.Hunt!.Tends && !struck.IsDown) TenderStruck(target, struckHunter);
+            if (struckHunter.Kind.Hunt.Fixture is not null && !struck.IsDown) FixtureStruck(target, struckHunter);
         }
         cues.RaiseAt(struck.IsDown ? Cue.Defeat : Cue.Strike,
             SpaceOf(target).ToLocal(target.Position.X, StandingAt(target) + StruckHeightMetres, target.Position.Y));
@@ -903,6 +919,8 @@ internal sealed partial class CreatureModule : IProductModule
         roster.Remove(target.Id);
         director.Remove(target.Id);
         presentation.Sync(roster);
+        // A fixture killed (#10963) lets go of the player and leaves no wall.
+        DropGoneFixtures();
         defeated++;
         EncounterReward reward = EncounterResolutionRules.Reward(
             target.Kind.ExperienceAward,

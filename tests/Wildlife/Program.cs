@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
 using CraftSurvive.Game.Modules.Birds;
@@ -335,7 +336,8 @@ Check.Section("ragdolls", () =>
     Check.That(catalog.Animation.CorpseMetres > 0 && catalog.Animation.CorpseMetres <= ResidentMetres, "a body goes before the ground under it does");
     Check.That(catalog.Animation.Ragdoll.BlowMetresPerSecond >= 0, "a killing blow drives a body away from the player");
 
-    foreach (WildlifeKind kind in catalog.Kinds.Where(kind => kind.Mesh is not null))
+    // A rooted fixture (#10963) does not fall: it plays its death where it grows.
+    foreach (WildlifeKind kind in catalog.Kinds.Where(kind => kind.Mesh is not null && kind.Hunt?.Fixture is null))
     {
         string path = kind.Mesh!.Ragdoll ?? throw new InvalidDataException($"{kind.Id} has a mesh and no ragdoll");
         WildlifeRagdollRig rig = WildlifeRagdollRig.Parse(ReadResource($"Wildlife.{Path.GetFileName(path)}"));
@@ -557,8 +559,10 @@ Check.Section("kinds", () =>
     Check.That(ruin.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt is not null && k.Cave is null), "the ruins' hunters (#10956) load, in no cave's communities");
     string[] fog = ["needle-mouth", "fade-ribbon", "gulper"];
     Check.That(fog.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt?.Fog is not null && k.Cave is null), "the fog foes (#10985) load, each with its fog ways");
-    Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length + fog.Length, catalog.Kinds.Count,
-        "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters, the fog foes and nothing else");
+    string[] fixtures = ["niche-unfolder", "vault-filter", "folding-bower", "brood-vessel"];
+    Check.That(fixtures.All(id => catalog.TryKind(id, out WildlifeKind k) && k.Hunt?.Fixture is not null && k.Cave is null), "the ruins' fixtures (#10963) load, each with its hazard");
+    Check.Equal(firstWave.Length + secondWave.Length + hunters.Length + cave.Length + ruin.Length + fog.Length + fixtures.Length, catalog.Kinds.Count,
+        "the content holds the two waves, the hunters, the cave's hunters, the ruins' hunters and fixtures, the fog foes and nothing else");
     Check.That(Enum.GetValues<PressedResponse>().All(r => catalog.Kinds.Any(k => k.Pressed == r)), "every pressed response must have a kind that shows it");
     Check.That(Enum.GetValues<WildlifeSizeClass>().All(c => catalog.SizeClasses.ContainsKey(c)), "every size class must have a capsule");
     WildlifeKind sloth = catalog.Kind("ground-sloth");
@@ -1968,6 +1972,136 @@ Check.Section("waiters", () =>
     {
         Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
         Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"a waiter with {to} is refused");
+    }
+});
+
+// The ruin fixtures (#10963), settled with Patch on the wiki's Ruins wildlife page ("Fixtures as hazards"): rooted, a tell
+// before each act, acting only within their reach.
+Check.Section("fixtures", () =>
+{
+    const double Step = 0.05;
+    string[] fixtureKinds = ["niche-unfolder", "vault-filter", "folding-bower", "brood-vessel"];
+    foreach (string id in fixtureKinds)
+    {
+        WildlifeKind kind = catalog.Kind(id);
+        WildlifeFixture fixture = kind.Hunt?.Fixture ?? throw new InvalidOperationException($"{id} is no fixture");
+        CreatureRig rig = CreatureManifest.Parse(ReadResource($"Wildlife.{id}.manifest.json"));
+        WildlifeRig clips = WildlifeRig.For(kind.Mesh!, rig);
+        IEnumerable<string> named = fixture.Clips.Values.SelectMany(name => name.Contains("{0}", StringComparison.Ordinal)
+            ? Enumerable.Range(1, fixture.Parts).Select(n => string.Format(CultureInfo.InvariantCulture, name, n))
+            : [name]);
+        Check.That(kind.Mesh!.Clips.Keys.All(role => clips.Clips.ContainsKey(role)) && named.All(rig.Clips.ContainsKey),
+            $"{id}'s built body plays every clip its kind names, by role and by name");
+        Check.That(!TenderRules.Answers(kind) && kind.Population.HerdsPerSquareKilometre == 0 && kind.Cave is null,
+            $"{id} is rooted: it answers no chime, and is placed by test aid until #10955");
+    }
+
+    Check.That(fixtureKinds.Select(id => catalog.Kind(id).Hunt!.Fixture!.Act).Distinct().Count() == 4, "each fixture has its own act");
+    string[] filterJoints = GlbJoints("Wildlife.vault-filter.glb");
+    Check.That(catalog.Kind("vault-filter").Hunt!.Fixture!.PartJoints.All(filterJoints.Contains), "the filter's lobes are joints of its body, to be drawn lost");
+
+    // Runs a fixture for some seconds with the facts a function gives at each moment, collecting what it did.
+    List<(double At, FixtureEffect Effect)> Run(WildlifeFixture fixture, FixtureState state, double seconds, Func<double, FixtureFacts> facts)
+    {
+        List<(double, FixtureEffect)> done = [];
+        for (double t = 0; t < seconds - 1e-9; t += Step)
+        {
+            FixtureEffect effect = FixtureRules.Step(fixture, state, facts(t), Step);
+            if (effect != FixtureEffect.None) done.Add((t, effect));
+        }
+
+        return done;
+    }
+
+    FixtureFacts At(double metres, bool sees = true, bool struck = false, bool brokeFree = false, bool canBeHit = true) => new(metres, sees, canBeHit, struck, brokeFree);
+
+    // The niche unfolder seizes.
+    WildlifeFixture unfolder = catalog.Kind("niche-unfolder").Hunt!.Fixture!;
+    double near = unfolder.ReachMetres - 0.5, far = unfolder.ReachMetres + 1;
+    FixtureState seizer = new();
+    List<(double At, FixtureEffect Effect)> held = Run(unfolder, seizer, 6, _ => At(near));
+    Check.That(held.Count > 0 && held[0].Effect == FixtureEffect.Seize && Math.Abs(held[0].At - unfolder.TellSeconds) < 2 * Step,
+        $"a player staying in its reach through its unfold is seized at the unfold's end ({held.FirstOrDefault().At:F2} s)");
+    Check.Equal((int)Math.Round(unfolder.ActSeconds / unfolder.DamageEverySeconds), held.Count(e => e.Effect == FixtureEffect.Hurt), "it hurts them each second of its hold");
+    Check.That(held.Last().Effect == FixtureEffect.Release && seizer.Phase == FixturePhase.Recovering, "its hold runs out and it lets go, folding away");
+    Check.That(Run(unfolder, seizer, unfolder.RestSeconds - 3, _ => At(near)).Count == 0, "folded away, it does not seize again until it has rested");
+    FixtureState escaped = new();
+    Check.That(Run(unfolder, escaped, 3, t => At(t < unfolder.TellSeconds / 2 ? near : far)).Count == 0 && escaped.Phase == FixturePhase.Resting,
+        "stepping back out of its reach while it unfolds escapes it");
+    foreach ((string why, Func<double, FixtureFacts> facts) in new (string, Func<double, FixtureFacts>)[]
+    {
+        ("a blow on it", t => At(near, struck: t > 1.2 && t < 1.2 + Step)),
+        ("a sprint that breaks free", t => At(near, brokeFree: t > 1.2 && t < 1.2 + Step)),
+    })
+    {
+        FixtureState cut = new();
+        List<(double At, FixtureEffect Effect)> done = Run(unfolder, cut, 2, facts);
+        Check.That(done.Any(e => e.Effect == FixtureEffect.Release && e.At < 1.3) && done.Count(e => e.Effect == FixtureEffect.Hurt) < 2, $"{why} cuts its hold short");
+    }
+
+    // The vault filter numbs.
+    WildlifeFixture filter = catalog.Kind("vault-filter").Hunt!.Fixture!;
+    FixtureState dropper = new();
+    List<(double At, FixtureEffect Effect)> stung = Run(filter, dropper, filter.TellSeconds + filter.ActSeconds + 0.5, _ => At(0.5));
+    Check.That(stung.Count == 1 && stung[0].Effect == FixtureEffect.Sting && stung[0].At >= filter.TellSeconds, "a player staying beneath it through its shiver is stung once as its lobes drop");
+    Check.That(Run(filter, dropper, filter.RestSeconds - 1, _ => At(0.5)).Count == 0, "its lobes rise, and it rests before it drops again");
+    FixtureState missed = new();
+    Check.That(Run(filter, missed, 3, t => At(t < filter.TellSeconds * 0.8 ? 0.5 : filter.ReachMetres + 1)).Count == 0 && missed.Phase != FixturePhase.Resting,
+        "a player who steps away during its shiver is missed: its lobes still drop");
+    Check.Equal(0, FixtureRules.PartsLost(3, 36, 36), "whole, it has all its lobes");
+    Check.Equal(1, FixtureRules.PartsLost(3, 20, 36), "a third of its health gone cuts a lobe");
+    Check.Equal(2, FixtureRules.PartsLost(3, 12, 36), "two thirds, two lobes");
+    Check.Equal(3, FixtureRules.PartsLost(3, 0, 36), "dead, it has none");
+
+    // The folding bower closes.
+    WildlifeFixture bower = catalog.Kind("folding-bower").Hunt!.Fixture!;
+    FixtureState pavilion = new();
+    List<(double At, FixtureEffect Effect)> shut = Run(bower, pavilion, bower.TellSeconds + 4.1, _ => At(1));
+    Check.That(shut.Count > 0 && shut[0].Effect == FixtureEffect.Close && Math.Abs(shut[0].At - bower.TellSeconds) < 2 * Step, "a player staying under its ribs through its creak is shut in");
+    Check.Equal(2, shut.Count(e => e.Effect == FixtureEffect.Hurt), "inside, it digests them once every two seconds");
+    Check.Equal(FixtureEffect.None, FixtureRules.Blow(bower, pavilion), "one blow on its membrane is not enough");
+    Check.Equal(FixtureEffect.None, FixtureRules.Blow(bower, pavilion), "nor two");
+    Check.Equal(FixtureEffect.Open, FixtureRules.Blow(bower, pavilion), "the third cuts through, and it opens");
+    Check.That(Run(bower, pavilion, bower.ActSeconds - 0.5, _ => At(1)).Count == 0, "open again, it does not shut again at once");
+    FixtureState ranThrough = new();
+    Check.That(Run(bower, ranThrough, 4, t => At(t < bower.TellSeconds * 0.7 ? 1 : bower.ReachMetres + 2)).Count == 0, "running straight through gets out before it shuts");
+    FixtureState emptied = new();
+    Run(bower, emptied, bower.TellSeconds + 0.2, _ => At(1));
+    List<(double At, FixtureEffect Effect)> left = Run(bower, emptied, bower.RestSeconds + 1, _ => At(bower.ReachMetres + 3));
+    Check.That(left.Count == 1 && left[0].Effect == FixtureEffect.Open && left[0].At >= bower.RestSeconds - Step, "left empty, it opens again after its while");
+
+    // The brood vessel hatches.
+    WildlifeFixture vessel = catalog.Kind("brood-vessel").Hunt!.Fixture!;
+    FixtureState pods = new();
+    List<(double At, FixtureEffect Effect)> hatched = Run(vessel, pods, 70, _ => At(6));
+    Check.That(hatched.Count == 4 && hatched.All(e => e.Effect == FixtureEffect.Hatch) && Math.Abs(hatched[0].At - vessel.TellSeconds) < 2 * Step,
+        "seeing the player within its reach, it swells a vessel and splits it, then another, until its four are spent");
+    Check.That(Math.Abs(hatched[1].At - hatched[0].At - (vessel.ActSeconds + vessel.TellSeconds)) < 2 * Step, "one splits every twenty seconds, each after its swelling");
+    Check.That(Run(vessel, pods, 30, _ => At(6)).Count == 0 && pods.Spent == vessel.Parts, "spent, it hatches no more");
+    Run(vessel, pods, vessel.Brood!.RegrowSeconds, _ => At(40, sees: false));
+    Check.That(Run(vessel, pods, 0.1, _ => At(40, sees: false)).Count == 0 && pods.Spent == 0, "left alone, its spent vessels regrow together");
+    FixtureState unseen = new();
+    Check.That(Run(vessel, unseen, 30, _ => At(6, sees: false)).Count == 0, "a player it does not see sets nothing off");
+    Check.That(Run(vessel, unseen, 2, t => At(30, sees: false, struck: t < Step)).Any(e => e.Effect == FixtureEffect.Hatch), "a blow does, from anywhere");
+    FixtureState smashed = new();
+    Check.Equal(FixtureEffect.None, FixtureRules.Blow(vessel, smashed), "one blow does not smash a vessel");
+    Check.Equal(FixtureEffect.Smash, FixtureRules.Blow(vessel, smashed), "two do, and it hatches nothing");
+    for (int k = 0; k < 6; k++) FixtureRules.Blow(vessel, smashed);
+    Check.Equal(vessel.Parts, smashed.Spent, "smash all four and it has nothing left to hatch");
+    Check.That(Run(vessel, smashed, 5, _ => At(6)).Count == 0, "and it hatches no more");
+
+    // The kinds refuse a fixture without what its act needs.
+    string kindsText = ReadKinds();
+    foreach ((string from, string to) in new[]
+    {
+        ("\"struggleSeconds\": 1.0", "\"struggleSeconds\": 0"),
+        ("\"partJoints\": [ \"lobe1\", \"lobe2\", \"lobe3\" ]", "\"partJoints\": [ \"lobe1\" ]"),
+        ("\"wallMetres\": 2.45", "\"wallMetres\": 1.5"),
+        ("\"act\": \"hatches\"", "\"act\": \"sprouts\""),
+    })
+    {
+        Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
+        Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"a fixture with {to} is refused");
     }
 });
 

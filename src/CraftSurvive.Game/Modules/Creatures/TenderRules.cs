@@ -74,9 +74,9 @@ internal static class TenderRules
 
     /// <summary>
     /// Whether a hunter of this kind answers a chime grazer's call (#10962): ruin life, which lives in no cave's communities,
-    /// and not a tender.
+    /// and not a tender or a fixture (#10963), which is rooted.
     /// </summary>
-    internal static bool Answers(WildlifeKind kind) => kind.Hunt is { Tends: false } && kind.Cave is null;
+    internal static bool Answers(WildlifeKind kind) => kind.Hunt is { Tends: false, Fixture: null } && kind.Cave is null;
 
     /// <summary>Whether a grazer has rested long enough since its last ring to ring again; one that never rang has.</summary>
     internal static bool RingsAgain(WildlifeCalling calling, double? sinceLastSeconds) => sinceLastSeconds is not double since || since >= calling.AgainSeconds;

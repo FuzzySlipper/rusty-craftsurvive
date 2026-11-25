@@ -86,6 +86,9 @@ internal sealed class PlayerController : IDisposable
     /// <summary>Something the player can ride, a boat (#9879); null when there is none.</summary>
     internal IPlayerCarrier? Carrier { get; set; }
 
+    /// <summary>What the ruin's fixtures do to the player's body (#10963): a seizure's hold, a sting's numbing.</summary>
+    internal PlayerHazards Hazards { get; } = new();
+
     /// <summary>Colliders standing in the player's session that every step meets (#10961: menders' seals across doorways); none by default.</summary>
     internal Func<SpatialSession, IReadOnlyList<CharacterObstacle>>? Barriers { get; set; }
 
@@ -548,7 +551,7 @@ internal sealed class PlayerController : IDisposable
             $"intent={PlayerInputDiagnostics.Format(lastInputFrame.PlanarIntent)};lookDelta={PlayerInputDiagnostics.Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};")
             + string.Create(CultureInfo.InvariantCulture,
             $"before={PlayerInputDiagnostics.Format(lastUpdatePositionBefore)};after={PlayerInputDiagnostics.Format(lastUpdatePositionAfter)};yaw={Angles.ToDegrees(look.YawRadians):F2};pitch={Angles.ToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};")
-            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};swim=[current={swimCurrent.Current.X:F2},{swimCurrent.Current.Y:F2} exposure={swimCurrent.Exposure:F2}s share={swimCurrent.Share:F2} push={swimCurrent.Push.X:F2},{swimCurrent.Push.Y:F2} stroke={swimCurrent.Stroke:F2}];aboard={aboard};seated={Carrier?.Seated == true};platform=[{(lastStepReceipt is CharacterStepReceipt last ? string.Create(CultureInfo.InvariantCulture, $"{last.Platform.Present}:{last.Platform.Entity}:{PlayerInputDiagnostics.Format(last.Platform.CarriedDisplacement)}") : "none")}];stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};recoveries={recoveries};lastRecovery=[{lastRecovery}];landscape=[{landscapeSpace?.Readout ?? "overworld"}];bounds=[{(Bound is null ? "none" : string.Create(CultureInfo.InvariantCulture, $"turnBacks={TurnBacks};last={TurnedBack?.Side.ToString() ?? "none"}@{TurnedBack?.Step ?? -1}"))}]";
+            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};swim=[current={swimCurrent.Current.X:F2},{swimCurrent.Current.Y:F2} exposure={swimCurrent.Exposure:F2}s share={swimCurrent.Share:F2} push={swimCurrent.Push.X:F2},{swimCurrent.Push.Y:F2} stroke={swimCurrent.Stroke:F2}];aboard={aboard};seated={Carrier?.Seated == true};platform=[{(lastStepReceipt is CharacterStepReceipt last ? string.Create(CultureInfo.InvariantCulture, $"{last.Platform.Present}:{last.Platform.Entity}:{PlayerInputDiagnostics.Format(last.Platform.CarriedDisplacement)}") : "none")}];stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};hazards=[{Hazards.Readout()}];recoveries={recoveries};lastRecovery=[{lastRecovery}];landscape=[{landscapeSpace?.Readout ?? "overworld"}];bounds=[{(Bound is null ? "none" : string.Create(CultureInfo.InvariantCulture, $"turnBacks={TurnBacks};last={TurnedBack?.Side.ToString() ?? "none"}@{TurnedBack?.Step ?? -1}"))}]";
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -672,6 +675,7 @@ internal sealed class PlayerController : IDisposable
         Vitals.Reset();
         Progress.Reset();
         Stamina.Refill(Sheet.Derived.MaximumStamina);
+        Hazards.Clear(Stamina);
         footfalls.Reset();
         hitsHeard = Vitals.HitsTaken;
         look = StartingLook;
@@ -703,7 +707,8 @@ internal sealed class PlayerController : IDisposable
         lastStepReceipt = null;
         while (controllerStepAccumulator + PlayerConstants.ControllerStepEpsilon >= PlayerConstants.ControllerStepSeconds)
         {
-            CharacterControllerConfig stepConfig = frame.SprintRequested && !frame.CrouchRequested
+            // A numbed body (#10963) cannot sprint, nor can a spent one, and one held by a fixture struggles instead.
+            CharacterControllerConfig stepConfig = frame.SprintRequested && !frame.CrouchRequested && Stamina.CanSprint && Hazards.SeizedBy is null
                 ? PlayerBody.WithSprintSpeed(controllerConfig)
                 : controllerConfig;
             commandSequence = checked(commandSequence + 1UL);
@@ -753,6 +758,7 @@ internal sealed class PlayerController : IDisposable
             Stamina.Tick(
                 climbHeld ? PlayerStamina.OnFace(frame.PlanarIntent.Y) : motion.Grounded ? PlayerExertion.Resting : PlayerExertion.Airborne,
                 PlayerConstants.ControllerStepSeconds, climbsNaturalRock && climb.LastFace is ClimbFace held ? held.Grip : 1f);
+            Hazards.Step(PlayerConstants.ControllerStepSeconds, frame.SprintRequested && frame.PlanarIntent != Vector2.Zero, Stamina);
             WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(Session));
             playerGlobal = PlayerWorldPosition.FromLocal(origin, playerLocal);
             lastClearLocal = playerLocal;
@@ -852,6 +858,13 @@ internal sealed class PlayerController : IDisposable
         }
 
         swimCurrent.Step(stepSeconds, null, Rpg.CharacterRules.SwimStroke(Sheet.Attributes));
+        // Seized by a fixture (#10963): no way of their own, no jump, drawn toward its hold.
+        if (Hazards.Draw(WorldPosition) is Vector3 drawn)
+        {
+            return new CharacterControllerCommand(
+                Vector2.Zero, look.YawRadians, false, false, frame.CrouchRequested, drawn, Vector3.Zero, stepSeconds, sequence);
+        }
+
         if (!jumpPending && (climbsNaturalRock
                 ? climb.TryClimbNatural(Session, playerLocal, motion.Stance, lookReceipt.Forward, frame.PlanarIntent.Y, grip, out movement)
                 : climb.TryClimb(Session, playerGlobal, playerLocal, motion.Stance, lookReceipt.Forward, frame.PlanarIntent.Y, grip, out movement)))

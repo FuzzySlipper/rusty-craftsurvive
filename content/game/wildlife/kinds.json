@@ -1221,6 +1221,107 @@
       "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
       "combat": { "health": 6, "evasion": 50, "armour": 0, "experience": 15 },
       "loot": []
+    },
+    {
+      "id": "niche-unfolder",
+      "name": "Niche unfolder",
+      "$comment": "A ruin fixture (#10963), settled with Patch on den-wiki wandering-years/ruins-wildlife ('Fixtures as hazards'): seated folded in a rounded wall recess, it seizes a player who stays within its reach while it unfolds, holding them and drawing them toward the recess, until its hold runs out, a blow lands on it or a sprint against it breaks free; then it folds away and rests. Rooted; placed by test aid until #10955.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 6 },
+      "body": { "lengthMetres": 1.0, "heightMetres": 2.1, "widthMetres": 1.8, "sizeClass": "human", "colour": "#ded0b4" },
+      "mesh": {
+        "file": "creatures/niche-unfolder/niche-unfolder.glb",
+        "manifest": "creatures/niche-unfolder/niche-unfolder.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "idle", "run": "idle", "look": "idle", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 0.5, "grazeDrift": 0.2, "flee": 1.0, "turnDegrees": 90 },
+      "wariness": { "noticeMetres": 6, "actMetres": 3, "lookSeconds": 1.0, "warnSeconds": 1.0 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 6, "reachMetres": 2.9, "haltMetres": 2.32, "accuracy": 0, "power": 1, "cooldownTicks": 60, "biteWindupSeconds": 0.3, "dodgeMetres": 0,
+        "fixture": { "$comment": "Settled with Patch (#10963): within 2.5 m of the recess (2.9 m from its middle), a 0.6 s unfold, a hold of up to 3 s at 2 a second, a 1 s sprint against it breaks free (spending stamina), then about 20 s folded away.",
+          "act": "seizes", "reachMetres": 2.9, "tellSeconds": 0.6, "actSeconds": 3, "restSeconds": 20, "damage": 2, "damageEverySeconds": 1,
+          "drawMetresPerSecond": 0.7, "struggleSeconds": 1.0, "struggleStaminaPerSecond": 30, "clips": { "hold": "hold", "recover": "fold" } } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 60, "evasion": 10, "armour": 6, "experience": 200 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "vault-filter",
+      "name": "Vault filter",
+      "$comment": "A ruin fixture (#10963), settled with Patch on den-wiki wandering-years/ruins-wildlife ('Fixtures as hazards'): three lobes hanging from a ceiling root by a relic light. A player passing beneath sees its fringes shiver, then its lobes drop and lash: a sting, and their stamina empties and stays empty for a while, so they cannot sprint or climb. Its lobes rise and it rests. Each third of its health lost cuts a lobe off. Rooted, drawn lifted to its own ceiling; placed by test aid until #10955.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 6 },
+      "body": { "lengthMetres": 1.6, "heightMetres": 2.2, "widthMetres": 1.6, "sizeClass": "human", "colour": "#e0c88c" },
+      "mesh": {
+        "file": "creatures/vault-filter/vault-filter.glb",
+        "manifest": "creatures/vault-filter/vault-filter.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "idle", "run": "idle", "look": "idle", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 0.5, "grazeDrift": 0.2, "flee": 1.0, "turnDegrees": 90 },
+      "wariness": { "noticeMetres": 6, "actMetres": 3, "lookSeconds": 1.0, "warnSeconds": 1.0 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 6, "reachMetres": 1.5, "haltMetres": 1.2, "accuracy": 0, "power": 1, "cooldownTicks": 60, "biteWindupSeconds": 0.3, "dodgeMetres": 0,
+        "fixture": { "$comment": "Settled with Patch (#10963): passing within 1.5 m beneath it, a 0.5 s tell, then a sting of 3 and numbing for 10 s; its lobes rise again and it rests about 15 s. Its mesh hangs from a ceiling 3.4 m up.",
+          "act": "numbs", "reachMetres": 1.5, "tellSeconds": 0.5, "actSeconds": 1.4, "restSeconds": 15, "damage": 3, "numbSeconds": 10, "strikeAfterSeconds": 0.3,
+          "parts": 3, "partJoints": [ "lobe1", "lobe2", "lobe3" ], "ceilingMetres": 3.4, "clips": { "recover": "rise" } } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 36, "evasion": 20, "armour": 2, "experience": 150 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "folding-bower",
+      "name": "Folding bower",
+      "$comment": "A ruin fixture (#10963), settled with Patch on den-wiki wandering-years/ruins-wildlife ('Fixtures as hazards'): a room-sized pavilion of ribs and amber membranes where ruin life rests. A player who stays under its ribs hears them creak; then it folds shut, its walls blocking passage, and digests them while they are inside, until three blows cut its membrane and it opens. Left empty it opens after a while. Rooted; placed by test aid until #10955.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 6 },
+      "body": { "lengthMetres": 5.6, "heightMetres": 4.3, "widthMetres": 5.6, "sizeClass": "human", "colour": "#d69c42" },
+      "mesh": {
+        "file": "creatures/folding-bower/folding-bower.glb",
+        "manifest": "creatures/folding-bower/folding-bower.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "idle", "run": "idle", "look": "idle", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 0.5, "grazeDrift": 0.2, "flee": 1.0, "turnDegrees": 90 },
+      "wariness": { "noticeMetres": 6, "actMetres": 3, "lookSeconds": 1.0, "warnSeconds": 1.0 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 6, "reachMetres": 2.0, "haltMetres": 1.6, "accuracy": 0, "power": 1, "cooldownTicks": 60, "biteWindupSeconds": 0.3, "dodgeMetres": 0,
+        "fixture": { "$comment": "Settled with Patch (#10963): staying under its ribs (within 2 m of its middle) through its 1.5 s creak, it shuts; 1 damage every 2 s inside; three blows cut its membrane; it opens about 30 s after it empties, and can shut again 5 s after it opens.",
+          "act": "closes", "reachMetres": 2.0, "tellSeconds": 1.5, "actSeconds": 5, "restSeconds": 30, "damage": 1, "damageEverySeconds": 2, "blows": 3,
+          "wallMetres": 2.45, "clips": { "hold": "hold", "recover": "open" } } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 120, "evasion": 0, "armour": 8, "experience": 260 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
+    },
+    {
+      "id": "brood-vessel",
+      "name": "Brood vessel",
+      "$comment": "A ruin fixture (#10963), settled with Patch on den-wiki wandering-years/ruins-wildlife ('Fixtures as hazards'): four amber vessels in pale pod frames on rooted stems. While it sees the player within its reach, or after a blow, a vessel swells and splits, and a small skitterer climbs out to guard it; another follows every 20 s until its vessels are spent. Two blows smash a whole vessel. Spent vessels regrow after a few game days. Rooted; placed by test aid until #10955.",
+      "habitat": {},
+      "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 6 },
+      "body": { "lengthMetres": 0.8, "heightMetres": 2.4, "widthMetres": 3.2, "sizeClass": "human", "colour": "#e8a040" },
+      "mesh": {
+        "file": "creatures/brood-vessel/brood-vessel.glb",
+        "manifest": "creatures/brood-vessel/brood-vessel.manifest.json",
+        "scale": 1.0,
+        "clips": { "idle": "idle", "walk": "idle", "run": "idle", "look": "idle", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt" }
+      },
+      "speeds": { "walk": 0.5, "grazeDrift": 0.2, "flee": 1.0, "turnDegrees": 90 },
+      "wariness": { "noticeMetres": 6, "actMetres": 3, "lookSeconds": 1.0, "warnSeconds": 1.0 },
+      "pressed": "hunt",
+      "hunt": { "sightMetres": 12, "reachMetres": 12, "haltMetres": 9.6, "accuracy": 0, "power": 1, "cooldownTicks": 60, "biteWindupSeconds": 0.3, "dodgeMetres": 0,
+        "fixture": { "$comment": "Settled with Patch (#10963): within 12 m in its sight, a vessel swells (1.2 s) and splits every 20 s, a small skitterer each, guarding it within 15 m; two blows smash a whole vessel; spent vessels regrow after three game days (3600 s).",
+          "act": "hatches", "reachMetres": 12, "tellSeconds": 1.2, "actSeconds": 20, "restSeconds": 1, "parts": 4, "blows": 2,
+          "brood": { "kind": "brood-skitterer", "count": 1, "guardMetres": 15, "regrowSeconds": 3600 },
+          "clips": { "whole": "idle", "swell": "swell{0}", "split": "split{0}", "spent": "spent{0}" } } },
+      "schedule": "night-worker",
+      "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
+      "combat": { "health": 50, "evasion": 0, "armour": 3, "experience": 180 },
+      "loot": [ { "item": "hide", "minimum": 1, "maximum": 1, "oneIn": 1 } ]
     }
   ]
 }

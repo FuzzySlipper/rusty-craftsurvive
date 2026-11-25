@@ -46,6 +46,7 @@ has a skeleton and a clip generator in code. A species bakes the family clips it
 | `margin_paint.py` | Paints a ribbon body's back and belly margins into its master by the way each texel faces, keeping the head's teeth and marks (#10985) |
 | `sheet_membrane.py` | Builds a thin membrane body straight from a side view, with no generator: straightened, a twist filled in, a rim painted (#10986) |
 | `make_gulper.py` | Builds the gulper's body from its species' `gulper` block, with no generator: jaw rails, membranes, throat, body, tail and teeth, painted at 64 texels/m (#10987) |
+| `make_fixture.py` | Builds a ruin fixture's body from its species' `fixture` block, with no generator: tubes, surfaces of revolution and two-sided sheets, painted at 64 texels/m with an emission image, each vertex weighted as it is made (#10963) |
 
 ```sh
 blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/build_creature.py -- \
@@ -829,3 +830,42 @@ The fog foe that waits, from the first spread's concept 3 (the folded gulper) on
 | | Triangles | Paint | GLB |
 | --- | --- | --- | --- |
 | Gulper | 4,800 | 512 x 256 at 64 texels/m | 983 KB |
+
+### The ruin fixtures: rooted bodies with a few moving parts (#10963)
+
+The niche unfolder, vault filter, folding bower and brood vessel are the ruin's living infrastructure. Their hazards were
+settled with Patch on den-wiki `wandering-years/ruins-wildlife` ("Fixtures as hazards"), and their sheets
+(`<kind>/concept/sheet.png`, specs beside them) were seen first. They are rooted, so only their moving parts are rigged.
+- **The bodies, with no generator: `make_fixture.py`.** A generator fuses moving parts: a bower's curtains, a filter's
+  fringes, a vessel's sac halves. So each body is built from parts by its species' `fixture.kind`:
+  - `unfolder`: an oval shell with shingled plates over a frilled opening, two amber organs, six braced legs, and two
+    long limbs ending in pincers. The limbs are built hanging forward; the clips fold them up its front.
+  - `filter`: a root spread on a ceiling `ceilingMetres` up, three stretching stalks, and plated lobes with jade collars
+    and pleated fringes.
+  - `bower`: six ribs to a crown, a membrane in each bay down to an arch, and curtains below the arches built down to the
+    floor. Its rest pose is therefore shut; its open poses raise each curtain by `curtainRiseMetres`, which collapses it
+    along its arch.
+  - `vessel`: four sacs in pod frames, each sac two halves hinged at its bottom so they peel open.
+  Each part has its own block of one atlas painted here at 64 texels/m, with an emission image for what glows. Parts
+  that look alike share a block.
+- **Weights as they are made.** `make_fixture.py` writes `body.weights.json`: every vertex's bones. `build_creature.py
+  --weights` sets the skin from it (`weigh_from_file`), with no heat and none of the pins. A stretching part shares its
+  bones by where its points lie: a filter's stalk between root and lobe, a curtain by how far below its arch.
+- **The `fixture` family: the species' own skeleton and clips.** `bones` lists `[name, parent, head point, tail point,
+  side]`. Each clip in `clips` eases through named `poses` at times:
+  - a pose sets bones by pattern to a `turn` [pitch, yaw, roll], a `move` [side, forward, up], a `spread` (tipped out
+    from its parent) or an `out` (moved level, away from it);
+  - a pose may start from a `base` pose, and a `.L` bone's values serve its `.R` mirrored;
+  - a clip's `waves` add a tremor or a sway.
+  A vessel has a clip for each count of spent vessels (`spentN`, `swellN`, `splitN`), split in the species' `order`.
+- **In game.** The kinds' `hunt.fixture` block (`WildlifeFixture`) roots them. `FixtureRules` decides and
+  `CreatureModule.Fixtures` applies, playing clips beyond the roles by name (`WildlifeMember.NamedClip`). A filter's cut
+  lobes are drawn shrunk away (`WildlifeMember.Lost`). A shut bower's wall is a ring of colliders through the seals'
+  barriers. No ragdoll: they play their death where they grow.
+
+| | Triangles | Paint |
+| --- | --- | --- |
+| Niche unfolder | 6,700 | 512 x 512 at 64 texels/m |
+| Vault filter | 5,400 | 512 x 128 |
+| Folding bower | 9,000 | 512 x 512 |
+| Brood vessel | 7,000 | 512 x 128 |

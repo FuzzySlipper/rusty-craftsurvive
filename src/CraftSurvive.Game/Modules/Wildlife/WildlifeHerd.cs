@@ -86,6 +86,15 @@ internal sealed class WildlifeMember
     /// </summary>
     internal string? WornLook { get; set; }
 
+    /// <summary>
+    /// A clip its rules name over the one its role plays (#10963): a fixture's hold, its recovery, a vessel's count of
+    /// spent vessels. Null plays the role's.
+    /// </summary>
+    internal string? NamedClip { get; set; }
+
+    /// <summary>Joints its rules have it lose (#10963: a vault filter's cut lobes), drawn shrunk to nothing.</summary>
+    internal IReadOnlyList<string> Lost { get; set; } = [];
+
     /// <summary>Making for the water: having set off, it goes in, however clear of the player it has got.</summary>
     internal bool ToWater { get; set; }
 
