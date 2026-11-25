@@ -1,0 +1,546 @@
+{
+ "id": "niche-unfolder",
+ "family": "fixture",
+ "about": "A ruin fixture (#10963), settled with Patch on den-wiki wandering-years/ruins-wildlife ('Fixtures as hazards'). Its body is built by make_fixture.py from the fixture block, with no generator, and weighted as it is made; the fixture family takes its bones and its posed clips from this file. Points are metres as [side, forward, up]. The niche unfolder sits folded in a wall recess and seizes what comes within its reach.",
+ "fixture": {
+  "kind": "unfolder",
+  "shellCentre": [
+   0,
+   -0.08,
+   1.1
+  ],
+  "shellRadii": [
+   0.55,
+   0.46,
+   0.95
+  ],
+  "plates": 6,
+  "frontOpenDegrees": 110,
+  "lavenderPlates": [
+   1,
+   4
+  ],
+  "organs": [
+   [
+    1.42,
+    [
+     0.15,
+     0.1,
+     0.24
+    ]
+   ],
+   [
+    0.82,
+    [
+     0.16,
+     0.1,
+     0.27
+    ]
+   ]
+  ],
+  "legForwards": [
+   -0.25,
+   0.0,
+   0.22
+  ],
+  "legHip": 0.42,
+  "limb": {
+   "shoulder": [
+    0.46,
+    0.12,
+    1.5
+   ],
+   "elbow": [
+    0.8,
+    0.72,
+    0.9
+   ],
+   "wrist": [
+    0.56,
+    1.22,
+    0.24
+   ],
+   "upperFinger": [
+    0.4,
+    1.74,
+    0.3
+   ],
+   "lowerFinger": [
+    0.42,
+    1.68,
+    0.1
+   ],
+   "thickness": [
+    0.095,
+    0.08,
+    0.07
+   ]
+  }
+ },
+ "points": {
+  "root": [
+   0,
+   0,
+   0
+  ],
+  "root_tip": [
+   0,
+   0,
+   0.3
+  ],
+  "bodyLow": [
+   0,
+   -0.08,
+   0.3
+  ],
+  "bodyTop": [
+   0,
+   -0.08,
+   2.0
+  ],
+  "shoulder": [
+   0.46,
+   0.12,
+   1.5
+  ],
+  "elbow": [
+   0.8,
+   0.72,
+   0.9
+  ],
+  "wrist": [
+   0.56,
+   1.22,
+   0.24
+  ],
+  "upperFinger": [
+   0.4,
+   1.74,
+   0.3
+  ],
+  "lowerFinger": [
+   0.42,
+   1.68,
+   0.1
+  ]
+ },
+ "bones": [
+  [
+   "root",
+   null,
+   "root",
+   "root_tip"
+  ],
+  [
+   "body",
+   "root",
+   "bodyLow",
+   "bodyTop"
+  ],
+  [
+   "limb.L",
+   "body",
+   "shoulder",
+   "elbow",
+   1
+  ],
+  [
+   "fore.L",
+   "limb.L",
+   "elbow",
+   "wrist",
+   1
+  ],
+  [
+   "pincer.L",
+   "fore.L",
+   "wrist",
+   "upperFinger",
+   1
+  ],
+  [
+   "finger.L",
+   "fore.L",
+   "wrist",
+   "lowerFinger",
+   1
+  ],
+  [
+   "limb.R",
+   "body",
+   "shoulder",
+   "elbow",
+   -1
+  ],
+  [
+   "fore.R",
+   "limb.R",
+   "elbow",
+   "wrist",
+   -1
+  ],
+  [
+   "pincer.R",
+   "fore.R",
+   "wrist",
+   "upperFinger",
+   -1
+  ],
+  [
+   "finger.R",
+   "fore.R",
+   "wrist",
+   "lowerFinger",
+   -1
+  ]
+ ],
+ "clips": {
+  "fps": 30,
+  "poses": {
+   "folded": {
+    "limb.L": {
+     "turn": [
+      -28,
+      -6,
+      -16
+     ]
+    },
+    "fore.L": {
+     "turn": [
+      150,
+      0,
+      0
+     ]
+    },
+    "pincer.L": {
+     "turn": [
+      -40,
+      0,
+      0
+     ]
+    },
+    "finger.L": {
+     "turn": [
+      -40,
+      0,
+      0
+     ]
+    }
+   },
+   "breath": {
+    "base": "folded",
+    "body": {
+     "turn": [
+      1.5,
+      0,
+      0
+     ]
+    }
+   },
+   "half": {
+    "limb.L": {
+     "turn": [
+      5,
+      8,
+      8
+     ]
+    },
+    "fore.L": {
+     "turn": [
+      -50,
+      0,
+      0
+     ]
+    },
+    "pincer.L": {
+     "turn": [
+      -10,
+      0,
+      0
+     ]
+    },
+    "finger.L": {
+     "turn": [
+      -45,
+      0,
+      0
+     ]
+    }
+   },
+   "reach": {
+    "limb.L": {
+     "turn": [
+      45,
+      -6,
+      0
+     ]
+    },
+    "fore.L": {
+     "turn": [
+      12,
+      0,
+      0
+     ]
+    },
+    "pincer.L": {
+     "turn": [
+      14,
+      0,
+      0
+     ]
+    },
+    "finger.L": {
+     "turn": [
+      -30,
+      0,
+      0
+     ]
+    },
+    "body": {
+     "turn": [
+      6,
+      0,
+      0
+     ]
+    }
+   },
+   "clamp": {
+    "base": "reach",
+    "finger.L": {
+     "turn": [
+      18,
+      0,
+      0
+     ]
+    },
+    "pincer.L": {
+     "turn": [
+      8,
+      0,
+      0
+     ]
+    }
+   },
+   "pull": {
+    "base": "clamp",
+    "limb.L": {
+     "turn": [
+      34,
+      -4,
+      0
+     ]
+    },
+    "fore.L": {
+     "turn": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "flinch": {
+    "base": "folded",
+    "body": {
+     "turn": [
+      -5,
+      0,
+      0
+     ]
+    },
+    "limb.L": {
+     "turn": [
+      -20,
+      -6,
+      -6
+     ]
+    },
+    "fore.L": {
+     "turn": [
+      130,
+      0,
+      0
+     ]
+    }
+   },
+   "dead": {
+    "body": {
+     "turn": [
+      12,
+      0,
+      0
+     ],
+     "move": [
+      0,
+      0.05,
+      -0.1
+     ]
+    },
+    "limb.L": {
+     "turn": [
+      -35,
+      0,
+      8
+     ]
+    },
+    "fore.L": {
+     "turn": [
+      40,
+      0,
+      0
+     ]
+    },
+    "pincer.L": {
+     "turn": [
+      -30,
+      0,
+      0
+     ]
+    },
+    "finger.L": {
+     "turn": [
+      -55,
+      0,
+      0
+     ]
+    }
+   }
+  },
+  "idle": {
+   "seconds": 4.0,
+   "loops": true,
+   "keys": [
+    [
+     0,
+     "folded"
+    ],
+    [
+     0.5,
+     "breath"
+    ],
+    [
+     1.0,
+     "folded"
+    ]
+   ]
+  },
+  "threat": {
+   "seconds": 0.6,
+   "keys": [
+    [
+     0,
+     "folded"
+    ],
+    [
+     1.0,
+     "half"
+    ]
+   ],
+   "waves": [
+    {
+     "bones": [
+      "finger.*"
+     ],
+     "value": "pitch",
+     "amount": 6,
+     "cycles": 4
+    }
+   ]
+  },
+  "bite": {
+   "seconds": 0.7,
+   "keys": [
+    [
+     0,
+     "half"
+    ],
+    [
+     0.55,
+     "reach"
+    ],
+    [
+     1.0,
+     "clamp"
+    ]
+   ]
+  },
+  "hold": {
+   "seconds": 1.0,
+   "loops": true,
+   "keys": [
+    [
+     0,
+     "clamp"
+    ],
+    [
+     0.5,
+     "pull"
+    ],
+    [
+     1.0,
+     "clamp"
+    ]
+   ],
+   "waves": [
+    {
+     "bones": [
+      "fore.*"
+     ],
+     "value": "roll",
+     "amount": 3,
+     "cycles": 3
+    }
+   ]
+  },
+  "fold": {
+   "seconds": 1.2,
+   "keys": [
+    [
+     0,
+     "clamp"
+    ],
+    [
+     0.3,
+     "reach"
+    ],
+    [
+     1.0,
+     "folded"
+    ]
+   ]
+  },
+  "hurt": {
+   "seconds": 0.5,
+   "keys": [
+    [
+     0,
+     "folded"
+    ],
+    [
+     0.3,
+     "flinch"
+    ],
+    [
+     1.0,
+     "folded"
+    ]
+   ]
+  },
+  "die": {
+   "seconds": 1.6,
+   "keys": [
+    [
+     0,
+     "folded"
+    ],
+    [
+     0.25,
+     "half"
+    ],
+    [
+     1.0,
+     "dead"
+    ]
+   ]
+  }
+ }
+}

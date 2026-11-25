@@ -1,0 +1,422 @@
+{
+ "id": "folding-bower",
+ "family": "fixture",
+ "about": "A ruin fixture (#10963), settled with Patch on den-wiki wandering-years/ruins-wildlife ('Fixtures as hazards'). Its body is built by make_fixture.py from the fixture block, with no generator, and weighted as it is made; the fixture family takes its bones and its posed clips from this file. Points are metres as [side, forward, up]. The folding bower stands open like a pavilion; its curtains are built down to the floor, so its rest pose is closed, and its open poses raise them by curtainRiseMetres to collapse along the arches.",
+ "fixture": {
+  "kind": "bower",
+  "ribs": 6,
+  "firstRibDegrees": 30,
+  "ringMetres": 2.6,
+  "crownRadius": 0.25,
+  "crownMetres": 4.2,
+  "domePower": 2.4,
+  "ribThickness": [
+   0.2,
+   0.11
+  ],
+  "rootsPerFoot": 3,
+  "organHeights": [
+   1.9,
+   0.55
+  ],
+  "archFoot": 0.5,
+  "sideArch": 1.9,
+  "frontArch": 2.7,
+  "frontBay": 5,
+  "bulgeMetres": 0.3,
+  "curtainRiseMetres": 2.7
+ },
+ "points": {
+  "root": [
+   0,
+   0,
+   0
+  ],
+  "root_tip": [
+   0,
+   0,
+   0.5
+  ],
+  "bay1": [
+   1.9053,
+   1.1,
+   2.6
+  ],
+  "bay1_tip": [
+   1.9053,
+   1.1,
+   3.0
+  ],
+  "curtain1": [
+   2.1651,
+   1.25,
+   0.0
+  ],
+  "curtain1_tip": [
+   2.1651,
+   1.25,
+   0.5
+  ],
+  "bay2": [
+   1.9053,
+   -1.1,
+   2.6
+  ],
+  "bay2_tip": [
+   1.9053,
+   -1.1,
+   3.0
+  ],
+  "curtain2": [
+   2.1651,
+   -1.25,
+   0.0
+  ],
+  "curtain2_tip": [
+   2.1651,
+   -1.25,
+   0.5
+  ],
+  "bay3": [
+   0.0,
+   -2.2,
+   2.6
+  ],
+  "bay3_tip": [
+   0.0,
+   -2.2,
+   3.0
+  ],
+  "curtain3": [
+   0.0,
+   -2.5,
+   0.0
+  ],
+  "curtain3_tip": [
+   0.0,
+   -2.5,
+   0.5
+  ],
+  "bay4": [
+   -1.9053,
+   -1.1,
+   2.6
+  ],
+  "bay4_tip": [
+   -1.9053,
+   -1.1,
+   3.0
+  ],
+  "curtain4": [
+   -2.1651,
+   -1.25,
+   0.0
+  ],
+  "curtain4_tip": [
+   -2.1651,
+   -1.25,
+   0.5
+  ],
+  "bay5": [
+   -1.9053,
+   1.1,
+   2.6
+  ],
+  "bay5_tip": [
+   -1.9053,
+   1.1,
+   3.0
+  ],
+  "curtain5": [
+   -2.1651,
+   1.25,
+   0.0
+  ],
+  "curtain5_tip": [
+   -2.1651,
+   1.25,
+   0.5
+  ],
+  "bay6": [
+   -0.0,
+   2.2,
+   2.6
+  ],
+  "bay6_tip": [
+   -0.0,
+   2.2,
+   3.0
+  ],
+  "curtain6": [
+   -0.0,
+   2.5,
+   0.0
+  ],
+  "curtain6_tip": [
+   -0.0,
+   2.5,
+   0.5
+  ]
+ },
+ "bones": [
+  [
+   "root",
+   null,
+   "root",
+   "root_tip"
+  ],
+  [
+   "bay1",
+   "root",
+   "bay1",
+   "bay1_tip"
+  ],
+  [
+   "curtain1",
+   "root",
+   "curtain1",
+   "curtain1_tip"
+  ],
+  [
+   "bay2",
+   "root",
+   "bay2",
+   "bay2_tip"
+  ],
+  [
+   "curtain2",
+   "root",
+   "curtain2",
+   "curtain2_tip"
+  ],
+  [
+   "bay3",
+   "root",
+   "bay3",
+   "bay3_tip"
+  ],
+  [
+   "curtain3",
+   "root",
+   "curtain3",
+   "curtain3_tip"
+  ],
+  [
+   "bay4",
+   "root",
+   "bay4",
+   "bay4_tip"
+  ],
+  [
+   "curtain4",
+   "root",
+   "curtain4",
+   "curtain4_tip"
+  ],
+  [
+   "bay5",
+   "root",
+   "bay5",
+   "bay5_tip"
+  ],
+  [
+   "curtain5",
+   "root",
+   "curtain5",
+   "curtain5_tip"
+  ],
+  [
+   "bay6",
+   "root",
+   "bay6",
+   "bay6_tip"
+  ],
+  [
+   "curtain6",
+   "root",
+   "curtain6",
+   "curtain6_tip"
+  ]
+ ],
+ "clips": {
+  "fps": 30,
+  "poses": {
+   "open": {
+    "curtain*": {
+     "move": [
+      0,
+      0,
+      2.7
+     ]
+    }
+   },
+   "breathe": {
+    "base": "open",
+    "bay*": {
+     "out": 0.06
+    }
+   },
+   "creak": {
+    "base": "open",
+    "bay*": {
+     "out": -0.08
+    },
+    "curtain*": {
+     "move": [
+      0,
+      0,
+      2.58
+     ]
+    }
+   },
+   "closed": {
+    "bay*": {
+     "out": -0.22
+    }
+   },
+   "digest": {
+    "bay*": {
+     "out": -0.3
+    }
+   },
+   "sag": {
+    "bay*": {
+     "out": -0.4
+    },
+    "curtain*": {
+     "move": [
+      0,
+      0,
+      1.4850000000000003
+     ]
+    }
+   },
+   "shudder": {
+    "base": "open",
+    "bay*": {
+     "out": -0.15
+    }
+   }
+  },
+  "idle": {
+   "seconds": 5.0,
+   "loops": true,
+   "keys": [
+    [
+     0,
+     "open"
+    ],
+    [
+     0.5,
+     "breathe"
+    ],
+    [
+     1.0,
+     "open"
+    ]
+   ]
+  },
+  "threat": {
+   "seconds": 1.5,
+   "keys": [
+    [
+     0,
+     "open"
+    ],
+    [
+     1.0,
+     "creak"
+    ]
+   ],
+   "waves": [
+    {
+     "bones": [
+      "bay*"
+     ],
+     "value": "out",
+     "amount": 0.05,
+     "cycles": 6,
+     "lag": 0.17
+    }
+   ]
+  },
+  "bite": {
+   "seconds": 1.2,
+   "keys": [
+    [
+     0,
+     "creak"
+    ],
+    [
+     0.8,
+     "closed"
+    ],
+    [
+     1.0,
+     "closed"
+    ]
+   ]
+  },
+  "hold": {
+   "seconds": 3.0,
+   "loops": true,
+   "keys": [
+    [
+     0,
+     "closed"
+    ],
+    [
+     0.5,
+     "digest"
+    ],
+    [
+     1.0,
+     "closed"
+    ]
+   ]
+  },
+  "open": {
+   "seconds": 2.0,
+   "keys": [
+    [
+     0,
+     "closed"
+    ],
+    [
+     1.0,
+     "open"
+    ]
+   ]
+  },
+  "hurt": {
+   "seconds": 0.5,
+   "keys": [
+    [
+     0,
+     "open"
+    ],
+    [
+     0.3,
+     "shudder"
+    ],
+    [
+     1.0,
+     "open"
+    ]
+   ]
+  },
+  "die": {
+   "seconds": 2.5,
+   "keys": [
+    [
+     0,
+     "open"
+    ],
+    [
+     1.0,
+     "sag"
+    ]
+   ]
+  }
+ }
+}

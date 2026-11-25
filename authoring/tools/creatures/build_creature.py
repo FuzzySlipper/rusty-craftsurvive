@@ -1,7 +1,8 @@
 """Builds a creature GLB from a species file: rig, body, skin and clips (#10568).
 
 usage: blender -b --factory-startup --python-exit-code 1 --python authoring/tools/creatures/build_creature.py -- \
-           <species.json> <out.glb> [--mesh <body.glb> [--texture <base colour.png>] [--emission <glow.png>]] [--blend <review.blend>]
+           <species.json> <out.glb> [--mesh <body.glb> [--texture <base colour.png>] [--emission <glow.png>]
+           [--weights <body.weights.json>]] [--blend <review.blend>]
 
 - The rig is the species' family skeleton (families.py), placed from the species' key points. Every bone's X axis is the animal's left, so a pitch is the same rotation whatever
   the bone points at.
@@ -29,7 +30,7 @@ from mathutils import Matrix, Quaternion, Vector
 from mathutils.kdtree import KDTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from families import FAMILIES, SIDES  # noqa: E402
+from families import FAMILIES, SIDES, fixture_clips  # noqa: E402
 import gait  # noqa: E402
 
 NEAREST = 9728
@@ -63,7 +64,8 @@ def build_armature(species, family):
     bpy.context.scene.collection.objects.link(rig)
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode="EDIT")
-    for name, parent, head, tail, sign in (family.bones(points) if family.sized else family.bones()):
+    listed = family.bones(species) if family.species_bones else family.bones(points) if family.sized else family.bones()
+    for name, parent, head, tail, sign in listed:
         bone = data.edit_bones.new(name)
         bone.head = limb_point(points, head, sign)
         bone.tail = limb_point(points, tail, sign)
@@ -705,6 +707,43 @@ def weigh_gulper(species, rig, mesh):
           f"{kinds['body']} body, {kinds['tail']} tail")
 
 
+def weigh_from_file(rig, mesh, path):
+    """
+    A body's weights as its maker set them (#10963, make_fixture.py): [side, forward, up, bone, weight, ...] per point.
+    Each vertex takes the weights of the point it lies on; one lying on none stops the build.
+    """
+    points = json.loads(Path(path).read_text())["points"]
+    tree = KDTree(len(points))
+    for i, point in enumerate(points):
+        tree.insert(to_blender(point[:3]), i)
+    tree.balance()
+    bpy.ops.object.select_all(action="DESELECT")
+    mesh.select_set(True)
+    rig.select_set(True)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.parent_set(type="ARMATURE_NAME")
+    names = set(rig.data.bones.keys())
+    far = 0
+    for vertex in mesh.data.vertices:
+        _co, index, distance = tree.find(vertex.co)
+        if distance > WEIGHT_POINT_METRES:
+            far += 1
+            continue
+        rest = points[index][3:]
+        for bone, weight in zip(rest[0::2], rest[1::2]):
+            if bone not in names:
+                raise SystemExit(f"{path}: weights name bone {bone}, which the rig lacks")
+            group = mesh.vertex_groups.get(bone) or mesh.vertex_groups.new(name=bone)
+            group.add([vertex.index], weight, "REPLACE")
+    if far:
+        raise SystemExit(f"{path}: {far} vertices lie on no weighted point")
+    print(f"weights from {path}: {len(mesh.data.vertices)} vertices")
+
+
+# A vertex lies on its maker's point when it is this close.
+WEIGHT_POINT_METRES = 1e-3
+
+
 # A gulper's piece this small is a tooth; one lying within this share of the gape from a rail is that rail's.
 RIGID_PIECE_VERTICES = 8
 RAIL_SHARE = 0.15
@@ -890,6 +929,8 @@ REST_SECONDS = 1.0
 
 def species_clips(species, family):
     """The family's clips this species has settings for, and `rest` always."""
+    if family.species_bones:
+        return fixture_clips(species)
     settings = species["clips"]
     return {clip: entry for clip, entry in family.clips.items() if clip == "rest" or clip in settings}
 
@@ -1008,7 +1049,10 @@ def main(argv):
     texture = argv[argv.index("--texture") + 1] if "--texture" in argv else None
     emission = argv[argv.index("--emission") + 1] if "--emission" in argv else None
     mesh = import_mesh(mesh_path, texture, emission) if mesh_path else build_proxy(species, rig, family)
-    if "gulper" in species:
+    if "--weights" in argv:
+        # Weights its maker set (make_fixture.py): no heat, and none of the pins below.
+        weigh_from_file(rig, mesh, argv[argv.index("--weights") + 1])
+    elif "gulper" in species:
         # Its weights are set whole: no heat, and none of the pins below, which would give its loose pieces one bone each.
         weigh_gulper(species, rig, mesh)
     else:

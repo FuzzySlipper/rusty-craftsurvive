@@ -5,6 +5,7 @@ are pose functions over a Controls object: `pose(c, settings, t)` for t from 0 t
 A family's clip table gives each clip its pose, whether it loops, and whether all its feet stay on
 the ground; a species bakes the ones it has settings for, and `rest` always.
 """
+import fnmatch
 import math
 from dataclasses import dataclass, field
 
@@ -2410,6 +2411,132 @@ GULPER_CLIPS = {
 }
 
 
+# ---------------------------------------------------------------- fixtures: rooted ruin life (#10963)
+# The ruin's living infrastructure (den-wiki wandering-years/ruins-wildlife, "Fixtures as hazards"): rooted bodies whose
+# few moving parts do all their acting. Each is shaped differently, so the skeleton and the clips are the species' own
+# data rather than code: `bones` lists [name, parent, head point, tail point, side sign], and each clip in `clips` names
+# poses at times. A pose sets bones by pattern (`limb.*`; a `.L` bone's values serve its `.R` mirrored where the pose
+# names no `.R`) to a `turn` [pitch, yaw, roll] in degrees, a `move` [side, forward, up] in metres, a `spread` in
+# degrees (tipping the bone out from its parent, about the level line across the way it lies from it) and an `out` in
+# metres (moved level, away from its parent). A pose may start from a `base` pose. A clip eases from each pose to the
+# next, and its `waves` add a tremor or sway: a sine on one value of the matched bones, lagging bone by bone.
+
+def fixture_bones(species):
+    return [(name, parent, head, tail, (rest[0] if rest else 1.0)) for name, parent, head, tail, *rest in species["bones"]]
+
+
+def fixture_mirror(name):
+    return name[:-2] + ".R" if name.endswith(".L") else None
+
+
+def fixture_values(c, poses, name):
+    """A pose resolved to each bone of the rig it moves: {bone: {turn, move, spread, out}}."""
+    pose = poses[name]
+    values = fixture_values(c, poses, pose["base"]) if "base" in pose else {}
+    values = {bone: dict(v) for bone, v in values.items()}
+    bones = list(c.rig.pose.bones.keys())
+    named = set()
+    for pattern, setting in pose.items():
+        if pattern == "base":
+            continue
+        for bone in fnmatch.filter(bones, pattern):
+            values[bone] = dict(setting)
+            named.add(bone)
+    for bone in list(values):
+        right = fixture_mirror(bone)
+        if right and right in bones and right not in named and bone in named:
+            v = dict(values[bone])
+            if "turn" in v:
+                p, y, r = v["turn"]
+                v["turn"] = [p, -y, -r]
+            if "move" in v:
+                s, f, u = v["move"]
+                v["move"] = [-s, f, u]
+            values[right] = v
+    return values
+
+
+FIXTURE_ZERO = {"turn": [0.0, 0.0, 0.0], "move": [0.0, 0.0, 0.0], "spread": 0.0, "out": 0.0}
+
+
+def fixture_blend(a, b, share):
+    out = {}
+    for bone in set(a) | set(b):
+        va, vb = a.get(bone, {}), b.get(bone, {})
+        out[bone] = {}
+        for key, zero in FIXTURE_ZERO.items():
+            x, y = va.get(key, zero), vb.get(key, zero)
+            out[bone][key] = [p + (q - p) * share for p, q in zip(x, y)] if isinstance(zero, list) else x + (y - x) * share
+    return out
+
+
+def fixture_level_out(c, bone):
+    """The level direction a bone lies from its parent's head (or the rig's middle), in armature space."""
+    data = c.rig.data.bones[bone]
+    origin = data.parent.head_local if data.parent else Vector((0.0, 0.0, 0.0))
+    away = data.head_local - origin
+    away.z = 0.0
+    return away.normalized() if away.length > 1e-6 else Vector((0.0, -1.0, 0.0))
+
+
+def fixture_apply(c, values):
+    for bone, v in values.items():
+        p, y, r = v.get("turn", FIXTURE_ZERO["turn"])
+        turn = yaw(y) @ pitch(p) @ roll(r)
+        if v.get("spread", 0.0):
+            away = fixture_level_out(c, bone)
+            turn = Matrix.Rotation(math.radians(v["spread"]), 3, away.cross(Vector((0.0, 0.0, 1.0)))) @ turn
+        c.bone_rotation(bone, turn)
+        s, f, u = v.get("move", FIXTURE_ZERO["move"])
+        offset = Vector((s, -f, u)) + fixture_level_out(c, bone) * v.get("out", 0.0)
+        if offset.length > 0:
+            c.bone_offset(bone, offset)
+
+
+def fixture_clip(clip):
+    def pose(c, s, t):
+        settings = s[clip]
+        keys = settings["keys"]
+        index = max(k for k in range(len(keys)) if keys[k][0] <= t + 1e-9) if t >= keys[0][0] else 0
+        a = fixture_values(c, s["poses"], keys[index][1])
+        if index + 1 < len(keys):
+            t0, t1 = keys[index][0], keys[index + 1][0]
+            share = gait.smoothstep((t - t0) / (t1 - t0)) if t1 > t0 else 1.0
+            values = fixture_blend(a, fixture_values(c, s["poses"], keys[index + 1][1]), share)
+        else:
+            values = fixture_blend(a, a, 0.0)
+        bones = list(c.rig.pose.bones.keys())
+        for wave in settings.get("waves", ()):
+            matched = sorted(bone for pattern in wave["bones"] for bone in fnmatch.filter(bones, pattern))
+            start, end = wave.get("during", (0.0, 1.0))
+            ease = wave.get("easeShare", 0.0)
+            envelope = 1.0 if (start, end) == (0.0, 1.0) else (
+                gait.ease_in_out(t, start, start + ease) * (1.0 - gait.ease_in_out(t, end - ease, end)))
+            for k, bone in enumerate(matched):
+                amount = wave["amount"] * envelope * gait.wave(t, wave.get("cycles", 1.0), wave.get("lag", 0.0) * k)
+                v = values.setdefault(bone, {})
+                for key, zero in FIXTURE_ZERO.items():
+                    v.setdefault(key, list(zero) if isinstance(zero, list) else zero)
+                what = wave["value"]
+                if what in ("pitch", "yaw", "roll"):
+                    v["turn"][("pitch", "yaw", "roll").index(what)] += amount
+                elif what in ("side", "forward", "up"):
+                    v["move"][("side", "forward", "up").index(what)] += amount
+                else:
+                    v[what] += amount
+        fixture_apply(c, values)
+    return pose
+
+
+def fixture_clips(species):
+    """The species' declared clips, with `rest` always: {name: (pose, loops, plants feet)}."""
+    clips = {"rest": (clip_rest, False, False)}
+    for name, settings in species["clips"].items():
+        if isinstance(settings, dict) and "keys" in settings:
+            clips[name] = (fixture_clip(name), bool(settings.get("loops", False)), False)
+    return clips
+
+
 # ---------------------------------------------------------------- strider: two legs and two long arms, no tail (#10956)
 
 def strider_bones():
@@ -3142,6 +3269,9 @@ class Family:
     # Bones that carry no skin, only a rigid worn piece (#10962, the chime grazer's crest): weighting them would bend the
     # body under the piece whenever it moves.
     rigid_bones: tuple = ()
+    # Whether the skeleton and the clips are the species' own data (#10963, the fixtures): `bones(species)` and the
+    # species' declared clips.
+    species_bones: bool = False
 
 
 FAMILIES = {
@@ -3190,6 +3320,7 @@ FAMILIES = {
     "serpent": Family(serpent_bones, {}, SERPENT_CLIPS, (), "s2", "head", (), (), sized=True, root_deforms=False),
     "floater": Family(serpent_bones, {}, FLOATER_CLIPS, (), "s2", "head", (), (), sized=True, root_deforms=False),
     "gulper": Family(gulper_bones, {}, GULPER_CLIPS, (), "body", "hinge", (), (), sized=True, root_deforms=False),
+    "fixture": Family(fixture_bones, {}, {}, (), "root", "root", (), (), species_bones=True),
     "saurian": Family(saurian_bones, SAURIAN_LEGS, SAURIAN_CLIPS,
                       (("thigh", "shin", "foot"), ("upperarm", "forearm", "hand")), "ankle", "wrist",
                       ("thigh", "shin", "upperarm", "forearm"), ("foot", "hand"), sized=True),

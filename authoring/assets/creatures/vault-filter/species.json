@@ -1,0 +1,656 @@
+{
+ "id": "vault-filter",
+ "family": "fixture",
+ "about": "A ruin fixture (#10963), settled with Patch on den-wiki wandering-years/ruins-wildlife ('Fixtures as hazards'). Its body is built by make_fixture.py from the fixture block, with no generator, and weighted as it is made; the fixture family takes its bones and its posed clips from this file. Points are metres as [side, forward, up]. The vault filter hangs from a ceiling by a relic light, its root's knot at ceilingMetres; it drops its lobes on what passes beneath and lashes it with their fringes.",
+ "fixture": {
+  "kind": "filter",
+  "ceilingMetres": 3.4,
+  "rootBranches": 7,
+  "lobes": [
+   {
+    "top": [
+     -0.5,
+     0.15,
+     2.78
+    ],
+    "size": 0.95
+   },
+   {
+    "top": [
+     0.05,
+     -0.28,
+     2.62
+    ],
+    "size": 1.05
+   },
+   {
+    "top": [
+     0.55,
+     0.22,
+     2.72
+    ],
+    "size": 0.9
+   }
+  ],
+  "lobeRadius": 0.25,
+  "lobeHeight": 0.55,
+  "pleats": 24,
+  "fringeBones": 6,
+  "fringeMetres": 0.85
+ },
+ "points": {
+  "root": [
+   0,
+   0,
+   3.4
+  ],
+  "root_tip": [
+   0,
+   0,
+   3.1
+  ],
+  "lobe1": [
+   -0.5,
+   0.15,
+   2.5187
+  ],
+  "lobe1_tip": [
+   -0.5,
+   0.15,
+   2.2575
+  ],
+  "fringe1_1": [
+   -0.5,
+   0.3424,
+   2.362
+  ],
+  "fringe1_1_tip": [
+   -0.5,
+   0.4224,
+   1.862
+  ],
+  "fringe1_2": [
+   -0.3334,
+   0.2462,
+   2.362
+  ],
+  "fringe1_2_tip": [
+   -0.2641,
+   0.2862,
+   1.862
+  ],
+  "fringe1_3": [
+   -0.3334,
+   0.0538,
+   2.362
+  ],
+  "fringe1_3_tip": [
+   -0.2641,
+   0.0138,
+   1.862
+  ],
+  "fringe1_4": [
+   -0.5,
+   -0.0424,
+   2.362
+  ],
+  "fringe1_4_tip": [
+   -0.5,
+   -0.1224,
+   1.862
+  ],
+  "fringe1_5": [
+   -0.6666,
+   0.0538,
+   2.362
+  ],
+  "fringe1_5_tip": [
+   -0.7359,
+   0.0138,
+   1.862
+  ],
+  "fringe1_6": [
+   -0.6666,
+   0.2462,
+   2.362
+  ],
+  "fringe1_6_tip": [
+   -0.7359,
+   0.2862,
+   1.862
+  ],
+  "lobe2": [
+   0.05,
+   -0.28,
+   2.3312
+  ],
+  "lobe2_tip": [
+   0.05,
+   -0.28,
+   2.0425
+  ],
+  "fringe2_1": [
+   0.05,
+   -0.0674,
+   2.158
+  ],
+  "fringe2_1_tip": [
+   0.05,
+   0.0126,
+   1.658
+  ],
+  "fringe2_2": [
+   0.2341,
+   -0.1737,
+   2.158
+  ],
+  "fringe2_2_tip": [
+   0.3034,
+   -0.1337,
+   1.658
+  ],
+  "fringe2_3": [
+   0.2341,
+   -0.3863,
+   2.158
+  ],
+  "fringe2_3_tip": [
+   0.3034,
+   -0.4263,
+   1.658
+  ],
+  "fringe2_4": [
+   0.05,
+   -0.4926,
+   2.158
+  ],
+  "fringe2_4_tip": [
+   0.05,
+   -0.5726,
+   1.658
+  ],
+  "fringe2_5": [
+   -0.1341,
+   -0.3863,
+   2.158
+  ],
+  "fringe2_5_tip": [
+   -0.2034,
+   -0.4263,
+   1.658
+  ],
+  "fringe2_6": [
+   -0.1341,
+   -0.1737,
+   2.158
+  ],
+  "fringe2_6_tip": [
+   -0.2034,
+   -0.1337,
+   1.658
+  ],
+  "lobe3": [
+   0.55,
+   0.22,
+   2.4725
+  ],
+  "lobe3_tip": [
+   0.55,
+   0.22,
+   2.225
+  ],
+  "fringe3_1": [
+   0.55,
+   0.4022,
+   2.324
+  ],
+  "fringe3_1_tip": [
+   0.55,
+   0.4823,
+   1.824
+  ],
+  "fringe3_2": [
+   0.7078,
+   0.3111,
+   2.324
+  ],
+  "fringe3_2_tip": [
+   0.7771,
+   0.3511,
+   1.824
+  ],
+  "fringe3_3": [
+   0.7078,
+   0.1289,
+   2.324
+  ],
+  "fringe3_3_tip": [
+   0.7771,
+   0.0889,
+   1.824
+  ],
+  "fringe3_4": [
+   0.55,
+   0.0377,
+   2.324
+  ],
+  "fringe3_4_tip": [
+   0.55,
+   -0.0423,
+   1.824
+  ],
+  "fringe3_5": [
+   0.3922,
+   0.1289,
+   2.324
+  ],
+  "fringe3_5_tip": [
+   0.3229,
+   0.0889,
+   1.824
+  ],
+  "fringe3_6": [
+   0.3922,
+   0.3111,
+   2.324
+  ],
+  "fringe3_6_tip": [
+   0.3229,
+   0.3511,
+   1.824
+  ]
+ },
+ "bones": [
+  [
+   "root",
+   null,
+   "root",
+   "root_tip"
+  ],
+  [
+   "lobe1",
+   "root",
+   "lobe1",
+   "lobe1_tip"
+  ],
+  [
+   "fringe1_1",
+   "lobe1",
+   "fringe1_1",
+   "fringe1_1_tip"
+  ],
+  [
+   "fringe1_2",
+   "lobe1",
+   "fringe1_2",
+   "fringe1_2_tip"
+  ],
+  [
+   "fringe1_3",
+   "lobe1",
+   "fringe1_3",
+   "fringe1_3_tip"
+  ],
+  [
+   "fringe1_4",
+   "lobe1",
+   "fringe1_4",
+   "fringe1_4_tip"
+  ],
+  [
+   "fringe1_5",
+   "lobe1",
+   "fringe1_5",
+   "fringe1_5_tip"
+  ],
+  [
+   "fringe1_6",
+   "lobe1",
+   "fringe1_6",
+   "fringe1_6_tip"
+  ],
+  [
+   "lobe2",
+   "root",
+   "lobe2",
+   "lobe2_tip"
+  ],
+  [
+   "fringe2_1",
+   "lobe2",
+   "fringe2_1",
+   "fringe2_1_tip"
+  ],
+  [
+   "fringe2_2",
+   "lobe2",
+   "fringe2_2",
+   "fringe2_2_tip"
+  ],
+  [
+   "fringe2_3",
+   "lobe2",
+   "fringe2_3",
+   "fringe2_3_tip"
+  ],
+  [
+   "fringe2_4",
+   "lobe2",
+   "fringe2_4",
+   "fringe2_4_tip"
+  ],
+  [
+   "fringe2_5",
+   "lobe2",
+   "fringe2_5",
+   "fringe2_5_tip"
+  ],
+  [
+   "fringe2_6",
+   "lobe2",
+   "fringe2_6",
+   "fringe2_6_tip"
+  ],
+  [
+   "lobe3",
+   "root",
+   "lobe3",
+   "lobe3_tip"
+  ],
+  [
+   "fringe3_1",
+   "lobe3",
+   "fringe3_1",
+   "fringe3_1_tip"
+  ],
+  [
+   "fringe3_2",
+   "lobe3",
+   "fringe3_2",
+   "fringe3_2_tip"
+  ],
+  [
+   "fringe3_3",
+   "lobe3",
+   "fringe3_3",
+   "fringe3_3_tip"
+  ],
+  [
+   "fringe3_4",
+   "lobe3",
+   "fringe3_4",
+   "fringe3_4_tip"
+  ],
+  [
+   "fringe3_5",
+   "lobe3",
+   "fringe3_5",
+   "fringe3_5_tip"
+  ],
+  [
+   "fringe3_6",
+   "lobe3",
+   "fringe3_6",
+   "fringe3_6_tip"
+  ]
+ ],
+ "clips": {
+  "fps": 30,
+  "poses": {
+   "hang": {},
+   "sway": {
+    "lobe1": {
+     "move": [
+      0.03,
+      0.02,
+      0
+     ]
+    },
+    "lobe2": {
+     "move": [
+      -0.02,
+      0.03,
+      0
+     ]
+    },
+    "lobe3": {
+     "move": [
+      0.02,
+      -0.03,
+      0
+     ]
+    }
+   },
+   "alarm": {
+    "fringe*": {
+     "spread": 18
+    },
+    "lobe*": {
+     "move": [
+      0,
+      0,
+      0.06
+     ]
+    }
+   },
+   "dropped": {
+    "lobe1": {
+     "move": [
+      0,
+      0.05,
+      -1.0
+     ]
+    },
+    "lobe2": {
+     "move": [
+      0,
+      0,
+      -1.1
+     ]
+    },
+    "lobe3": {
+     "move": [
+      0,
+      0.05,
+      -0.95
+     ]
+    },
+    "fringe*": {
+     "spread": 58
+    }
+   },
+   "low": {
+    "base": "dropped",
+    "fringe*": {
+     "spread": 24
+    }
+   },
+   "limp": {
+    "lobe1": {
+     "move": [
+      0,
+      0,
+      -0.55
+     ],
+     "turn": [
+      20,
+      0,
+      10
+     ]
+    },
+    "lobe2": {
+     "move": [
+      0,
+      0,
+      -0.7
+     ],
+     "turn": [
+      -15,
+      0,
+      -12
+     ]
+    },
+    "lobe3": {
+     "move": [
+      0,
+      0,
+      -0.5
+     ],
+     "turn": [
+      12,
+      0,
+      -18
+     ]
+    },
+    "fringe*": {
+     "spread": -8
+    }
+   },
+   "flinch": {
+    "lobe*": {
+     "move": [
+      0,
+      0,
+      0.12
+     ]
+    },
+    "fringe*": {
+     "spread": 30
+    }
+   }
+  },
+  "idle": {
+   "seconds": 6.0,
+   "loops": true,
+   "keys": [
+    [
+     0,
+     "hang"
+    ],
+    [
+     0.5,
+     "sway"
+    ],
+    [
+     1.0,
+     "hang"
+    ]
+   ],
+   "waves": [
+    {
+     "bones": [
+      "fringe*"
+     ],
+     "value": "spread",
+     "amount": 3,
+     "cycles": 2,
+     "lag": 0.07
+    }
+   ]
+  },
+  "threat": {
+   "seconds": 0.5,
+   "keys": [
+    [
+     0,
+     "hang"
+    ],
+    [
+     1.0,
+     "alarm"
+    ]
+   ],
+   "waves": [
+    {
+     "bones": [
+      "fringe*"
+     ],
+     "value": "spread",
+     "amount": 7,
+     "cycles": 5,
+     "lag": 0.11
+    }
+   ]
+  },
+  "bite": {
+   "seconds": 0.8,
+   "keys": [
+    [
+     0,
+     "alarm"
+    ],
+    [
+     0.35,
+     "dropped"
+    ],
+    [
+     1.0,
+     "low"
+    ]
+   ],
+   "waves": [
+    {
+     "bones": [
+      "fringe*"
+     ],
+     "value": "spread",
+     "amount": 14,
+     "cycles": 2,
+     "lag": 0.13,
+     "during": [
+      0.3,
+      1.0
+     ],
+     "easeShare": 0.2
+    }
+   ]
+  },
+  "rise": {
+   "seconds": 1.6,
+   "keys": [
+    [
+     0,
+     "low"
+    ],
+    [
+     1.0,
+     "hang"
+    ]
+   ]
+  },
+  "hurt": {
+   "seconds": 0.5,
+   "keys": [
+    [
+     0,
+     "hang"
+    ],
+    [
+     0.3,
+     "flinch"
+    ],
+    [
+     1.0,
+     "hang"
+    ]
+   ]
+  },
+  "die": {
+   "seconds": 2.0,
+   "keys": [
+    [
+     0,
+     "hang"
+    ],
+    [
+     0.2,
+     "flinch"
+    ],
+    [
+     1.0,
+     "limp"
+    ]
+   ]
+  }
+ }
+}

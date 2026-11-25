@@ -1,0 +1,51 @@
+{
+  "species": "niche-unfolder",
+  "family": "fixture",
+  "body": {
+    "hindMetres": 0,
+    "foreMetres": 0
+  },
+  "legs": [],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "idle": {
+      "seconds": 4.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 0.6,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "bite": {
+      "seconds": 0.7,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "hold": {
+      "seconds": 1.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "fold": {
+      "seconds": 1.2,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "hurt": {
+      "seconds": 0.5,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "die": {
+      "seconds": 1.6,
+      "loops": false,
+      "plantsFeet": false
+    }
+  }
+}

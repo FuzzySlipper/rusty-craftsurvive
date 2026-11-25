@@ -1,0 +1,51 @@
+{
+  "species": "folding-bower",
+  "family": "fixture",
+  "body": {
+    "hindMetres": 0,
+    "foreMetres": 0
+  },
+  "legs": [],
+  "clips": {
+    "rest": {
+      "seconds": 1.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "idle": {
+      "seconds": 5.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "threat": {
+      "seconds": 1.5,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "bite": {
+      "seconds": 1.2,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "hold": {
+      "seconds": 3.0,
+      "loops": true,
+      "plantsFeet": false
+    },
+    "open": {
+      "seconds": 2.0,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "hurt": {
+      "seconds": 0.5,
+      "loops": false,
+      "plantsFeet": false
+    },
+    "die": {
+      "seconds": 2.5,
+      "loops": false,
+      "plantsFeet": false
+    }
+  }
+}
