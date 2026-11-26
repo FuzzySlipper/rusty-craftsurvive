@@ -2451,6 +2451,16 @@ Check.Section("ruin life", () =>
         "and the cave's homes hold its ruin's life");
     Check.That(CaveFauna.Homes(ruined with { Ruin = null }, catalog, Seed).All(home => !ruinKinds.ContainsKey(home.KindId)), "a cave without a ruin holds no ruin life");
 
+    // Its swimmers too (R10955-1): no pool home in the ruin or within 12 m of its mouth, a distant pool kept.
+    CavePool Pool(float x, float z) => new(0.5f, [new Vector2(x - 0.5f, z), new Vector2(x, z), new Vector2(x + 0.5f, z)]);
+    CavePool poolInRuin = Pool(14, 4), poolByMouth = Pool(-20, 4), distant = Pool(-60, 40);
+    CaveSites watery = ruined with { Pools = [poolInRuin, poolByMouth, distant] };
+    Check.That(watery.PoolsForCaveLife().SequenceEqual([distant]), "swimmers take no pool in the ruin or by its mouth, and keep a distant one");
+    IReadOnlyList<CaveAmbientHome> swimmers = [.. CaveFauna.Ambient(watery, catalog, Seed).Where(home => home.Pool is not null)];
+    Check.That(swimmers.Count > 0 && swimmers.All(home => home.Pool == distant && !wing.KeepsAway(home.Home, RuinFauna.MouthClearMetres)),
+        $"every swimmer's home is the distant pool ({string.Join(", ", swimmers.Select(home => $"{home.Kind.Id} at {home.Home.X:F0},{home.Home.Z:F0}"))})");
+    Check.That(CaveFauna.Ambient(watery with { Ruin = null }, catalog, Seed).Count(home => home.Pool is not null) >= swimmers.Count, "without a ruin, every pool may hold them");
+
     string kindsText = ReadKinds();
     foreach ((string from, string to) in new[]
     {

@@ -33,6 +33,10 @@ internal sealed record CaveSites(
     internal IReadOnlyList<Vector3> ForCaveLife(IReadOnlyList<Vector3> sites) =>
         Ruin is RuinSites ruin ? [.. sites.Where(site => !ruin.KeepsAway(site, RuinFauna.MouthClearMetres))] : sites;
 
+    /// <summary>A cave's pools for its swimmers (R10955-1): none whose home lies in its ruin or near its mouth.</summary>
+    internal IReadOnlyList<CavePool> PoolsForCaveLife() =>
+        Ruin is RuinSites ruin ? [.. Pools.Where(pool => pool.Columns.Count == 0 || !ruin.KeepsAway(PoolHome(pool), RuinFauna.MouthClearMetres))] : Pools;
+
     /// <summary>The draft's upwind heading at a site: the nearest draft point's, within <see cref="DraftReachMetres"/>; else null.</summary>
     internal Vector2? UpwindAt(Vector3 site)
     {
@@ -119,7 +123,7 @@ internal static class CaveFauna
             if (kind.Cave.Lives == CaveHabitat.Pools)
             {
                 // A swimmer keeps to one pool, so its homes are pools, not points.
-                foreach (CavePool pool in SpreadPools(sites.Pools, kind.Cave.HomesPerCave))
+                foreach (CavePool pool in SpreadPools(sites.PoolsForCaveLife(), kind.Cave.HomesPerCave))
                 {
                     string key = string.Create(CultureInfo.InvariantCulture, $"{kind.Id}@{sites.Key}#{index++}");
                     homes.Add(new CaveAmbientHome(key, sites.Key, kind, CaveSites.PoolHome(pool), Group(key, seed, kind.GroupMinimum, kind.GroupMaximum), pool));
