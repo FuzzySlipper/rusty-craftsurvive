@@ -2169,6 +2169,105 @@ Check.Section("fixtures", () =>
     }
 });
 
+// The implement-carrier drinks light (#10966): in its display it raises the crescent at a lit lantern within 10 m and in
+// its sight; whole, the lantern is out 6 s and back over 1 s; again at most every 20 s; out of reach or sight, the drink fails.
+Check.Section("drinks", () =>
+{
+    WildlifeKind carrier = catalog.Kind("carrier");
+    WildlifeDrinking drinks = carrier.Hunt?.Drinks ?? throw new InvalidOperationException("the carrier does not drink");
+    double display = carrier.Hunt!.Display!.Seconds;
+    Check.Equal(new WildlifeDrinking(10, 20, 6, 1), drinks, "the carrier drinks within 10 m, every 20 s at most, out 6 s and back over 1 s");
+    Check.That(catalog.Kinds.Count(kind => kind.Hunt?.Drinks is not null) == 1, "only the carrier drinks");
+
+    const double Tick = 0.05;
+    const int Id = 3;
+    // One carrier's drink, as the creature module runs it, against a lantern.
+    LanternDrain lantern = new() { Carried = true };
+    double threat = 0, clock = 0;
+    double? drankAt = null;
+    bool raising = false;
+    List<(double At, DrinkTurn Turn)> turns = [];
+    void Run(double seconds, Func<double, (double Metres, bool Sees, bool Hunting, bool Busy)> facts)
+    {
+        for (double t = 0; t < seconds - 1e-9; t += Tick)
+        {
+            clock += Tick;
+            lantern.Step(Tick);
+            threat = Math.Max(0, threat - Tick);
+            (double metres, bool sees, bool hunting, bool busy) = facts(t);
+            DrinkTurn turn = DrinkRules.Turn(drinks, raising, hunting, threat, busy, drankAt is double at ? clock - at : null, lantern.Drinkable, lantern.Carried, metres, sees);
+            switch (turn)
+            {
+                case DrinkTurn.Begins:
+                    if (threat <= 0) threat = display;
+                    raising = lantern.Gutter(Id, threat);
+                    break;
+                case DrinkTurn.Fails:
+                    raising = false;
+                    drankAt = clock;
+                    lantern.Steady(Id);
+                    break;
+                case DrinkTurn.Drinks:
+                    raising = false;
+                    drankAt = clock;
+                    lantern.Drink(Id, drinks.OutSeconds, drinks.BackSeconds);
+                    break;
+            }
+
+            if (turn != DrinkTurn.None && turn != DrinkTurn.Holds) turns.Add((clock, turn));
+        }
+    }
+
+    (double, bool, bool, bool) Near(double metres, bool sees = true, bool hunting = true, bool busy = false) => (metres, sees, hunting, busy);
+
+    Run(5, _ => Near(6, hunting: false));
+    Check.That(turns.Count == 0 && lantern.Share == 1f, "a carrier not hunting drinks nothing");
+    Run(5, _ => Near(14));
+    Check.That(turns.Count == 0, "nor one hunting beyond its reach");
+    Run(5, _ => Near(6, sees: false));
+    Check.That(turns.Count == 0, "nor one with a wall between");
+
+    Run(display / 2, _ => Near(6));
+    Check.That(turns is [(_, DrinkTurn.Begins)] && lantern.Phase == LanternPhase.Guttering && threat > 0, "in reach and in sight it raises the crescent, and the lantern gutters");
+    Check.That(lantern.Share < 1f && lantern.Share > 0f, "the gutter comes before the dark");
+    Run(display / 2 + Tick, _ => Near(4));
+    Check.That(turns[^1].Turn == DrinkTurn.Drinks && lantern.Phase == LanternPhase.Out, "the raise ending whole, the lantern goes out");
+    double drank = turns[^1].At;
+    Run(drinks.OutSeconds + drinks.BackSeconds + Tick, _ => Near(2));
+    Check.That(lantern.Phase == LanternPhase.Steady && lantern.Share == 1f, "after its dark and its return, it burns whole again");
+    Run(drinks.AgainSeconds - (clock - drank) - 0.5, _ => Near(2, busy: (int)(clock / Tick) % 7 == 0));
+    Check.That(turns.Count == 2, "it does not raise the crescent again within 20 s of its last drink");
+    Run(1, _ => Near(3));
+    Check.That(turns.Count == 3 && turns[^1].Turn == DrinkTurn.Begins && turns[^1].At - drank >= drinks.AgainSeconds - 1e-6,
+        "20 s on, it raises it again at a lantern still in reach");
+    Run(0.2, _ => Near(12));
+    Check.That(turns[^1].Turn == DrinkTurn.Fails && lantern.Phase == LanternPhase.Steady && lantern.Share == 1f,
+        "the player stepping out of its reach before the raise ends fails the drink, and the lantern steadies at once");
+    Run(drinks.AgainSeconds + Tick, _ => Near(5));
+    Check.That(turns[^1].Turn == DrinkTurn.Begins, "rested 20 s from the failed drink, it raises it again");
+    Run(0.2, _ => Near(5, sees: false));
+    Check.That(turns[^1].Turn == DrinkTurn.Fails && lantern.Share == 1f, "breaking its sight fails it too");
+
+    Check.Equal(DrinkTurn.None, DrinkRules.Turn(drinks, false, true, 0, true, null, true, true, 4, true), "biting or flinching, it raises no fresh crescent");
+    Check.Equal(DrinkTurn.Begins, DrinkRules.Turn(drinks, false, true, display, true, null, true, true, 4, true), "but a display under way is drunk from");
+    Check.Equal(DrinkTurn.None, DrinkRules.Turn(drinks, false, true, DrinkRules.LeastGutterSeconds / 2, false, null, true, true, 4, true),
+        "unless too little of it is left for the gutter to show");
+    Check.Equal(DrinkTurn.None, DrinkRules.Turn(drinks, false, true, 0, false, null, false, true, 4, true), "a lantern already drunk is not drunk again");
+    Check.Equal(DrinkTurn.Fails, DrinkRules.Turn(drinks, true, true, 1, false, null, false, false, 4, true), "a lantern put away mid-raise fails the drink");
+
+    string kindsText = ReadKinds();
+    foreach ((string from, string to) in new[]
+    {
+        ("\"outSeconds\": 6", "\"outSeconds\": 0"),
+        ("\"reachMetres\": 10, \"againSeconds\": 20", "\"reachMetres\": 0, \"againSeconds\": 20"),
+        ("\"display\": { \"seconds\": 1.6 }, \"search\": { \"seconds\": 12 },\n        \"drinks\"", "\"search\": { \"seconds\": 12 },\n        \"drinks\""),
+    })
+    {
+        Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
+        Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"a drink with {to} is refused");
+    }
+});
+
 // A swimmer's body follows its head (#10995): dragged after it on a chain at its rest spacing, the tail lagging through a
 // turn, a wave down it that grows with speed and leaves the head still.
 Check.Section("swim chain", () =>

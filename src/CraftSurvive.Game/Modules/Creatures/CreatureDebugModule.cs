@@ -72,6 +72,9 @@ public sealed class CreatureDebugModule : IDebugCommandModule
     [DebugCommand("craft.creatures.fixtures", Description = "Reads the ruin fixtures' state (#10963): each one's phase, how far the player is, its health, blows, spent vessels and lost lobes, the shut bowers, and the player's hold, numbing and stamina.")]
     public string Fixtures() => creatures.FixturesReadout();
 
+    [DebugCommand("craft.creatures.drinks", Description = "Reads the implement-carriers' light drinking (#10966): the lantern's phase, share and who drinks it, the drinks whole, failed and cut, and each carrier's raise, distance and core glow.")]
+    public string Drinks() => creatures.DrinksReadout();
+
     [DebugCommand("craft.creatures.weaken", Description = "Assisted: leaves every creature one health, so the next blow that lands kills it where it is, as a fall from a run needs.")]
     public string Weaken() => creatures.WeakenAll();
 

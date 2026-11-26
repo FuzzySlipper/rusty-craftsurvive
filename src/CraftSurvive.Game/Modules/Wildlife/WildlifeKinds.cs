@@ -254,6 +254,9 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
     /// <summary>A tender (#10961): it threatens by what it releases, shuts or calls, never by its own blows.</summary>
     internal bool Tends => Brood is not null || Seals is not null || Calls is not null;
 
+    /// <summary>How it drinks the player's lantern (#10966, the implement-carrier's crescent); null for one that does not.</summary>
+    internal WildlifeDrinking? Drinks { get; init; }
+
     /// <summary>A ruin fixture's hazard (#10963); null for a creature that moves. A fixture is rooted where it grows.</summary>
     internal WildlifeFixture? Fixture { get; init; }
 
@@ -376,6 +379,14 @@ internal sealed record WildlifeFixture(FixtureAct Act, double ReachMetres, doubl
 /// away from the player, and can ring again <paramref name="AgainSeconds"/> after the last.
 /// </summary>
 internal sealed record WildlifeCalling(double ReachMetres, double AgainSeconds);
+
+/// <summary>
+/// An implement-carrier's light drinking (#10966), settled with Patch on the wiki's Ruins wildlife page: in its display it
+/// raises its crescent at a lit lantern within <paramref name="ReachMetres"/> and in its sight, and the lantern gutters
+/// for the raise; whole, the drink puts it out for <paramref name="OutSeconds"/>, and it sputters back over
+/// <paramref name="BackSeconds"/>. While it hunts it raises the crescent again, at most every <paramref name="AgainSeconds"/>.
+/// </summary>
+internal sealed record WildlifeDrinking(double ReachMetres, double AgainSeconds, double OutSeconds, double BackSeconds);
 
 /// <summary>
 /// A brood bearer's brood (#10961), settled with Patch on the wiki's Ruins wildlife page: the first time its threat shows, it
@@ -1019,6 +1030,10 @@ internal static class WildlifeKinds
             Calls = hunt.TryGetProperty("calls", out JsonElement calls)
                 ? new WildlifeCalling(calls.GetProperty("reachMetres").GetDouble(), calls.GetProperty("againSeconds").GetDouble())
                 : null,
+            Drinks = hunt.TryGetProperty("drinks", out JsonElement drinks)
+                ? new WildlifeDrinking(drinks.GetProperty("reachMetres").GetDouble(), drinks.GetProperty("againSeconds").GetDouble(),
+                    drinks.GetProperty("outSeconds").GetDouble(), drinks.GetProperty("backSeconds").GetDouble())
+                : null,
             Fixture = hunt.TryGetProperty("fixture", out JsonElement fixture) ? ReadFixture(fixture, id) : null,
             Fog = hunt.TryGetProperty("fog", out JsonElement fog)
                 ? new WildlifeFog(fog.GetProperty("floatMetres").GetDouble(), fog.GetProperty("bobMetres").GetDouble(), fog.GetProperty("bobSeconds").GetDouble(),
@@ -1043,6 +1058,8 @@ internal static class WildlifeKinds
             throw new InvalidDataException($"{id}: a waiter does not dart, and feels at least as far as it strikes");
         if (read.Calls is { ReachMetres: <= 0 } or { AgainSeconds: <= 0 } || (read.Calls is not null && read.Display is null))
             throw new InvalidDataException($"{id}: a call reaches somewhere, takes a rest between rings, and rings for its display's while");
+        if (read.Drinks is { ReachMetres: <= 0 } or { AgainSeconds: <= 0 } or { OutSeconds: <= 0 } or { BackSeconds: <= 0 } || (read.Drinks is not null && read.Display is null))
+            throw new InvalidDataException($"{id}: a drink reaches somewhere, puts the lantern out a while and gives it back, rests between raises, and raises for its display's while");
         if (read.Brood is { Count: <= 0 } or { GuardMetres: <= 0 } or { RegrowSeconds: <= 0 }) throw new InvalidDataException($"{id}: a brood has animals, a guard and a regrowth");
         if (read.Seals is { Seconds: <= 0 } or { FreshBlows: <= 0 } or { MostSeals: <= 0 } or { ReachMetres: <= 0 } || read.Seals is { } sealing && sealing.HardBlows < sealing.FreshBlows)
             throw new InvalidDataException($"{id}: a seal takes time and blows, and hardens");

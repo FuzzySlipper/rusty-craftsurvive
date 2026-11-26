@@ -354,6 +354,8 @@ internal sealed partial class CreatureModule : IProductModule
             creature.Awake = CreatureSpaceRules.Awake(creature.Space, Feet(creature));
         }
 
+        DropGoneDrinkers();
+
         // Fog foes hear what the player does (#10985), and a resting one wakes to it.
         // The player's noises are taken every update, so none waits to be heard by a foe that comes later.
         Listen(player.WorldFeetPosition, here, time.ElapsedSeconds);
@@ -435,6 +437,9 @@ internal sealed partial class CreatureModule : IProductModule
             if (hunters.TryGetValue(creature.Id, out Hunter? hunter))
             {
                 Show(creature, hunter, playerWorld, playerCanBeHit, seeing.Contains(creature.Id) && FogRules.ClearToBite(hunter.Floats, fogClear.Contains(creature.Id)), time.ElapsedSeconds);
+                // An implement-carrier drinks the lantern in its display (#10966).
+                if (hunter.Kind.Hunt!.Drinks is not null)
+                    TendDrink(creature, hunter, creature.Space == here, seeing.Contains(creature.Id), CreatureSimulation.PlanarDistance(creature.Position, playerWorld));
                 if (overrides.Count > 0) HoldClip(creature, hunter);
                 playerCanBeHit = playerCanBeHit && !player.Vitals.IsDown;
             }
@@ -766,6 +771,7 @@ internal sealed partial class CreatureModule : IProductModule
 
     private void ForgetHunter(int id)
     {
+        DrinkerGone(id, killed: false);
         if (!hunters.Remove(id, out Hunter? hunter)) return;
         Unhunted(hunter.Record);
         Wildlife?.ForgetHunter(hunter.Member);
@@ -901,6 +907,7 @@ internal sealed partial class CreatureModule : IProductModule
             struckHunter.HurtSeconds = ClipSeconds(struckHunter, WildlifeClipRole.Hurt);
             if (struckHunter.Kind.Hunt!.Tends && !struck.IsDown) TenderStruck(target, struckHunter);
             if (struckHunter.Kind.Hunt.Fixture is not null && !struck.IsDown) FixtureStruck(target, struckHunter);
+            if (struckHunter.Kind.Hunt.Drinks is not null && !struck.IsDown) DrinkerStruck(target, struckHunter);
         }
         cues.RaiseAt(struck.IsDown ? Cue.Defeat : Cue.Strike,
             SpaceOf(target).ToLocal(target.Position.X, StandingAt(target) + StruckHeightMetres, target.Position.Y));
@@ -910,6 +917,8 @@ internal sealed partial class CreatureModule : IProductModule
                 $"hit {target.Id}: {struck.Health}/{struck.MaximumHealth} for {outcome.Damage}{(outcome.Critical ? " (critical)" : string.Empty)}");
         }
 
+        // A carrier killed (#10966) gives back the light it drank.
+        DrinkerGone(target.Id, killed: true);
         if (hunters.Remove(target.Id, out Hunter? fallen))
         {
             Unhunted(fallen.Record);

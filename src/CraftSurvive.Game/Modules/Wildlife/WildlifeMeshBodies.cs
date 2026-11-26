@@ -149,10 +149,16 @@ internal sealed class WildlifeMeshBodies : IDisposable
         /// <summary>The body's and its pieces' facts from its last pose, for hanging them before a snapshot.</summary>
         internal AppearanceFact[] WornFacts { get; set; } = [];
 
-        /// <summary>The light riding with a held piece (#10957), once made, and whether it burns bright (threat, strike).</summary>
+        /// <summary>
+        /// The light riding with a held piece (#10957), once made, and how bright it burns, 0 to 1 of the way to its threat's
+        /// share: 1 in its threat or strike, or while it holds a drunk lantern's light (#10966).
+        /// </summary>
         internal Light? HeldLight { get; set; }
 
-        internal bool HeldLightBright { get; set; }
+        internal float HeldLightGlow { get; set; }
+
+        /// <summary>How much stolen light its rules have its held light hold (#10966), from its member.</summary>
+        internal float Glow { get; set; }
 
         internal int HeldLightSlot { get; set; }
 
@@ -271,20 +277,24 @@ internal sealed class WildlifeMeshBodies : IDisposable
             return;
         }
 
-        bool bright = body.Playing is WildlifeClipRole.Threat or WildlifeClipRole.Bite;
-        if (body.HeldLight is not null && bright == body.HeldLightBright) return;
+        // Retuned in steps, so a core fading with a returning lantern asks for a new light only now and then.
+        float glow = body.Playing is WildlifeClipRole.Threat or WildlifeClipRole.Bite ? 1f : MathF.Round(Math.Clamp(body.Glow, 0f, 1f) * GlowSteps) / GlowSteps;
+        if (body.HeldLight is not null && glow == body.HeldLightGlow) return;
         if (body.HeldLight is null && heldLightSlots.Count == 0) return;
         int slot = body.HeldLight is null ? heldLightSlots.Pop() : body.HeldLightSlot;
         LightRequest request = new(ProductIds.WildlifeHeldLightBase + (ulong)slot, true, part.ObjectId,
-            new LightDescriptor(LightKind.Point, held.Colour, held.Intensity * (bright ? held.ThreatShare : 1f), true, held.At, -Vector3.UnitY, true, held.Range, HeldLightDecay, 0f, 0f,
+            new LightDescriptor(LightKind.Point, held.Colour, held.Intensity * (1f + ((held.ThreatShare - 1f) * glow)), true, held.At, -Vector3.UnitY, true, held.Range, HeldLightDecay, 0f, 0f,
                 LightShadowIntent.Disabled, 0, 0, false));
         if (body.HeldLight is Light light) engine.Graphics.UpdateLight(new LightUpdateRequest(light, request));
         else body.HeldLight = engine.Graphics.CreateLight(request);
         body.HeldLightSlot = slot;
-        body.HeldLightBright = bright;
+        body.HeldLightGlow = glow;
     }
 
     private const float HeldLightDecay = 2f;
+
+    /// <summary>How finely a held light's glow is retuned: in twentieths.</summary>
+    private const float GlowSteps = 20f;
 
     private void ReleaseLight(Body body)
     {
@@ -344,6 +354,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
         if (herd is not null) WildlifeClips.Advance(member, herd, rig, animation, seconds);
         Lose(body, member);
+        body.Glow = member.HeldGlow;
         // A fixture's rules (#10963) may name a clip over its role's: a hold, a recovery, a count of spent vessels.
         if (member.NamedClip is string named && rig.Rig.Clips.TryGetValue(named, out CreatureClip? namedClip))
         {

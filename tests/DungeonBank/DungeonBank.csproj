@@ -31,6 +31,7 @@
     <Compile Include="$(ProductModules)Dungeons/KitMoss.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/KitOvergrowth.cs;$(ProductModules)Dungeons/OvergrowthPlacement.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonDrips.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/LanternDrain.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Content/SurfaceMoss.cs" LinkBase="Product/Content" />
     <Compile Include="$(ProductModules)Dungeons/DungeonKit.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/VerticalSampler.cs" LinkBase="Product/Dungeons" />

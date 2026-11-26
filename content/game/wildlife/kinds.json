@@ -944,7 +944,7 @@
     {
       "id": "carrier",
       "name": "Implement-carrier",
-      "$comment": "A special ruin inhabitant (#10957): tall on very long legs under a wide cap, carrying an enigmatic crescent whose amber core glows and lights what is near (worn: held only, with its light). What the crescent does in a fight is open (board thread 'Ruin wildlife: the ecology'); until then its thrust strikes as a blow. Ruin placement is #10955.",
+      "$comment": "A special ruin inhabitant (#10957): tall on very long legs under a wide cap, carrying an enigmatic crescent whose amber core glows and lights what is near (worn: held only, with its light). Its crescent drinks light (#10966, settled with Patch): raised in its display at a lit lantern within 10 m and in its sight, the lantern gutters and goes out for 6 s, then sputters back over 1 s; it raises it again at most every 20 s while it hunts. Its thrust strikes as a blow. Ruin placement is #10955.",
       "habitat": {},
       "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 5 },
       "body": { "lengthMetres": 1.7, "heightMetres": 2.5, "widthMetres": 1.6, "sizeClass": "large", "colour": "#d8c8aa" },
@@ -960,7 +960,8 @@
       "wariness": { "noticeMetres": 26, "actMetres": 10, "lookSeconds": 1.2, "warnSeconds": 1.2 },
       "pressed": "hunt",
       "hunt": { "sightMetres": 26, "reachMetres": 2.4, "haltMetres": 2.0, "accuracy": 26, "power": 6, "cooldownTicks": 170, "biteWindupSeconds": 0.46, "dodgeMetres": 0.4,
-        "rest": { "wakeMetres": 10, "clip": "lie" }, "display": { "seconds": 1.6 }, "search": { "seconds": 12 } },
+        "rest": { "wakeMetres": 10, "clip": "lie" }, "display": { "seconds": 1.6 }, "search": { "seconds": 12 },
+        "drinks": { "reachMetres": 10, "againSeconds": 20, "outSeconds": 6, "backSeconds": 1 } },
       "schedule": "night-worker",
       "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
       "combat": { "health": 120, "evasion": 35, "armour": 6, "experience": 600 },

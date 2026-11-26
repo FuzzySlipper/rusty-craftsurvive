@@ -530,6 +530,7 @@ internal sealed partial class CreatureModule
         lastCall = "none";
         sealsChanged = true;
         ClearFixtures();
+        ClearDrinks();
     }
 }
 

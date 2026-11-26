@@ -95,6 +95,12 @@ internal sealed class WildlifeMember
     /// <summary>Joints its rules have it lose (#10963: a vault filter's cut lobes), drawn shrunk to nothing.</summary>
     internal IReadOnlyList<string> Lost { get; set; } = [];
 
+    /// <summary>
+    /// How much stolen light its held piece's light holds (#10966: an implement-carrier's core while it drinks the lantern),
+    /// 0 to 1: at 1 it burns as bright as in its threat.
+    /// </summary>
+    internal float HeldGlow { get; set; }
+
     /// <summary>Making for the water: having set off, it goes in, however clear of the player it has got.</summary>
     internal bool ToWater { get; set; }
 

@@ -707,6 +707,71 @@ Console.WriteLine($"mix: {string.Join(", ", mixes.OrderBy(pair => pair.Key).Sele
 Console.WriteLine($"first-candidate failures: {(firstFailures.Count == 0 ? "none" : string.Join("; ", firstFailures.OrderByDescending(pair => pair.Value).Select(pair => $"{pair.Key} x{pair.Value}")))}");
 Check.That(rate >= 0.95, $"at least 95% of seeds must yield a walkable dungeon, {rate:P0} did");
 
+// The lantern's drained state (#10966): a drink gutters it, dimming and flickering, puts it out for its while, and it
+// sputters back up; steadied before the end, or its drinker killed, it burns whole at once.
+{
+    const double Tick = 0.05;
+    LanternDrain lantern = new() { Carried = true };
+    Check.That(lantern.Drinkable && lantern.Share == 1f, "a carried lantern burns whole and can be drunk");
+    Check.That(lantern.Gutter(7, 1.6) && lantern.Phase == LanternPhase.Guttering, "a carrier's raise starts it guttering");
+    Check.That(!lantern.Gutter(8, 1.6) && lantern.Drinker == 7, "a second carrier cannot drink it while the first does");
+    float least = 1f, lateMost = 0f;
+    for (double t = 0; t < 1.6 - 1e-9; t += Tick)
+    {
+        lantern.Step(Tick);
+        least = Math.Min(least, lantern.Share);
+        if (lantern.Progress > 0.75) lateMost = Math.Max(lateMost, lantern.Share);
+    }
+
+    Check.That(least >= LanternDrain.GutterShare * (1f - LanternDrain.FlickerDepth) - 1e-4f && least < LanternDrain.GutterShare,
+        $"guttering, it dims toward half and flickers below it, never out (least {least:F2})");
+    Check.That(lateMost <= 1f - ((1f - LanternDrain.GutterShare) * 0.75f) + 1e-4f, $"late in the gutter it burns no brighter than its dimming allows ({lateMost:F2})");
+    Check.That(lantern.Taken > 0.99f, "by the end of the raise its drinker holds all its light");
+    lantern.Drink(7, 6, 1);
+    double outFor = 0;
+    while (lantern.Phase == LanternPhase.Out)
+    {
+        Check.That(lantern.Share == 0f && lantern.Taken == 1f, "drunk, it gives no light, and its drinker holds it all");
+        lantern.Step(Tick);
+        outFor += Tick;
+    }
+
+    Check.That(Math.Abs(outFor - 6) <= Tick + 1e-9, $"it stays out for 6 s ({outFor:F2})");
+    double backFor = 0;
+    float first = lantern.Share;
+    while (lantern.Phase == LanternPhase.Returning)
+    {
+        lantern.Step(Tick);
+        backFor += Tick;
+    }
+
+    Check.That(Math.Abs(backFor - 1) <= Tick + 1e-9 && first < 0.2f, $"then it sputters back up from nearly nothing over 1 s ({backFor:F2})");
+    Check.That(lantern.Phase == LanternPhase.Steady && lantern.Share == 1f && lantern.Drinker is null && lantern.Taken == 0f, "and burns whole, nobody's");
+
+    lantern.Gutter(7, 1.6);
+    lantern.Step(1.0);
+    lantern.Steady(8);
+    Check.Equal(LanternPhase.Guttering, lantern.Phase, "only its drinker can steady it");
+    lantern.Steady(7);
+    Check.That(lantern.Phase == LanternPhase.Steady && lantern.Share == 1f, "a drink cut short leaves it burning whole at once");
+    lantern.Gutter(7, 1.6);
+    lantern.Step(1.6);
+    lantern.Drink(7, 6, 1);
+    lantern.Step(2);
+    lantern.Restore(8);
+    Check.Equal(LanternPhase.Out, lantern.Phase, "another creature's death gives nothing back");
+    lantern.Restore(7);
+    Check.That(lantern.Phase == LanternPhase.Steady && lantern.Share == 1f, "its drinker killed, the light is back at once");
+    lantern.Gutter(7, 1.6);
+    lantern.Step(1.6);
+    lantern.Drink(7, 6, 1);
+    lantern.Step(30);
+    Check.That(lantern.Phase == LanternPhase.Steady && lantern.Share == 1f, "one long step passes its dark and its return together");
+    lantern.Carried = false;
+    Check.That(!lantern.Drinkable && !lantern.Gutter(7, 1.6), "a lantern not carried lit cannot be drunk");
+    Console.WriteLine("lantern drain: gutter, out 6 s, back 1 s, cut short and restored");
+}
+
 // Jump edges (#9123): a ledge the player jumps up is a route from open floor, and refused for headroom under a low ceiling.
 (string openLedge, string lowLedge) = JumpLedgeProbe.Run(JumpProbeRise, JumpProbeCeiling);
 Console.WriteLine($"jump ledge: open {openLedge}, under a low ceiling {lowLedge}");

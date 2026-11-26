@@ -176,6 +176,7 @@ internal sealed partial class DungeonModule : IProductModule
             case DungeonState.Outside:
                 // The caves under the world's cave mouths (#10889): no state of their own, the player never leaves the open world.
                 FollowCaves(step);
+                LanternState.Step(step.AdmittedSteps * step.FixedDeltaSeconds);
                 CarryLantern();
                 if (step.Step >= nextSearchStep)
                 {
@@ -244,6 +245,7 @@ internal sealed partial class DungeonModule : IProductModule
                     break;
                 }
 
+                LanternState.Step(step.AdmittedSteps * step.FixedDeltaSeconds);
                 CarryLantern();
                 CatchFall();
                 StirMist(step.AdmittedSteps * step.FixedDeltaSeconds);
@@ -263,6 +265,8 @@ internal sealed partial class DungeonModule : IProductModule
             player.ReturnFromSeparateSpace();
             Close("restarted");
         }
+
+        LanternState.Clear();
     }
 
     /// <summary>
@@ -1023,10 +1027,20 @@ internal sealed partial class DungeonModule : IProductModule
     private Light? lantern;
     private bool lanternLit;
 
+    /// <summary>
+    /// The lantern's drained state (#10966): an implement-carrier's crescent drinks it, guttering it and putting it out for a
+    /// while. The creature rules set it; the lantern burns by its share.
+    /// </summary>
+    internal LanternDrain LanternState { get; } = new();
+
     /// <summary>Keeps the lantern at the player while inside with a lantern treatment, and puts it out once otherwise.</summary>
     private void CarryLantern()
     {
         bool on = Darkness.Lantern && !lanternOut && (state == DungeonState.Inside || CaveLanternWanted);
+        LanternState.Carried = on;
+        // Leaving the dark, or putting it away, ends any drink: it is lit afresh next time.
+        if (!on && LanternState.Phase != LanternPhase.Steady) LanternState.Clear();
+        float share = LanternState.Share;
         if (!on && !lanternLit)
         {
             return;
@@ -1039,7 +1053,7 @@ internal sealed partial class DungeonModule : IProductModule
         Vector3 eye = player.InSeparateSpace ? player.WorldEyePosition
             : terrain.Frame.ToLocal(player.WorldEyePosition.X, player.WorldEyePosition.Y, player.WorldEyePosition.Z);
         LightRequest request = new(ProductIds.DungeonLanternLight, false, 0UL,
-            new LightDescriptor(LightKind.Point, LanternColour, LanternIntensity, on, on ? eye + LanternBelowEye : Vector3.Zero,
+            new LightDescriptor(LightKind.Point, LanternColour, LanternIntensity * share, on && share > 0, on ? eye + LanternBelowEye : Vector3.Zero,
                 -Vector3.UnitY, true, LanternRange, LightDecay, 0f, 0f, LightShadowIntent.Requested, LightShadowResolution, LightShadowPriority, true));
         if (lantern is Light held)
         {

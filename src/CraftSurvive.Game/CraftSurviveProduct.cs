@@ -232,6 +232,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         };
         // A loaded dungeon is a space of its own that creatures can live in (#10876).
         creatures.SeparateSpace = () => dungeons.CreatureSpace;
+        // An implement-carrier's crescent drinks the player's lantern (#10966): the creature rules set the dungeon module's drained state.
+        creatures.Lantern = dungeons.LanternState;
         player.PrepareUnderground = at => dungeons.PrepareCaveAt(at);
         walkingUpdates.EngineShare = () => terrain.EngineMs + (horizon?.LastEngineMs ?? 0d)
             + System.Diagnostics.Stopwatch.GetElapsedTime(0, EngineClock.Ticks - savesAtBegin).TotalMilliseconds;
