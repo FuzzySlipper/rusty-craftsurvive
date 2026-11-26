@@ -1,4 +1,4 @@
-# Rusty CraftSurvive guidance
+# Rusty Wandering guidance
 
 ## Direction and ownership
 
@@ -72,7 +72,9 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
 
 ## Den and missing capabilities
 
-- Project ID: `rusty-craftsurvive`. Resolve live Den guidance before
+- Project ID: `rusty-craftsurvive` (the repository was renamed
+  `rusty-wandering`; Den's id, the Engine product id and the `/data` folders
+  keep the old name). Resolve live Den guidance before
   substantial work. The current task overrides stale documents.
 - If Den is unreachable, stop and report that failure. Do not invent local
   task records.

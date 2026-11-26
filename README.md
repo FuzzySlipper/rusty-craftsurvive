@@ -1,11 +1,12 @@
-# Rusty CraftSurvive
+# Rusty Wandering
 
 The game product for Wandering Years. Its design, including the visual
 direction, is on den-wiki: [Wandering Years](https://wiki.dragonden.stream/wiki/wandering-years). Questions still being
 decided are on the crew board `wandering-years`; tasks and technical documents
-are in Den project `rusty-craftsurvive`.
+are in Den project `rusty-craftsurvive` (the repository's earlier name, which
+Den keeps as the project id).
 
-Rusty CraftSurvive is a C# game product developed with the installed
+Rusty Wandering is a C# game product developed with the installed
 `Rusty.Engine` SDK and paired runtime pack. The ordinary development and Den
 lane is `rusty dev`, which stages and loads the CoreCLR product. NativeAOT is
 available only as an explicit fidelity/release verification.
