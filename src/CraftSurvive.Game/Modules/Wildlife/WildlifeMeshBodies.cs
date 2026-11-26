@@ -151,14 +151,14 @@ internal sealed class WildlifeMeshBodies : IDisposable
 
         /// <summary>
         /// The light riding with a held piece (#10957), once made, and how bright it burns, 0 to 1 of the way to its threat's
-        /// share: 1 in its threat or strike, or while it holds a drunk lantern's light (#10966).
+        /// share, as <see cref="WildlifeMember.CoreGlow"/> says: with a drink as it drinks (#10966), else full in its threat or strike.
         /// </summary>
         internal Light? HeldLight { get; set; }
 
         internal float HeldLightGlow { get; set; }
 
-        /// <summary>How much stolen light its rules have its held light hold (#10966), from its member.</summary>
-        internal float Glow { get; set; }
+        /// <summary>How much stolen light its rules have its held light hold (#10966), from its member; null while no drink holds it.</summary>
+        internal float? Glow { get; set; }
 
         internal int HeldLightSlot { get; set; }
 
@@ -278,7 +278,7 @@ internal sealed class WildlifeMeshBodies : IDisposable
         }
 
         // Retuned in steps, so a core fading with a returning lantern asks for a new light only now and then.
-        float glow = body.Playing is WildlifeClipRole.Threat or WildlifeClipRole.Bite ? 1f : MathF.Round(Math.Clamp(body.Glow, 0f, 1f) * GlowSteps) / GlowSteps;
+        float glow = MathF.Round(WildlifeMember.CoreGlow(body.Playing, body.Glow) * GlowSteps) / GlowSteps;
         if (body.HeldLight is not null && glow == body.HeldLightGlow) return;
         if (body.HeldLight is null && heldLightSlots.Count == 0) return;
         int slot = body.HeldLight is null ? heldLightSlots.Pop() : body.HeldLightSlot;

@@ -61,8 +61,9 @@ internal sealed partial class CreatureModule
                 break;
         }
 
-        // Its core holds what it has taken: brightening as the lantern gutters, bright while it is out, fading as it returns.
-        hunter.Member.HeldGlow = lantern.Drinker == creature.Id ? lantern.Taken : 0f;
+        // Its core holds what it has taken: brightening through the raise as the lantern gutters, bright while it is out,
+        // fading as it returns. Holding no drink, its clip decides (WildlifeMember.CoreGlow).
+        hunter.Member.HeldGlow = lantern.Drinker == creature.Id ? lantern.Taken : null;
     }
 
     /// <summary>A carrier struck while it raises the crescent (#10966): the drink is cut short, its display ends, and it rests before the next.</summary>
@@ -103,7 +104,7 @@ internal sealed partial class CreatureModule
             double metres = roster.TryGet(id, out Creature creature) ? CreatureSimulation.PlanarDistance(creature.Position, playerWorld) : double.NaN;
             double? since = SinceDrank(hunter);
             return string.Create(CultureInfo.InvariantCulture,
-                $"{id} {(drinking.Contains(id) ? "raising" : "-")} state={(roster.TryGet(id, out Creature c) ? c.Behavior.State.ToString() : "gone")} player={metres:F1}m display={hunter.ThreatSeconds:F2}s since={(since is double s ? s.ToString("F1", CultureInfo.InvariantCulture) + "s" : "never")} glow={hunter.Member.HeldGlow:F2}");
+                $"{id} {(drinking.Contains(id) ? "raising" : "-")} state={(roster.TryGet(id, out Creature c) ? c.Behavior.State.ToString() : "gone")} player={metres:F1}m display={hunter.ThreatSeconds:F2}s since={(since is double s ? s.ToString("F1", CultureInfo.InvariantCulture) + "s" : "never")} glow={(hunter.Member.HeldGlow is float glow ? glow.ToString("F2", CultureInfo.InvariantCulture) : "clip")}");
         });
         return $"{Lantern?.Readout() ?? "no lantern"}; drinks whole={drinksWhole} failed={drinksFailed} cut={drinksCut}; carriers: [{string.Join("; ", carriers)}]";
     }

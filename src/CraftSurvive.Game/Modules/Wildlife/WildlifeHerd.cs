@@ -97,9 +97,22 @@ internal sealed class WildlifeMember
 
     /// <summary>
     /// How much stolen light its held piece's light holds (#10966: an implement-carrier's core while it drinks the lantern),
-    /// 0 to 1: at 1 it burns as bright as in its threat.
+    /// 0 to 1: at 1 it burns as bright as in its threat. Null while no drink holds it, and then its clip decides
+    /// (<see cref="CoreGlow"/>).
     /// </summary>
-    internal float HeldGlow { get; set; }
+    internal float? HeldGlow { get; set; }
+
+    /// <summary>
+    /// How bright a held piece's light burns (#10957, #10966), 0 to 1 of the way to its threat's share: what a drink holds
+    /// while one does, so a core brightens through the raise with the lantern it drinks, and otherwise full in its threat;
+    /// a strike always flares it.
+    /// </summary>
+    internal static float CoreGlow(WildlifeClipRole? playing, float? held) => playing switch
+    {
+        WildlifeClipRole.Bite => 1f,
+        WildlifeClipRole.Threat => held is float drink ? Math.Clamp(drink, 0f, 1f) : 1f,
+        _ => Math.Clamp(held ?? 0f, 0f, 1f),
+    };
 
     /// <summary>Making for the water: having set off, it goes in, however clear of the player it has got.</summary>
     internal bool ToWater { get; set; }

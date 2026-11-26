@@ -2249,6 +2249,23 @@ Check.Section("drinks", () =>
     Run(0.2, _ => Near(5, sees: false));
     Check.That(turns[^1].Turn == DrinkTurn.Fails && lantern.Share == 1f, "breaking its sight fails it too");
 
+    // Its core brightens through the raise with the drink, though its threat clip plays the whole while (R10966-1).
+    LanternDrain raised = new() { Carried = true };
+    raised.Gutter(Id, display);
+    float CoreDuringRaise() => WildlifeMember.CoreGlow(WildlifeClipRole.Threat, raised.Drinker == Id ? raised.Taken : null);
+    raised.Step(display * 0.1);
+    float early = CoreDuringRaise();
+    raised.Step(display * 0.5);
+    float middle = CoreDuringRaise();
+    raised.Step(display * 0.3);
+    float late = CoreDuringRaise();
+    Check.That(early < 0.2f && early < middle && middle < late && late < 1f, $"through its raise the crescent's core brightens with the drink ({early:F2}, {middle:F2}, {late:F2})");
+    raised.Drink(Id, drinks.OutSeconds, drinks.BackSeconds);
+    Check.Equal(1f, CoreDuringRaise(), "the lantern out, its core holds all its light");
+    Check.Equal(1f, WildlifeMember.CoreGlow(WildlifeClipRole.Threat, null), "a threat with no drink still flares it whole");
+    Check.Equal(1f, WildlifeMember.CoreGlow(WildlifeClipRole.Bite, 0.3f), "and a strike always does");
+    Check.Equal(0f, WildlifeMember.CoreGlow(WildlifeClipRole.Walk, null), "walking with no drink, it glows at rest");
+
     Check.Equal(DrinkTurn.None, DrinkRules.Turn(drinks, false, true, 0, true, null, true, true, 4, true), "biting or flinching, it raises no fresh crescent");
     Check.Equal(DrinkTurn.Begins, DrinkRules.Turn(drinks, false, true, display, true, null, true, true, 4, true), "but a display under way is drunk from");
     Check.Equal(DrinkTurn.None, DrinkRules.Turn(drinks, false, true, DrinkRules.LeastGutterSeconds / 2, false, null, true, true, 4, true),
