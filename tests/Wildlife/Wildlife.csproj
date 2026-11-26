@@ -33,6 +33,7 @@
     <Compile Include="$(ProductModules)Creatures/FixtureRules.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Creatures/DrinkRules.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Creatures/MarkRules.cs" LinkBase="Product/Creatures" />
+    <Compile Include="$(ProductModules)Creatures/CrawlRules.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Player/SporeMark.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Dungeons/LanternDrain.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Player/PlayerFootfalls.cs" LinkBase="Product/Player" />

@@ -536,6 +536,7 @@ internal sealed partial class CreatureModule
         ClearFixtures();
         ClearDrinks();
         ClearMarks();
+        ClearCrawlers();
     }
 }
 

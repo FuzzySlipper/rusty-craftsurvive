@@ -2352,6 +2352,75 @@ Check.Section("spore mark", () =>
     }
 });
 
+// The wall runner on walls and ceilings (#10975): one surface leaning to walls; on a ceiling nearly over the player it drops,
+// double its bite, and lands dazed; it bites from a floor or wall beside them; a blow knocks it loose from a wall.
+Check.Section("crawls", () =>
+{
+    WildlifeKind runner = catalog.Kind("wall-runner");
+    WildlifeCrawling crawling = runner.Hunt?.Crawls ?? throw new InvalidOperationException("the wall runner does not crawl");
+    Check.Equal(new WildlifeCrawling(0.3, 1.2, 1.5, 1.5, 5, 2, 1, 3), crawling, "a 0.3 m ball, walls 1.2 and ceilings 1.5 a floor's cost, a drop within 1.5 m from a ceiling up to 5 m, double, dazed 1 s, then 3 s up the walls");
+    Check.That(catalog.Kinds.Count(kind => kind.Hunt?.Crawls is not null) == 1 && !runner.Hunt!.Tends, "only the wall runner crawls, and it fights");
+    Check.That(crawling.DropMetres > runner.Hunt.HaltMetres, "it drops from further across than it halts, so it is over the player when it stops");
+
+    // Its paths lean to walls: whole-number costs, never below a floor's.
+    Check.That(CrawlRules.Cost(1) == CrawlRules.CostScale && CrawlRules.Cost(crawling.WallCost) == 12 && CrawlRules.Cost(crawling.CeilingCost) == 15 && CrawlRules.Cost(0.5) == CrawlRules.CostScale,
+        "a wall costs 12 and a ceiling 15 where a floor costs 10, and nothing is cheaper than a floor");
+
+    // The drop.
+    bool Drops(CrawlPhase phase = CrawlPhase.Clinging, CrawlHold hold = CrawlHold.Ceiling, bool hunting = true, bool canStrike = true, bool retreating = false, double metres = 1.0) =>
+        CrawlRules.Drops(crawling, phase, hold, hunting, canStrike, retreating, metres);
+    Check.That(Drops(), "on a ceiling, hunting, ready, nearly over the player, it drops");
+    Check.That(!Drops(metres: 1.6), "but not from further across than 1.5 m");
+    Check.That(!Drops(hold: CrawlHold.Wall) && !Drops(hold: CrawlHold.Floor), "nor from a wall or the floor");
+    Check.That(!Drops(hunting: false) && !Drops(canStrike: false) && !Drops(retreating: true), "nor resting, between strikes, or while it runs off up the walls");
+    Check.That(!Drops(phase: CrawlPhase.Falling) && !Drops(phase: CrawlPhase.Dazed), "nor while it falls or lies dazed");
+
+    // Where it is against the player's body.
+    Vector3 feet = new(10, -2000, 20);
+    Check.That(Math.Abs(CrawlRules.ToBody(feet + new Vector3(0, CrawlRules.PlayerHeightMetres + 1.25f, 0), feet) - 1.25) < 1e-4, "over the player's head, it is as far as above their head");
+    Check.That(Math.Abs(CrawlRules.ToBody(feet + new Vector3(1, 1, 0), feet) - 1) < 1e-4, "beside them, as far as across");
+    Check.That(CrawlRules.DropLands(CrawlRules.ToBody(feet + new Vector3(0.6f, 0.3f, 0), feet), runner.Hunt.ReachMetres), "a drop landing at their feet lands on them");
+    Check.That(!CrawlRules.DropLands(3, runner.Hunt.ReachMetres), "one landing 3 m off misses");
+
+    // Its bite, and a blow.
+    Check.That(CrawlRules.Bites(CrawlPhase.Clinging, CrawlHold.Floor, 1, runner.Hunt.ReachMetres) && CrawlRules.Bites(CrawlPhase.Clinging, CrawlHold.Wall, 1.2, runner.Hunt.ReachMetres),
+        "from a floor or a wall beside the player it bites");
+    Check.That(!CrawlRules.Bites(CrawlPhase.Clinging, CrawlHold.Ceiling, 1, runner.Hunt.ReachMetres), "from a ceiling it drops instead");
+    Check.That(!CrawlRules.Bites(CrawlPhase.Dazed, CrawlHold.Floor, 0.5, runner.Hunt.ReachMetres) && !CrawlRules.Bites(CrawlPhase.Clinging, CrawlHold.Floor, 1.5, runner.Hunt.ReachMetres),
+        "dazed, or beyond its reach, it does not bite");
+    Check.That(CrawlRules.KnockedLoose(CrawlPhase.Clinging, CrawlHold.Wall), "a blow knocks it off a wall");
+    Check.That(!CrawlRules.KnockedLoose(CrawlPhase.Clinging, CrawlHold.Ceiling) && !CrawlRules.KnockedLoose(CrawlPhase.Clinging, CrawlHold.Floor) && !CrawlRules.KnockedLoose(CrawlPhase.Dazed, CrawlHold.Floor),
+        "but not off a ceiling or the floor, nor when it already lies dazed");
+
+    // Where it makes for.
+    Vector3 low = CrawlRules.Goal(crawling, feet, 4f);
+    Check.That(Math.Abs(low.Y - (feet.Y + 4f - (float)crawling.RadiusMetres)) < 1e-4 && low.X == feet.X && low.Z == feet.Z, "under a ceiling 4 m up, the ceiling over the player");
+    Check.That(Math.Abs(CrawlRules.Goal(crawling, feet, 6f).Y - (feet.Y + (float)crawling.RadiusMetres)) < 1e-4 && Math.Abs(CrawlRules.Goal(crawling, feet, null).Y - (feet.Y + (float)crawling.RadiusMetres)) < 1e-4,
+        "under one too high to drop from, or none, the player's feet");
+
+    // Steering round corners, as the Engine's guide says.
+    Vector3 wallPlace = new(1, 0.5f, 0), wallNormal = -Vector3.UnitX;
+    Vector3 lean = CrawlRules.Steer(Vector3.Zero, Vector3.UnitY, wallPlace, wallNormal);
+    Check.That(lean.X > Vector3.Normalize(wallPlace).X + 0.5f, "toward a wall it faces from the floor, it leans into the wall");
+    Vector3 along = CrawlRules.Steer(Vector3.Zero, Vector3.UnitY, new Vector3(2, 0, 0), Vector3.UnitY);
+    Check.That(Vector3.Distance(along, Vector3.UnitX) < 1e-4, "along its own floor, it goes straight");
+    Check.That(CrawlRules.LetsGoTo(-Vector3.UnitY, new Vector3(0, -2, 0), nextIsFloor: true, nextIsBelow: true), "on a ceiling over a low slot's floor, it lets go to reach it");
+    Check.That(!CrawlRules.LetsGoTo(-Vector3.UnitY, new Vector3(1, -1, 0), true, true) && !CrawlRules.LetsGoTo(Vector3.UnitY, new Vector3(0, -2, 0), true, true)
+        && !CrawlRules.LetsGoTo(-Vector3.UnitY, new Vector3(0, -2, 0), false, true), "but not where a way along the ceiling leads on, from a floor, or toward a wall");
+
+    string kindsText = ReadKinds();
+    foreach ((string from, string to) in new[]
+    {
+        ("\"wallCost\": 1.2", "\"wallCost\": 0.5"),
+        ("\"dropPower\": 2", "\"dropPower\": 0.5"),
+        ("\"dazedSeconds\": 1,", "\"dazedSeconds\": 0,"),
+    })
+    {
+        Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
+        Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"a crawler with {to} is refused");
+    }
+});
+
 // A swimmer's body follows its head (#10995): dragged after it on a chain at its rest spacing, the tail lagging through a
 // turn, a wave down it that grows with speed and leaves the head still.
 Check.Section("swim chain", () =>

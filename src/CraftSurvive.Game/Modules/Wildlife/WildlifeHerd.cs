@@ -103,6 +103,14 @@ internal sealed class WildlifeMember
     internal float? HeldGlow { get; set; }
 
     /// <summary>
+    /// Where a crawling hunter's feet are on the surface it holds (#10975: a wall runner on a wall or ceiling), in world
+    /// metres, and how its body is turned to it; null for a body drawn upright over its feet by its yaw.
+    /// </summary>
+    internal Vector3? SurfaceFeet { get; set; }
+
+    internal Quaternion SurfaceTurn { get; set; } = Quaternion.Identity;
+
+    /// <summary>
     /// How bright a held piece's light burns (#10957, #10966), 0 to 1 of the way to its threat's share: what a drink holds
     /// while one does, so a core brightens through the raise with the lantern it drinks, and otherwise full in its threat;
     /// a strike always flares it.

@@ -260,6 +260,9 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
     /// <summary>How it drinks the player's lantern (#10966, the implement-carrier's crescent); null for one that does not.</summary>
     internal WildlifeDrinking? Drinks { get; init; }
 
+    /// <summary>How it runs on walls and ceilings (#10975, the wall runner); null for one that keeps to floors.</summary>
+    internal WildlifeCrawling? Crawls { get; init; }
+
     /// <summary>A ruin fixture's hazard (#10963); null for a creature that moves. A fixture is rooted where it grows.</summary>
     internal WildlifeFixture? Fixture { get; init; }
 
@@ -400,6 +403,19 @@ internal sealed record WildlifeMarking(double ReachMetres, double BurstSeconds, 
 /// <paramref name="BackSeconds"/>. While it hunts it raises the crescent again, at most every <paramref name="AgainSeconds"/>.
 /// </summary>
 internal sealed record WildlifeDrinking(double ReachMetres, double AgainSeconds, double OutSeconds, double BackSeconds);
+
+/// <summary>
+/// A wall runner's run on walls and ceilings (#10975), settled with Patch on the wiki's Ruins wildlife page ("The wall runner
+/// on walls and ceilings"). Its body is a ball of <paramref name="RadiusMetres"/> that clings to floors, walls and ceilings
+/// alike; its paths pay <paramref name="WallCost"/> and <paramref name="CeilingCost"/> for a place on a wall or ceiling where
+/// a floor's costs 1. Hunting, it makes for the ceiling over the player where one is no higher than
+/// <paramref name="DropCeilingMetres"/> over their feet; on a ceiling within <paramref name="DropMetres"/> of them across the
+/// floor it drops onto them, a blow of <paramref name="DropPower"/> times its bite, and lands dazed for
+/// <paramref name="DazedSeconds"/>. After a strike it runs back up the walls for <paramref name="RetreatSeconds"/>
+/// before it comes again.
+/// </summary>
+internal sealed record WildlifeCrawling(double RadiusMetres, double WallCost, double CeilingCost, double DropMetres, double DropCeilingMetres,
+    double DropPower, double DazedSeconds, double RetreatSeconds);
 
 /// <summary>
 /// A brood bearer's brood (#10961), settled with Patch on the wiki's Ruins wildlife page: the first time its threat shows, it
@@ -1048,6 +1064,11 @@ internal static class WildlifeKinds
                     marks.GetProperty("cloudMetres").GetDouble(), marks.GetProperty("markSeconds").GetDouble(), marks.GetProperty("drawMetres").GetDouble(),
                     marks.GetProperty("againSeconds").GetDouble())
                 : null,
+            Crawls = hunt.TryGetProperty("crawls", out JsonElement crawls)
+                ? new WildlifeCrawling(crawls.GetProperty("radiusMetres").GetDouble(), crawls.GetProperty("wallCost").GetDouble(), crawls.GetProperty("ceilingCost").GetDouble(),
+                    crawls.GetProperty("dropMetres").GetDouble(), crawls.GetProperty("dropCeilingMetres").GetDouble(), crawls.GetProperty("dropPower").GetDouble(),
+                    crawls.GetProperty("dazedSeconds").GetDouble(), crawls.GetProperty("retreatSeconds").GetDouble())
+                : null,
             Drinks = hunt.TryGetProperty("drinks", out JsonElement drinks)
                 ? new WildlifeDrinking(drinks.GetProperty("reachMetres").GetDouble(), drinks.GetProperty("againSeconds").GetDouble(),
                     drinks.GetProperty("outSeconds").GetDouble(), drinks.GetProperty("backSeconds").GetDouble())
@@ -1079,6 +1100,9 @@ internal static class WildlifeKinds
         if (read.Marks is { } marking && (marking.ReachMetres <= 0 || marking.CloudSeconds <= 0 || marking.CloudMetres <= 0 || marking.MarkSeconds <= 0
             || marking.DrawMetres <= 0 || marking.AgainSeconds <= 0 || read.Display is null || marking.BurstSeconds < 0 || marking.BurstSeconds > read.Display.Seconds))
             throw new InvalidDataException($"{id}: a spore mark reaches somewhere, bursts within its display, hangs a while somewhere, marks for a while, draws from somewhere, and rests between puffs");
+        if (read.Crawls is { } crawling && (crawling.RadiusMetres <= 0 || crawling.WallCost < 1 || crawling.CeilingCost < 1 || crawling.DropMetres <= 0
+            || crawling.DropCeilingMetres <= 0 || crawling.DropPower < 1 || crawling.DazedSeconds <= 0 || crawling.RetreatSeconds < 0))
+            throw new InvalidDataException($"{id}: a crawler has a body, pays at least a floor's cost for walls and ceilings, drops from somewhere at least as hard as it bites, and is dazed a while");
         if (read.Drinks is { ReachMetres: <= 0 } or { AgainSeconds: <= 0 } or { OutSeconds: <= 0 } or { BackSeconds: <= 0 } || (read.Drinks is not null && read.Display is null))
             throw new InvalidDataException($"{id}: a drink reaches somewhere, puts the lantern out a while and gives it back, rests between raises, and raises for its display's while");
         if (read.Brood is { Count: <= 0 } or { GuardMetres: <= 0 } or { RegrowSeconds: <= 0 }) throw new InvalidDataException($"{id}: a brood has animals, a guard and a regrowth");

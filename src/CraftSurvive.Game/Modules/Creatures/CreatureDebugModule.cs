@@ -81,6 +81,9 @@ public sealed class CreatureDebugModule : IDebugCommandModule
     [DebugCommand("craft.creatures.mark", Description = "Assisted: marks the player as a channel sifter's cloud would (#10971), for the seconds given, drawing ruin hunters from the metres given.")]
     public string Mark(double seconds, double metres) => creatures.MarkPlayer(seconds, metres);
 
+    [DebugCommand("craft.creatures.crawlers", Description = "Reads the wall runners on walls and ceilings (#10975): each space's surface grid (installed, places, edges, derivation time), every crawler's phase, hold, position, up, distance to the player's body, path, retreat, daze, drops and knocks, and the crawler steps' cost.")]
+    public string Crawlers() => creatures.CrawlersReadout();
+
     [DebugCommand("craft.creatures.weaken", Description = "Assisted: leaves every creature one health, so the next blow that lands kills it where it is, as a fall from a run needs.")]
     public string Weaken() => creatures.WeakenAll();
 

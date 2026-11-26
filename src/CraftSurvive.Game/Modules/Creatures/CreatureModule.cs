@@ -402,6 +402,8 @@ internal sealed partial class CreatureModule : IProductModule
         // A tender's errand (#10961) has it search its way somewhere of its own.
         if (errands.Count > 0) SteerErrands(playerFeet);
         if (time.AdmittedSteps > 0) Route(player.WorldFeetPosition, here);
+        // Wall runners (#10975) route over their space's surface grid, derived on the Engine's workers.
+        TendSurfaceGrids(player.WorldFeetPosition, here);
         routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, (here is null ? 0 : NavigationsIn(here).Sum(navigation => navigation.Queries)) - queriesBefore,
             roster.All.Count(creature => creature.Awake && creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking));
         bool playerCanBeHit = !player.Vitals.IsDown && !player.Vitals.IsInvulnerable(step);
@@ -431,11 +433,17 @@ internal sealed partial class CreatureModule : IProductModule
             bool displaying = hunters.TryGetValue(creature.Id, out Hunter? shown) && ((shown.ThreatSeconds > 0 && shown.Kind.Hunt!.Display is not null) || (shown.Member.Lift > 0 && !shown.Floats));
             // A fog foe hunts what it hears, but bites only along a clear line (R10985-1): never through a wall.
             bool clear = FogRules.ClearToBite(shown?.Floats == true, fogClear.Contains(creature.Id));
-            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit && !displaying && clear, time, SightScale(creature, alerted),
-                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody, WakeShare(shown, creature, playerWorld), ForcedState(creature) ?? ErrandState(creature)) is CreatureStrike strike)
+            // A wall runner (#10975) moves as the Engine's surface crawler, and bites only from a floor or wall beside the player.
+            bool crawls = Crawls(creature);
+            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit && !displaying && clear && (!crawls || CrawlerBites(creature)), time, SightScale(creature, alerted),
+                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), crawls ? CrawlBody : MoveBody, WakeShare(shown, creature, playerWorld), ForcedState(creature) ?? ErrandState(creature)) is CreatureStrike strike)
             {
                 // A tender (#10961) strikes no blow of its own.
-                if (hunters.TryGetValue(creature.Id, out Hunter? biting)) { if (!biting.Kind.Hunt!.Tends) HunterRules.Bite(biting, strike.Attack, ClipSeconds(biting, WildlifeClipRole.Bite)); }
+                if (hunters.TryGetValue(creature.Id, out Hunter? biting))
+                {
+                    if (!biting.Kind.Hunt!.Tends) HunterRules.Bite(biting, strike.Attack, ClipSeconds(biting, WildlifeClipRole.Bite));
+                    if (crawls) CrawlerBit(creature);
+                }
                 else ResolveStrike(strike);
                 playerCanBeHit = !player.Vitals.IsDown;
             }
@@ -495,6 +503,9 @@ internal sealed partial class CreatureModule : IProductModule
             hunter.LastPosition = creature.Position;
         }
 
+        // A wall runner (#10975) is drawn on the surface it holds, and runs by its speed along it.
+        ShowCrawler(creature, hunter);
+
         WildlifeRig rig = Wildlife!.RigOf(hunter.Kind);
         Vector2 toPlayer = new Vector2(playerWorld.X, playerWorld.Z) - creature.Position;
         // At rest it faces into its home's draft, if one blows there (#10878); searching it faces where it goes or stays as
@@ -517,6 +528,7 @@ internal sealed partial class CreatureModule : IProductModule
 
         if (hunter.Floats) ShowFog(creature, hunter, playerWorld, wasBiting, seconds);
         member.Clip = HunterRules.Want(hunter, state, member.Velocity.Length(), runsAbove);
+        CrawlerClip(creature, hunter);
     }
 
     /// <summary>How far over its floor a creature's body is now: a hanging or falling hunter's lowest point (R10877-2), else nothing.</summary>
@@ -779,6 +791,7 @@ internal sealed partial class CreatureModule : IProductModule
     private void ForgetHunter(int id)
     {
         DrinkerGone(id, killed: false);
+        ForgetCrawler(id);
         if (!hunters.Remove(id, out Hunter? hunter)) return;
         Unhunted(hunter.Record);
         Wildlife?.ForgetHunter(hunter.Member);
@@ -915,6 +928,7 @@ internal sealed partial class CreatureModule : IProductModule
             if (struckHunter.Kind.Hunt!.Tends && !struck.IsDown) TenderStruck(target, struckHunter);
             if (struckHunter.Kind.Hunt.Fixture is not null && !struck.IsDown) FixtureStruck(target, struckHunter);
             if (struckHunter.Kind.Hunt.Drinks is not null && !struck.IsDown) DrinkerStruck(target, struckHunter);
+            if (struckHunter.Kind.Hunt.Crawls is not null && !struck.IsDown) CrawlerStruck(target);
         }
         cues.RaiseAt(struck.IsDown ? Cue.Defeat : Cue.Strike,
             SpaceOf(target).ToLocal(target.Position.X, StandingAt(target) + StruckHeightMetres, target.Position.Y));
@@ -926,6 +940,7 @@ internal sealed partial class CreatureModule : IProductModule
 
         // A carrier killed (#10966) gives back the light it drank.
         DrinkerGone(target.Id, killed: true);
+        ForgetCrawler(target.Id);
         if (hunters.Remove(target.Id, out Hunter? fallen))
         {
             Unhunted(fallen.Record);
@@ -1115,7 +1130,8 @@ internal sealed partial class CreatureModule : IProductModule
     private void Route(Vector3 playerFeet, CreatureSpace? here)
     {
         // A searcher (#10876) is routed as a pursuer is, to where it last saw the player; routes are the player's space's.
-        Creature[] pursuers = [.. roster.All.Where(creature => creature.Awake && here is not null && creature.Space == here
+        // A wall runner (#10975) runs its own surface paths.
+        Creature[] pursuers = [.. roster.All.Where(creature => creature.Awake && here is not null && creature.Space == here && !Crawls(creature)
             && (creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking
                 || (creature.Behavior.State == CreatureState.Searching && creature.LastSeen is not null)))];
         foreach (Creature idle in roster.All.Where(creature => !pursuers.Contains(creature)))
@@ -1434,7 +1450,7 @@ internal sealed partial class CreatureModule : IProductModule
 
         PerceptionObserver[] observers = roster.All.Where(Looks).Select(creature => new PerceptionObserver(
             ProductIds.CreatureObserverBase + (ulong)creature.Id,
-            here.ToLocal(creature.Position.X, StandingAt(creature) + EyeHeightMetres, creature.Position.Y),
+            CrawlerEye(creature) ?? here.ToLocal(creature.Position.X, StandingAt(creature) + EyeHeightMetres, creature.Position.Y),
             Vector3.UnitZ,
             CreatureSimulation.EngineSightRadius(creature.Kind.Tuning.SightRange * SightScale(creature), here.MaximumHeightDifference),
             AllAroundFacingCosine,

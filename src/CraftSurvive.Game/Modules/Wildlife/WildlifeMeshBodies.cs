@@ -216,7 +216,16 @@ internal sealed class WildlifeMeshBodies : IDisposable
         Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI - member.Yaw);
         Vector3 world = new(member.Position.X, body.Height + member.Lift, member.Position.Y);
         Transform placement = new(ToLocal(body, world), Quaternion.Concatenate(lift, turn), new Vector3(scale));
-        Plant(body, placement, world, scale, plant: !fallen && distance <= plantWithin, frozen: !fallen && Frozen(member));
+        // A crawler (#10975) is drawn on the surface it holds, its back along the surface's up and its nose where it runs; its
+        // feet are not planted, as planting reaches down to a floor.
+        bool onSurface = member.SurfaceFeet is Vector3 && !fallen;
+        if (member.SurfaceFeet is Vector3 surfaceFeet && !fallen)
+        {
+            world = surfaceFeet;
+            placement = new Transform(ToLocal(body, world), member.SurfaceTurn, new Vector3(scale));
+        }
+
+        Plant(body, placement, world, scale, plant: !fallen && !onSurface && distance <= plantWithin, frozen: !fallen && Frozen(member));
         if (swims || body.Swimming) Swim(body, kind, member, placement, scale, swims && !Frozen(member), seconds);
         if (!fallen) Breathe(body, kind, member, placement, scale, seconds);
         AppearanceFact fact = new(body.ObjectId, false, 0, placement, body.Appearance, Visible: body.Tier != WildlifeTier.Hidden, RenderLayer.Scene, ShadowCasting.Cast);
