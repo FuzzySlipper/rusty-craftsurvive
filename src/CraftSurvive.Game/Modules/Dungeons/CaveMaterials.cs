@@ -31,13 +31,17 @@ internal static class CaveMaterials
 
     /// <summary>
     /// A cave in the overworld's session (#10889): its rock, mud and silt become the cave's own blocks (the overworld draws
-    /// stone, dirt and sand as its own ground); everything else keeps its block.
+    /// stone, dirt and sand as its own ground), and its ruin's leftover masonry the cave's rubble; everything else keeps its block.
     /// </summary>
     internal static BlockId Underground(BlockId block) => block switch
     {
         BlockId.Stone or BlockId.Bedrock => BlockId.CaveLimestone,
         BlockId.Dirt => BlockId.CaveMud,
         BlockId.Sand => BlockId.CaveSilt,
+        // What of a ruin's masonry its kit leaves as voxels - floors, treads, the stubs of burst walls - is the cave's
+        // broken stone (#10964): the overworld's session draws brick, cobblestone and planks as the player's building
+        // blocks, square and in their atlas tiles.
+        BlockId.Brick or BlockId.Cobblestone or BlockId.Planks => BlockId.Rubble,
         _ => block,
     };
 

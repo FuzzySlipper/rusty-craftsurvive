@@ -109,7 +109,11 @@ internal static class DungeonSurfaces
     };
 
     /// <summary>Each bound block's surface under a look; empty for cubes.</summary>
-    internal static VoxelMaterialSurface[] Materials(DungeonSurface surface)
+    /// <param name="natural">
+    /// Whether the space is a natural cave: the stubs its ruin's kit leaves of a burst wall are worn back by their densities
+    /// (DungeonCollision.Free) and surfaced as the ruined look's masonry, not kept on the grid (#10964).
+    /// </param>
+    internal static VoxelMaterialSurface[] Materials(DungeonSurface surface, bool natural = false)
     {
         if (RockAsMesh(surface) || surface == DungeonSurface.Micro)
         {
@@ -132,7 +136,7 @@ internal static class DungeonSurfaces
             // Turf under a cave's open sky (#10094) is natural ground, shaped as the rock is, not kept on the grid.
             .Select(block => IsRock(block.Id) || block.Id == BlockId.Grass
                 ? new VoxelMaterialSurface(block.Slot, rockMode, rock)
-                : Weathers(surface) && Wears(block.Id)
+                : (Weathers(surface) || natural) && Wears(block.Id)
                     ? new VoxelMaterialSurface(block.Slot, VoxelSurfaceMode.DualContouring, weathered)
                     : new VoxelMaterialSurface(block.Slot, building.Mode, building.Character))
             .ToArray();

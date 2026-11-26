@@ -73,7 +73,7 @@ internal sealed class DungeonSpace : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.layout = layout ?? throw new ArgumentNullException(nameof(layout));
-        Session = DungeonCollision.CreateSession(engine, surface, layout.VoxelSize);
+        Session = DungeonCollision.CreateSession(engine, surface, layout.VoxelSize, layout.Natural);
         pending = new Queue<(int X, int Y, int Z)>(DungeonCollision.Chunks(layout.Volume));
         totalChunks = pending.Count;
     }

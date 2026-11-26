@@ -50,13 +50,14 @@ internal static class DungeonCollision
     /// voxels surfaced as the look asks: cubes, or rock reconstructed beside grid-kept building.
     /// </summary>
     /// <param name="voxelSize">The side of a voxel in metres: the world's block unless a finer grid is being measured.</param>
+    /// <param name="natural">Whether the space is a natural cave, whose ruin's masonry stubs are weathered (#10964).</param>
     internal static SpatialSession CreateSession(IEngineContext engine, DungeonSurface surface = DungeonSurface.Cubes,
-        double voxelSize = TerrainConstants.VoxelSize)
+        double voxelSize = TerrainConstants.VoxelSize, bool natural = false)
     {
         VoxelSurfaceMode mode = DungeonSurfaces.SessionMode(surface);
         SpatialSession session = engine.Spatial.CreateSession(new SpatialSessionConfig(
             voxelSize, TerrainConstants.VoxelChunkSize, mode));
-        VoxelMaterialSurface[] materials = DungeonSurfaces.Materials(surface);
+        VoxelMaterialSurface[] materials = DungeonSurfaces.Materials(surface, natural);
         if (materials.Length > 0)
         {
             engine.Voxel.ConfigureMaterialSurfaces(new VoxelMaterialSurfaceRequest(session, mode, materials));
@@ -256,7 +257,9 @@ internal static class DungeonCollision
     /// <summary>
     /// An unpinned (natural) space's density at a voxel: its rock and air where the field puts the surface, but a ruin's
     /// masonry in it (#10097), and the air beside that masonry, on the grid as a built dungeon's are - so its floors stay
-    /// flat treads and its walls square while the cave's rock round it stays natural.
+    /// flat treads while the cave's rock round it stays natural. What of its walls the kit leaves as voxels (the stubs of a
+    /// wall the cave burst, #10964) is weathered, as the ruined look's masonry is: worn back where it faces sideways, so it
+    /// reads as broken stone rather than as square blocks beside the kit.
     /// </summary>
     private static float Free(DungeonVolume volume, RockDensity field, int x, int y, int z, BlockId block, float perVoxel)
     {
@@ -266,7 +269,8 @@ internal static class DungeonCollision
             return besideMasonry ? FaceDensity : Math.Clamp(field.At(x, y, z) * perVoxel, DensityFloor, FreeDensityLimit);
         }
 
-        return Masonry(block) ? -FaceDensity : Math.Clamp(field.At(x, y, z) * perVoxel, -FreeDensityLimit, -DensityFloor);
+        return !Masonry(block) ? Math.Clamp(field.At(x, y, z) * perVoxel, -FreeDensityLimit, -DensityFloor)
+            : DungeonSurfaces.Wears(block) ? -Weathered(volume, x, y, z) : -FaceDensity;
     }
 
     /// <summary>Whether a block of a natural space is a ruin's masonry: neither rock nor the turf under its sky.</summary>
