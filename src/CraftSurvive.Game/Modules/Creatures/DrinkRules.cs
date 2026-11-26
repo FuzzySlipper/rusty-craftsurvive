@@ -31,8 +31,8 @@ internal enum DrinkTurn
 /// </summary>
 internal static class DrinkRules
 {
-    /// <summary>A display already raised is drunk from only with this long left, so the lantern's gutter still shows before the dark.</summary>
-    internal const double LeastGutterSeconds = 1.0;
+    /// <summary>A display already raised is drunk from only with this long left, so the lantern's gutter is still slow enough to see before the dark.</summary>
+    internal const double LeastGutterSeconds = 2.0;
 
     /// <param name="raising">Whether a drink is under way.</param>
     /// <param name="hunting">Whether it hunts the player (alert, pursuing or attacking).</param>

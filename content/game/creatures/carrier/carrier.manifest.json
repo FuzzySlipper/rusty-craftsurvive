@@ -56,7 +56,7 @@
       "plantsFeet": false
     },
     "threat": {
-      "seconds": 2.0,
+      "seconds": 4.0,
       "loops": false,
       "plantsFeet": true
     },

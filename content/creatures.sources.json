@@ -489,7 +489,7 @@
   },
   {
    "mesh": "content/game/creatures/carrier/carrier.glb",
-   "sha256": "0750c0e565dd6bbf3f4a2aca1c4b8f4a25d8790b9f3289146c4336a841ddc2a5",
+   "sha256": "3077cd5620393b88f01d681d15dd57227f9c7628cb4fe8bc2dd234106b28daa8",
    "manifest": "content/game/creatures/carrier/carrier.manifest.json",
    "built": "authoring/tools/creatures/build_creature.py from authoring/assets/creatures/carrier/species.json with --mesh body.glb --texture body-64.png --emission emission.png (Blender 5.2.2), on the strider family",
    "concept": "Patch's picked sheet (#10618): /data/evidence/rusty-craftsurvive/ruins-10618/sheets/special-implement2.png",

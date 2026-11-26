@@ -2170,13 +2170,14 @@ Check.Section("fixtures", () =>
 });
 
 // The implement-carrier drinks light (#10966): in its display it raises the crescent at a lit lantern within 10 m and in
-// its sight; whole, the lantern is out 6 s and back over 1 s; again at most every 20 s; out of reach or sight, the drink fails.
+// its sight; the lantern gutters through the 3.6 s raise; whole, it is out 6 s and back over 2.5 s; again at most every 20 s; out of reach or sight, the drink fails.
 Check.Section("drinks", () =>
 {
     WildlifeKind carrier = catalog.Kind("carrier");
     WildlifeDrinking drinks = carrier.Hunt?.Drinks ?? throw new InvalidOperationException("the carrier does not drink");
     double display = carrier.Hunt!.Display!.Seconds;
-    Check.Equal(new WildlifeDrinking(10, 20, 6, 1), drinks, "the carrier drinks within 10 m, every 20 s at most, out 6 s and back over 1 s");
+    Check.Equal(new WildlifeDrinking(10, 20, 6, 2.5), drinks, "the carrier drinks within 10 m, every 20 s at most, out 6 s and back over 2.5 s");
+    Check.Equal(3.6, display, "its raise, and so the gutter, lasts 3.6 s");
     Check.That(catalog.Kinds.Count(kind => kind.Hunt?.Drinks is not null) == 1, "only the carrier drinks");
 
     const double Tick = 0.05;
@@ -2230,7 +2231,7 @@ Check.Section("drinks", () =>
     Run(display / 2, _ => Near(6));
     Check.That(turns is [(_, DrinkTurn.Begins)] && lantern.Phase == LanternPhase.Guttering && threat > 0, "in reach and in sight it raises the crescent, and the lantern gutters");
     Check.That(lantern.Share < 1f && lantern.Share > 0f, "the gutter comes before the dark");
-    Run(display / 2 + Tick, _ => Near(4));
+    Run(display / 2 + (2 * Tick), _ => Near(4));
     Check.That(turns[^1].Turn == DrinkTurn.Drinks && lantern.Phase == LanternPhase.Out, "the raise ending whole, the lantern goes out");
     double drank = turns[^1].At;
     Run(drinks.OutSeconds + drinks.BackSeconds + Tick, _ => Near(2));
@@ -2260,7 +2261,7 @@ Check.Section("drinks", () =>
     {
         ("\"outSeconds\": 6", "\"outSeconds\": 0"),
         ("\"reachMetres\": 10, \"againSeconds\": 20", "\"reachMetres\": 0, \"againSeconds\": 20"),
-        ("\"display\": { \"seconds\": 1.6 }, \"search\": { \"seconds\": 12 },\n        \"drinks\"", "\"search\": { \"seconds\": 12 },\n        \"drinks\""),
+        ("\"display\": { \"seconds\": 3.6 }, \"search\": { \"seconds\": 12 },\n        \"drinks\"", "\"search\": { \"seconds\": 12 },\n        \"drinks\""),
     })
     {
         Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");

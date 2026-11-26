@@ -143,7 +143,7 @@
       "restShare": 0.2
     },
     "threat": {
-      "seconds": 2.0,
+      "seconds": 4.0,
       "style": "thrust",
       "sinkMetres": 0.35,
       "reachDegrees": 80.0,

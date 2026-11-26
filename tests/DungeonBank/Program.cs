@@ -713,10 +713,10 @@ Check.That(rate >= 0.95, $"at least 95% of seeds must yield a walkable dungeon, 
     const double Tick = 0.05;
     LanternDrain lantern = new() { Carried = true };
     Check.That(lantern.Drinkable && lantern.Share == 1f, "a carried lantern burns whole and can be drunk");
-    Check.That(lantern.Gutter(7, 1.6) && lantern.Phase == LanternPhase.Guttering, "a carrier's raise starts it guttering");
-    Check.That(!lantern.Gutter(8, 1.6) && lantern.Drinker == 7, "a second carrier cannot drink it while the first does");
+    Check.That(lantern.Gutter(7, 3.6) && lantern.Phase == LanternPhase.Guttering, "a carrier's raise starts it guttering");
+    Check.That(!lantern.Gutter(8, 3.6) && lantern.Drinker == 7, "a second carrier cannot drink it while the first does");
     float least = 1f, lateMost = 0f;
-    for (double t = 0; t < 1.6 - 1e-9; t += Tick)
+    for (double t = 0; t < 3.6 - 1e-9; t += Tick)
     {
         lantern.Step(Tick);
         least = Math.Min(least, lantern.Share);
@@ -727,7 +727,7 @@ Check.That(rate >= 0.95, $"at least 95% of seeds must yield a walkable dungeon, 
         $"guttering, it dims toward half and flickers below it, never out (least {least:F2})");
     Check.That(lateMost <= 1f - ((1f - LanternDrain.GutterShare) * 0.75f) + 1e-4f, $"late in the gutter it burns no brighter than its dimming allows ({lateMost:F2})");
     Check.That(lantern.Taken > 0.99f, "by the end of the raise its drinker holds all its light");
-    lantern.Drink(7, 6, 1);
+    lantern.Drink(7, 6, 2.5);
     double outFor = 0;
     while (lantern.Phase == LanternPhase.Out)
     {
@@ -745,7 +745,7 @@ Check.That(rate >= 0.95, $"at least 95% of seeds must yield a walkable dungeon, 
         backFor += Tick;
     }
 
-    Check.That(Math.Abs(backFor - 1) <= Tick + 1e-9 && first < 0.2f, $"then it sputters back up from nearly nothing over 1 s ({backFor:F2})");
+    Check.That(Math.Abs(backFor - 2.5) <= Tick + 1e-9 && first < 0.2f, $"then it sputters back up from nearly nothing over 2.5 s ({backFor:F2})");
     Check.That(lantern.Phase == LanternPhase.Steady && lantern.Share == 1f && lantern.Drinker is null && lantern.Taken == 0f, "and burns whole, nobody's");
 
     lantern.Gutter(7, 1.6);
