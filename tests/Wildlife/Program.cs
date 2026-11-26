@@ -2286,6 +2286,72 @@ Check.Section("drinks", () =>
     }
 });
 
+// The channel sifter's spore mark (#10971): seeing the player within 6 m it puffs in its display; the cloud hangs 4 s, 4 m
+// across; in it the player is marked 45 s, and ruin hunters within 40 m of them come; water washes it off; it rests 60 s.
+Check.Section("spore mark", () =>
+{
+    WildlifeKind sifter = catalog.Kind("channel-sifter");
+    WildlifeMarking marking = sifter.Hunt?.Marks ?? throw new InvalidOperationException("the sifter does not mark");
+    Check.Equal(new WildlifeMarking(6, 0.5, 4, 4, 45, 40, 60), marking, "the sifter puffs within 6 m, its cloud hangs 4 s 4 m across, marks 45 s, draws from 40 m, again after 60 s");
+    Check.That(sifter.Hunt!.Tends, "a sifter is a tender: it strikes no blow of its own");
+    Check.That(sifter.Hunt.SightMetres <= marking.ReachMetres && marking.BurstSeconds <= sifter.Hunt.Display!.Seconds,
+        "its hunt, and so its display, begins within its puff's reach, and its spores burst within the display");
+    Check.That(catalog.Kinds.Count(kind => kind.Hunt?.Marks is not null) == 1, "only the sifter marks");
+
+    // When it puffs.
+    Check.Equal(PuffTurn.Puffs, MarkRules.Turn(marking, null, 5.9), "a sifter that never puffed puffs at a player within 6 m");
+    Check.Equal(PuffTurn.None, MarkRules.Turn(marking, null, 6.5), "but not at one beyond");
+    Check.Equal(PuffTurn.KeepsAway, MarkRules.Turn(marking, 30, 3), "resting from its last puff, it keeps away");
+    Check.Equal(PuffTurn.Puffs, MarkRules.Turn(marking, 60, 3), "60 s on, it puffs again");
+
+    // The cloud.
+    Vector3 burst = new(10, -2000, 20);
+    Check.That(MarkRules.InCloud(marking, burst, burst + new Vector3(1.9f, 0, 0)), "a player 1.9 m from where it burst stands in its cloud");
+    Check.That(!MarkRules.InCloud(marking, burst, burst + new Vector3(0, 0, 2.1f)), "one 2.1 m away does not");
+    Check.That(!MarkRules.InCloud(marking, burst, burst + new Vector3(0.5f, MarkRules.CloudDepthMetres + 0.5f, 0)), "nor one on a ledge well above it");
+
+    // Who it draws.
+    Check.That(MarkRules.Draws(catalog.Kind("carrier"), 39, marking.DrawMetres), "a ruin hunter within 40 m of the marked player is drawn");
+    Check.That(!MarkRules.Draws(catalog.Kind("carrier"), 41, marking.DrawMetres), "one beyond is not (until it comes within)");
+    Check.That(!MarkRules.Draws(catalog.Kind("chime-grazer"), 5, marking.DrawMetres) && !MarkRules.Draws(sifter, 5, marking.DrawMetres), "tenders keep their own ways");
+    Check.That(!MarkRules.Draws(catalog.Kind("niche-unfolder"), 5, marking.DrawMetres), "fixtures stay rooted");
+    Check.That(!MarkRules.Draws(catalog.Kind("root-adder"), 5, marking.DrawMetres), "cave life ignores the mark");
+
+    // The player's mark: it lasts its while and wears off, water washes it off at once, and a fresh cloud restarts it.
+    SporeMark mark = new();
+    mark.Mark(7, marking.MarkSeconds);
+    Check.That(mark.Marked && mark.By == 7 && mark.Share == 1, "in the cloud the player is marked, whole");
+    const double Tick = 0.05;
+    double worn = 0;
+    while (mark.Marked)
+    {
+        mark.Step(Tick, inWater: false);
+        worn += Tick;
+    }
+
+    Check.That(Math.Abs(worn - marking.MarkSeconds) <= Tick + 1e-9, $"it wears off after 45 s ({worn:F2})");
+    mark.Mark(7, marking.MarkSeconds);
+    mark.Step(10, inWater: false);
+    mark.Mark(8, marking.MarkSeconds);
+    Check.That(Math.Abs(mark.Left - marking.MarkSeconds) < 1e-9 && mark.By == 8 && mark.Marks == 2, "a fresh cloud marks them whole again, counted as the same mark");
+    mark.Step(Tick, inWater: true);
+    Check.That(!mark.Marked && mark.Washes == 1, "wading or swimming washes it off at once");
+    mark.Step(Tick, inWater: true);
+    Check.Equal(1L, mark.Washes, "water washes nothing off an unmarked player");
+
+    string kindsText = ReadKinds();
+    foreach ((string from, string to) in new[]
+    {
+        ("\"cloudSeconds\": 4", "\"cloudSeconds\": 0"),
+        ("\"burstSeconds\": 0.5", "\"burstSeconds\": 2"),
+        ("\"drawMetres\": 40", "\"drawMetres\": 0"),
+    })
+    {
+        Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
+        Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"a spore mark with {to} is refused");
+    }
+});
+
 // A swimmer's body follows its head (#10995): dragged after it on a chain at its rest spacing, the tail lagging through a
 // turn, a wave down it that grows with speed and leaves the head still.
 Check.Section("swim chain", () =>

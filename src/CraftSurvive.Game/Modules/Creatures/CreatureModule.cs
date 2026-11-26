@@ -307,9 +307,14 @@ internal sealed partial class CreatureModule : IProductModule
     private bool InOwnSight(int id, Vector3 playerWorld) => roster.TryGet(id, out Creature creature)
         && CreatureSimulation.PlanarDistance(creature.Position, playerWorld) <= creature.Kind.Tuning.SightRange * SightScale(creature);
 
-    /// <summary>The same, for this update: a pack animal called in by another comes from as far as the call carries.</summary>
+    /// <summary>
+    /// The same, for this update: a pack animal called in by another comes from as far as the call carries, and a hunter drawn
+    /// to a marked player (#10971) from wherever it was drawn.
+    /// </summary>
     private double SightScale(Creature creature, HashSet<int> alerted) =>
-        alerted.Contains(creature.Id) && hunters.TryGetValue(creature.Id, out Hunter? hunter) && packAlarms.ContainsKey(hunter.Record.Key)
+        alerted.Contains(creature.Id) && DrawnToMark(creature)
+            ? Math.Max(SightScale(creature), DrawnSightMetres / creature.Kind.Tuning.SightRange)
+            : alerted.Contains(creature.Id) && hunters.TryGetValue(creature.Id, out Hunter? hunter) && packAlarms.ContainsKey(hunter.Record.Key)
             ? Math.Max(SightScale(creature), hunter.Kind.Hunt!.Pack!.AlarmMetres / creature.Kind.Tuning.SightRange)
             : SightScale(creature);
 
@@ -373,6 +378,8 @@ internal sealed partial class CreatureModule : IProductModule
         // rest calls nothing (#10878): it must wake first, at its own wake range, which a draft shortens from downwind.
         HashSet<int> alerted = HunterRules.Alerted(seeing, hunters, packAlarms, time.ElapsedSeconds,
             id => InOwnSight(id, playerWorld) && roster.All.FirstOrDefault(creature => creature.Id == id)?.Behavior.State != CreatureState.Resting);
+        // A player marked by a sifter's spores (#10971) draws the ruin hunters about them, seen or not.
+        DrawToMark(alerted, player.WorldFeetPosition, here);
         (lastSeeing, lastAlerted) = (seeing, alerted);
         Vector3 playerFeet = player.WorldFeetPosition;
         foreach (Creature creature in roster.All.Where(creature => creature.Awake))

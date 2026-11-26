@@ -6,8 +6,9 @@ namespace CraftSurvive.Game.Modules.Player;
 /// What the ruin's fixtures do to the player's body (#10963), as settled with Patch on the wiki's Ruins wildlife page
 /// ("Fixtures as hazards"): a niche unfolder seizes them, holding them in place and drawing them toward its recess, until
 /// a sprint against it, spending stamina, breaks them free; a vault filter numbs them, emptying their stamina and keeping
-/// it from coming back, so they cannot sprint, climb or take hold. The fixtures decide when; this owns the player's side,
-/// and the controller reads it each step. Engine-free.
+/// it from coming back, so they cannot sprint, climb or take hold. A channel sifter's cloud marks them (#10971,
+/// <see cref="Spores"/>). The creatures decide when; this owns the player's side, and the controller steps and reads it.
+/// Engine-free.
 /// </summary>
 internal sealed class PlayerHazards
 {
@@ -19,6 +20,9 @@ internal sealed class PlayerHazards
     private double struggled;
     private double struggleNeeded;
     private float struggleStamina;
+
+    /// <summary>The channel sifter's spore mark (#10971), which draws ruin hunters to the player until it wears or washes off.</summary>
+    internal SporeMark Spores { get; } = new();
 
     /// <summary>The fixture holding the player, by creature id; null while nothing does.</summary>
     internal int? SeizedBy { get; private set; }
@@ -73,12 +77,14 @@ internal sealed class PlayerHazards
     }
 
     /// <summary>
-    /// One controller step: the numbing wears off; a seized player sprinting against the hold spends stamina and struggles,
-    /// breaking free once they have struggled long enough. A spent player cannot struggle.
+    /// One controller step: the numbing and the spore mark wear off, and water washes the mark off; a seized player
+    /// sprinting against the hold spends stamina and struggles, breaking free once they have struggled long enough. A spent
+    /// player cannot struggle.
     /// </summary>
-    internal void Step(double seconds, bool sprinting, PlayerStamina stamina)
+    internal void Step(double seconds, bool sprinting, bool inWater, PlayerStamina stamina)
     {
         ArgumentNullException.ThrowIfNull(stamina);
+        Spores.Step(seconds, inWater);
         if (NumbSeconds > 0)
         {
             NumbSeconds = Math.Max(0, NumbSeconds - seconds);
@@ -105,8 +111,8 @@ internal sealed class PlayerHazards
 
     /// <summary>For the readout.</summary>
     internal string Readout() => SeizedBy is int by
-        ? $"seized by {by} struggle={Struggle:F2} numb={NumbSeconds:F1}s"
-        : $"free numb={NumbSeconds:F1}s";
+        ? $"seized by {by} struggle={Struggle:F2} numb={NumbSeconds:F1}s spores=[{Spores.Readout()}]"
+        : $"free numb={NumbSeconds:F1}s spores=[{Spores.Readout()}]";
 
     /// <summary>Forgets every hazard (a restart, or the player going down).</summary>
     internal void Clear(PlayerStamina stamina)
@@ -116,5 +122,6 @@ internal sealed class PlayerHazards
         BrokeFree = false;
         NumbSeconds = 0;
         stamina.Numbed = false;
+        Spores.Clear();
     }
 }

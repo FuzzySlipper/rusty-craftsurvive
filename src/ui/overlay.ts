@@ -22,6 +22,11 @@ const TOAST_WIDTH = 'min(44rem, 90vw)';
 /** Health at or below this share of its maximum tints the screen's edges. */
 const LOW_HEALTH_SHARE = 0.3;
 
+/** A channel sifter's spore mark (#10971) shows as this many amber motes drifting up the view's edges, each this long a drift. */
+const SPORE_MOTES = 16;
+const SPORE_DRIFT_MS = 5200;
+const SPORE_COLOUR = '#e8a848';
+
 const FONT = 'font:700 .78rem/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;';
 const SHADOW = 'text-shadow:1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;';
 
@@ -78,6 +83,15 @@ const VITALS: readonly Vital[] = [
     },
   },
   {
+    // A channel sifter's spore mark (#10971): ruin hunters about a marked player come for them until it wears off, or water washes it off.
+    label: 'Marked', colour: SPORE_COLOUR,
+    read: (v) => {
+      const left = number(v, 'sporeMark');
+      const s = number(v, 'sporeMarkShare');
+      return left === null || s === null || left <= 0 ? null : { share: s, note: `spores · ${Math.ceil(left)} s` };
+    },
+  },
+  {
     label: 'Air', colour: '#5aa6d8',
     read: (v) => {
       const s = share(number(v, 'breath'), number(v, 'maximumBreath'));
@@ -131,8 +145,22 @@ export function mountOverlay(root: Element, projection: RustyApplicationUiProjec
   const toasts = element('div', `position:absolute;left:50%;top:1.2rem;width:${TOAST_WIDTH};transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.3rem;`);
   const flash = element('div', `position:absolute;inset:0;box-shadow:inset 0 0 12vmin 4vmin #b0141480;opacity:0;transition:opacity ${FLASH_MS}ms ease-out;`);
   const lowHealth = element('div', 'position:absolute;inset:0;box-shadow:inset 0 0 10vmin 2vmin #7a0c0c66;display:none;');
+  // The spore mark's motes: each drifts up one edge of the view and fades, staggered so a few are always rising.
+  const spores = element('div', 'position:absolute;inset:0;display:none;');
+  const drift = element('style');
+  drift.textContent = '@keyframes craft-spore-drift{0%{transform:translateY(0);opacity:0}20%{opacity:.85}100%{transform:translateY(-38vh);opacity:0}}';
+  spores.append(drift);
+  for (let index = 0; index < SPORE_MOTES; index++) {
+    const left = index % 2 === 0;
+    const inset = 1.5 + ((index * 7) % 9);
+    const from = 45 + ((index * 13) % 50);
+    const size = 4 + (index % 3) * 2;
+    spores.append(element('div', `position:absolute;${left ? 'left' : 'right'}:${inset}vw;top:${from}vh;width:${size}px;height:${size}px;border-radius:50%;`
+      + `background:${SPORE_COLOUR};box-shadow:0 0 6px 2px ${SPORE_COLOUR}aa;opacity:0;`
+      + `animation:craft-spore-drift ${SPORE_DRIFT_MS}ms linear ${-(index * SPORE_DRIFT_MS) / SPORE_MOTES}ms infinite;`));
+  }
 
-  layer.append(lowHealth, flash, crosshair, corner, prompt, toasts);
+  layer.append(lowHealth, spores, flash, crosshair, corner, prompt, toasts);
   root.append(layer);
   if (projection === undefined) return () => layer.remove();
 
@@ -163,6 +191,7 @@ export function mountOverlay(root: Element, projection: RustyApplicationUiProjec
 
     const health = share(number(values, 'health'), number(values, 'maximumHealth'));
     lowHealth.style.display = health !== null && health > 0 && health <= LOW_HEALTH_SHARE ? 'block' : 'none';
+    spores.style.display = (number(values, 'sporeMark') ?? 0) > 0 ? 'block' : 'none';
 
     const said = text(values, 'dungeonPrompt') ?? '';
     prompt.style.display = said === '' ? 'none' : 'block';

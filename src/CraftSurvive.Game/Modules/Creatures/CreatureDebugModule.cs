@@ -75,6 +75,12 @@ public sealed class CreatureDebugModule : IDebugCommandModule
     [DebugCommand("craft.creatures.drinks", Description = "Reads the implement-carriers' light drinking (#10966): the lantern's phase, share and who drinks it, the drinks whole, failed and cut, and each carrier's raise, distance and core glow.")]
     public string Drinks() => creatures.DrinksReadout();
 
+    [DebugCommand("craft.creatures.marks", Description = "Reads the channel sifters' spore mark (#10971): the player's mark and its time left, the clouds hanging, each sifter's puff and rest, and the hunters drawn to the marked player.")]
+    public string Marks() => creatures.MarksReadout();
+
+    [DebugCommand("craft.creatures.mark", Description = "Assisted: marks the player as a channel sifter's cloud would (#10971), for the seconds given, drawing ruin hunters from the metres given.")]
+    public string Mark(double seconds, double metres) => creatures.MarkPlayer(seconds, metres);
+
     [DebugCommand("craft.creatures.weaken", Description = "Assisted: leaves every creature one health, so the next blow that lands kills it where it is, as a fall from a run needs.")]
     public string Weaken() => creatures.WeakenAll();
 

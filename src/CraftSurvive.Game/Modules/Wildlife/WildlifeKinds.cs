@@ -251,8 +251,11 @@ internal sealed record WildlifeHunt(double SightMetres, double ReachMetres, doub
     /// <summary>The call it rings instead of fighting (#10962, the chime grazer); null for one that does not.</summary>
     internal WildlifeCalling? Calls { get; init; }
 
-    /// <summary>A tender (#10961): it threatens by what it releases, shuts or calls, never by its own blows.</summary>
-    internal bool Tends => Brood is not null || Seals is not null || Calls is not null;
+    /// <summary>The spores it puffs to mark the player instead of fighting (#10971, the channel sifter); null for one that does not.</summary>
+    internal WildlifeMarking? Marks { get; init; }
+
+    /// <summary>A tender (#10961): it threatens by what it releases, shuts, calls or marks, never by its own blows.</summary>
+    internal bool Tends => Brood is not null || Seals is not null || Calls is not null || Marks is not null;
 
     /// <summary>How it drinks the player's lantern (#10966, the implement-carrier's crescent); null for one that does not.</summary>
     internal WildlifeDrinking? Drinks { get; init; }
@@ -379,6 +382,16 @@ internal sealed record WildlifeFixture(FixtureAct Act, double ReachMetres, doubl
 /// away from the player, and can ring again <paramref name="AgainSeconds"/> after the last.
 /// </summary>
 internal sealed record WildlifeCalling(double ReachMetres, double AgainSeconds);
+
+/// <summary>
+/// A channel sifter's spore mark (#10971), settled with Patch on the wiki's Ruins wildlife page: when it sees the player
+/// within <paramref name="ReachMetres"/> it rears and puffs in its display; <paramref name="BurstSeconds"/> into the display
+/// its spores burst, and the cloud hangs where it burst for <paramref name="CloudSeconds"/>, <paramref name="CloudMetres"/>
+/// across. A player in it while it hangs is marked for <paramref name="MarkSeconds"/>, and every ruin hunter within
+/// <paramref name="DrawMetres"/> of a marked player comes for them unseen. Then it flees, and it can puff again
+/// <paramref name="AgainSeconds"/> after the last.
+/// </summary>
+internal sealed record WildlifeMarking(double ReachMetres, double BurstSeconds, double CloudSeconds, double CloudMetres, double MarkSeconds, double DrawMetres, double AgainSeconds);
 
 /// <summary>
 /// An implement-carrier's light drinking (#10966), settled with Patch on the wiki's Ruins wildlife page: in its display it
@@ -1030,6 +1043,11 @@ internal static class WildlifeKinds
             Calls = hunt.TryGetProperty("calls", out JsonElement calls)
                 ? new WildlifeCalling(calls.GetProperty("reachMetres").GetDouble(), calls.GetProperty("againSeconds").GetDouble())
                 : null,
+            Marks = hunt.TryGetProperty("marks", out JsonElement marks)
+                ? new WildlifeMarking(marks.GetProperty("reachMetres").GetDouble(), marks.GetProperty("burstSeconds").GetDouble(), marks.GetProperty("cloudSeconds").GetDouble(),
+                    marks.GetProperty("cloudMetres").GetDouble(), marks.GetProperty("markSeconds").GetDouble(), marks.GetProperty("drawMetres").GetDouble(),
+                    marks.GetProperty("againSeconds").GetDouble())
+                : null,
             Drinks = hunt.TryGetProperty("drinks", out JsonElement drinks)
                 ? new WildlifeDrinking(drinks.GetProperty("reachMetres").GetDouble(), drinks.GetProperty("againSeconds").GetDouble(),
                     drinks.GetProperty("outSeconds").GetDouble(), drinks.GetProperty("backSeconds").GetDouble())
@@ -1058,6 +1076,9 @@ internal static class WildlifeKinds
             throw new InvalidDataException($"{id}: a waiter does not dart, and feels at least as far as it strikes");
         if (read.Calls is { ReachMetres: <= 0 } or { AgainSeconds: <= 0 } || (read.Calls is not null && read.Display is null))
             throw new InvalidDataException($"{id}: a call reaches somewhere, takes a rest between rings, and rings for its display's while");
+        if (read.Marks is { } marking && (marking.ReachMetres <= 0 || marking.CloudSeconds <= 0 || marking.CloudMetres <= 0 || marking.MarkSeconds <= 0
+            || marking.DrawMetres <= 0 || marking.AgainSeconds <= 0 || read.Display is null || marking.BurstSeconds < 0 || marking.BurstSeconds > read.Display.Seconds))
+            throw new InvalidDataException($"{id}: a spore mark reaches somewhere, bursts within its display, hangs a while somewhere, marks for a while, draws from somewhere, and rests between puffs");
         if (read.Drinks is { ReachMetres: <= 0 } or { AgainSeconds: <= 0 } or { OutSeconds: <= 0 } or { BackSeconds: <= 0 } || (read.Drinks is not null && read.Display is null))
             throw new InvalidDataException($"{id}: a drink reaches somewhere, puts the lantern out a while and gives it back, rests between raises, and raises for its display's while");
         if (read.Brood is { Count: <= 0 } or { GuardMetres: <= 0 } or { RegrowSeconds: <= 0 }) throw new InvalidDataException($"{id}: a brood has animals, a guard and a regrowth");

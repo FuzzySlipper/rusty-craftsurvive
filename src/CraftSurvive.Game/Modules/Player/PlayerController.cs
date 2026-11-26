@@ -758,7 +758,7 @@ internal sealed class PlayerController : IDisposable
             Stamina.Tick(
                 climbHeld ? PlayerStamina.OnFace(frame.PlanarIntent.Y) : motion.Grounded ? PlayerExertion.Resting : PlayerExertion.Airborne,
                 PlayerConstants.ControllerStepSeconds, climbsNaturalRock && climb.LastFace is ClimbFace held ? held.Grip : 1f);
-            Hazards.Step(PlayerConstants.ControllerStepSeconds, frame.SprintRequested && frame.PlanarIntent != Vector2.Zero, Stamina);
+            Hazards.Step(PlayerConstants.ControllerStepSeconds, frame.SprintRequested && frame.PlanarIntent != Vector2.Zero, water.LastCheck.InWater, Stamina);
             WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(Session));
             playerGlobal = PlayerWorldPosition.FromLocal(origin, playerLocal);
             lastClearLocal = playerLocal;
@@ -1023,6 +1023,8 @@ internal sealed class PlayerController : IDisposable
         Climbing = climbHeld,
         HitsTaken = Vitals.HitsTaken,
         Submerged = headSubmerged,
+        SporeMarkSeconds = Hazards.Spores.Left,
+        SporeMarkShare = Hazards.Spores.Share,
         Building = away is null ? Pieces?.HudLine ?? string.Empty : string.Empty,
     };
 

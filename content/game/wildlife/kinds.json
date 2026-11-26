@@ -1066,7 +1066,7 @@
     {
       "id": "channel-sifter",
       "name": "Channel sifter",
-      "$comment": "A ruin tender (#10960): it wades the Ancients' water channels on three legs, sifting with the comb fan under its hood. Tenders threaten indirectly: when disturbed it rears and puffs glowing amber spores from its pods (breath). The spores' mark is proposed on the board ('Ruin wildlife: the ecology'); until Patch settles it the puff is a look only and its shove a weak blow.",
+      "$comment": "A ruin tender (#10960): it wades the Ancients' water channels on three legs, sifting with the comb fan under its hood. Tenders threaten indirectly: when it sees the player within 6 m it rears and puffs glowing amber spores from its pods (breath), and the cloud marks a player in it for other ruin life (#10971, hunt.marks). It never strikes.",
       "habitat": {},
       "social": { "shape": "solitary", "groupMinimum": 1, "groupMaximum": 1, "spacingMetres": 4 },
       "body": { "lengthMetres": 1.6, "heightMetres": 1.8, "widthMetres": 1.1, "sizeClass": "human", "colour": "#d8c4a4" },
@@ -1077,11 +1077,11 @@
         "scale": 1.0,
         "clips": { "idle": "idle", "walk": "walk", "run": "run", "look": "alert", "die": "die", "threat": "threat", "bite": "bite", "hurt": "hurt", "lie": "feed" },
         "breath": {
-          "$comment": "#10960: amber spores puffed from the pods along its sides as it rears in its threat; a look only until the mark is settled. Emitted between the spine's and chest's joints, drifting out and rising; colours sRGB.",
+          "$comment": "#10960, #10971: amber spores puffed from the pods along its sides as it rears in its threat, hanging about 4 s where they burst (the mark's cloud). Emitted between the spine's and chest's joints, drifting out and rising; colours sRGB.",
           "at": { "threat": [0.3, 0.45, 0.6] },
           "upper": { "joint": "chest", "reachMetres": 0.0 },
           "lower": { "joint": "spine", "reachMetres": 0.0 },
-          "count": 30, "lifetimeSeconds": [1.4, 2.6], "speed": [0.2, 0.9], "spreadMetresPerSecond": 0.8, "riseMetresPerSecondSquared": 0.35,
+          "count": 40, "lifetimeSeconds": [3.2, 4.4], "speed": [0.15, 0.6], "spreadMetresPerSecond": 0.45, "riseMetresPerSecondSquared": 0.06,
           "sizes": [[0, 0.06], [0.3, 0.22], [1, 0.4]],
           "colours": [[0, [1.0, 0.72, 0.3, 0.9]], [0.5, [0.95, 0.6, 0.2, 0.6]], [1, [0.8, 0.5, 0.2, 0.0]]]
         }
@@ -1089,8 +1089,10 @@
       "speeds": { "walk": 0.6, "grazeDrift": 0.3, "flee": 2.7, "turnDegrees": 90 },
       "wariness": { "noticeMetres": 14, "actMetres": 6, "lookSeconds": 1.0, "warnSeconds": 1.0 },
       "pressed": "hunt",
-      "hunt": { "sightMetres": 14, "reachMetres": 1.8, "haltMetres": 1.4, "accuracy": 14, "power": 1, "cooldownTicks": 160, "biteWindupSeconds": 0.45, "dodgeMetres": 0.3,
-        "rest": { "wakeMetres": 6, "clip": "lie" }, "display": { "seconds": 1.6 }, "search": { "seconds": 5 } },
+      "hunt": { "sightMetres": 6, "reachMetres": 1.8, "haltMetres": 1.4, "accuracy": 14, "power": 1, "cooldownTicks": 160, "biteWindupSeconds": 0.45, "dodgeMetres": 0.3,
+        "rest": { "wakeMetres": 6, "clip": "lie" }, "display": { "seconds": 1.6 }, "search": { "seconds": 5 },
+        "marks": { "$comment": "Settled with Patch (#10971): seeing the player within 6 m it puffs in its display; the cloud bursts 0.5 s in and hangs 4 s, 4 m across (as far as its spores visibly spread); in it the player is marked 45 s, and ruin hunters within 40 m of them come unseen; water washes it off; it flees and puffs again 60 s after the last. Its hunt sight is the puff's 6 m, so its display is its puff; it looks at the player from its 14 m notice.",
+          "reachMetres": 6, "burstSeconds": 0.5, "cloudSeconds": 4, "cloudMetres": 4, "markSeconds": 45, "drawMetres": 40, "againSeconds": 60 } },
       "schedule": "night-worker",
       "population": { "herdsPerSquareKilometre": 0, "rangeMetres": 0, "recoveryDays": 10 },
       "combat": { "health": 30, "evasion": 25, "armour": 3, "experience": 160 },

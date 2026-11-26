@@ -36,6 +36,11 @@ internal readonly record struct PlayerUiFacts(
     /// <summary>Whether the player's head is under water.</summary>
     internal bool Submerged { get; init; }
 
+    /// <summary>How long a channel sifter's spore mark has left on the player (#10971), and its share of its whole; 0 unmarked.</summary>
+    internal double SporeMarkSeconds { get; init; }
+
+    internal double SporeMarkShare { get; init; }
+
     /// <summary>What placing builds now and the keys that change it (#9729); empty where nothing can be built.</summary>
     internal string Building { get; init; } = string.Empty;
 }

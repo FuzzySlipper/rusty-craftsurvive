@@ -142,7 +142,10 @@ internal sealed partial class CreatureModule
             if (hunter.Kind.Hunt!.Brood is WildlifeBrood brood) TendBearer(creature, hunter, brood, player, playerFeet);
             if (hunter.Kind.Hunt.Seals is WildlifeSealing sealing) TendMender(creature, hunter, sealing, playerFeet, here, seconds);
             if (hunter.Kind.Hunt.Calls is WildlifeCalling calling) TendGrazer(creature, hunter, calling, player);
+            if (hunter.Kind.Hunt.Marks is WildlifeMarking marking) TendSifter(creature, hunter, marking, player);
         }
+
+        TendClouds(playerFeet, here);
 
         GuardBroods(player, playerFeet);
         foreach (DoorSeal seal in seals)
@@ -411,6 +414,7 @@ internal sealed partial class CreatureModule
         }
 
         if (hunter.Kind.Hunt.Brood is WildlifeBrood brood && hunter.Member.WornLook != brood.SplitLook && !broodsDue.Contains(creature.Id)) broodsDue.Add(creature.Id);
+        if (hunter.Kind.Hunt.Marks is WildlifeMarking marking) SifterStruck(creature, hunter, marking);
 
         // A grazer struck mid-ring (#10962) stops ringing, calls nobody, and must rest before its next ring. Struck before it
         // rang, the blow disturbs it as being seen would: a rested grazer starts its ring, and one resting from its last ring
@@ -531,6 +535,7 @@ internal sealed partial class CreatureModule
         sealsChanged = true;
         ClearFixtures();
         ClearDrinks();
+        ClearMarks();
     }
 }
 
