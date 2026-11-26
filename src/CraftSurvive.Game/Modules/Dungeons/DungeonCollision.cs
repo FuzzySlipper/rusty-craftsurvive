@@ -257,9 +257,10 @@ internal static class DungeonCollision
     /// <summary>
     /// An unpinned (natural) space's density at a voxel: its rock and air where the field puts the surface, but a ruin's
     /// masonry in it (#10097), and the air beside that masonry, on the grid as a built dungeon's are - so its floors stay
-    /// flat treads while the cave's rock round it stays natural. What of its walls the kit leaves as voxels (the stubs of a
-    /// wall the cave burst, #10964) is weathered, as the ruined look's masonry is: worn back where it faces sideways, so it
-    /// reads as broken stone rather than as square blocks beside the kit.
+    /// flat treads while the cave's rock round it stays natural. The masonry the kit leaves as voxels (the stubs of a wall the
+    /// cave burst, exposed floors and treads; #10964) is weathered, as the ruined look's masonry is: worn back where it faces
+    /// sideways, so it reads as broken stone rather than as square blocks beside the kit. A stair's steps keep their edges:
+    /// the voxel flight carries the stair (its kit piece only draws), and a worn flight is a ramp.
     /// </summary>
     private static float Free(DungeonVolume volume, RockDensity field, int x, int y, int z, BlockId block, float perVoxel)
     {
@@ -270,8 +271,37 @@ internal static class DungeonCollision
         }
 
         return !Masonry(block) ? Math.Clamp(field.At(x, y, z) * perVoxel, -FreeDensityLimit, -DensityFloor)
-            : DungeonSurfaces.Wears(block) ? -Weathered(volume, x, y, z) : -FaceDensity;
+            : DungeonSurfaces.RuinMasonry(block) && !Step(volume, x, y, z) ? -Weathered(volume, x, y, z) : -FaceDensity;
     }
+
+    /// <summary>
+    /// Whether a masonry voxel is a step of a flight: open above, with masonry a step up or a step down beside it (a tread
+    /// one higher with room over it, or one lower under open air).
+    /// </summary>
+    private static bool Step(DungeonVolume volume, int x, int y, int z)
+    {
+        if (!Open(volume, x, y + 1, z))
+        {
+            return false;
+        }
+
+        foreach ((int dx, int _, int dz) in Sides.Where(side => side.Y == 0))
+        {
+            int nx = x + dx, nz = z + dz;
+            bool up = IsMasonry(volume, nx, y + 1, nz) && Open(volume, nx, y + 2, nz);
+            bool down = IsMasonry(volume, nx, y - 1, nz) && Open(volume, nx, y, nz);
+            if (up || down)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool Open(DungeonVolume volume, int x, int y, int z) => volume.Contains(x, y, z) && volume.At(x, y, z) == BlockId.Air;
+
+    private static bool IsMasonry(DungeonVolume volume, int x, int y, int z) => volume.Contains(x, y, z) && Masonry(volume.At(x, y, z));
 
     /// <summary>Whether a block of a natural space is a ruin's masonry: neither rock nor the turf under its sky.</summary>
     private static bool Masonry(BlockId block) => block != BlockId.Air && block != BlockId.Grass && !DungeonSurfaces.IsRock(block);

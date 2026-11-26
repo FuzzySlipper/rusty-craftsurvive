@@ -92,6 +92,12 @@ internal static class DungeonSurfaces
     /// <summary>Whether a block wears back under a weathering look.</summary>
     internal static bool Wears(BlockId block) => Array.IndexOf(Weathering, block) >= 0;
 
+    /// <summary>
+    /// A natural cave's ruin masonry that the kit leaves as voxels (#10964; Patch, 2026-11-26: smooth the treads too): walls'
+    /// stubs, floors and treads, all worn and reconstructed rather than kept on the grid.
+    /// </summary>
+    internal static bool RuinMasonry(BlockId block) => block is BlockId.Brick or BlockId.Cobblestone or BlockId.Planks;
+
     internal static bool IsRock(BlockId block) => Array.IndexOf(Rock, block) >= 0;
 
     /// <summary>Whether a look's rock is a mesh beside cube voxels rather than voxels itself.</summary>
@@ -110,8 +116,8 @@ internal static class DungeonSurfaces
 
     /// <summary>Each bound block's surface under a look; empty for cubes.</summary>
     /// <param name="natural">
-    /// Whether the space is a natural cave: the stubs its ruin's kit leaves of a burst wall are worn back by their densities
-    /// (DungeonCollision.Free) and surfaced as the ruined look's masonry, not kept on the grid (#10964).
+    /// Whether the space is a natural cave: the masonry its ruin's kit leaves as voxels (<see cref="RuinMasonry"/>) is worn
+    /// back by its densities (DungeonCollision.Free) and surfaced as the ruined look's masonry, not kept on the grid (#10964).
     /// </param>
     internal static VoxelMaterialSurface[] Materials(DungeonSurface surface, bool natural = false)
     {
@@ -136,7 +142,7 @@ internal static class DungeonSurfaces
             // Turf under a cave's open sky (#10094) is natural ground, shaped as the rock is, not kept on the grid.
             .Select(block => IsRock(block.Id) || block.Id == BlockId.Grass
                 ? new VoxelMaterialSurface(block.Slot, rockMode, rock)
-                : (Weathers(surface) || natural) && Wears(block.Id)
+                : (Weathers(surface) && Wears(block.Id)) || (natural && RuinMasonry(block.Id))
                     ? new VoxelMaterialSurface(block.Slot, VoxelSurfaceMode.DualContouring, weathered)
                     : new VoxelMaterialSurface(block.Slot, building.Mode, building.Character))
             .ToArray();
