@@ -49,6 +49,37 @@ internal sealed partial class DungeonModule
         return near;
     }
 
+    /// <summary>Each admitted cave's ruin doorways in world metres (#11097), kept for the layout they were read from.</summary>
+    private readonly Dictionary<(long X, long Z), (DungeonLayout Layout, IReadOnlyList<RuinDoorway> Doorways)> caveDoorways = [];
+
+    private IReadOnlyList<RuinDoorway> doorwaysNear = [];
+
+    /// <summary>
+    /// The ruin doorways of every admitted cave under the world, in world metres (#11097): what a mender in the walking session
+    /// seals. The same list is given until a cave is admitted, regenerated or let go. Empty in a dungeon of its own.
+    /// </summary>
+    internal IReadOnlyList<RuinDoorway> CaveDoorwaysNear()
+    {
+        if (player.InSeparateSpace) return [];
+        bool changed = false;
+        foreach (UnderCave cave in underCaves.Values)
+        {
+            if (cave.Ready is not UndergroundCave ready) continue;
+            if (caveDoorways.TryGetValue(cave.Cave.Key, out var known) && ReferenceEquals(known.Layout, ready.Layout)) continue;
+            caveDoorways[cave.Cave.Key] = (ready.Layout, CaveRuinSites.Doorways(cave.Cave.ToWorld, ready.Layout));
+            changed = true;
+        }
+
+        foreach ((long, long) gone in caveDoorways.Keys.Where(key => !underCaves.TryGetValue(key, out UnderCave? cave) || cave.Ready is null).ToArray())
+        {
+            caveDoorways.Remove(gone);
+            changed = true;
+        }
+
+        if (changed) doorwaysNear = [.. caveDoorways.Values.SelectMany(entry => entry.Doorways)];
+        return doorwaysNear;
+    }
+
     /// <summary>A cave's sites, from its layout and its tendril.</summary>
     internal static CaveSites SitesOf(CavePlacement cave, DungeonLayout layout)
     {

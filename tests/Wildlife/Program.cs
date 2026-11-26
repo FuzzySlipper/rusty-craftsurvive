@@ -1670,6 +1670,25 @@ Check.Section("ruin tenders", () =>
     Check.That(TenderRules.DoorToSeal([door], new Vector3(12, 2, 20), [door], 16) is null, "not one already sealed");
     Check.That(TenderRules.DoorToSeal([far], new Vector3(0, 2, 20), [], 16) is null, "nor one out of reach of the player");
 
+    // A cave's ruin doorways under the world (#11097): carried from the cave's own frame by its placement, as
+    // CavePlacement.ToWorld does - its +x along the mouth's facing, its +z a quarter turn from it, from its box's corner.
+    Vector3 corner = new(500, -40, -2500);
+    RuinDoorway alongX = new(new Vector3(30, 9, 12), FacesX: true), alongZ = new(new Vector3(40, 9, 50), FacesX: false);
+    foreach ((int fx, int fz) in new[] { (1, 0), (0, -1), (-1, 0), (0, 1) })
+    {
+        (int ax, int az) = (-fz, fx);
+        Vector3 Placed(Vector3 c) => new(corner.X + (fx * c.X) + (ax * c.Z), corner.Y + c.Y, corner.Z + (fz * c.X) + (az * c.Z));
+        RuinDoorway a = alongX.Placed(Placed), b = alongZ.Placed(Placed);
+        bool turned = fx == 0;
+        Check.That(a.Floor == Placed(alongX.Floor) && b.Floor == Placed(alongZ.Floor), $"facing {fx},{fz}: a doorway's floor is carried by the cave's placement");
+        Check.That(a.FacesX == !turned && b.FacesX == turned, $"facing {fx},{fz}: its way through turns with the cave");
+        // A mender's seal crosses the way through the placed doorway, as it did the cave's own.
+        Vector3 inside = alongX.Floor - new Vector3(2, 0, 0), beyond = alongX.Floor + new Vector3(2, 0, 0);
+        Vector3 i = Placed(inside), o = Placed(beyond);
+        Check.That(TenderRules.Crosses(new Vector2(i.X, i.Z), new Vector2(o.X, o.Z), a), $"facing {fx},{fz}: a walk through the placed doorway crosses it");
+        Check.Equal(a, TenderRules.DoorToSeal([b, a], i, [], 16), $"facing {fx},{fz}: a mender seals the placed doorway by the player");
+    }
+
     Check.That(!TenderRules.Hard(sealing, 0) && TenderRules.BlowsToCut(sealing, 0) == sealing.FreshBlows, "a whole seal is fresh at first");
     Check.That(TenderRules.Hard(sealing, sealing.HardenSeconds) && TenderRules.BlowsToCut(sealing, sealing.HardenSeconds) == sealing.HardBlows, "after a minute it has hardened");
 

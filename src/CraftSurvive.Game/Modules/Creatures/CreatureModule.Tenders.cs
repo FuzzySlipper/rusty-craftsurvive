@@ -168,6 +168,8 @@ internal sealed partial class CreatureModule
         bool Tending(int mender) => roster.TryGet(mender, out Creature creature) && creature.Awake && hunters.ContainsKey(mender);
         int dropped = seals.RemoveAll(seal => !seal.Whole && !Tending(seal.Mender));
         if (dropped > 0) lastEvent = $"{dropped} unfinished seal(s) dropped: their mender is gone";
+        // A seal goes with its space when that is let go, and with its doorway when the cave under the world holding it is (#11097).
+        if (seals.RemoveAll(seal => seal.Space.Gone || (seal.Space.Live && !seal.Space.Doorways.Contains(seal.Door))) > 0) sealsChanged = true;
         foreach (int mender in pendingDoors.Keys.Where(mender => !Tending(mender)).ToArray()) pendingDoors.Remove(mender);
         // A grazer gone mid-ring (#10962) calls nobody.
         foreach (int grazer in rings.Keys.Where(grazer => !Tending(grazer)).ToArray()) rings.Remove(grazer);
@@ -480,9 +482,12 @@ internal sealed partial class CreatureModule
         return cells;
     }
 
-    /// <summary>The seals to draw (#10961): each with its object, its space's local floor point, which way it faces and how far grown.</summary>
+    /// <summary>
+    /// The seals to draw (#10961): each with its object, its space's local floor point, which way it faces and how far grown.
+    /// Only a live space's are drawn (#11097): the walking session's wait unseen while the player is in a separate space.
+    /// </summary>
     internal IReadOnlyList<WildlifeSeal> SealFacts() =>
-        [.. seals.Select(seal => new WildlifeSeal(ProductIds.DoorSealBase + (ulong)seal.Id, seal.Space.ToLocal(seal.Door.Floor), seal.Door.FacesX, (float)seal.Grown, seal.Space))];
+        [.. seals.Where(seal => seal.Space.Live).Select(seal => new WildlifeSeal(ProductIds.DoorSealBase + (ulong)seal.Id, seal.Space.ToLocal(seal.Door.Floor), seal.Door.FacesX, (float)seal.Grown, seal.Space))];
 
     /// <summary>
     /// The player's swing finds a whole seal in reach before any creature further off (#10961): it takes the blow, and the

@@ -124,6 +124,11 @@ internal sealed class WalkingCreatureSpace : CreatureSpace
 
     internal override long WaterRevision => terrain.WaterRevision;
 
+    /// <summary>The ruin doorways of the caves under the world admitted near the player, in world metres (#11097).</summary>
+    internal Func<IReadOnlyList<Dungeons.RuinDoorway>>? CaveDoorways { get; set; }
+
+    internal override IReadOnlyList<Dungeons.RuinDoorway> Doorways => CaveDoorways?.Invoke() ?? [];
+
     internal override object CollisionRevision => (terrain.EditRevision, terrain.StaticCollisionRevision, frame.Origin);
 
     internal override double MaximumHeightDifference => terrain.Recipe.MaximumMaterialY - terrain.Recipe.MinimumMaterialY + EyeHeightMetres;

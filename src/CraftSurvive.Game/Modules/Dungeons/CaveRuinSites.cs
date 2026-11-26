@@ -15,6 +15,10 @@ internal static class CaveRuinSites
     /// <summary>A site beside a doorway stands this far along the wall from the door's middle, and this far into a room.</summary>
     private const float BesideDoorAlongMetres = 2.2f, BesideDoorInMetres = 1f;
 
+    /// <summary>A cave's ruin doorways in world metres (#11097), for its menders to seal: each carried by the cave's placement.</summary>
+    internal static IReadOnlyList<RuinDoorway> Doorways(Func<Vector3, Vector3> toWorld, DungeonLayout layout) =>
+        [.. layout.RuinDoorways.Select(door => door.Placed(toWorld))];
+
     /// <summary>
     /// What a cave's ruin offers its life (#10955), in world metres: each room's middle and corners over its lowest floor
     /// (passages and stairs apart, the vault marked), the thresholds of the doorways whose frames stand and the walls beside
