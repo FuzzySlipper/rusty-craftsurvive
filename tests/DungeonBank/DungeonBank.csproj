@@ -27,6 +27,8 @@
     <Compile Include="$(ProductModules)Dungeons/DungeonModules.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/ModularDungeon.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/RuinDoorway.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/CaveRuinSites.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Wildlife/RuinSites.cs" LinkBase="Product/Wildlife" />
     <Compile Include="$(ProductModules)Dungeons/DungeonMoisture.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/KitMoss.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/KitOvergrowth.cs;$(ProductModules)Dungeons/OvergrowthPlacement.cs" LinkBase="Product/Dungeons" />

@@ -1315,9 +1315,35 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
         && back.Layout.WaterZones.Zip(a.WaterZones).All(p => p.First.Kind == p.Second.Kind && p.First.Surface == p.Second.Surface
             && p.First.Cells.SetEquals(p.Second.Cells) && p.First.SurfaceColumns.SequenceEqual(p.Second.SurfaceColumns)
             && p.First.Mouths.SequenceEqual(p.Second.Mouths) && p.First.Path.SequenceEqual(p.Second.Path) && p.First.Luminous == p.Second.Luminous)
-        && back.Layout.WaterZones.Take(1).All(z => CaveWaterGeometry.Of(z) is { Indices.Length: 3 });
+        && back.Layout.WaterZones.Take(1).All(z => CaveWaterGeometry.Of(z) is { Indices.Length: 3 })
+        // Its ruin (#10955): size, modules, vault, mouth and doorways come back, so its life is placed in a stored cave too.
+        && back.Layout.RuinSize == a.RuinSize && back.Layout.Modules.SequenceEqual(a.Modules) && back.Layout.RuinVault == a.RuinVault
+        && back.Layout.RuinMouth == a.RuinMouth && back.Layout.RuinDoorways.SequenceEqual(a.RuinDoorways);
     Console.WriteLine($"stored cave: {bytes.Length / 1048576.0:F2} MB, encoded in {encodeMs:F0} ms, decoded in {decodeMs:F0} ms; {(same ? "the same cave" : "DIFFERENT")} ({a.Ecology.Count} growths, {a.Kit.Count} kit, {a.Overgrowth.Count} overgrowth, {a.WaterZones.Count} water zones)");
     Check.That(same, "a stored cave must decode to the cave that was stored");
+
+    // What the ruin offers its life (#10955), read from the cave's layout as the dungeon module reads it.
+    if (a.RuinSize is RuinSize ruinSize && CaveRuinSites.Of(p => p, a) is CraftSurvive.Game.Modules.Wildlife.RuinSites ruin)
+    {
+        int vaults = ruin.Rooms.Count(room => room.Vault);
+        Console.WriteLine($"ruin sites: {ruinSize}, {ruin.Rooms.Count} rooms ({ruin.Rooms.Count(room => room.Passage)} passages, {vaults} vault), {ruin.Thresholds.Count} doorways, {ruin.Lights.Count} lights, {ruin.Boxes.Count} modules");
+        Check.That(ruin.Rooms.Count > 0 && ruin.Boxes.Count == a.Modules.Count(m => m.Shape.Kind == ModuleKind.Building), "a ruin offers rooms, and a box for each of its modules");
+        Check.That(ruin.Rooms.All(room => ruin.Inside(room.Middle) && room.Corners.All(ruin.Inside)), "every room's middle and corners lie in the ruin");
+        Check.That(ruin.Lights.All(ruin.Inside) && ruin.Thresholds.Count == a.RuinDoorways.Count, "its lights lie in it, and each standing doorway has a threshold");
+        Check.That(!ruin.Inside(ruin.Mouth) && ruin.KeepsAway(ruin.Mouth, 12f), "its mouth lies outside it, and cave life keeps away from it");
+        Check.That((vaults == 1) == (a.RuinVault is not null) && (ruinSize == RuinSize.Shell || vaults == 1), "a wing or large ruin offers its vault, and only one");
+        // Each room's floor is open over it: a room's middle stands in the air over its floor.
+        DungeonVolume volume = made.AllVoxels.Volume;
+        int open = ruin.Rooms.Count(room => volume.Contains((int)room.Middle.X, (int)room.Middle.Y, (int)room.Middle.Z)
+            && volume.At((int)room.Middle.X, (int)room.Middle.Y, (int)room.Middle.Z) == CraftSurvive.Game.Modules.Content.BlockId.Air
+            && volume.At((int)room.Middle.X, (int)room.Middle.Y - 1, (int)room.Middle.Z) != CraftSurvive.Game.Modules.Content.BlockId.Air);
+        Console.WriteLine($"ruin sites: {open} of {ruin.Rooms.Count} room middles stand on a floor");
+        Check.That(open * 2 >= ruin.Rooms.Count, "most rooms' middles stand in the air on their floor (the cave may have burst some)");
+    }
+    else
+    {
+        Console.WriteLine("ruin sites: this cave has no ruin");
+    }
     byte[] other = (byte[])bytes.Clone();
     Check.That(CaveCodec.Decode(other.AsSpan(0, other.Length / 2)) is null && CaveCodec.Decode([1, 2, 3]) is null, "a stored record that does not decode must be a miss");
 

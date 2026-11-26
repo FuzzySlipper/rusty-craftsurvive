@@ -177,6 +177,7 @@ internal sealed partial class WildlifeModule : IProductModule
         foreach (string gone in Ledger.Caves.Where(key => !keys.Contains(key)).ToArray())
         {
             Ledger.RemoveCave(gone);
+            caveRuins.Remove(gone);
             ambientWaiting.Remove(gone);
             foreach (WildlifeMember member in Ambience.Remove(creature => creature.Home.Cave == gone))
                 Forget(member);
@@ -188,6 +189,7 @@ internal sealed partial class WildlifeModule : IProductModule
             if (!Ledger.Caves.Contains(sites.Key))
             {
                 Ledger.AddCave(sites.Key, CaveFauna.Homes(sites, Catalog, Seed));
+                if (sites.Ruin is RuinSites ruin) caveRuins[sites.Key] = ruin.Readout();
                 ambientWaiting[sites.Key] = CaveFauna.Ambient(sites, Catalog, Seed);
                 lastEvent = $"cave {sites.Key} seeded";
             }
@@ -895,6 +897,9 @@ internal sealed partial class WildlifeModule : IProductModule
     }
 
     /// <summary>The caves' animals (#10876): each held cave home nearest first, and every small creature.</summary>
+    /// <summary>Each held cave's ruin (#10955), for the readout: its size and what it offers.</summary>
+    private readonly Dictionary<string, string> caveRuins = [];
+
     internal string CavesReadout()
     {
         if (!started) return "wildlife: not started";
@@ -906,7 +911,8 @@ internal sealed partial class WildlifeModule : IProductModule
             $"{home.Key} at={home.Home.X:F1},{home.Floor:F1},{home.Home.Y:F1} alive={home.Alive(day, Catalog.Kind(home.KindId).Population.RecoveryDays)}/{home.Founding} d={Vector3.Distance(new Vector3(home.Home.X, home.Floor!.Value, home.Home.Y), at):F0} route={HomeRouting?.Invoke(home) ?? "unknown"}")));
         string small = string.Join(" | ", Ambience.Creatures.Select(creature => string.Create(CultureInfo.InvariantCulture,
             $"{creature.Home.Kind.Id}#{creature.Member.Id} at={creature.Member.Position.X:F1},{creature.Feet:F1},{creature.Member.Position.Y:F1} v={creature.Member.Velocity.Length():F2} hidden={creature.Member.Under}")));
-        return string.Create(CultureInfo.InvariantCulture, $"caves=[{string.Join(",", Ledger.Caves)}] {Ambience.Readout()} || homes: {hunters} || small: {small}");
+        return string.Create(CultureInfo.InvariantCulture,
+            $"caves=[{string.Join(",", Ledger.Caves)}] ruins=[{string.Join("; ", caveRuins.Select(entry => $"{entry.Key} {entry.Value}"))}] {Ambience.Readout()} || homes: {hunters} || small: {small}");
     }
 
     /// <summary>Test aid: leaves every awake animal one health.</summary>

@@ -93,6 +93,12 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>The stranger communities a natural cave grew (#10304); empty for built dungeons.</summary>
     internal IReadOnlyList<CaveCommunity> Communities { get; init; } = [];
 
+    /// <summary>A natural cave's ruin's size (#10955: how much ruin life it holds); null for none.</summary>
+    internal RuinSize? RuinSize { get; init; }
+
+    /// <summary>A natural cave's ruin's vault (#10955: where its special lives), one of <see cref="Modules"/>; null for none.</summary>
+    internal PlacedModule? RuinVault { get; init; }
+
     /// <summary>A natural cave's ruin's mouth (#10097): the cave's floor before its breach, where its routes into the ruin start; null for none.</summary>
     internal System.Numerics.Vector3? RuinMouth { get; init; }
 

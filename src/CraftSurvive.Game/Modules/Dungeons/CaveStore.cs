@@ -28,7 +28,7 @@ internal static class CaveCodec
     private const uint Magic = 0x4556_4143; // "CAVE"
 
     /// <summary>The layout of the bytes; a change to it (or to what a cave holds) changes this, and older records are misses.</summary>
-    internal const int Format = 2;
+    internal const int Format = 3;
 
     internal static byte[] Encode(UndergroundCave cave)
     {
@@ -144,6 +144,17 @@ internal static class CaveCodec
         });
         // The damp dead ends the cave's fungi crowd: where its mouldbacks lie (#10876).
         List(w, layout.FungalPockets, V);
+        // The ruin (#10955): its size, modules by shape, vault, mouth and the doorways whose frames stand.
+        w.Write(layout.RuinSize.HasValue);
+        if (layout.RuinSize is RuinSize size)
+        {
+            w.Write((int)size);
+            List(w, layout.Modules, (w, m) => { w.Write(m.Shape.Name); w.Write(m.Turns); w.Write(m.X); w.Write(m.Y); w.Write(m.Z); });
+            w.Write(layout.RuinVault is PlacedModule vault ? IndexOf(layout.Modules, vault) : -1);
+            w.Write(layout.RuinMouth.HasValue);
+            if (layout.RuinMouth is Vector3 mouth) V(w, mouth);
+            List(w, layout.RuinDoorways, (w, d) => { V(w, d.Floor); w.Write(d.FacesX); });
+        }
     }
 
     private static DungeonLayout ReadLayout(BinaryReader r)
@@ -184,6 +195,21 @@ internal static class CaveCodec
             return zone;
         });
         List<Vector3> pockets = List(r, V);
+        RuinSize? ruinSize = null;
+        List<PlacedModule> modules = [];
+        PlacedModule? ruinVault = null;
+        Vector3? ruinMouth = null;
+        List<RuinDoorway> doorways = [];
+        if (r.ReadBoolean())
+        {
+            ruinSize = (RuinSize)r.ReadInt32();
+            modules = List(r, r => new PlacedModule(DungeonModules.Named(r.ReadString()) ?? throw new InvalidDataException("An unknown module shape."), r.ReadInt32(), r.ReadInt32(), r.ReadInt32(), r.ReadInt32()));
+            int vault = r.ReadInt32();
+            ruinVault = vault >= 0 && vault < modules.Count ? modules[vault] : null;
+            ruinMouth = r.ReadBoolean() ? V(r) : null;
+            doorways = List(r, r => new RuinDoorway(V(r), r.ReadBoolean()));
+        }
+
         return new DungeonLayout(name, new DungeonVolume(1, 1, 1, Content.BlockId.Air), arrival, exit, lights)
         {
             Natural = true,
@@ -200,7 +226,22 @@ internal static class CaveCodec
             Communities = communities,
             WaterZones = zones,
             FungalPockets = pockets,
+            RuinSize = ruinSize,
+            Modules = modules,
+            RuinVault = ruinVault,
+            RuinMouth = ruinMouth,
+            RuinDoorways = doorways,
         };
+    }
+
+    private static int IndexOf(IReadOnlyList<PlacedModule> modules, PlacedModule module)
+    {
+        for (int i = 0; i < modules.Count; i++)
+        {
+            if (ReferenceEquals(modules[i], module) || modules[i] == module) return i;
+        }
+
+        return -1;
     }
 
     private static void List<T>(BinaryWriter w, IReadOnlyList<T> items, Action<BinaryWriter, T> write)

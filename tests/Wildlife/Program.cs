@@ -2352,6 +2352,118 @@ Check.Section("spore mark", () =>
     }
 });
 
+// Ruin life by ruin size (#10955): a shell holds a fixture and perhaps a tender or skitterer by it; a wing fixtures, tenders,
+// skitterers and a few collectors; a large ruin the full chain with a special at its vault. Tenders live by their own
+// fixture; cave life keeps out of the ruin and away from its mouth.
+Check.Section("ruin life", () =>
+{
+    WildlifeRuinLife life = catalog.RuinLife;
+    (int, int) Range(RuinLayer layer, RuinExtent extent) => life.Count(layer, extent);
+    Check.That(Range(RuinLayer.Fixture, RuinExtent.Shell) == (1, 1) && Range(RuinLayer.Tender, RuinExtent.Shell) == (0, 1) && Range(RuinLayer.Skitterer, RuinExtent.Shell) == (0, 1)
+        && Range(RuinLayer.Collector, RuinExtent.Shell) == (0, 0) && Range(RuinLayer.Special, RuinExtent.Shell) == (0, 0), "a shell: 1 fixture, 0-1 tender, 0-1 skitterer");
+    Check.That(Range(RuinLayer.Fixture, RuinExtent.Wing) == (2, 3) && Range(RuinLayer.Tender, RuinExtent.Wing) == (1, 2) && Range(RuinLayer.Skitterer, RuinExtent.Wing) == (2, 3)
+        && Range(RuinLayer.Collector, RuinExtent.Wing) == (1, 2) && Range(RuinLayer.Special, RuinExtent.Wing) == (0, 0), "a wing: 2-3 fixtures, 1-2 tenders, 2-3 skitterers, 1-2 collectors");
+    Check.That(Range(RuinLayer.Fixture, RuinExtent.Large) == (4, 6) && Range(RuinLayer.Tender, RuinExtent.Large) == (2, 4) && Range(RuinLayer.Skitterer, RuinExtent.Large) == (4, 6)
+        && Range(RuinLayer.Collector, RuinExtent.Large) == (3, 5) && Range(RuinLayer.Special, RuinExtent.Large) == (1, 1), "a large ruin: 4-6, 2-4, 4-6, 3-5 and a special");
+    Dictionary<string, RuinKind> ruinKinds = life.Kinds.ToDictionary(kind => kind.Kind);
+    Check.That(ruinKinds["mender"].Near == "niche-unfolder" && ruinKinds["channel-sifter"].Near == "vault-filter" && ruinKinds["chime-grazer"].Near == "folding-bower"
+        && ruinKinds["brood-bearer"].Near == "brood-vessel", "each tender lives by its own fixture");
+    Check.That(ruinKinds["threshold-lurker"].Site == RuinSite.Threshold && ruinKinds["vault-filter"].Site == RuinSite.Light && ruinKinds["niche-unfolder"].Site == RuinSite.BesideDoor
+        && ruinKinds["reaper"].Site == RuinSite.Vault && ruinKinds["carrier"].Site == RuinSite.Vault, "the lurker on a threshold, the filter under a light, the unfolder by a door, the specials at the vault");
+    Check.That(life.Kinds.All(kind => catalog.Kind(kind.Kind).Cave is null), "ruin life is no cave kind");
+
+    // A ruin laid along +x from its breach: rooms of 8 m every 10 m, a doorway between each pair, a relic light in each room.
+    RuinSites Ruin(RuinExtent extent, int rooms, int passages, bool vault)
+    {
+        List<RuinRoom> laid = [];
+        List<(Vector3, Vector3)> boxes = [(new Vector3(-8, -1, 0), new Vector3(0, 6, 8))];
+        List<Vector3> thresholds = [], beside = [], lights = [];
+        for (int i = 0; i < rooms + passages + (vault ? 1 : 0); i++)
+        {
+            float x = i * 10;
+            bool passage = i >= rooms && i < rooms + passages, isVault = vault && i == rooms + passages;
+            laid.Add(new RuinRoom(new Vector3(x + 4, 0.5f, 4), [new(x + 2, 0.5f, 2), new(x + 6, 0.5f, 2), new(x + 2, 0.5f, 6), new(x + 6, 0.5f, 6)], isVault, passage));
+            boxes.Add((new Vector3(x - 1, -1, 0), new Vector3(x + 9, 6, 8)));
+            lights.Add(new Vector3(x + 5, 0.5f, 5));
+            thresholds.Add(new Vector3(x - 1, 0.5f, 4));
+            beside.Add(new Vector3(x + 0.5f, 0.5f, 6.2f));
+            beside.Add(new Vector3(x - 2.5f, 0.5f, 1.8f));
+        }
+
+        return new RuinSites(extent, new Vector3(-12, 0.5f, 4), laid, thresholds, beside, lights, boxes);
+    }
+
+    // A wing of one room and its passages (as a cave's may be, cave:-14,-3) still holds its collectors.
+    RuinSites shell = Ruin(RuinExtent.Shell, 2, 0, false), wing = Ruin(RuinExtent.Wing, 4, 1, true), large = Ruin(RuinExtent.Large, 10, 3, true), narrow = Ruin(RuinExtent.Wing, 1, 4, true);
+    foreach ((RuinSites ruin, string name) in new[] { (shell, "shell"), (wing, "wing"), (large, "large"), (narrow, "one-room wing") })
+    {
+        bool counts = true, near = true, inRuin = true, apart = true, special = true;
+        for (ulong seed = 1; seed <= 40; seed++)
+        {
+            IReadOnlyList<HerdRecord> homes = RuinFauna.Homes($"cave:{seed}", ruin, life, catalog, seed);
+            int Of(RuinLayer layer) => homes.Count(home => ruinKinds[home.KindId].Layer == layer);
+            foreach (RuinLayer layer in Enum.GetValues<RuinLayer>())
+            {
+                (int fewest, int most) = life.Count(layer, ruin.Extent);
+                int had = Of(layer);
+                // A tender needs a fixture of its own to live by, so a ruin may hold fewer than drawn.
+                if (had > most || (layer != RuinLayer.Tender && had < fewest) || (layer == RuinLayer.Tender && had < Math.Min(fewest, Of(RuinLayer.Fixture))))
+                {
+                    counts = false;
+                    Console.WriteLine($"  {name} seed {seed}: {layer} {had} of {fewest}-{most}");
+                }
+            }
+
+            foreach (HerdRecord home in homes)
+            {
+                Vector3 at = new(home.Home.X, home.Floor!.Value, home.Home.Y);
+                RuinKind kind = ruinKinds[home.KindId];
+                if (!ruin.Inside(at) && Vector3.Distance(at, ruin.Mouth) > 0.01f) inRuin = false;
+                if (kind.Site == RuinSite.Near && !homes.Any(other => other.KindId == kind.Near && Vector2.Distance(other.Home, home.Home) <= RuinFauna.TenderReachMetres)) near = false;
+                if (homes.Any(other => other != home && Vector2.Distance(other.Home, home.Home) < RuinFauna.HomesApartMetres - 1e-3f && Math.Abs(other.Floor!.Value - home.Floor!.Value) < 1)) apart = false;
+                if (kind.Layer == RuinLayer.Special && !ruin.Rooms.Any(room => room.Vault && Vector3.Distance(room.Middle, at) < 0.01f)) special = false;
+            }
+
+            if (ruin.Extent == RuinExtent.Large && Of(RuinLayer.Special) != 1) special = false;
+            if (seed == 1)
+            {
+                IReadOnlyList<HerdRecord> again = RuinFauna.Homes($"cave:{seed}", ruin, life, catalog, seed);
+                Check.That(again.Select(home => (home.Key, home.KindId, home.Home)).SequenceEqual(homes.Select(home => (home.Key, home.KindId, home.Home))), $"a {name}'s homes are the same every time");
+                Console.WriteLine($"ruin life, {name}: {string.Join(", ", homes.GroupBy(home => ruinKinds[home.KindId].Layer).Select(g => $"{g.Key} {string.Join("+", g.Select(h => h.KindId))}"))}");
+            }
+        }
+
+        Check.That(counts, $"a {name} holds each layer's settled count, over 40 caves");
+        Check.That(near, $"in a {name}, every tender lives by a fixture of its own");
+        Check.That(inRuin, $"a {name}'s life lives in its modules or at its mouth");
+        Check.That(apart, $"a {name}'s homes stand apart");
+        Check.That(special, $"a {name} holds its special only at the vault, and a large ruin always one");
+    }
+
+    // Cave life keeps away: no cave home in the ruin's modules or within 12 m of its mouth.
+    Vector3 inside = new(14, 0.5f, 4), byMouth = new(-20, 0.5f, 4), far = new(-40, 0.5f, 30);
+    CaveSites ruined = new("cave:ruin", [far], [inside, byMouth, far], [], [inside, far], new Dictionary<CaveHabitat, IReadOnlyList<Vector3>>()) { Ruin = wing };
+    Check.That(ruined.ForCaveLife([inside, byMouth, far]).SequenceEqual([far]), "cave life takes no site in the ruin or within 12 m of its mouth");
+    IReadOnlyList<HerdRecord> all = CaveFauna.Homes(ruined, catalog, Seed);
+    Check.That(all.Where(home => catalog.Kind(home.KindId).Cave is not null).All(home => !wing.KeepsAway(new Vector3(home.Home.X, home.Floor!.Value, home.Home.Y), RuinFauna.MouthClearMetres)),
+        "a cave's own hunters have no home in its ruin or by its mouth");
+    Check.That(all.Count(home => ruinKinds.ContainsKey(home.KindId)) == RuinFauna.Homes("cave:ruin", wing, life, catalog, Seed).Count && all.Any(home => ruinKinds.ContainsKey(home.KindId)),
+        "and the cave's homes hold its ruin's life");
+    Check.That(CaveFauna.Homes(ruined with { Ruin = null }, catalog, Seed).All(home => !ruinKinds.ContainsKey(home.KindId)), "a cave without a ruin holds no ruin life");
+
+    string kindsText = ReadKinds();
+    foreach ((string from, string to) in new[]
+    {
+        ("{ \"kind\": \"mender\", \"layer\": \"tender\", \"site\": \"near\", \"near\": \"niche-unfolder\" }", "{ \"kind\": \"mender\", \"layer\": \"tender\", \"site\": \"near\", \"near\": \"collector\" }"),
+        ("\"collector\": { \"shell\": [0, 0], \"wing\": [1, 2]", "\"collector\": { \"shell\": [0, 0], \"wing\": [2, 1]"),
+        ("{ \"kind\": \"reaper\", \"layer\": \"special\", \"site\": \"vault\" }", "{ \"kind\": \"no-such-kind\", \"layer\": \"special\", \"site\": \"vault\" }"),
+    })
+    {
+        Check.That(kindsText.Contains(from, StringComparison.Ordinal), $"the kinds name {from}");
+        Check.Throws<InvalidDataException>(() => WildlifeKinds.Parse(kindsText.Replace(from, to, StringComparison.Ordinal)), $"ruin life with {to} is refused");
+    }
+});
+
 // The wall runner on walls and ceilings (#10975): one surface leaning to walls; on a ceiling nearly over the player it drops,
 // double its bite, and lands dazed; it bites from a floor or wall beside them; a blow knocks it loose from a wall.
 Check.Section("crawls", () =>

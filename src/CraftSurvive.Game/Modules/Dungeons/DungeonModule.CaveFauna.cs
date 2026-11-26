@@ -97,7 +97,7 @@ internal sealed partial class DungeonModule
             if (upwind.LengthSquared() > 1e-6f) drafts.Add((new Vector2(at.X, at.Z), Vector2.Normalize(upwind)));
         }
 
-        return new CaveSites(key, mouth, [.. layout.FungalPockets.Select(Over)], pools, deep, communities) { Drafts = drafts };
+        return new CaveSites(key, mouth, [.. layout.FungalPockets.Select(Over)], pools, deep, communities) { Drafts = drafts, Ruin = CaveRuinSites.Of(cave.ToWorld, layout) };
     }
 
     /// <summary>The wildlife's name for a community: the same eight.</summary>

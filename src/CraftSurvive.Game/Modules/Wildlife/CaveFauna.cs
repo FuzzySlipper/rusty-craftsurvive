@@ -26,6 +26,13 @@ internal sealed record CaveSites(
     /// </summary>
     internal IReadOnlyList<(Vector2 At, Vector2 Upwind)> Drafts { get; init; } = [];
 
+    /// <summary>The cave's ruin (#10955): where its own life lives, and what cave life keeps away from; null for none.</summary>
+    internal RuinSites? Ruin { get; init; }
+
+    /// <summary>A cave's sites for cave life: none in its ruin or near its mouth (#10955).</summary>
+    internal IReadOnlyList<Vector3> ForCaveLife(IReadOnlyList<Vector3> sites) =>
+        Ruin is RuinSites ruin ? [.. sites.Where(site => !ruin.KeepsAway(site, RuinFauna.MouthClearMetres))] : sites;
+
     /// <summary>The draft's upwind heading at a site: the nearest draft point's, within <see cref="DraftReachMetres"/>; else null.</summary>
     internal Vector2? UpwindAt(Vector3 site)
     {
@@ -82,7 +89,7 @@ internal static class CaveFauna
             WildlifeCave cave = kind.Cave!;
             // Two kinds of one community take different sites: each starts its spread a share further along.
             int index = 0;
-            foreach (Vector3 site in Spread(sites.Of(cave.Lives), cave.HomesPerCave, order++))
+            foreach (Vector3 site in Spread(sites.ForCaveLife(sites.Of(cave.Lives)), cave.HomesPerCave, order++))
             {
                 string key = string.Create(CultureInfo.InvariantCulture, $"{kind.Id}@{sites.Key}#{index++}");
                 homes.Add(new HerdRecord(key, kind.Id, new Vector2(site.X, site.Z), Group(key, seed, kind.GroupMinimum, kind.GroupMaximum))
@@ -94,6 +101,8 @@ internal static class CaveFauna
             }
         }
 
+        // The ruin's own life (#10955), by how much ruin the cave holds.
+        if (sites.Ruin is RuinSites ruin) homes.AddRange(RuinFauna.Homes(sites.Key, ruin, catalog.RuinLife, catalog, seed));
         return homes;
     }
 
@@ -120,7 +129,7 @@ internal static class CaveFauna
                 continue;
             }
 
-            foreach (Vector3 site in Spread(sites.Of(kind.Cave.Lives), kind.Cave.HomesPerCave, order++))
+            foreach (Vector3 site in Spread(sites.ForCaveLife(sites.Of(kind.Cave.Lives)), kind.Cave.HomesPerCave, order++))
             {
                 string key = string.Create(CultureInfo.InvariantCulture, $"{kind.Id}@{sites.Key}#{index++}");
                 homes.Add(new CaveAmbientHome(key, sites.Key, kind, site, Group(key, seed, kind.GroupMinimum, kind.GroupMaximum), null));

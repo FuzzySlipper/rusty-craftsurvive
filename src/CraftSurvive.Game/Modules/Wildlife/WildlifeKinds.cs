@@ -673,6 +673,9 @@ internal sealed record WildlifeCatalog(
     /// <summary>The small creatures kept as a cave's ambience (#10876).</summary>
     internal IReadOnlyList<CaveAmbientKind> CaveAmbient { get; init; } = [];
 
+    /// <summary>How much life a ruin holds by its size, and where each kind lives in it (#10955).</summary>
+    internal WildlifeRuinLife RuinLife { get; init; } = WildlifeRuinLife.None;
+
     /// <summary>A cave animal's home within this distance of the player (across the ground) is woken (#10876): about a cave's reach.</summary>
     internal double CaveWakeMetres { get; init; }
 }
@@ -802,6 +805,9 @@ internal static class WildlifeKinds
         {
             CaveAmbient = ambient,
             CaveWakeMetres = caveWake,
+            RuinLife = root.TryGetProperty("ruinLife", out JsonElement ruinLife)
+                ? WildlifeRuinLife.Read(ruinLife, id => kinds.Any(kind => kind.Id == id))
+                : WildlifeRuinLife.None,
         };
     }
 

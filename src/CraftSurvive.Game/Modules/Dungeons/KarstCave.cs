@@ -4339,6 +4339,8 @@ private static int MostBarrensPieces => Area(400);
             MainRoute = cave.MainRoute,
             FungalPockets = cave.FungalPockets,
             RuinMouth = ruin?.Mouth,
+            RuinSize = ruin?.Size,
+            RuinVault = ruin?.Vault,
             // Only a doorway whose frame still stands can be sealed (#10961): one in a wall the cave burst through is no way shut.
             RuinDoorways = ruin is null ? [] : [.. ModularDungeon.Doorways(ruin.Joins).Where(door => ModularDungeon.Framed(volume, door))],
         };

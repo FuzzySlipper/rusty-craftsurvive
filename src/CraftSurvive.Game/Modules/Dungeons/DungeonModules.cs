@@ -729,6 +729,14 @@ internal static class DungeonModules
 
     internal static IReadOnlyList<DungeonModuleShape> BuildingRooms { get; } = [Room, Corridor, Hall, Stair, Gallery, Collapse, GreatHall];
 
+    /// <summary>Every shape by its name, as a stored cave names its ruin's modules (#10955).</summary>
+    private static readonly Dictionary<string, DungeonModuleShape> ByName = new DungeonModuleShape[]
+        { Arrival, CaveTunnel, CaveBend, CaveDescent, CaveChamber, CaveShaft, Chasm, ChasmStair, Cavern, GreatHall, Abyss, Room, Corridor, Hall, Stair, Gallery, Collapse, Vault, Breach }
+        .ToDictionary(shape => shape.Name, StringComparer.Ordinal);
+
+    /// <summary>The shape of this name, or null for none.</summary>
+    internal static DungeonModuleShape? Named(string name) => ByName.GetValueOrDefault(name);
+
     /// <summary>The cells of a square ring two in from the walls, walked anticlockwise from above.</summary>
     private static IEnumerable<(int X, int Z)> Ring(int size)
     {

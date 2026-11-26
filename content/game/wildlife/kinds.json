@@ -140,6 +140,34 @@
       "mesh": { "file": "creatures/mound-shrew/mound-shrew.glb", "manifest": "creatures/mound-shrew/mound-shrew.manifest.json", "scale": 0.806, "clips": { "idle": "idle", "walk": "walk", "run": "run" } }
     }
   ],
+  "ruinLife": {
+    "$comment": "Ruin life by how much ruin a cave holds (#10955), settled with Patch (den-wiki wandering-years/ruins-wildlife, 'How far a ruin's life spreads'): how many homes of each layer a shell, wing or large ruin holds, fewest to most, and where each kind lives. A tender lives near its own fixture; the special only at a large ruin's vault. Cave life keeps out of the ruin's modules and 12 m from its mouth.",
+    "layers": {
+      "fixture": { "shell": [1, 1], "wing": [2, 3], "large": [4, 6] },
+      "tender": { "shell": [0, 1], "wing": [1, 2], "large": [2, 4] },
+      "skitterer": { "shell": [0, 1], "wing": [2, 3], "large": [4, 6] },
+      "collector": { "shell": [0, 0], "wing": [1, 2], "large": [3, 5] },
+      "special": { "shell": [0, 0], "wing": [0, 0], "large": [1, 1] }
+    },
+    "kinds": [
+      { "kind": "niche-unfolder", "layer": "fixture", "site": "beside-door" },
+      { "kind": "vault-filter", "layer": "fixture", "site": "light" },
+      { "kind": "folding-bower", "layer": "fixture", "site": "room" },
+      { "kind": "brood-vessel", "layer": "fixture", "site": "corner" },
+      { "kind": "mender", "layer": "tender", "site": "near", "near": "niche-unfolder" },
+      { "kind": "channel-sifter", "layer": "tender", "site": "near", "near": "vault-filter" },
+      { "kind": "chime-grazer", "layer": "tender", "site": "near", "near": "folding-bower" },
+      { "kind": "brood-bearer", "layer": "tender", "site": "near", "near": "brood-vessel" },
+      { "kind": "threshold-lurker", "layer": "skitterer", "site": "threshold" },
+      { "kind": "wall-runner", "layer": "skitterer", "site": "room" },
+      { "kind": "skitterer", "layer": "skitterer", "site": "passage" },
+      { "kind": "shard-dweller", "layer": "skitterer", "site": "corner" },
+      { "kind": "stilt-pack", "layer": "skitterer", "site": "mouth" },
+      { "kind": "collector", "layer": "collector", "site": "room" },
+      { "kind": "reaper", "layer": "special", "site": "vault" },
+      { "kind": "carrier", "layer": "special", "site": "vault" }
+    ]
+  },
   "kinds": [
     {
       "id": "axe-beak",
