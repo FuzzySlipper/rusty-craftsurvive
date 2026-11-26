@@ -32,7 +32,7 @@ execute() {
 
 served=false
 for _ in $(seq 1 180); do
-    if curl -sf "$origin/product-bootstrap.json" | grep -q '"id":"rusty-craftsurvive"'; then
+    if curl -sf "$origin/product-bootstrap.json" | grep -q '"id":"rusty-wandering"'; then
         served=true
         break
     fi

@@ -11,7 +11,7 @@
          and NativeAOT composition below obj; no checked bridge project or
          Engine source tree is part of the normal product build. -->
     <RustyEngineProductEntryType>CraftSurvive.Game.CraftSurviveProduct</RustyEngineProductEntryType>
-    <RustyEngineProductId>rusty-craftsurvive</RustyEngineProductId>
+    <RustyEngineProductId>rusty-wandering</RustyEngineProductId>
     <RustyEngineProductTitle>Rusty CraftSurvive</RustyEngineProductTitle>
     <RustyEngineProductUiRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui/generated/source'))</RustyEngineProductUiRoot>
     <!-- Only what the game reads is staged: content/game. The rest of content/ is authoring
