@@ -492,7 +492,8 @@ internal sealed partial class CreatureModule : IProductModule
         if (!threatenedBefore && hunter.Threatened && hunter.Kind.Hunt!.Brood is not null) broodsDue.Add(creature.Id);
         if (closing is AttackProfile blow)
         {
-            if (playerCanBeHit && HunterRules.Lands(hunter.Kind.Hunt!, distance, seesPlayer)) ResolveStrike(new CreatureStrike(creature.Id, blow));
+            // A wall runner's bite (R10975-2) lands only if it still clings to a floor or wall beside the player.
+            if (playerCanBeHit && HunterRules.Lands(hunter.Kind.Hunt!, distance, seesPlayer) && CrawlerBiteLands(creature, hunter)) ResolveStrike(new CreatureStrike(creature.Id, blow));
             else cues.Raise(Cue.Swing);
         }
 
@@ -928,7 +929,7 @@ internal sealed partial class CreatureModule : IProductModule
             if (struckHunter.Kind.Hunt!.Tends && !struck.IsDown) TenderStruck(target, struckHunter);
             if (struckHunter.Kind.Hunt.Fixture is not null && !struck.IsDown) FixtureStruck(target, struckHunter);
             if (struckHunter.Kind.Hunt.Drinks is not null && !struck.IsDown) DrinkerStruck(target, struckHunter);
-            if (struckHunter.Kind.Hunt.Crawls is not null && !struck.IsDown) CrawlerStruck(target);
+            if (struckHunter.Kind.Hunt.Crawls is not null && !struck.IsDown) CrawlerStruck(target, struckHunter);
         }
         cues.RaiseAt(struck.IsDown ? Cue.Defeat : Cue.Strike,
             SpaceOf(target).ToLocal(target.Position.X, StandingAt(target) + StruckHeightMetres, target.Position.Y));

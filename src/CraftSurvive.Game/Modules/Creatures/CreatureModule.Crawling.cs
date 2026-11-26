@@ -35,6 +35,9 @@ internal sealed partial class CreatureModule
         /// <summary>Where it rests or runs back to, in its space; null where it has none.</summary>
         internal Vector3? Perch { get; set; }
 
+        /// <summary>The ceiling it makes for to rest on, in its space, once it has come to rest elsewhere (R10975-1).</summary>
+        internal Vector3? RestAt { get; set; }
+
         internal SurfaceWaypoint[] Path { get; set; } = [];
         internal int Next { get; set; }
         internal Vector3? PathGoal { get; set; }
@@ -174,9 +177,19 @@ internal sealed partial class CreatureModule
         float pace = (float)creature.Kind.PursueSpeedMetresPerSecond;
         if (crawler.Phase == CrawlPhase.Clinging && !hunter.Holding)
         {
+            // At rest it goes back up to the ceiling over where it stopped (R10975-1), found once as it comes to rest.
+            if (state != CreatureState.Resting) crawler.RestAt = null;
+            else if (crawler.RestAt is null && crawler.Hold != CrawlHold.Ceiling)
+            {
+                Vector3 contactWorld = space.ToWorld(crawler.Local - (crawler.Motion.Up * (float)crawling.RadiusMetres));
+                Vector3 floorUnder = new(contactWorld.X, StandingAt(creature), contactWorld.Z);
+                crawler.RestAt = CrawlRules.RestGoal(crawling, crawler.Hold, space.ToLocal(floorUnder), CeilingAt(space, floorUnder));
+            }
+
             Vector3? goal = crawler.RetreatLeft > 0 && crawler.Perch is Vector3 perch ? perch
                 : hunting ? CrawlRules.Goal(crawling, playerLocal, CeilingAt(space, playerFeet))
                 : state == CreatureState.Searching && creature.LastSeen is Vector3 seen ? space.ToLocal(seen) + new Vector3(0, (float)crawling.RadiusMetres, 0)
+                : state == CreatureState.Resting && crawler.Hold != CrawlHold.Ceiling ? crawler.RestAt
                 : null;
             if (state == CreatureState.Searching) pace *= CrawlSearchShare;
             bool letGo = false;
@@ -285,14 +298,26 @@ internal sealed partial class CreatureModule
         return CrawlRules.Bites(crawler.Phase, crawler.Hold, CrawlRules.ToBody(at, player.WorldFeetPosition), creature.Kind.ReachMetres);
     }
 
-    /// <summary>A blow lands on a crawling hunter (#10975): clinging to a wall, it is knocked loose and falls.</summary>
-    private void CrawlerStruck(Creature creature)
+    /// <summary>A blow lands on a crawling hunter (#10975): clinging to a wall, it is knocked loose and falls, and a bite it had begun is lost (R10975-2).</summary>
+    private void CrawlerStruck(Creature creature, Hunter hunter)
     {
         if (!crawlers.TryGetValue(creature.Id, out Crawler? crawler) || !CrawlRules.KnockedLoose(crawler.Phase, crawler.Hold)) return;
         crawler.Phase = CrawlPhase.Falling;
         crawler.Dropping = false;
         crawler.KnockedLoose++;
+        hunter.Blow = null;
         lastEvent = $"wall runner {creature.Id} was knocked off the wall";
+    }
+
+    /// <summary>
+    /// Whether a crawling hunter's bite lands as its jaws close (R10975-2): still clinging to a floor or wall within its reach
+    /// of the player's body and a bite's dodge; any other creature's, by the hunters' own rule.
+    /// </summary>
+    private bool CrawlerBiteLands(Creature creature, Hunter hunter)
+    {
+        if (!crawlers.TryGetValue(creature.Id, out Crawler? crawler)) return true;
+        Vector3 at = SpaceOf(creature).ToWorld(crawler.Local);
+        return CrawlRules.BiteLands(crawler.Phase, crawler.Hold, CrawlRules.ToBody(at, player.WorldFeetPosition), hunter.Kind.Hunt!.ReachMetres, hunter.Kind.Hunt.DodgeMetres);
     }
 
     /// <summary>A crawling hunter's eye: the ball's centre, so one on a ceiling does not look out from inside the rock.</summary>

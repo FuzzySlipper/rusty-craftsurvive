@@ -64,6 +64,25 @@ internal static class CrawlRules
     internal static bool Bites(CrawlPhase phase, CrawlHold hold, double metresToBody, double reachMetres) =>
         phase == CrawlPhase.Clinging && hold is CrawlHold.Floor or CrawlHold.Wall && metresToBody <= reachMetres;
 
+    /// <summary>
+    /// Whether a bite begun from a floor or wall lands when its jaws close (R10975-2): still clinging to a floor or wall (not
+    /// knocked loose, falling or dazed since), with the player's body within its reach and the dodge a bite allows.
+    /// </summary>
+    internal static bool BiteLands(CrawlPhase phase, CrawlHold hold, double metresToBody, double reachMetres, double dodgeMetres) =>
+        Bites(phase, hold, metresToBody, reachMetres + dodgeMetres);
+
+    /// <summary>
+    /// Where a crawler at rest goes (R10975-1): it rests clinging to the ceiling, so one that comes to rest anywhere else
+    /// makes for the ceiling over where it is, <paramref name="ceilingOver"/> above its feet; null when it already holds a
+    /// ceiling, or has none over it.
+    /// </summary>
+    internal static Vector3? RestGoal(WildlifeCrawling crawling, CrawlHold hold, Vector3 feet, float? ceilingOver)
+    {
+        ArgumentNullException.ThrowIfNull(crawling);
+        if (hold == CrawlHold.Ceiling || ceilingOver is not float ceiling) return null;
+        return feet + new Vector3(0, ceiling - (float)crawling.RadiusMetres, 0);
+    }
+
     /// <summary>Whether a dropped crawler, landed, lands on the player.</summary>
     internal static bool DropLands(double metresToBody, double reachMetres) => metresToBody <= reachMetres + DropLandSlackMetres;
 

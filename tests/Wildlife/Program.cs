@@ -2392,6 +2392,30 @@ Check.Section("crawls", () =>
     Check.That(!CrawlRules.KnockedLoose(CrawlPhase.Clinging, CrawlHold.Ceiling) && !CrawlRules.KnockedLoose(CrawlPhase.Clinging, CrawlHold.Floor) && !CrawlRules.KnockedLoose(CrawlPhase.Dazed, CrawlHold.Floor),
         "but not off a ceiling or the floor, nor when it already lies dazed");
 
+    // A bite begun on a wall and interrupted (R10975-2): knocked loose before its jaws close, it does not land while it falls
+    // or lies dazed; clinging again beside the player, a bite lands within its reach and the dodge a bite allows.
+    double reach = runner.Hunt.ReachMetres, dodge = runner.Hunt.DodgeMetres;
+    CrawlPhase phase = CrawlPhase.Clinging;
+    CrawlHold hold = CrawlHold.Wall;
+    Check.That(CrawlRules.Bites(phase, hold, 1.0, reach) && CrawlRules.BiteLands(phase, hold, 1.0, reach, dodge), "begun on a wall beside the player, a bite would land");
+    Check.That(CrawlRules.KnockedLoose(phase, hold), "a blow during its windup knocks it off the wall");
+    (phase, hold) = (CrawlPhase.Falling, CrawlHold.None);
+    Check.That(!CrawlRules.BiteLands(phase, hold, 0.6, reach, dodge), "falling, its bite does not land");
+    (phase, hold) = (CrawlPhase.Dazed, CrawlHold.Floor);
+    Check.That(!CrawlRules.BiteLands(phase, hold, 0.4, reach, dodge), "landed dazed at the player's feet, nor then");
+    (phase, hold) = (CrawlPhase.Clinging, CrawlHold.Floor);
+    Check.That(CrawlRules.BiteLands(phase, hold, reach + dodge - 0.05, reach, dodge) && !CrawlRules.BiteLands(phase, hold, reach + dodge + 0.05, reach, dodge),
+        "on its feet again, a bite lands within its reach and a bite's dodge, and not beyond");
+    Check.That(!CrawlRules.BiteLands(CrawlPhase.Clinging, CrawlHold.Ceiling, 0.5, reach, dodge), "and never from a ceiling");
+
+    // Back to rest (R10975-1): a hunt or search over, it goes back up to the ceiling over where it stopped.
+    Vector3? rest = CrawlRules.RestGoal(crawling, CrawlHold.Floor, feet, 3.9f);
+    Check.That(rest is Vector3 up && Math.Abs(up.Y - (feet.Y + 3.9f - (float)crawling.RadiusMetres)) < 1e-4 && up.X == feet.X && up.Z == feet.Z,
+        "at rest on the floor under a 3.9 m ceiling, it makes for the ceiling over it");
+    Check.That(CrawlRules.RestGoal(crawling, CrawlHold.Wall, feet, 3.9f) is not null, "and from a wall too");
+    Check.That(CrawlRules.RestGoal(crawling, CrawlHold.Ceiling, feet, 3.9f) is null, "on the ceiling already, it stays");
+    Check.That(CrawlRules.RestGoal(crawling, CrawlHold.Floor, feet, null) is null, "with no ceiling over it, it rests where it is");
+
     // Where it makes for.
     Vector3 low = CrawlRules.Goal(crawling, feet, 4f);
     Check.That(Math.Abs(low.Y - (feet.Y + 4f - (float)crawling.RadiusMetres)) < 1e-4 && low.X == feet.X && low.Z == feet.Z, "under a ceiling 4 m up, the ceiling over the player");
