@@ -12,7 +12,7 @@
          Engine source tree is part of the normal product build. -->
     <RustyEngineProductEntryType>CraftSurvive.Game.CraftSurviveProduct</RustyEngineProductEntryType>
     <RustyEngineProductId>rusty-wandering</RustyEngineProductId>
-    <RustyEngineProductTitle>Rusty CraftSurvive</RustyEngineProductTitle>
+    <RustyEngineProductTitle>Rusty Wandering</RustyEngineProductTitle>
     <RustyEngineProductUiRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui/generated/source'))</RustyEngineProductUiRoot>
     <!-- Only what the game reads is staged: content/game. The rest of content/ is authoring
          source and user-owned assets, which the product does not load. -->

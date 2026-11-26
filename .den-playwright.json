@@ -3,8 +3,8 @@
   "serve": {
     "command": "PATH=\"$HOME/.local/bin:$PATH\" exec rusty dev --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --live-debug --bind-host {host} --port {port}",
     "preferredPort": 0,
-    "healthUrl": "/product-ui/main.js",
-    "readyText": "Rusty CraftSurvive",
+    "healthUrl": "/product-bootstrap.json",
+    "readyText": "Rusty Wandering",
     "reusePolicy": "broker_owned",
     "startupTimeout": "120s"
   },
