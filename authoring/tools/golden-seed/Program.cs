@@ -30,6 +30,9 @@ using Rusty.Engine.Testing;
 // pinch is a diagnostic: which stage of the generator closed a cave's route (see Pinch.cs).
 
 const int RasterRows = 256;
+// Region tiles kept built while exporting (#11126; about 30 MB each): the tiles are made a row at a time, each reaching into its
+// neighbours, so three rows of the continent's 25 stay built and none is built twice.
+const int RegionTilesKept = 96;
 const double SeaMarginMetres = 10;
 const double SeaProbeMetres = 250;
 // --carry-from: a tile whose ground, a kilometre round, stands this far above the water on the continent map is copied from
@@ -99,23 +102,31 @@ if (command == "column")
 
 if (command == "tile")
 {
-    // One region tile, for a look at it alone: its page on stdout.
-    int tileX = int.Parse(args[1], CultureInfo.InvariantCulture), tileZ = int.Parse(args[2], CultureInfo.InvariantCulture);
+    // One region tile or several, for a look at them alone: each page on its own line of stdout, each stage's time on stderr
+    // (the first tile's places include making the recipe; later ones share it, as an export's do).
+    List<(int X, int Z)> wantedTiles = [];
+    for (int k = 1; k + 1 < args.Length && !args[k].StartsWith("--", StringComparison.Ordinal); k += 2)
+        wantedTiles.Add((int.Parse(args[k], CultureInfo.InvariantCulture), int.Parse(args[k + 1], CultureInfo.InvariantCulture)));
     JsonObject tileConfig = JsonNode.Parse(File.ReadAllText(options.GetValueOrDefault("config", Path.Combine(repo, "authoring/tools/golden-seed/golden-seed.json"))))!.AsObject();
     using EngineTestHost tileHost = EngineTestHost.Create(new() { PersistenceRoot = Path.Combine(Path.GetTempPath(), "golden-seed-" + Guid.NewGuid().ToString("N")) });
     tileHost.Call(engine =>
     {
         TerrainConfiguration tileConfiguration = new(tileConfig["seed"]!.GetValue<ulong>(), tileConfig["size"]!.GetValue<int>());
         WorldMap tileMap = WorldMapGenerator.Generate(tileConfiguration);
+        if (tileMap.Scale.Continental) MapRegions.For(tileMap).Capacity = RegionTilesKept;
         WorldExport tileExport = new(tileMap, () => [], new EngineTerrainDraws(engine.Random));
-        Console.WriteLine(tileExport.Tile(tileX, tileZ, Math.Max(1, Environment.ProcessorCount - 2)));
+        foreach ((int tileX, int tileZ) in wantedTiles)
+        {
+            Console.WriteLine(tileExport.Tile(tileX, tileZ, Math.Max(1, Environment.ProcessorCount - 2),
+                (name, seconds) => Console.Error.WriteLine(FormattableString.Invariant($"tile {tileX} {tileZ} {name} {seconds:F2} s"))));
+        }
     });
     return 0;
 }
 
 if (command != "export")
 {
-    Console.Error.WriteLine("usage: export [--config FILE] [--out DIR] [--cache DIR] [--workers N] [--limit N] | cave poi:CX:CZ | pinch poi:CX:CZ [--summary] | tile X Z | check");
+    Console.Error.WriteLine("usage: export [--config FILE] [--out DIR] [--cache DIR] [--workers N] [--limit N] | cave poi:CX:CZ | pinch poi:CX:CZ [--summary] | tile X Z [X Z ...] | check");
     return 2;
 }
 
@@ -134,6 +145,7 @@ host.Call(engine =>
 {
     Stopwatch total = Stopwatch.StartNew(), clock = Stopwatch.StartNew();
     Dictionary<string, double> timings = [];
+    Dictionary<string, double> stageSeconds = [];
     double Lap(string name)
     {
         double seconds = clock.Elapsed.TotalSeconds;
@@ -145,6 +157,7 @@ host.Call(engine =>
     TerrainConfiguration configuration = new(seed, size);
     WorldMap map = WorldMapGenerator.Generate(configuration);
     MapRegions? regions = map.Scale.Continental ? MapRegions.For(map) : null;
+    if (regions is not null) regions.Capacity = RegionTilesKept;
     _ = regions?.Drainage;
     Log($"generated seed {seed} at {size} m in {Lap("generate"):F1} s (fingerprint {map.Fingerprint:x16})");
 
@@ -253,7 +266,7 @@ host.Call(engine =>
             if (built >= limit) continue;
             try
             {
-                json = export.Tile(tx, tz, workers);
+                json = export.Tile(tx, tz, workers, (name, seconds) => stageSeconds[name] = stageSeconds.GetValueOrDefault(name) + seconds);
             }
             catch (Exception failure) when (failure is not OutOfMemoryException)
             {
@@ -321,6 +334,9 @@ host.Call(engine =>
     File.WriteAllText(Path.Combine(work, "tiles", "index.json"), index.ToJsonString());
     File.WriteAllText(Path.Combine(work, "caves.json"), new JsonObject { ["caves"] = caves }.ToJsonString());
     Lap("tiles");
+    // Where the tiles built went (#11126): wall seconds per stage, summed over the tiles made (not those cached or carried).
+    foreach ((string name, double seconds) in stageSeconds) timings["tiles." + name] = Math.Round(seconds, 1);
+    Log($"tile stages over {built} tiles built: " + string.Join(", ", stageSeconds.Select(s => FormattableString.Invariant($"{s.Key} {s.Value / 60:F1} min"))));
 
     // The walking-detail windows about each town: the walking ground's height and biome.
     JsonObject spec = config["windows"]?.AsObject() ?? [];

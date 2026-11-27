@@ -433,9 +433,18 @@ internal sealed class WorldExport
     /// as the chunk workers share it (#10907). Places are [cellX, cellZ, kind, x, z, ground, height, variant, aspect]; crossings
     /// [cellX, cellZ, fromX, fromZ, toX, toZ, deck]; a cave carries what its interior is generated from (seed and setting).
     /// </summary>
-    internal string Tile(int tileX, int tileZ, int workers)
+    /// <param name="stage">Told each stage's wall time in seconds as it ends (#11126): "places" (the sites, caves among them) and
+    /// "crossings".</param>
+    internal string Tile(int tileX, int tileZ, int workers, Action<string, double>? stage = null)
     {
         if (workers < 1) throw new ArgumentOutOfRangeException(nameof(workers));
+        long stageFrom = System.Diagnostics.Stopwatch.GetTimestamp();
+        void Stage(string name)
+        {
+            stage?.Invoke(name, System.Diagnostics.Stopwatch.GetElapsedTime(stageFrom).TotalSeconds);
+            stageFrom = System.Diagnostics.Stopwatch.GetTimestamp();
+        }
+
         TerrainRecipe terrain = recipe.Value;
         double half = MapRegions.TileSpacing / 2, centreX = tileX * MapRegions.TileSpacing, centreZ = tileZ * MapRegions.TileSpacing;
         long cell = PoiConstants.CellSize, edge = (long)(map.Radius / cell) + 1;
@@ -452,6 +461,7 @@ internal sealed class WorldExport
             if (terrain.Placement.SiteAt(x, z) is PoiSite site) sites.Add(site);
         }
 
+        Stage("places");
         CrossingSite?[] crossings = new CrossingSite?[cells.Count];
         for (int start = 0; start < cells.Count; start += CrossingBatch)
         {
@@ -480,6 +490,8 @@ internal sealed class WorldExport
                 if (retry[k]) crossings[k] = terrain.Crossings.SiteAt(cells[k].X, cells[k].Z);
             }
         }
+
+        Stage("crossings");
 
         return Json(writer =>
         {

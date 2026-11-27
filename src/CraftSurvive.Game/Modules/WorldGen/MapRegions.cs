@@ -32,7 +32,13 @@ internal sealed class MapRegions
     /// Tiles kept built (about 30 MB each): the map's region window and the walker need up to four,
     /// the route ahead a few more, so prefetching never evicts a tile still in use.
     /// </summary>
-    private const int CacheLimit = 8;
+    internal const int CacheLimit = 8;
+
+    /// <summary>
+    /// How many tiles are kept built: <see cref="CacheLimit"/> unless a tool raises it (#11126: the golden-seed exporter walks the
+    /// continent a tile at a time, each reaching into its neighbours, so a game's few tiles were built again and again).
+    /// </summary>
+    internal int Capacity { get; set; } = CacheLimit;
     /// <summary>Around a party or walker, the tiles within this reach are built ahead of need.</summary>
     internal const double PrefetchRadius = 2048;
     /// <summary>Along a route, tiles are built this far ahead of the party: under the cache, so prefetching never evicts the tiles in use.</summary>
@@ -272,7 +278,7 @@ internal sealed class MapRegions
             if (recent.First?.Value == tile) return;
             recent.Remove(tile);
             recent.AddFirst(tile);
-            if (recent.Count > CacheLimit)
+            if (recent.Count > Capacity)
             {
                 evicted = recent.Last!.Value;
                 recent.RemoveLast();

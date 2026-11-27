@@ -11,6 +11,16 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 internal interface ITerrainColumns
 {
     TerrainColumn ColumnAt(long x, long z);
+
+    /// <summary>
+    /// A column's surface and the highest cell under water over it, as <see cref="ColumnAt"/> has them, for a caller that needs
+    /// no more (#11126: the crossing scan): a recipe answers it without the slope's four neighbouring columns.
+    /// </summary>
+    (long Surface, long WaterTop) WaterAt(long x, long z)
+    {
+        TerrainColumn column = ColumnAt(x, z);
+        return (column.Surface, column.WaterTop);
+    }
 }
 
 /// <summary>

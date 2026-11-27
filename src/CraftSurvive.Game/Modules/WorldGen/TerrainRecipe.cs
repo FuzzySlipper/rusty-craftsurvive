@@ -141,6 +141,19 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// </summary>
     TerrainColumn ITerrainColumns.ColumnAt(long x, long z) => ColumnAt(x, z);
 
+    /// <summary>The column's ground and water alone, as <see cref="ColumnAt"/> has them, without its slope (#11126).</summary>
+    (long Surface, long WaterTop) ITerrainColumns.WaterAt(long x, long z)
+    {
+        if (x < -radius || x > radius || z < -radius || z > radius)
+        {
+            TerrainColumn outside = default;
+            return (outside.Surface, outside.WaterTop);
+        }
+
+        (long surface, double waterSurface, _) = Ground(x, z);
+        return (surface, new TerrainColumn(surface, 0, waterSurface).WaterTop);
+    }
+
     internal ushort MaterialAt(VoxelAddress address, TerrainColumn column)
     {
         // Structures answer last, because they are the one pass that may take material away

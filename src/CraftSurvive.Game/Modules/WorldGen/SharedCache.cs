@@ -13,8 +13,11 @@ internal sealed class SharedCache<TKey, TValue>(int limit) where TKey : notnull
     private readonly ConcurrentQueue<TKey> order = new();
     private readonly Lock trimming = new();
     private int trims;
+    // How many values are kept, counted here (#11126): a concurrent dictionary's own count takes every one of its locks, and the
+    // chunk workers and the exporter's crossing workers keeping decisions at once queued on it.
+    private int count;
 
-    internal int Count => values.Count;
+    internal int Count => Volatile.Read(ref count);
 
     /// <summary>How many times the cache filled and let its oldest quarter go.</summary>
     internal int Trims => Volatile.Read(ref trims);
@@ -32,7 +35,7 @@ internal sealed class SharedCache<TKey, TValue>(int limit) where TKey : notnull
         }
 
         order.Enqueue(key);
-        if (values.Count >= limit)
+        if (Interlocked.Increment(ref count) >= limit)
         {
             Trim();
         }
@@ -44,6 +47,7 @@ internal sealed class SharedCache<TKey, TValue>(int limit) where TKey : notnull
         {
             values.Clear();
             order.Clear();
+            Volatile.Write(ref count, 0);
         }
     }
 
@@ -51,14 +55,17 @@ internal sealed class SharedCache<TKey, TValue>(int limit) where TKey : notnull
     {
         lock (trimming)
         {
-            if (values.Count < limit)
+            if (Volatile.Read(ref count) < limit)
             {
                 return;
             }
 
             for (int i = 0; i < limit / 4 && order.TryDequeue(out TKey? oldest); i++)
             {
-                values.TryRemove(oldest, out _);
+                if (values.TryRemove(oldest, out _))
+                {
+                    Interlocked.Decrement(ref count);
+                }
             }
 
             trims++;

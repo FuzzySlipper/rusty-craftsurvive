@@ -124,10 +124,10 @@ internal sealed class CrossingPlacement
                 continue;
             }
 
-            TerrainColumn column = columns.ColumnAt(x, z);
-            long surface = column.Surface;
+            // Only the ground and the water are read (#11126: not the slope, which costs four more columns).
+            (long surface, long columnWaterTop) = columns.WaterAt(x, z);
             // The water line is each column's own: the sea, or a river standing above it.
-            if (surface >= column.WaterTop)
+            if (surface >= columnWaterTop)
             {
                 bank++;
 
@@ -155,10 +155,10 @@ internal sealed class CrossingPlacement
             if (waterStart < 0 && bank >= PoiConstants.CrossingMinimumBank)
             {
                 waterStart = step;
-                waterTop = column.WaterTop;
+                waterTop = columnWaterTop;
             }
 
-            waterTop = Math.Max(waterTop, column.WaterTop);
+            waterTop = Math.Max(waterTop, columnWaterTop);
 
             bank = 0;
             if (waterStart >= 0 && step - waterStart >= PoiConstants.CrossingMaximumSpan)
@@ -175,7 +175,7 @@ internal sealed class CrossingPlacement
     {
         long nearX = alongX ? originX + first - 1 : originX + offset;
         long nearZ = alongX ? originZ + offset : originZ + first - 1;
-        long nearBankSurface = columns.ColumnAt(nearX, nearZ).Surface;
+        long nearBankSurface = columns.WaterAt(nearX, nearZ).Surface;
         long fromX = alongX ? originX + first : originX + offset;
         long fromZ = alongX ? originZ + offset : originZ + first;
         long toX = alongX ? originX + last : originX + offset;
