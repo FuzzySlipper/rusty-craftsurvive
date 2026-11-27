@@ -348,7 +348,7 @@ export function CavePage({ id }: { id: string }) {
       <section class="panel">
         <h2>Plan and sections</h2>
         <p class="muted">
-          Looking down, and from two sides, in the cave box's own axes (the box is turned to face its mouth in the world). Each column shows the best of its
+          Looking down, and from two sides, in the cave box's own axes (the box is turned to face its mouth in the world). Each column shows the best of its{' '}
           {view.step} m samples; the plan is lighter where the reached space is higher. Red is open space beyond a pinch, purple space no opening joins.
         </p>
         <ul class="legend cave-legend">

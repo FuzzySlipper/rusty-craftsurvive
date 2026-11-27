@@ -33,7 +33,7 @@ const DEFAULT_TOGGLES: AtlasToggles = {
   crossings: false,
   walkedRivers: true,
   labels: true,
-  allCaves: true,
+  allCaves: false,
 };
 
 /** Region tiles kept loaded at once: a view at the detail zoom shows a few; panning keeps the nearest. */

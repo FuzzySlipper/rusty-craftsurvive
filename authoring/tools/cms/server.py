@@ -4,6 +4,7 @@
 import argparse
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import gzip
 import json
 import socket
 import sqlite3
@@ -27,6 +28,8 @@ DEFAULT_PORT = 8790
 # Every interface: the CMS is opened from other machines on the LAN, not only this one.
 DEFAULT_HOST = "0.0.0.0"
 GIT_TIMEOUT_S = 5
+# JSON answers larger than this go gzipped to a browser that accepts it (the export's cave list is megabytes).
+GZIP_FROM_BYTES = 256 * 1024
 # The CMS edits nothing in git; it reports what is uncommitted under the content it shows.
 WATCHED = ("content/game", "content", "authoring/tools", "authoring/assets")
 
@@ -138,7 +141,12 @@ class Handler(SimpleHTTPRequestHandler):
                 self.json_response({"error": "Not found."}, HTTPStatus.NOT_FOUND)
                 return
             payload, content_type = response.encode()
-            self.send_data(payload, content_type, response.status, response.headers)
+            headers = dict(response.headers)
+            if (len(payload) >= GZIP_FROM_BYTES and "Content-Encoding" not in headers and content_type.startswith("application/json")
+                    and "gzip" in (self.headers.get("Accept-Encoding") or "")):
+                payload = gzip.compress(payload, compresslevel=5)
+                headers["Content-Encoding"] = "gzip"
+            self.send_data(payload, content_type, response.status, headers)
         except FileNotFoundError:
             self.send_error(HTTPStatus.NOT_FOUND)
         except (OSError, sqlite3.Error) as error:

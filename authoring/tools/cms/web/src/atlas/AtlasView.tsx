@@ -202,11 +202,11 @@ export function AtlasView({
       }
     } else if (toggles.allCaves && caveList) {
       // Far out, every cave mouth that has a way underground, as a dot.
-      context.fillStyle = PLACE_COLOURS.CaveMouth;
+      context.fillStyle = 'rgba(255, 138, 92, 0.55)';
       for (const cave of caveList) {
         const p = toScreen(cave.x, cave.z);
         if (p.sx < -2 || p.sy < -2 || p.sx > width + 2 || p.sy > height + 2) continue;
-        context.fillRect(p.sx - 1, p.sy - 1, 2.5, 2.5);
+        context.fillRect(p.sx - 0.75, p.sy - 0.75, 1.5, 1.5);
       }
     }
     // Tiles the generator could not make: the export recorded their error.
