@@ -5,6 +5,7 @@ import argparse
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
+import socket
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -23,6 +24,8 @@ from router import Response, Router
 WEB = CMS / "web"
 SERVICE = "Rusty Wandering Authoring"
 DEFAULT_PORT = 8790
+# Every interface: the CMS is opened from other machines on the LAN, not only this one.
+DEFAULT_HOST = "0.0.0.0"
 GIT_TIMEOUT_S = 5
 # The CMS edits nothing in git; it reports what is uncommitted under the content it shows.
 WATCHED = ("content/game", "content", "authoring/tools", "authoring/assets")
@@ -159,7 +162,7 @@ def make_server(host: str, port: int, workspace: Workspace) -> ThreadingHTTPServ
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host", default=DEFAULT_HOST, help="the address to bind (default every interface)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--repo", type=Path, default=REPO)
     parser.add_argument("--reviews", type=Path, default=None, help="the review database (default authoring/assets/cms/reviews.sqlite3)")
@@ -170,7 +173,8 @@ def main():
     reviews = (args.reviews or (repo / DEFAULT_REVIEWS.relative_to(REPO))).resolve()
     workspace = Workspace(library, ReviewStore(reviews))
     with make_server(args.host, args.port, workspace) as server:
-        print(f"{SERVICE} at http://{args.host}:{server.server_port}", flush=True)
+        shown = socket.gethostname() if args.host == DEFAULT_HOST else args.host
+        print(f"{SERVICE} at http://{shown}:{server.server_port}", flush=True)
         server.serve_forever()
 
 

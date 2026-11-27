@@ -54,8 +54,9 @@ A local web app over this repository's content. From the repository root:
 python3 authoring/tools/cms/server.py
 ```
 
-It serves `http://127.0.0.1:8790` (`--host` and `--port` change that; `den-serve up rusty-wandering-authoring -repo
-"$PWD/authoring/tools/cms"` serves it on the LAN). It reads files in place and writes nothing in git:
+It listens on every interface at port 8790, so it opens from any machine on the LAN at `http://<this host>:8790`
+(`--host` and `--port` change that; `den-serve up rusty-wandering-authoring -repo "$PWD/authoring/tools/cms"`
+runs it as a den-serve service). It reads files in place and writes nothing in git:
 
 - **Catalog**: every file under `content/game/` sorted into records by what it is: creatures (joined to their wildlife
   kind and their working files under `authoring/assets/creatures/`), flora species, town layouts, kit pieces, palettes
