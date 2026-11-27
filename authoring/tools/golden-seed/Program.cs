@@ -30,7 +30,8 @@ const int RasterRows = 256;
 const double SeaMarginMetres = 10;
 const double SeaProbeMetres = 250;
 // --carry-from: a tile whose ground, a kilometre round, stands this far above the water on the continent map is copied from
-// an earlier identity's cache rather than made again; every --verify-every'th carried tile is made again and must match.
+// an earlier identity's cache of the same generator version rather than made again (a version bump redraws every place);
+// every --verify-every'th carried tile is made again and must match.
 const double DryMarginMetres = 50;
 const double DryReachMetres = 1000;
 string[] rasterLayers = ["elevation", "temperature", "moisture", "rock", "biome", "water"];
@@ -139,6 +140,12 @@ host.Call(engine =>
     string identity = Hash($"{seed}|{size}|{map.Fingerprint:x16}|{terrainFingerprint:x16}|{GoldenSeedSource.Stamp:x16}|{pair}");
     string tileCache = Path.Combine(cacheRoot, identity, "tiles");
     Directory.CreateDirectory(tileCache);
+    // What made the cache: the generator version decides whether an earlier identity's tiles can be carried.
+    File.WriteAllText(Path.Combine(cacheRoot, identity, "identity.json"), new JsonObject
+    {
+        ["generatorVersion"] = configuration.GeneratorVersion, ["map"] = map.Fingerprint.ToString("x16", CultureInfo.InvariantCulture),
+        ["terrain"] = terrainFingerprint.ToString("x16", CultureInfo.InvariantCulture), ["sources"] = GoldenSeedSource.Stamp.ToString("x16", CultureInfo.InvariantCulture), ["enginePair"] = pair,
+    }.ToJsonString());
     Log($"generator identity {identity} (terrain {terrainFingerprint:x16}, sources {GoldenSeedSource.Stamp:x16}, pair {pair})");
 
     // The towns as the game seats them: on the recipe's continuous ground (Towns.cs, TownGroundAt).
@@ -179,6 +186,19 @@ host.Call(engine =>
     JsonArray caves = [];
     int built = 0, reused = 0, sea = 0, failed = 0, carried = 0;
     string? carryFrom = options.GetValueOrDefault("carry-from");
+    if (carryFrom is not null)
+    {
+        // A version bump redraws every keyed draw (TerrainGeneratorContract.MixVersion): every place, cave and crossing moves,
+        // so no tile of another version can be carried, however dry.
+        string earlierIdentity = Path.Combine(cacheRoot, carryFrom, "identity.json");
+        uint? earlierVersion = File.Exists(earlierIdentity) ? JsonNode.Parse(File.ReadAllText(earlierIdentity))!["generatorVersion"]!.GetValue<uint>() : null;
+        if (earlierVersion != configuration.GeneratorVersion)
+        {
+            Log($"--carry-from {carryFrom}: its generator version is {earlierVersion?.ToString(CultureInfo.InvariantCulture) ?? "unrecorded"}, this one {configuration.GeneratorVersion}; a version bump redraws every place, so nothing is carried");
+            carryFrom = null;
+        }
+    }
+
     int verifyEvery = int.Parse(options.GetValueOrDefault("verify-every", "25"), CultureInfo.InvariantCulture);
     List<(int X, int Z, string Json)> carriedTiles = [];
     Stopwatch tiling = Stopwatch.StartNew();

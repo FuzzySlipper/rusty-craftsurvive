@@ -102,7 +102,9 @@ A whole continent takes about an hour the first time, most of it deciding crossi
 generator's identity (`authoring/assets/golden-seed-cache/<identity>/`: the map and terrain fingerprints, a build-time
 hash of the product sources the exporter compiles, and the Engine pair), so a rerun with the generator unchanged
 reuses every tile and takes a minute or two. `--workers N` sets the threads deciding crossings; `--limit N` builds at
-most N new tiles. A tile the generator cannot make is recorded in the index with its error and the export goes on.
+most N new tiles. `--carry-from IDENTITY` copies the tiles of an earlier identity of the same generator version that
+stand well above the sea (a change reaching only ground near the water leaves them as they were), and makes every 25th
+again to check; a generator version bump redraws every place, cave and crossing, so nothing carries across one. A tile the generator cannot make is recorded in the index with its error and the export goes on.
 `dotnet run --project authoring/tools/golden-seed -c Release -- tile X Z` prints one tile's page.
 
 The atlas names each element as the game does (`town:Kelpmouth`, `poi:-459:128`, `crossing:-459:128`,
