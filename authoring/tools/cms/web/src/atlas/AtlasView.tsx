@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'preact/hooks';
-import type { GoldenCrossing, GoldenPlace, GoldenPlaces, GoldenReach, GoldenWindow, GoldenWindowSummary, GoldenWorld } from '../types';
+import type { GoldenCaveRow, GoldenCrossing, GoldenPlace, GoldenPlaces, GoldenReach, GoldenTile, GoldenTileCave, GoldenWindow, GoldenWindowSummary, GoldenWorld } from '../types';
 
 /** One thing on the atlas a click can select, and how to refer to it in a design task. */
 export interface Pick {
@@ -30,6 +30,7 @@ export interface AtlasToggles {
   crossings: boolean;
   walkedRivers: boolean;
   labels: boolean;
+  allCaves: boolean;
 }
 
 export const PLACE_COLOURS: Record<string, string> = {
@@ -61,6 +62,10 @@ export function AtlasView({
   windows,
   details,
   detailImages,
+  tiles,
+  caveList,
+  failedTiles,
+  tileSpacing,
   toggles,
   camera,
   selected,
@@ -76,6 +81,10 @@ export function AtlasView({
   windows: GoldenWindowSummary[];
   details: Record<string, GoldenWindow>;
   detailImages: Record<string, HTMLCanvasElement>;
+  tiles: GoldenTile[];
+  caveList: GoldenCaveRow[] | null;
+  failedTiles: Array<[number, number]>;
+  tileSpacing: number;
   toggles: AtlasToggles;
   camera: Camera;
   selected: Pick | null;
@@ -166,28 +175,49 @@ export function AtlasView({
             }
           }
         }
+      }
+      // The whole continent's places, cave ways and crossings, from the region tiles loaded about the view.
+      for (const tile of tiles) {
         if (toggles.crossings) {
           context.strokeStyle = '#e4b282';
           context.lineWidth = 3;
-          for (const crossing of detail.crossings) line([crossing.fromX, crossing.fromZ, crossing.toX, crossing.toZ], 2);
+          for (const crossing of tile.crossings) line([crossing[2], crossing[3], crossing[4], crossing[5]], 2);
         }
         if (toggles.caves) {
           context.strokeStyle = 'rgba(255, 138, 92, 0.85)';
           context.lineWidth = 2;
           context.setLineDash([4, 3]);
-          for (const place of detail.places) if (place.cave) line(place.cave.path, 3, CAVE_Z);
+          for (const cave of tile.caves) line(cave.path, 3, CAVE_Z);
           context.setLineDash([]);
         }
-        for (const place of detail.places) {
-          if (!toggles.places[place.kind]) continue;
-          const p = toScreen(place.x, place.z);
-          context.fillStyle = PLACE_COLOURS[place.kind] ?? '#ffffff';
+        for (const place of tile.places) {
+          const kind = world.placeKinds[place[2]];
+          if (!toggles.places[kind]) continue;
+          const p = toScreen(place[3], place[4]);
+          context.fillStyle = PLACE_COLOURS[kind] ?? '#ffffff';
           context.beginPath();
-          context.arc(p.sx, p.sy, place.kind === 'CaveMouth' || place.kind === 'DungeonEntrance' ? 4.5 : 3, 0, Math.PI * 2);
+          context.arc(p.sx, p.sy, kind === 'CaveMouth' || kind === 'DungeonEntrance' ? 4.5 : 3, 0, Math.PI * 2);
           context.fill();
         }
       }
+    } else if (toggles.allCaves && caveList) {
+      // Far out, every cave mouth that has a way underground, as a dot.
+      context.fillStyle = PLACE_COLOURS.CaveMouth;
+      for (const cave of caveList) {
+        const p = toScreen(cave.x, cave.z);
+        if (p.sx < -2 || p.sy < -2 || p.sx > width + 2 || p.sy > height + 2) continue;
+        context.fillRect(p.sx - 1, p.sy - 1, 2.5, 2.5);
+      }
     }
+    // Tiles the generator could not make: the export recorded their error.
+    context.strokeStyle = '#ff5c5c';
+    context.lineWidth = 2;
+    context.setLineDash([6, 4]);
+    for (const [tx, tz] of failedTiles) {
+      const corner = toScreen((tx - 0.5) * tileSpacing, (tz - 0.5) * tileSpacing);
+      context.strokeRect(corner.sx, corner.sy, tileSpacing / c.metresPerPixel, tileSpacing / c.metresPerPixel);
+    }
+    context.setLineDash([]);
     if (toggles.windows) {
       context.strokeStyle = 'rgba(228, 178, 130, 0.8)';
       context.lineWidth = 1;
@@ -274,23 +304,29 @@ export function AtlasView({
       for (const site of places.sites) candidates.push({ ref: `site:${site.name}`, kind: 'site', label: site.name, x: site.x, z: site.z, data: site });
     if (places && toggles.lakes)
       for (const lake of places.lakes)
-        candidates.push({ ref: `lake:${lake.id}`, kind: 'lake', label: lake.name || `${lake.kind} lake ${lake.id}`, x: lake.x, z: lake.z, data: lake });
+        candidates.push({ ref: lake.key, kind: 'lake', label: lake.name || `${lake.kind} lake ${lake.id}`, x: lake.x, z: lake.z, data: lake });
     if (c.metresPerPixel <= DETAIL_METRES_PER_PIXEL) {
-      for (const detail of Object.values(details)) {
-        for (const place of detail.places)
-          if (toggles.places[place.kind])
-            candidates.push({ ref: place.id, kind: 'place', label: `${place.kind} ${place.id}`, x: place.x, z: place.z, data: place as GoldenPlace });
+      for (const tile of tiles) {
+        const caves = new Map(tile.caves.map(cave => [cave.id, cave]));
+        for (const row of tile.places) {
+          const kind = world.placeKinds[row[2]];
+          if (!toggles.places[kind]) continue;
+          const id = `poi:${row[0]}:${row[1]}`;
+          candidates.push({ ref: id, kind: 'place', label: `${kind} ${id}`, x: row[3], z: row[4], data: placeOf(row, kind, caves.get(id)) });
+        }
         if (toggles.crossings)
-          for (const crossing of detail.crossings)
+          for (const row of tile.crossings)
             candidates.push({
-              ref: crossing.id,
+              ref: `crossing:${row[0]}:${row[1]}`,
               kind: 'crossing',
-              label: `Crossing ${crossing.id}`,
-              x: (crossing.fromX + crossing.toX) / 2,
-              z: (crossing.fromZ + crossing.toZ) / 2,
-              data: crossing as GoldenCrossing,
+              label: `Crossing crossing:${row[0]}:${row[1]}`,
+              x: (row[2] + row[4]) / 2,
+              z: (row[3] + row[5]) / 2,
+              data: crossingOf(row),
             });
       }
+    } else if (toggles.allCaves && caveList) {
+      for (const cave of caveList) candidates.push({ ref: cave.id, kind: 'place', label: `CaveMouth ${cave.id}`, x: cave.x, z: cave.z, data: cave });
     }
     let best: Pick | null = null;
     let bestDistance = PICK_PIXELS;
@@ -319,7 +355,7 @@ export function AtlasView({
     }
     if (!reachBest) return null;
     const middle = Math.floor(reachBest.points.length / 4) * 2;
-    return { ref: `reach:${reachBest.id}`, kind: 'reach', label: `Reach ${reachBest.id}`, x: reachBest.points[middle], z: reachBest.points[middle + 1], data: reachBest };
+    return { ref: reachBest.key, kind: 'reach', label: `Reach ${reachBest.key}`, x: reachBest.points[middle], z: reachBest.points[middle + 1], data: reachBest };
   }
 
   const drawRef = useRef(draw);
@@ -397,4 +433,28 @@ function segmentDistance(px: number, pz: number, ax: number, az: number, bx: num
   const length = dx * dx + dz * dz;
   const t = length > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / length)) : 0;
   return Math.hypot(px - (ax + t * dx), pz - (az + t * dz));
+}
+
+/** A tile's place row as the inspector shows it, with its cave way when it has one. */
+export function placeOf(row: number[], kind: string, cave?: GoldenTileCave): GoldenPlace & { seed?: string; setting?: number[] } {
+  return {
+    id: `poi:${row[0]}:${row[1]}`,
+    kind,
+    x: row[3],
+    z: row[4],
+    ground: row[5],
+    height: row[6],
+    variant: row[7],
+    aspect: row[8],
+    ...(cave ? { cave: { path: cave.path, box: cave.box }, seed: cave.seed, setting: cave.setting } : {}),
+  };
+}
+
+export function crossingOf(row: number[]): GoldenCrossing {
+  return { id: `crossing:${row[0]}:${row[1]}`, fromX: row[2], fromZ: row[3], toX: row[4], toZ: row[5], deck: row[6] };
+}
+
+/** The region tile owning a world position (MapRegions.TileAt). */
+export function tileAt(x: number, z: number, spacing: number): [number, number] {
+  return [Math.floor(x / spacing + 0.5), Math.floor(z / spacing + 0.5)];
 }

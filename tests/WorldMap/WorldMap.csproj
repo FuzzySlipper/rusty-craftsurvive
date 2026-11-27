@@ -44,6 +44,50 @@
     <Compile Include="$(ProductModules)Horizon/HorizonSink.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Horizon/HorizonLandmarkRules.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/WorldExport.cs" LinkBase="Product" />
+    <!-- What the export writes for a cave (#11125): its seed and setting, from the shared cave inputs. -->
+    <Compile Include="$(ProductModules)Dungeons/DungeonVolume.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonLayout.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveGrowths.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveCommunities.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveRuins.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveWater.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/MistWake.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/SumpMistRegions.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveWaterShore.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/KarstCave.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/NaturalCavern.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/StudyField.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonWalk.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CarveAndStamp.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/SculptedRock.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/SculptedCave.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonModules.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/ModularDungeon.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/RuinDoorway.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveRuinSites.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Wildlife/RuinSites.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonMoisture.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/KitMoss.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/KitOvergrowth.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/OvergrowthPlacement.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonDrips.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/LanternDrain.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/SurfaceMoss.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonKit.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/VerticalSampler.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonCollision.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/VoxelMaterialRules.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonRoutes.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonCandidates.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveGenerator.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveStore.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveWaterGeometry.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveWayDown.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonSurfaces.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Player/PlayerBody.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/UnderCaves.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveMaterials.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/ChunkNeighbours.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/MapPalette.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Content/ColourSpace.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Horizon/HorizonGround.cs" LinkBase="Product" />

@@ -25,4 +25,5 @@ __pycache__/
 /authoring/assets/golden-seed/
 /authoring/assets/golden-seed.partial/
 /authoring/assets/golden-seed.previous/
+/authoring/assets/golden-seed-cache/
 /authoring/tools/cms/web/node_modules/

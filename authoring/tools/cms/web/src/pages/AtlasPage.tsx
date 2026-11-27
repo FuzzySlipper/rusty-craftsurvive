@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { apiRequest } from '../api';
-import { atlasUrl } from '../router';
-import type { GoldenOverview, GoldenPlaces, GoldenReach, GoldenWindow } from '../types';
-import { AtlasView, DETAIL_METRES_PER_PIXEL, PLACE_COLOURS, type AtlasToggles, type Camera, type Pick } from '../atlas/AtlasView';
+import { atlasUrl, caveUrl } from '../router';
+import type { GoldenCaveRow, GoldenOverview, GoldenPlaces, GoldenReach, GoldenTile, GoldenTileSummary, GoldenWindow } from '../types';
+import { AtlasView, DETAIL_METRES_PER_PIXEL, PLACE_COLOURS, crossingOf, placeOf, tileAt, type AtlasToggles, type Camera, type Pick } from '../atlas/AtlasView';
 import { BASE_MODES, loadContinent, paintContinent, paintWindow, sampleAt, type BaseMode, type ContinentRaster, type Legend } from '../atlas/layers';
 import { Empty, FactList, JsonView } from '../components/ui';
 import { ReviewPanel } from '../components/ReviewControls';
@@ -33,7 +33,13 @@ const DEFAULT_TOGGLES: AtlasToggles = {
   crossings: false,
   walkedRivers: true,
   labels: true,
+  allCaves: true,
 };
+
+/** Region tiles kept loaded at once: a view at the detail zoom shows a few; panning keeps the nearest. */
+const MOST_TILES = 48;
+/** The share of the window the atlas canvas takes, for which tiles a view needs. */
+const VIEW_SHARE = 0.8;
 
 function LegendView({ legend }: { legend: Legend | null }) {
   if (!legend) return null;
@@ -81,6 +87,13 @@ function Inspector({ pick, citation }: { pick: Pick; citation: string }) {
       <p class="muted">
         <code>{citation}</code>
       </p>
+      {pick.kind === 'place' && (data.cave || data.seed) ? (
+        <p>
+          <a class="button primary" href={caveUrl(pick.ref)}>
+            Open the cave view
+          </a>
+        </p>
+      ) : null}
       <FactList facts={facts} />
       {Object.values(data).some(value => typeof value === 'object' && value !== null) ? (
         <details>
@@ -103,8 +116,12 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
   const [mapRivers, setMapRivers] = useState<number[][] | null>(null);
   const [details, setDetails] = useState<Record<string, GoldenWindow>>({});
   const [detailImages, setDetailImages] = useState<Record<string, HTMLCanvasElement>>({});
+  const [tileIndex, setTileIndex] = useState<GoldenTileSummary[]>([]);
+  const [tiles, setTiles] = useState<Map<string, GoldenTile>>(() => new Map());
+  const [caveList, setCaveList] = useState<GoldenCaveRow[] | null>(null);
   const [mode, setMode] = useSessionState<BaseMode>('atlas:mode', 'relief');
-  const [toggles, setToggles] = useSessionState<AtlasToggles>('atlas:toggles', DEFAULT_TOGGLES);
+  const [storedToggles, setToggles] = useSessionState<AtlasToggles>('atlas:toggles', DEFAULT_TOGGLES);
+  const toggles: AtlasToggles = { ...DEFAULT_TOGGLES, ...storedToggles, places: { ...DEFAULT_TOGGLES.places, ...storedToggles.places } };
   const [minFlow, setMinFlow] = useSessionState('atlas:minFlow', DEFAULT_MIN_FLOW);
   const [camera, setCamera] = useState<Camera | null>(null);
   const [selected, setSelected] = useState<Pick | null>(null);
@@ -123,6 +140,14 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
         ]);
         setRaster(continent);
         setPlaces(named);
+        if (found.manifest.tiles) {
+          const [index, caves] = await Promise.all([
+            apiRequest<GoldenTileSummary[]>('/api/golden/tiles'),
+            apiRequest<{ caves: GoldenCaveRow[] }>('/api/golden/caves'),
+          ]);
+          setTileIndex(index);
+          setCaveList(caves.caves);
+        }
       })
       .catch(err => setError(err instanceof Error ? err.message : String(err)));
   }, []);
@@ -155,6 +180,50 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
     }
   }, [camera, world]);
 
+  // The region tiles about the view, once it is close enough to draw places; the farthest are let go past MOST_TILES.
+  const spacing = overview?.manifest?.tiles?.spacing ?? 16384;
+  const landTiles = useMemo(() => new Set(tileIndex.filter(tile => !tile.sea).map(tile => tile.tile.join('_'))), [tileIndex]);
+  useEffect(() => {
+    if (!camera || !landTiles.size || camera.metresPerPixel > DETAIL_METRES_PER_PIXEL) return;
+    const halfX = (camera.metresPerPixel * window.innerWidth * VIEW_SHARE) / 2;
+    const halfZ = (camera.metresPerPixel * window.innerHeight * VIEW_SHARE) / 2;
+    const [x0, z0] = tileAt(camera.x - halfX, camera.z - halfZ, spacing);
+    const [x1, z1] = tileAt(camera.x + halfX, camera.z + halfZ, spacing);
+    for (let tz = z0; tz <= z1; tz++)
+      for (let tx = x0; tx <= x1; tx++) {
+        const key = `${tx}_${tz}`;
+        if (landTiles.has(key) && !tiles.has(key)) void loadTile(tx, tz);
+      }
+  }, [camera, landTiles]);
+
+  const pending = useMemo(() => new Set<string>(), []);
+  async function loadTile(tx: number, tz: number): Promise<GoldenTile | undefined> {
+    const key = `${tx}_${tz}`;
+    if (tiles.has(key)) return tiles.get(key);
+    if (pending.has(key)) return undefined;
+    pending.add(key);
+    try {
+      const tile = await apiRequest<GoldenTile>(`/api/golden/tiles/${tx}/${tz}`);
+      setTiles(current => {
+        const next = new Map(current).set(key, tile);
+        while (next.size > MOST_TILES) {
+          // Let go of the tile farthest from the view.
+          const far = [...next.keys()].sort((a, b) => distance(b) - distance(a))[0];
+          next.delete(far);
+        }
+        return next;
+      });
+      return tile;
+    } finally {
+      pending.delete(key);
+    }
+  }
+
+  function distance(key: string): number {
+    const [tx, tz] = key.split('_').map(Number);
+    return camera ? Math.hypot(tx * spacing - camera.x, tz * spacing - camera.z) : 0;
+  }
+
   async function loadWindow(id: string) {
     if (!world || details[id]) return details[id];
     const detail = await apiRequest<GoldenWindow>(`/api/golden/windows/${id}`);
@@ -178,35 +247,37 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
       setSelected(pick);
       setCamera({ x: pick.x, z: pick.z, metresPerPixel: FLY_ZOOM[pick.kind] ?? 60 });
     });
-  }, [initialRef, places, world]);
+  }, [initialRef, places, world, tileIndex, drainage]);
 
   async function resolve(ref: string): Promise<Pick | null> {
     if (!places) return null;
     const town = places.towns.find(item => item.key === ref);
     if (town) return { ref, kind: 'town', label: town.name, x: town.x, z: town.z, data: town };
     if (ref.startsWith('lake:')) {
-      const lake = places.lakes.find(item => `lake:${item.id}` === ref);
-      if (lake) return { ref, kind: 'lake', label: lake.name || `${lake.kind} lake ${lake.id}`, x: lake.x, z: lake.z, data: lake };
+      const lake = places.lakes.find(item => item.key === ref);
+      if (lake) return { ref, kind: 'lake', label: lake.name || `${lake.kind} lake ${lake.key}`, x: lake.x, z: lake.z, data: lake };
     }
     if (ref.startsWith('site:')) {
       const site = places.sites.find(item => `site:${item.name}` === ref);
       if (site) return { ref, kind: 'site', label: site.name, x: site.x, z: site.z, data: site };
     }
     if (ref.startsWith('reach:')) {
-      const reach = drainage.find(item => `reach:${item.id}` === ref);
-      if (reach) return { ref, kind: 'reach', label: `Reach ${reach.id}`, x: reach.points[0], z: reach.points[1], data: reach };
+      const reach = drainage.find(item => item.key === ref);
+      if (reach) return { ref, kind: 'reach', label: `Reach ${reach.key}`, x: reach.points[0], z: reach.points[1], data: reach };
     }
     if (ref.startsWith('poi:') || ref.startsWith('crossing:')) {
       const [, cx, cz] = ref.split(':').map(Number);
-      const x = (cx + 0.5) * world!.placeCell;
-      const z = (cz + 0.5) * world!.placeCell;
-      const window = windows.find(item => Math.abs(item.x - x) <= item.half + world!.placeCell && Math.abs(item.z - z) <= item.half + world!.placeCell);
-      const detail = window ? await loadWindow(window.id) : undefined;
-      const place = detail?.places.find(item => item.id === ref);
-      if (place) return { ref, kind: 'place', label: `${place.kind} ${place.id}`, x: place.x, z: place.z, data: place };
-      const crossing = detail?.crossings.find(item => item.id === ref);
-      if (crossing)
-        return { ref, kind: 'crossing', label: `Crossing ${ref}`, x: (crossing.fromX + crossing.toX) / 2, z: (crossing.fromZ + crossing.toZ) / 2, data: crossing };
+      const [tx, tz] = tileAt(cx * world!.placeCell, cz * world!.placeCell, spacing);
+      const tile = await loadTile(tx, tz);
+      if (!tile) return null;
+      if (ref.startsWith('poi:')) {
+        const row = tile.places.find(place => place[0] === cx && place[1] === cz);
+        const kind = row ? world!.placeKinds[row[2]] : '';
+        if (row) return { ref, kind: 'place', label: `${kind} ${ref}`, x: row[3], z: row[4], data: placeOf(row, kind, tile.caves.find(cave => cave.id === ref)) };
+      } else {
+        const row = tile.crossings.find(crossing => crossing[0] === cx && crossing[1] === cz);
+        if (row) return { ref, kind: 'crossing', label: `Crossing ${ref}`, x: (row[2] + row[4]) / 2, z: (row[3] + row[5]) / 2, data: crossingOf(row) };
+      }
     }
     return null;
   }
@@ -218,8 +289,8 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
       <section class="panel">
         <h1>Golden-seed atlas</h1>
         <Empty>
-          There is no export yet. Run <code>{overview.command}</code> from the repository root; it starts a headless host, generates the world
-          golden-seed.json names, and writes authoring/assets/golden-seed/.
+          There is no export yet. Run <code>{overview.command}</code> from the repository root; it generates the world golden-seed.json
+          names with the product's generator and writes authoring/assets/golden-seed/.
         </Empty>
       </section>
     );
@@ -231,9 +302,9 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
     : '';
   const sample = hover && raster ? sampleAt(raster, hover.x, hover.z) : null;
   const setToggle = <K extends keyof AtlasToggles>(key: K, value: AtlasToggles[K]) => setToggles({ ...toggles, [key]: value });
-  const counts = Object.values(details).reduce(
-    (sum, detail) => {
-      for (const place of detail.places) sum[place.kind] = (sum[place.kind] ?? 0) + 1;
+  const counts = tileIndex.reduce(
+    (sum, tile) => {
+      for (const [kind, count] of Object.entries(tile.places ?? {})) sum[kind] = (sum[kind] ?? 0) + count;
       return sum;
     },
     {} as Record<string, number>,
@@ -302,9 +373,13 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
           <Toggle label="Representative sites" value={toggles.sites} onChange={value => setToggle('sites', value)} />
           <Toggle label="Labels" value={toggles.labels} onChange={value => setToggle('labels', value)} />
           <h3>Walking detail</h3>
-          <small class="muted">Places, caves and crossings are exported for the windows about each town. Zoom in on one to see them.</small>
+          <small class="muted">
+            Every place, cave way and crossing on the continent, drawn once a pixel is {DETAIL_METRES_PER_PIXEL} m or less (about a town's width
+            across the view). The walking ground's own heights are exported about each town.
+          </small>
+          <Toggle label="Cave mouths far out" value={toggles.allCaves} onChange={value => setToggle('allCaves', value)} />
           <Toggle label="Window outlines" value={toggles.windows} onChange={value => setToggle('windows', value)} />
-          <Toggle label="Walking ground" value={toggles.detail} onChange={value => setToggle('detail', value)} />
+          <Toggle label="Walking ground about towns" value={toggles.detail} onChange={value => setToggle('detail', value)} />
           <Toggle label="Walked rivers, shaped" value={toggles.walkedRivers} onChange={value => setToggle('walkedRivers', value)} />
           {world.placeKinds
             .filter(kind => kind !== 'None')
@@ -319,6 +394,29 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
             ))}
           <Toggle label="Cave ways underground" value={toggles.caves} onChange={value => setToggle('caves', value)} />
           <Toggle label="Crossings" value={toggles.crossings} onChange={value => setToggle('crossings', value)} />
+          {tileIndex.some(tile => tile.failed) ? (
+            <>
+              <h3>Tiles that failed</h3>
+              <ul class="plain">
+                {tileIndex
+                  .filter(tile => tile.failed)
+                  .map(tile => (
+                    <li key={tile.tile.join('_')}>
+                      <a
+                        href="#atlas"
+                        onClick={event => {
+                          event.preventDefault();
+                          setCamera({ x: tile.tile[0] * spacing, z: tile.tile[1] * spacing, metresPerPixel: spacing / 600 });
+                        }}
+                      >
+                        tile {tile.tile.join(', ')}
+                      </a>{' '}
+                      <small class="warning-text">{tile.failed}</small>
+                    </li>
+                  ))}
+              </ul>
+            </>
+          ) : null}
           <h3>Windows</h3>
           <ul class="plain">
             {windows.map(window => (
@@ -350,6 +448,10 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
               windows={windows}
               details={details}
               detailImages={detailImages}
+              tiles={[...tiles.values()]}
+              caveList={caveList}
+              failedTiles={tileIndex.filter(tile => tile.failed).map(tile => tile.tile)}
+              tileSpacing={spacing}
               toggles={toggles}
               camera={camera}
               selected={selected}

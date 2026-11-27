@@ -56,6 +56,11 @@ def golden_export(root: Path) -> Path:
     write(folder / "drainage.json", {"reaches": [{"id": 0, "flow": 0.5, "points": []}, {"id": 1, "flow": 9, "points": []}]})
     write(folder / "places.json", {"towns": [], "lakes": [], "sites": []})
     write(folder / "windows/home.json", {"x": 0, "z": 0, "places": []})
+    write(folder / "tiles/index.json", [{"tile": [0, 0], "places": {"CaveMouth": 1}, "caves": 1, "crossings": 0}, {"tile": [1, 0], "sea": True}])
+    tile = {"tile": [0, 0], "cells": 4096, "places": [[-3, 4, 3, -700, 1100, 40, 5, 2, 1]], "caves": [{"id": "poi:-3:4"}], "crossings": []}
+    import gzip
+    write(folder / "tiles/0_0.json.gz", gzip.compress(json.dumps(tile).encode()))
+    write(folder / "caves.json", {"caves": [{"id": "poi:-3:4", "x": -700, "z": 1100, "ground": 40, "seed": "00", "setting": [0.5, 0.5, 30], "tile": [0, 0]}]})
     return folder
 
 
@@ -107,7 +112,7 @@ class GoldenTests(unittest.TestCase):
     def test_without_an_export_the_command_is_offered(self):
         overview = GoldenStore(self.library, FileCache()).overview()
         self.assertFalse(overview["available"])
-        self.assertIn("export.py", overview["command"])
+        self.assertIn("authoring/tools/golden-seed", overview["command"])
 
     def test_drainage_is_filtered_by_flow_and_windows_by_name(self):
         golden_export(self.root)
@@ -166,6 +171,26 @@ class ServerTests(unittest.TestCase):
         review = json.loads(self.get("/api/reviews/creatures/creatures-mole")[1])
         self.assertIsNone(review["rating"])
         self.assertEqual(review["previousRating"], "good")
+
+    def test_tiles_are_sent_compressed_and_caves_listed(self):
+        request = urllib.request.Request(self.base + "/api/golden/tiles/0/0", headers={"Accept-Encoding": "gzip"})
+        with urllib.request.urlopen(request) as response:
+            self.assertEqual(response.headers["Content-Encoding"], "gzip")
+            import gzip
+            self.assertEqual(json.loads(gzip.decompress(response.read()))["places"][0][2], 3)
+        self.assertEqual(json.loads(self.get("/api/golden/tiles")[1])[1]["sea"], True)
+        self.assertEqual(json.loads(self.get("/api/golden/caves")[1])["caves"][0]["id"], "poi:-3:4")
+        with self.assertRaises(urllib.error.HTTPError) as missing:
+            self.get("/api/golden/tiles/5/5")
+        self.assertEqual(missing.exception.code, 404)
+        missing.exception.close()
+
+    def test_a_cave_needs_a_mouth_id_and_the_built_exporter(self):
+        for path, code in (("/api/golden/caves/not-a-cave", 404), ("/api/golden/caves/poi:-3:4", 503)):
+            with self.assertRaises(urllib.error.HTTPError) as raised:
+                self.get(path)
+            self.assertEqual(raised.exception.code, code, path)
+            raised.exception.close()
 
     def test_golden_element_notes(self):
         saved = self.post("/api/reviews/golden/town:Kelpmouth", {"note": "check the quay", "marked": True})

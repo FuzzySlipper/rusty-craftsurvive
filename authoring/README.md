@@ -14,7 +14,7 @@ authoring/
     towns/        the town kit: Blender recipes to the kit GLBs
     MapLab/       world maps offline from a seed, size and recipe (dotnet run --project authoring/tools/MapLab)
     cms/          the content CMS: the catalog, provenance, review notes and the golden-seed atlas
-    golden-seed/  the golden seed (golden-seed.json) and its export from the running game (export.py)
+    golden-seed/  the golden seed (golden-seed.json) and its exporter (an Engine tool host running the product's generator)
     assets-sync.sh
   assets/       ignored, backed up to the den NAS; mirrors tools/ by area
     creatures/<species>/   concept sheets, reference views, species.json, prompts
@@ -23,6 +23,7 @@ authoring/
     textures/, terrain-studies/   the generated source images behind content/game/textures
     maplab-out/            MapLab's default output (regenerable; not backed up)
     golden-seed/           the golden-seed export (regenerable; not backed up)
+    golden-seed-cache/     the exporter's tiles and cave views, by generator identity (regenerable; not backed up)
     cms/                   the CMS's marks, ratings and notes (reviews.sqlite3; backed up)
 ```
 
@@ -79,28 +80,47 @@ set in `authoring/tools/golden-seed/golden-seed.json`, with the walking-detail w
 plus any named there).
 
 ```bash
-python3 authoring/tools/golden-seed/export.py
+dotnet run --project authoring/tools/golden-seed -c Release
 ```
 
-The export starts a headless `rusty dev` host of the current product (its own instance, `golden-seed`, beside any
-other session; `--origin URL` uses a running `--live-debug` host instead). It has the host generate the golden world
-afresh, then reads every layer through the product's `craft.export.*` debug commands, and stops the host. It takes
-a few minutes, most of it building the walking detail about each town. The output replaces
-`authoring/assets/golden-seed/` once complete:
+The exporter is an Engine tool host (`RustyEngineToolHost`): it compiles the product's own generator, as the test lanes
+do, and draws with the Engine's keyed draws, so its places, crossings and caves are the game's without running the game.
+It writes `authoring/assets/golden-seed/`, replacing the old export once the new one is complete:
 
 - `continent/`: the map raster at `pixels` a side (elevation, temperature, moisture and rock as float32; biome and
   water codes as bytes), row-major from the north-west corner.
 - `map-rivers.json` (the 1 km map rivers), `drainage.json` (the 250 m walked drainage, with flow, navigability and
   channel form) and `places.json` (towns as the game builds them, lakes and representative sites).
-- `windows/`: about each town, the walking ground's height and biome, every place (standing stones, ruins, cave
-  mouths with their ways underground, dungeon entrances and vantage points), every crossing and the shaped walked
-  rivers.
-- `manifest.json`: the world's identity (seed, size, generator version, fingerprint), the commit, whether the tree
-  was dirty, and the Engine pair.
+- `tiles/`: every place (standing stones, ruins, cave mouths, dungeon entrances, vantage points), cave way and crossing
+  of the continent, a 16 km region tile a file, and `tiles/index.json` with each tile's counts; `caves.json` lists
+  every cave mouth that has a way underground.
+- `windows/`: the walking ground's height and biome about each town.
+- `manifest.json`: the world's identity (seed, size, generator version, fingerprint), the generator identity the tiles
+  were made under, the commit, whether the tree was dirty, and the Engine pair.
 
-Everything comes from the running game, not from a copy of the generator: places, crossings and caves are decided by
-the Engine's keyed draws, which only a host has. The export uses the host's dev save (dev saves are disposable).
-The atlas names each element as the game does (`town:Kelpmouth`, `poi:-459:128`, `crossing:…`, `lake:3`,
-`reach:812`) and offers a full reference to copy, with the export's date and fingerprint. It warns when commits since
-the export touch the product, its content or the Engine pair, or when `golden-seed.json` has changed.
+A whole continent takes about an hour the first time, most of it deciding crossings. Each tile is cached under the
+generator's identity (`authoring/assets/golden-seed-cache/<identity>/`: the map and terrain fingerprints, a build-time
+hash of the product sources the exporter compiles, and the Engine pair), so a rerun with the generator unchanged
+reuses every tile and takes a minute or two. `--workers N` sets the threads deciding crossings; `--limit N` builds at
+most N new tiles. A tile the generator cannot make is recorded in the index with its error and the export goes on.
+`dotnet run --project authoring/tools/golden-seed -c Release -- tile X Z` prints one tile's page.
 
+The atlas names each element as the game does (`town:Kelpmouth`, `poi:-459:128`, `crossing:-459:128`,
+`lake:-54000:-25000` at a lake's deepest node, `reach:-142750:27500` at the node a walked reach starts from) and
+offers a full reference to copy, with the export's date and fingerprint. It warns when commits since the export touch
+the product, its content or the Engine pair, or when `golden-seed.json` has changed.
+
+### Caves
+
+The CMS's Caves page lists every cave mouth with a way underground; a cave's page (or Open the cave view from a cave
+mouth on the atlas) generates its cave as the walking session admits it - the same seed, setting and preparation
+(`Dungeons/UnderCaves.cs`), the way down from the tendril included - through the exporter
+(`... -- cave poi:CX:CZ`, cached beside the tiles), and simplifies it:
+
+- a plan and two sections of its open space, coloured by whether a body fits through from the arrival (standing or
+  crawling, by the karst generator's own radii), lies beyond a pinch narrower than a crawl, or is cut off by rock;
+- the main route's profile, its climbs against a full stamina bar;
+- its chambers, sinks, spring, water, ruin and the generator's own dead ends;
+- what stands out: cut-off spaces, a bottom out of reach, climbs too tall for one bar, a mostly vertical route.
+
+The first view of a cave takes a few seconds; the exporter must be built (`dotnet build authoring/tools/golden-seed -c Release`).

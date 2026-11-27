@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Tests;
@@ -72,7 +73,51 @@ internal static class WorldExportChecks
         Check.That(astray == 0, $"each cave way's path starts at its mouth, as x, y, z points ({caves} caves, {astray} astray)");
         Check.Throws<ArgumentOutOfRangeException>(() => export.Window(0, 0, WindowHalf, 1), "a window finer than the least step is refused");
 
+        // A region tile's page (#11125): every anchor cell's site and crossing as the recipe decides it, crossings on workers.
+        const int TileWorkers = 2;
+        using JsonDocument tile = JsonDocument.Parse(export.Tile(0, 0, TileWorkers));
+        TerrainRecipe fresh = map.Configuration.CreateRecipe(draws, map);
+        long edge = (long)(map.Radius / PoiConstants.CellSize) + 1;
+        int expectedPlaces = 0, expectedCrossings = 0;
+        for (long cz = -edge; cz <= edge; cz++)
+        for (long cx = -edge; cx <= edge; cx++)
+        {
+            if (fresh.Placement.SiteAt(cx, cz) is not null) expectedPlaces++;
+            if (fresh.Crossings.SiteAt(cx, cz) is not null) expectedCrossings++;
+        }
+
+        int placeDiffers = 0;
+        foreach (JsonElement row in tile.RootElement.GetProperty("places").EnumerateArray())
+        {
+            PoiSite? site = fresh.Placement.SiteAt(row[0].GetInt64(), row[1].GetInt64());
+            if (site is not PoiSite found || (long)found.Kind != row[2].GetInt64() || found.X != row[3].GetInt64() || found.Z != row[4].GetInt64()) placeDiffers++;
+        }
+
+        int crossingDiffers = 0;
+        foreach (JsonElement row in tile.RootElement.GetProperty("crossings").EnumerateArray())
+        {
+            if (fresh.Crossings.SiteAt(row[0].GetInt64(), row[1].GetInt64()) is not CrossingSite found || found.FromX != row[2].GetInt64() || found.ToZ != row[5].GetInt64()) crossingDiffers++;
+        }
+
+        Check.That(tile.RootElement.GetProperty("places").GetArrayLength() == expectedPlaces && placeDiffers == 0,
+            $"a tile holds every anchor cell's site as the recipe decides it ({expectedPlaces} places, {placeDiffers} differ)");
+        Check.That(tile.RootElement.GetProperty("crossings").GetArrayLength() == expectedCrossings && crossingDiffers == 0,
+            $"a tile's crossings, decided on workers, are the recipe's own ({expectedCrossings} crossings, {crossingDiffers} differ)");
+        int seedDiffers = 0;
+        foreach (JsonElement cave in tile.RootElement.GetProperty("caves").EnumerateArray())
+        {
+            string[] anchor = cave.GetProperty("id").GetString()!.Split(':');
+            ulong seed = CraftSurvive.Game.Modules.Dungeons.UnderCaves.Seed(map.Configuration.Seed, long.Parse(anchor[1], System.Globalization.CultureInfo.InvariantCulture),
+                long.Parse(anchor[2], System.Globalization.CultureInfo.InvariantCulture));
+            if (cave.GetProperty("seed").GetString() != seed.ToString("x16", System.Globalization.CultureInfo.InvariantCulture)) seedDiffers++;
+        }
+
+        Check.That(seedDiffers == 0, "a tile's caves carry the seed the walking session generates them from");
+
         using JsonDocument named = JsonDocument.Parse(export.Places());
+        string[] lakeKeys = [.. named.RootElement.GetProperty("lakes").EnumerateArray().Select(lake => lake.GetProperty("key").GetString()!)];
+        Check.That(lakeKeys.All(key => key.StartsWith("lake:", StringComparison.Ordinal)) && lakeKeys.Distinct().Count() == lakeKeys.Length,
+            "each lake has its own stable key, at its deepest node");
         Check.That(named.RootElement.GetProperty("lakes").GetArrayLength() == map.Lakes.Count
             && named.RootElement.GetProperty("sites").GetArrayLength() == map.Sites.Count, "the places page lists every lake and representative site");
     }
@@ -92,6 +137,14 @@ internal static class WorldExportChecks
         using JsonDocument last = JsonDocument.Parse(export.Drainage(pages - 1));
         int onLast = last.RootElement.GetProperty("reaches").GetArrayLength();
         Check.That(onLast == reaches - ((pages - 1) * WorldExport.ReachesPerPage), "the last drainage page holds the remainder");
+        HashSet<string> reachKeys = [];
+        for (int page = 0; page < pages; page++)
+        {
+            using JsonDocument one = JsonDocument.Parse(export.Drainage(page));
+            foreach (JsonElement walked in one.RootElement.GetProperty("reaches").EnumerateArray()) reachKeys.Add(walked.GetProperty("key").GetString()!);
+        }
+
+        Check.That(reachKeys.Count == reaches, $"each walked reach has its own stable key, at the node it starts from ({reachKeys.Count} of {reaches})");
         JsonElement reach = first.RootElement.GetProperty("reaches")[0];
         Check.That(reach.GetProperty("points").GetArrayLength() == MapRegions.For(map).Drainage.Network.Reaches[0].Nodes.Length * 2,
             "a reach's path is its lattice nodes as x, z pairs");

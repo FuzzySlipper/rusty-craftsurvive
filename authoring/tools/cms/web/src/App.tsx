@@ -9,6 +9,7 @@ import { RecordPage } from './pages/RecordPage';
 import { ProvenancePage } from './pages/ProvenancePage';
 import { SearchPage } from './pages/SearchPage';
 import { AtlasPage } from './pages/AtlasPage';
+import { CavePage, CavesPage } from './pages/CavesPage';
 
 interface GitStatus {
   gitAvailable: boolean;
@@ -29,6 +30,10 @@ function renderRoute(route: Route) {
       return <SearchPage term={route.term} />;
     case 'atlas':
       return <AtlasPage initialRef={route.ref} />;
+    case 'caves':
+      return <CavesPage />;
+    case 'cave':
+      return <CavePage id={route.id} />;
   }
 }
 
@@ -52,7 +57,7 @@ export function App() {
   }, [route.page]);
 
   const section = activeSection(route);
-  const atlas = route.page === 'atlas';
+  const atlas = route.page === 'atlas' || route.page === 'cave';
   return (
     <div class={`shell${atlas ? ' wide' : ''}`}>
       <aside class="sidebar">
@@ -69,6 +74,9 @@ export function App() {
           </a>
           <a href={atlasUrl()} aria-current={section === 'atlas' ? 'page' : undefined}>
             Golden-seed atlas
+          </a>
+          <a href="#caves" aria-current={section === 'caves' ? 'page' : undefined}>
+            Caves
           </a>
           {(catalog?.categories ?? []).map(category => (
             <a key={category.id} href={listingUrl(category.id)} aria-current={section === category.id ? 'page' : undefined}>

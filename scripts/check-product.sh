@@ -8,7 +8,7 @@
 #   scripts/check-product.sh [--ref <commit>] [--managed] [--propose [<version>]] [--keep]
 #
 #   --ref       the commit to check (default HEAD); uncommitted work is never included
-#   --managed   also run every tests/ lane and build MapLab
+#   --managed   also run every tests/ lane and build MapLab and the golden-seed exporter
 #   --propose   first move the checkout's pin with `rusty update` (to <version>, else the newest
 #               published pair), to try a pair before the engine-pair workflow does; the pin is never
 #               committed here
@@ -97,6 +97,7 @@ managed_checks() {
         dotnet run --project "$check" -c Release
     done
     dotnet build authoring/tools/MapLab -c Release
+    dotnet build authoring/tools/golden-seed -c Release
 }
 
 # rusty dev refuses ports in the ephemeral range (32768 and up) and 30300-30450 is den-serve's, so

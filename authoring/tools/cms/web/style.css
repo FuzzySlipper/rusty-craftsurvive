@@ -163,3 +163,12 @@ pre.json { max-height: 480px; font-size: .8rem; }
 .atlas-inspector { margin-top: 8px; }
 .atlas-inspector .facts dd { overflow-wrap: anywhere; }
 @media (max-width: 1000px) { .atlas-body { grid-template-columns: 1fr; } .atlas-controls { position: static; max-height: none; } }
+.findings { margin: 4px 0 12px; padding-left: 20px; }
+.findings li { margin: 3px 0; }
+.findings li.bad { color: #ffb5ac; }
+.cave-views { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.cave-views figure { margin: 0; }
+.cave-canvas { display: block; border: 1px solid var(--line); border-radius: 4px; image-rendering: pixelated; max-width: 100%; }
+.cave-legend { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); margin: 8px 0 12px; }
+.route-profile { width: 100%; max-width: 900px; height: auto; background: #1a211c; border-radius: 6px; }
+.warning-text { color: #f6d9a2; display: block; }

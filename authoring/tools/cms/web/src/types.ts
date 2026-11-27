@@ -130,6 +130,8 @@ export interface GoldenWindowSummary {
 
 export interface GoldenManifest {
   format: number;
+  identity?: { key: string; map: string; terrain: string; sources: string };
+  tiles?: { spacing: number; land: number; sea: number; built: number; cached: number; failed?: number; caves: number; complete: boolean };
   world: GoldenWorld;
   config: Record<string, unknown>;
   exportedAt: string;
@@ -146,6 +148,7 @@ export interface GoldenOverview {
   manifest?: GoldenManifest;
   configChanged?: boolean;
   mediaBase?: string;
+  exporterBuilt?: boolean;
   drift?: { head: string | null; commitsSince: number | null; generatorCommitsSince: number | null; dirtyNow: boolean; dirtyAtExport: boolean } | null;
 }
 
@@ -175,6 +178,7 @@ export interface GoldenTown {
 }
 
 export interface GoldenLake {
+  key: string;
   id: number;
   name: string;
   kind: string;
@@ -203,6 +207,7 @@ export interface GoldenPlaces {
 }
 
 export interface GoldenReach {
+  key: string;
   id: number;
   downstream: number;
   mouth: boolean;
@@ -251,4 +256,110 @@ export interface GoldenWindow {
   rivers: Array<{ id: number; points: number[] }>;
   heightUrl: string;
   biomeUrl: string;
+}
+
+// ---- golden seed, whole continent (export format 2)
+
+export interface GoldenTileCave {
+  id: string;
+  x: number;
+  z: number;
+  ground: number;
+  seed: string;
+  setting: number[];
+  turns: number;
+  path: number[];
+  box: number[];
+}
+
+/** A region tile's page: places are [cellX, cellZ, kind, x, z, ground, height, variant, aspect]; crossings [cellX, cellZ, fromX, fromZ, toX, toZ, deck]. */
+export interface GoldenTile {
+  tile: [number, number];
+  cells: number;
+  places: number[][];
+  caves: GoldenTileCave[];
+  crossings: number[][];
+}
+
+export interface GoldenTileSummary {
+  tile: [number, number];
+  sea?: boolean;
+  failed?: string;
+  places?: Record<string, number>;
+  caves?: number;
+  crossings?: number;
+}
+
+export interface GoldenCaveRow {
+  id: string;
+  x: number;
+  z: number;
+  ground: number;
+  seed: string;
+  setting: number[];
+  tile: [number, number];
+}
+
+export interface CaveViewStats {
+  openCubicMetres: number;
+  standCubicMetres: number;
+  crawlCubicMetres: number;
+  narrowCubicMetres: number;
+  cutOffSpaces: number;
+  cutOffCubicMetres: number;
+  unreachedShare: number;
+  lowestOpen: number | null;
+  lowestReached: number | null;
+  standRadius: number;
+  crawlRadius: number;
+  climbReach: number;
+  routeMetres: number;
+  routeWalk: number;
+  routeSteep: number;
+  routeClimb: number;
+  longestClimb: number;
+  climbsOverReach: number;
+  routeDescent: number;
+  routeAscent: number;
+  routeReachedShare: number;
+  routeStandShare: number;
+  deadEnds: number;
+}
+
+export interface CaveView {
+  id: string;
+  seed: string;
+  setting: number[];
+  size: [number, number, number];
+  grid: [number, number, number];
+  step: number;
+  generateMs: number;
+  viewMs: number;
+  verdict: string;
+  arrival: number[];
+  start: number[] | null;
+  tendril: number[][];
+  route: number[][];
+  profile: number[][];
+  features: {
+    sinks?: number[][];
+    spring?: number[];
+    chambers?: number[][];
+    rifts?: number[][];
+    beddingRooms?: number[][];
+    sponge?: number[];
+    maze?: number[];
+    tiankeng?: { floor: number[]; radius: number };
+    chasm?: number[];
+    hall?: number[];
+    passages?: Array<{ name: string; metres: number; narrowest: number; widened: number }>;
+    skyOpen?: boolean;
+    water?: Array<{ kind: string; surface: number; cells: number; at: number[] | null }>;
+    ruin?: number[];
+    deadEnds?: number[][];
+  };
+  plan: { state: string; top: string };
+  sideX: string;
+  sideZ: string;
+  stats: CaveViewStats;
 }

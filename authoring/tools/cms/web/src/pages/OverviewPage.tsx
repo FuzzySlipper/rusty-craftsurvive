@@ -37,9 +37,14 @@ export function OverviewPage() {
       <section class="panel">
         <div class="section-heading">
           <h2>Golden seed</h2>
-          <a class="button" href={atlasUrl()}>
-            Open the atlas
-          </a>
+          <span>
+            <a class="button" href={atlasUrl()}>
+              Open the atlas
+            </a>{' '}
+            <a class="button" href="#caves">
+              Caves
+            </a>
+          </span>
         </div>
         {world ? (
           <>
@@ -51,13 +56,15 @@ export function OverviewPage() {
                 Fingerprint: world.fingerprint,
                 Exported: golden?.manifest?.exportedAt,
                 'Generator commits since': golden?.drift?.generatorCommitsSince ?? '',
+                Tiles: golden?.manifest?.tiles ? `${golden.manifest.tiles.land} with land${golden.manifest.tiles.failed ? `, ${golden.manifest.tiles.failed} failed` : ''}` : '',
+                Caves: golden?.manifest?.tiles?.caves ?? '',
               }}
             />
             {golden?.configChanged ? <p class="warning">golden-seed.json has changed since this export: run <code>{golden.command}</code>.</p> : null}
           </>
         ) : (
           <Empty>
-            No export yet. Run <code>{golden?.command ?? 'python3 authoring/tools/golden-seed/export.py'}</code>.
+            No export yet. Run <code>{golden?.command ?? 'dotnet run --project authoring/tools/golden-seed -c Release'}</code>.
           </Empty>
         )}
       </section>
