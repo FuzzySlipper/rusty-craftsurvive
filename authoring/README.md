@@ -98,7 +98,8 @@ It writes `authoring/assets/golden-seed/`, replacing the old export once the new
 - `manifest.json`: the world's identity (seed, size, generator version, fingerprint), the generator identity the tiles
   were made under, the commit, whether the tree was dirty, and the Engine pair.
 
-A whole continent takes about an hour the first time, most of it deciding crossings. Each tile is cached under the
+A whole continent takes under half an hour the first time (the log and the manifest's `timings` give each tile stage's
+share: the places, caves among them, and the crossings). Each tile is cached under the
 generator's identity (`authoring/assets/golden-seed-cache/<identity>/`: the map and terrain fingerprints, a build-time
 hash of the product sources the exporter compiles, and the Engine pair), so a rerun with the generator unchanged
 reuses every tile and takes a minute or two. `--workers N` sets the threads deciding crossings; `--limit N` builds at

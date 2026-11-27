@@ -113,11 +113,13 @@ if (command == "tile")
     {
         TerrainConfiguration tileConfiguration = new(tileConfig["seed"]!.GetValue<ulong>(), tileConfig["size"]!.GetValue<int>());
         WorldMap tileMap = WorldMapGenerator.Generate(tileConfiguration);
-        if (tileMap.Scale.Continental) MapRegions.For(tileMap).Capacity = RegionTilesKept;
+        // --regions N keeps N region tiles built instead (the game keeps MapRegions.CacheLimit), to time a stage as the game pays it.
+        if (tileMap.Scale.Continental) MapRegions.For(tileMap).Capacity = int.Parse(options.GetValueOrDefault("regions", RegionTilesKept.ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
         WorldExport tileExport = new(tileMap, () => [], new EngineTerrainDraws(engine.Random));
+        int tileWorkers = int.Parse(options.GetValueOrDefault("workers", Math.Max(1, Environment.ProcessorCount - 2).ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
         foreach ((int tileX, int tileZ) in wantedTiles)
         {
-            Console.WriteLine(tileExport.Tile(tileX, tileZ, Math.Max(1, Environment.ProcessorCount - 2),
+            Console.WriteLine(tileExport.Tile(tileX, tileZ, tileWorkers,
                 (name, seconds) => Console.Error.WriteLine(FormattableString.Invariant($"tile {tileX} {tileZ} {name} {seconds:F2} s"))));
         }
     });
@@ -126,7 +128,7 @@ if (command == "tile")
 
 if (command != "export")
 {
-    Console.Error.WriteLine("usage: export [--config FILE] [--out DIR] [--cache DIR] [--workers N] [--limit N] | cave poi:CX:CZ | pinch poi:CX:CZ [--summary] | tile X Z [X Z ...] | check");
+    Console.Error.WriteLine("usage: export [--config FILE] [--out DIR] [--cache DIR] [--workers N] [--limit N] | cave poi:CX:CZ | pinch poi:CX:CZ [--summary] | tile X Z [X Z ...] [--workers N] [--regions N] | check");
     return 2;
 }
 
