@@ -217,6 +217,8 @@ host.Call(engine =>
         Stopwatch one = Stopwatch.StartNew();
         string json;
         string? earlier = carryFrom is null ? null : Path.Combine(cacheRoot, carryFrom, "tiles", name + ".json.gz");
+        // Where this tile's page is copied from into the export: the cache, or for a carried tile the earlier cache.
+        string source = cached;
         if (File.Exists(cached))
         {
             json = ReadGzip(cached);
@@ -224,9 +226,11 @@ host.Call(engine =>
         }
         else if (earlier is not null && File.Exists(earlier) && Dry(map, tx, tz))
         {
-            // A change that reaches only ground near the water leaves a dry tile as it was (checked below).
+            // A change that reaches only ground near the water leaves a dry tile as it was (checked below). It enters this
+            // identity's cache only once the check holds (R11148-1): a carry that fails leaves the cache as it found it, so a
+            // retry makes the tile afresh rather than reusing it.
             json = ReadGzip(earlier);
-            WriteGzip(cached, json);
+            source = earlier;
             carried++;
             carriedTiles.Add((tx, tz, json));
         }
@@ -250,7 +254,7 @@ host.Call(engine =>
             built++;
         }
 
-        File.Copy(cached, Path.Combine(work, "tiles", name + ".json.gz"));
+        File.Copy(source, Path.Combine(work, "tiles", name + ".json.gz"));
         JsonObject tile = JsonNode.Parse(json)!.AsObject();
         JsonObject kinds = [];
         foreach (JsonNode? place in tile["places"]!.AsArray())
@@ -284,13 +288,20 @@ host.Call(engine =>
         (int vx, int vz, string earlierJson) = carriedTiles[k];
         if (export.Tile(vx, vz, workers) != earlierJson)
         {
-            Log($"tile {vx}_{vz} carried from {carryFrom} differs when made again: the change reaches dry ground, so carrying is wrong; rerun without --carry-from");
+            Log($"tile {vx}_{vz} carried from {carryFrom} differs when made again: the change reaches dry ground, so carrying is wrong; nothing carried entered the cache or the export; rerun without --carry-from");
+            Directory.Delete(work, true);
             exit = 1;
             return;
         }
 
         verified++;
         Log($"carried tile {vx}_{vz} made again: identical ({verified} verified)");
+    }
+
+    // The check held: the carried tiles join this identity's cache.
+    foreach ((int cx2, int cz2, string carriedJson) in carriedTiles)
+    {
+        WriteGzip(Path.Combine(tileCache, $"{cx2}_{cz2}.json.gz"), carriedJson);
     }
 
     File.WriteAllText(Path.Combine(work, "tiles", "index.json"), index.ToJsonString());
@@ -348,7 +359,7 @@ host.Call(engine =>
         {
             ["spacing"] = MapRegions.TileSpacing, ["land"] = index.Count - sea, ["sea"] = sea, ["built"] = built, ["cached"] = reused,
             ["failed"] = failed, ["carried"] = carried, ["carriedFrom"] = carryFrom, ["carriedVerified"] = verified,
-            ["caves"] = caves.Count, ["complete"] = built + reused + carried + sea == index.Count,
+            ["caves"] = caves.Count, ["complete"] = built + reused + carried + sea == (highX - lowX + 1) * (highZ - lowZ + 1),
         },
         ["windows"] = windows,
         ["timings"] = new JsonObject(timings.Select(pair => KeyValuePair.Create(pair.Key, (JsonNode?)pair.Value))),
