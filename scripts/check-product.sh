@@ -98,6 +98,8 @@ managed_checks() {
     done
     dotnet build authoring/tools/MapLab -c Release
     dotnet build authoring/tools/golden-seed -c Release
+    # The cave view's reach on synthetic throats either side of a crawl (#11125).
+    dotnet authoring/tools/golden-seed/bin/Release/net10.0/GoldenSeed.dll check
 }
 
 # rusty dev refuses ports in the ephemeral range (32768 and up) and 30300-30450 is den-serve's, so

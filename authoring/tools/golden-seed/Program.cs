@@ -44,6 +44,13 @@ if (command == "cave")
     return CaveCommand(id);
 }
 
+if (command == "check")
+{
+    // The cave view's reach on synthetic caves (#11125 R11125-2): two round chambers joined by a throat, which a body passes
+    // only when the throat is wider than a crawl. Run by scripts/check-product.sh --managed.
+    return CaveView.CheckThroats(Console.WriteLine) ? 0 : 1;
+}
+
 if (command == "tile")
 {
     // One region tile, for a look at it alone: its page on stdout.
@@ -62,7 +69,7 @@ if (command == "tile")
 
 if (command != "export")
 {
-    Console.Error.WriteLine("usage: export [--config FILE] [--out DIR] [--cache DIR] [--workers N] [--limit N] | cave poi:CX:CZ");
+    Console.Error.WriteLine("usage: export [--config FILE] [--out DIR] [--cache DIR] [--workers N] [--limit N] | cave poi:CX:CZ | tile X Z | check");
     return 2;
 }
 

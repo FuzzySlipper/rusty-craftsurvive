@@ -10,22 +10,24 @@ const PAGE = 100;
 const KM = 1000;
 
 // A sample's state in the plan and sections, as the exporter's CaveView writes it (a column shows its greatest).
-const STATE = { rock: 0, narrow: 1, cutOff: 2, crawl: 3, stand: 4 } as const;
+const STATE = { rock: 0, narrow: 1, cutOff: 2, tight: 3, crawl: 4, stand: 5 } as const;
 const STATE_COLOURS: Record<number, [number, number, number]> = {
   0: [26, 31, 28],
   1: [196, 72, 64],
   2: [168, 92, 204],
-  3: [222, 168, 76],
-  4: [96, 186, 120],
+  3: [214, 120, 86],
+  4: [222, 168, 76],
+  5: [96, 186, 120],
 };
 const STATE_LABELS: Array<[number, string, string]> = [
-  [STATE.stand, 'A body stands', 'Reached from the arrival, with room to stand (the generator\'s stand radius).'],
-  [STATE.crawl, 'A body crawls', 'Reached from the arrival, but only crawling room (down to the generator\'s crawl radius).'],
-  [STATE.narrow, 'Beyond a pinch', 'Open space the cave joins to the arrival only through pinches narrower than a crawl.'],
+  [STATE.stand, 'A body stands', 'Reached from where the way down joins the cave, with room to stand (the generator\'s stand radius).'],
+  [STATE.crawl, 'A body crawls', 'Reached from where the way down joins the cave, but only crawling room (down to the generator\'s crawl radius).'],
+  [STATE.tight, 'Tight: within resolution', 'Reached only through throats within the sampling\'s resolution of a crawl: they may or may not pass a body.'],
+  [STATE.narrow, 'Beyond a pinch', 'Room a body would fit in that the cave joins to the rest only through pinches narrower than a crawl.'],
   [STATE.cutOff, 'Cut off', 'Open space no opening joins to the rest of the cave.'],
 ];
-const PROFILE_COLOURS = ['#c44840', '#dea84c', '#60ba78'];
-const PROFILE_LABELS = ['out of reach', 'crawl', 'stand'];
+const PROFILE_COLOURS = ['#c44840', '#d67856', '#dea84c', '#60ba78'];
+const PROFILE_LABELS = ['beyond a pinch', 'tight', 'crawl', 'stand'];
 // Flags: what makes a layout worth a second look.
 const NARROW_SHARE = 0.05;
 const BOTTOM_GAP = 5;
@@ -146,7 +148,10 @@ function findings(view: CaveView): Array<{ text: string; bad: boolean }> {
     found.push({ text: `The main route climbs ${s.longestClimb} m at once, more than a full stamina bar's ${s.climbReach} m`, bad: true });
   if (s.routeMetres > 0 && s.routeClimb / s.routeMetres > VERTICAL_SHARE)
     found.push({ text: `The main route is mostly vertical: ${Math.round((s.routeClimb / s.routeMetres) * 100)}% climbs`, bad: true });
-  if (s.routeReachedShare < ROUTE_REACH) found.push({ text: `${Math.round((1 - s.routeReachedShare) * 100)}% of the main route is out of a body's reach`, bad: true });
+  const routeBeyond = 1 - s.routeReachedShare - s.routeTightShare;
+  if (routeBeyond > 1 - ROUTE_REACH) found.push({ text: `${Math.round(routeBeyond * 100)}% of the main route lies beyond pinches narrower than a crawl`, bad: true });
+  if (s.routeTightShare > 0)
+    found.push({ text: `${Math.round(s.routeTightShare * 100)}% of the main route is reached only through throats within ${s.resolutionMetres} m of a crawl`, bad: false });
   if (s.routeStandShare < ROUTE_STAND) found.push({ text: `Most of the main route is a crawl (${Math.round(s.routeStandShare * 100)}% stands)`, bad: false });
   if (s.deadEnds > 0) found.push({ text: `${s.deadEnds} dead ends, as the generator marks them (damp pockets)`, bad: false });
   if (!found.some(item => item.bad)) found.unshift({ text: 'Nothing flagged: the space is joined, the bottom and the route within reach', bad: false });
@@ -231,7 +236,7 @@ function CaveCanvas({ view, projection, scale }: { view: CaveView; projection: P
     mark(f.spring, '#4de0c9', 'spring');
     mark(f.maze, '#c5b4e3', 'maze');
     mark(f.ruin, '#b88cf0', 'ruin');
-    if (view.start) mark(view.start, '#ffffff', 'arrival', 6);
+    if (view.start) mark(view.start, '#ffffff', 'start', 6);
   }, [view, projection, scale]);
   return <canvas ref={canvas} class="cave-canvas" />;
 }
@@ -265,7 +270,7 @@ function RouteProfile({ view }: { view: CaveView }) {
         0 m
       </text>
       {PROFILE_LABELS.map((label, n) => (
-        <text key={label} x={pad + 10 + n * 110} y={pad - 12} fill={PROFILE_COLOURS[n]} font-size="12">
+        <text key={label} x={pad + 10 + n * 130} y={pad - 12} fill={PROFILE_COLOURS[n]} font-size="12">
           ■ {label}
         </text>
       ))}
@@ -302,12 +307,12 @@ export function CavePage({ id }: { id: string }) {
     return (
       <>
         <Breadcrumb href="#caves" label="Caves" />
-        <p class="muted">Generating the cave under {id} as the game does (a few seconds the first time)…</p>
+        <p class="muted">Generating the cave under {id} as the game does (about ten seconds the first time)…</p>
       </>
     );
   const s = view.stats;
   const [sx, sy, sz] = view.size;
-  const scale = Math.max(1, Math.floor(480 / Math.max(view.grid[0], view.grid[2])));
+  const scale = Math.max(1, Math.round(640 / Math.max(view.grid[0], view.grid[2])));
   return (
     <>
       <Breadcrumb href="#caves" label="Caves" />
@@ -334,6 +339,7 @@ export function CavePage({ id }: { id: string }) {
             'Open space': `${s.openCubicMetres} m³`,
             Stands: `${s.standCubicMetres} m³`,
             Crawls: `${s.crawlCubicMetres} m³`,
+            Tight: `${s.tightCubicMetres} m³`,
             'Beyond pinches': `${s.narrowCubicMetres} m³`,
             'Cut off': `${s.cutOffCubicMetres} m³`,
             'Lowest open / reached': `${s.lowestOpen ?? '-'} / ${s.lowestReached ?? '-'} m`,
@@ -392,7 +398,7 @@ export function CavePage({ id }: { id: string }) {
         <h2>The main route</h2>
         <p class="muted">
           The route the generator laid from the way in (the way down first), its height along its length: green where a body stands, amber where it crawls,
-          red where it does not fit. The bar is the tallest face a starting character's full stamina bar climbs; a steeper leg taller than it is a climb the
+          orange where it is reached only through tight throats, red where a pinch keeps a body out. The bar is the tallest face a starting character's full stamina bar climbs; a steeper leg taller than it is a climb the
           player cannot make on one bar.
         </p>
         <RouteProfile view={view} />
@@ -403,8 +409,11 @@ export function CavePage({ id }: { id: string }) {
           <summary>How reach is worked out</summary>
           <p class="muted">
             As the karst generator judges passage: by whether a body fits, not by walking. The cave's own field is sampled every {view.step} m (open where it is
-            not negative), each open sample gets its clearance (the distance to the nearest rock), and the space a body fits through is filled from the arrival:
-            a body stands where the clearance is at least {s.standRadius} m and crawls down to {s.crawlRadius} m (KarstCave's own radii). Gravity is judged
+            not negative), each open sample gets its clearance (the distance to the rock's surface, where the field crosses zero), and the space a body fits
+            through is filled from where the game's way down from the tendril joins the generator's route:
+            a body stands where the clearance is at least {s.standRadius} m and crawls down to {s.crawlRadius} m (KarstCave's own radii). Clearance runs to where the field crosses zero, so it is finer than the
+            samples, but a body's centre is judged at sample centres, up to {s.resolutionMetres} m off a throat's axis: space reached only through
+            throats within that of a crawl is marked tight, since they may or may not pass a body. Gravity is judged
             along the main route: each climb against a full stamina bar ({s.climbReach} m). The route is the prepared one, starting with the way down the game
             carves from the tendril.
           </p>

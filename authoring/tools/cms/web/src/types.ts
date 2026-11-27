@@ -304,7 +304,9 @@ export interface CaveViewStats {
   openCubicMetres: number;
   standCubicMetres: number;
   crawlCubicMetres: number;
+  tightCubicMetres: number;
   narrowCubicMetres: number;
+  resolutionMetres: number;
   cutOffSpaces: number;
   cutOffCubicMetres: number;
   unreachedShare: number;
@@ -322,6 +324,7 @@ export interface CaveViewStats {
   routeDescent: number;
   routeAscent: number;
   routeReachedShare: number;
+  routeTightShare: number;
   routeStandShare: number;
   deadEnds: number;
 }

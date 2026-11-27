@@ -11,8 +11,8 @@ namespace GoldenSeed;
 /// <summary>
 /// A cave under a mouth, simplified for the CMS (#11125): generated and prepared exactly as the walking session admits it
 /// (<see cref="UnderCaves"/>), then reduced to what shows its layout. Passage is judged as the karst generator judges it - by
-/// whether a body fits, not by walking: the cave's own field (<see cref="KarstCave.FieldStep"/> samples, open where it is not
-/// negative) gives each open sample its clearance, the distance to the nearest rock, and the space a body fits through from
+/// whether a body fits, not by walking: the cave's own field (sampled at half <see cref="KarstCave.FieldStep"/>, open where it is
+/// not negative) gives each open sample its clearance, the distance to the rock's surface, and the space a body fits through from
 /// the arrival is filled: at <see cref="KarstCave.StandRadius"/> a body stands, down to <see cref="KarstCave.CrawlRadius"/> it
 /// crawls. Open space beyond a pinch narrower than a crawl, and open space no opening joins at all, are what a poor layout
 /// leaves. Climbing is judged along the main route the generator laid: each climb against a starting character's full stamina
@@ -31,8 +31,8 @@ internal static class CaveView
     private const float SeedSearchMetres = 3f;
 
     // A sample's state, and a column's in the projections (the greatest of its samples): rock, open beyond a pinch, open no
-    // opening joins, crawled to, stood in.
-    private const byte Rock = 0, Narrow = 1, CutOff = 2, Crawl = 3, Stand = 4;
+    // opening joins, reached only through throats within the sampling's resolution of a crawl, crawled to, stood in.
+    private const byte Rock = 0, Narrow = 1, CutOff = 2, Tight = 3, Crawl = 4, Stand = 5;
 
     private static readonly (int X, int Y, int Z)[] Faces = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)];
 
@@ -49,64 +49,41 @@ internal static class CaveView
         DungeonLayout layout = cave.Layout;
         Func<Vector3, float> field = layout.Shape ?? throw new InvalidOperationException("A karst cave carries its field.");
 
-        float step = KarstCave.FieldStep;
-        int sx = (int)(cave.Walkable.SizeX / step), sy = (int)(cave.Walkable.SizeY / step), sz = (int)(cave.Walkable.SizeZ / step);
+        // The game's way in comes down the ramp preparing carves from the tendril, which joins the generator's route past its
+        // first sink; the fill starts where it joins (the arrival, at the sink's foot, can lie in a pocket a pinch shuts off).
+        Vector3 start = JoinOf(prepared.Layout.MainRoute, layout.MainRoute) ?? layout.Arrival;
+        Reach fill = Reach.Of(field, cave.Walkable.SizeX, cave.Walkable.SizeY, cave.Walkable.SizeZ, start);
+        float step = fill.Step;
+        int sx = fill.SizeX, sy = fill.SizeY, sz = fill.SizeZ;
+        bool[] open = fill.Open, reached = fill.Reached, within = fill.Within;
+        float[] clearance = fill.Clearance;
+        int seedSample = fill.Seed;
         int Index(int x, int y, int z) => (((z * sy) + y) * sx) + x;
         Vector3 Centre(int x, int y, int z) => new((x + 0.5f) * step, (y + 0.5f) * step, (z + 0.5f) * step);
-        bool[] open = new bool[sx * sy * sz];
-        Parallel.For(0, sz, z =>
-        {
-            for (int y = 0; y < sy; y++)
-            for (int x = 0; x < sx; x++)
-                open[Index(x, y, z)] = field(Centre(x, y, z)) >= 0f;
-        });
-        float[] clearance = Clearance(open, sx, sy, sz, step);
 
         // The open space's components, and the one the arrival is in.
         int[] component = Components(open, sx, sy, sz, out List<int> sizes);
-        int seedSample = Seed(layout.Arrival, open, clearance, sx, sy, sz, step);
         int home = seedSample >= 0 ? component[seedSample] : 0;
-
-        // The space a body fits through from the arrival.
-        bool[] reached = new bool[open.Length];
-        if (seedSample >= 0)
-        {
-            Queue<int> frontier = new();
-            reached[seedSample] = true;
-            frontier.Enqueue(seedSample);
-            while (frontier.TryDequeue(out int cell))
-            {
-                int x = cell % sx, y = cell / sx % sy, z = cell / (sx * sy);
-                foreach ((int dx, int dy, int dz) in Faces)
-                {
-                    int nx = x + dx, ny = y + dy, nz = z + dz;
-                    if (nx < 0 || ny < 0 || nz < 0 || nx >= sx || ny >= sy || nz >= sz) continue;
-                    int next = Index(nx, ny, nz);
-                    if (!reached[next] && clearance[next] >= KarstCave.CrawlRadius)
-                    {
-                        reached[next] = true;
-                        frontier.Enqueue(next);
-                    }
-                }
-            }
-        }
 
         float sampleVolume = step * step * step;
         int leastSamples = (int)MathF.Ceiling(LeastSpaceCubicMetres / sampleVolume);
         // Beyond a pinch: open space joined to the arrival's only through pinches narrower than a crawl, counted where it is a
         // space of its own (a few cubic metres or more), not the thin rind a fill leaves along every wall.
         bool[] beyond = new bool[open.Length];
-        for (int i = 0; i < open.Length; i++) beyond[i] = open[i] && !reached[i] && component[i] == home;
+        for (int i = 0; i < open.Length; i++) beyond[i] = open[i] && !within[i] && component[i] == home && clearance[i] >= Reach.LenientCrawl;
         int[] pocket = Components(beyond, sx, sy, sz, out List<int> pocketSizes);
+        // Open space a body would fit in (a crawl's clearance or more) that the fill did not reach lies beyond a pinch; the thin
+        // rind along every wall, where no body fits anyway, counts with the rock.
         byte State(int i) => !open[i] ? Rock
             : reached[i] ? (clearance[i] >= KarstCave.StandRadius ? Stand : Crawl)
-            : component[i] == home ? (pocketSizes[pocket[i]] >= leastSamples ? Narrow : Crawl)
-            : sizes[component[i]] >= leastSamples ? CutOff : Rock;
+            : within[i] ? Tight
+            : component[i] != home ? (sizes[component[i]] >= leastSamples ? CutOff : Rock)
+            : clearance[i] >= Reach.LenientCrawl && pocketSizes[pocket[i]] >= leastSamples ? Narrow : Rock;
 
         byte[] planState = new byte[sx * sz], sideX = new byte[sx * sy], sideZ = new byte[sz * sy];
         short[] planTop = new short[sx * sz];
         Array.Fill(planTop, (short)-1);
-        long openCount = 0, standCount = 0, crawlCount = 0, narrowCount = 0, cutCount = 0;
+        long openCount = 0, standCount = 0, crawlCount = 0, tightCount = 0, narrowCount = 0, cutCount = 0;
         int lowestOpen = int.MaxValue, lowestReached = int.MaxValue;
         for (int z = 0; z < sz; z++)
         for (int y = 0; y < sy; y++)
@@ -119,15 +96,16 @@ internal static class CaveView
             {
                 case Stand: standCount++; break;
                 case Crawl: crawlCount++; break;
+                case Tight: tightCount++; break;
                 case Narrow: narrowCount++; break;
                 default: cutCount++; break;
             }
 
             if (state != CutOff) lowestOpen = Math.Min(lowestOpen, y);
-            if (state >= Crawl) lowestReached = Math.Min(lowestReached, y);
+            if (state >= Tight) lowestReached = Math.Min(lowestReached, y);
             int column = (z * sx) + x;
             planState[column] = Math.Max(planState[column], state);
-            if (state >= Crawl) planTop[column] = (short)Math.Max(planTop[column], y);
+            if (state >= Tight) planTop[column] = (short)Math.Max(planTop[column], y);
             sideX[(y * sx) + x] = Math.Max(sideX[(y * sx) + x], state);
             sideZ[(y * sz) + z] = Math.Max(sideZ[(y * sz) + z], state);
         }
@@ -138,7 +116,7 @@ internal static class CaveView
         // crawled to or out of reach.
         IReadOnlyList<Vector3> route = prepared.Layout.MainRoute;
         float along = 0, walk = 0, steep = 0, climb = 0, climbRun = 0, longestClimb = 0, descent = 0, ascent = 0;
-        int routeStand = 0, routeReached = 0, climbsOverReach = 0;
+        int routeStand = 0, routeReached = 0, routeTight = 0, climbsOverReach = 0;
         double reach = ClimbReach;
         JsonArray profile = [];
         for (int k = 0; k < route.Count; k++)
@@ -164,10 +142,12 @@ internal static class CaveView
                 }
             }
 
+            // Each point: 3 stood in, 2 crawled to, 1 reached only through tight throats, 0 beyond a pinch.
             int at = Nearest(route[k], reached, clearance, sx, sy, sz, step);
-            int code = at < 0 ? 0 : clearance[at] >= KarstCave.StandRadius ? 2 : 1;
-            if (code > 0) routeReached++;
-            if (code == 2) routeStand++;
+            int code = at >= 0 ? (clearance[at] >= KarstCave.StandRadius ? 3 : 2) : Nearest(route[k], within, clearance, sx, sy, sz, step) >= 0 ? 1 : 0;
+            if (code >= 2) routeReached++;
+            if (code == 3) routeStand++;
+            if (code == 1) routeTight++;
             profile.Add(new JsonArray(Round(along), Round(route[k].Y), code));
         }
 
@@ -235,7 +215,9 @@ internal static class CaveView
                 ["openCubicMetres"] = Cubic(openCount),
                 ["standCubicMetres"] = Cubic(standCount),
                 ["crawlCubicMetres"] = Cubic(crawlCount),
+                ["tightCubicMetres"] = Cubic(tightCount),
                 ["narrowCubicMetres"] = Cubic(narrowCount),
+                ["resolutionMetres"] = Math.Round(Reach.Resolution, 2),
                 ["cutOffSpaces"] = cutOff.Length,
                 ["cutOffCubicMetres"] = Cubic(cutCount),
                 ["unreachedShare"] = openCount == 0 ? 0 : Round((narrowCount + cutCount) / (float)openCount),
@@ -253,6 +235,7 @@ internal static class CaveView
                 ["routeDescent"] = Round(descent),
                 ["routeAscent"] = Round(ascent),
                 ["routeReachedShare"] = route.Count == 0 ? 0 : Round(routeReached / (float)route.Count),
+                ["routeTightShare"] = route.Count == 0 ? 0 : Round(routeTight / (float)route.Count),
                 ["routeStandShare"] = route.Count == 0 ? 0 : Round(routeStand / (float)route.Count),
                 ["deadEnds"] = layout.FungalPockets.Count,
             },
@@ -261,14 +244,144 @@ internal static class CaveView
     }
 
     /// <summary>
-    /// Each open sample's clearance, in metres: the distance to the nearest rock sample (the box's outside counts as rock), an
-    /// exact Euclidean distance transform taken one axis at a time.
+    /// Where a body fits through from an arrival (#11125 R11125-2): the field sampled at half the generator's step, each open
+    /// sample's clearance to the rock's surface, and the open space filled from the arrival through samples at least
+    /// <see cref="KarstCave.CrawlRadius"/> clear. Clearance runs to the surface where the field crosses zero, finer than the
+    /// samples, so a throat narrower than a crawl stops the fill. A body's centre is judged at sample centres, which can lie up
+    /// to half a sample's diagonal (about 0.18 m) off a throat's axis: a throat that close to a crawl reads as a pinch.
     /// </summary>
-    private static float[] Clearance(bool[] open, int sx, int sy, int sz, float step)
+    internal sealed record Reach(int SizeX, int SizeY, int SizeZ, float Step, bool[] Open, float[] Clearance, bool[] Reached, bool[] Within, int Seed)
     {
-        const float Far = 1e12f;
+        /// <summary>The sampling step: half the generator's field step.</summary>
+        internal static readonly float SampleStep = KarstCave.FieldStep / 2f;
+
+        /// <summary>
+        /// How far off a throat's axis the nearest sample centre can lie (half a sample's diagonal across the throat): a body's
+        /// centre is judged at sample centres, so a throat's clearance reads up to this much short.
+        /// </summary>
+        internal static readonly float Resolution = SampleStep * MathF.Sqrt(2f) / 2f;
+
+        /// <summary>The crawl radius less the resolution: a throat that passes this but not the crawl is within the sampling's error of one.</summary>
+        internal static readonly float LenientCrawl = KarstCave.CrawlRadius - Resolution;
+
+        internal static Reach Of(Func<Vector3, float> field, float metresX, float metresY, float metresZ, Vector3 arrival)
+        {
+            float step = SampleStep;
+            int sx = (int)MathF.Round(metresX / step), sy = (int)MathF.Round(metresY / step), sz = (int)MathF.Round(metresZ / step);
+            float[] values = new float[sx * sy * sz];
+            Parallel.For(0, sz, z =>
+            {
+                for (int y = 0; y < sy; y++)
+                for (int x = 0; x < sx; x++)
+                    values[(((z * sy) + y) * sx) + x] = field(new Vector3((x + 0.5f) * step, (y + 0.5f) * step, (z + 0.5f) * step));
+            });
+            bool[] open = [.. values.Select(v => v >= 0f)];
+            float[] clearance = CaveView.Clearance(values, open, sx, sy, sz, step);
+            int seed = CaveView.Seed(arrival, open, clearance, sx, sy, sz, step);
+            bool[] reached = Fill(seed, clearance, KarstCave.CrawlRadius, sx, sy, sz);
+            bool[] within = Fill(seed, clearance, LenientCrawl, sx, sy, sz);
+            return new Reach(sx, sy, sz, step, open, clearance, reached, within, seed);
+        }
+
+        /// <summary>Whether the sample at a point was reached at a crawl, and whether only through tight throats.</summary>
+        internal bool ReachedAt(Vector3 p) => Reached[At(p)];
+
+        internal bool WithinAt(Vector3 p) => Within[At(p)];
+
+        private int At(Vector3 p) => ((((int)(p.Z / Step) * SizeY) + (int)(p.Y / Step)) * SizeX) + (int)(p.X / Step);
+
+        /// <summary>The open space filled from a seed through samples at least <paramref name="least"/> clear.</summary>
+        private static bool[] Fill(int seed, float[] clearance, float least, int sx, int sy, int sz)
+        {
+            bool[] reached = new bool[clearance.Length];
+            if (seed < 0) return reached;
+            Queue<int> frontier = new();
+            reached[seed] = true;
+            frontier.Enqueue(seed);
+            while (frontier.TryDequeue(out int cell))
+            {
+                int x = cell % sx, y = cell / sx % sy, z = cell / (sx * sy);
+                foreach ((int dx, int dy, int dz) in Faces)
+                {
+                    int nx = x + dx, ny = y + dy, nz = z + dz;
+                    if (nx < 0 || ny < 0 || nz < 0 || nx >= sx || ny >= sy || nz >= sz) continue;
+                    int next = (((nz * sy) + ny) * sx) + nx;
+                    if (!reached[next] && clearance[next] >= least)
+                    {
+                        reached[next] = true;
+                        frontier.Enqueue(next);
+                    }
+                }
+            }
+
+            return reached;
+        }
+    }
+
+    // The synthetic caves CheckThroats measures: two chambers of this radius, this far apart, in a box this size (metres), with
+    // throats of each radius placed so their axis lies between sample centres (the sampling's worst case): too narrow for a
+    // crawl even allowing for the resolution, within the resolution of a crawl, and wide enough for one.
+    private const float ChamberRadius = 3f;
+    private const float ChambersApart = 10f;
+    private static readonly Vector3 CheckBox = new(20f, 10f, 10f);
+    private static readonly Vector3 NearChamber = new(5f, 5f, 5f);
+    private static readonly float[] TooNarrow = [0.2f, 0.3f, 0.38f];
+    private static readonly float[] WithinResolution = [0.55f];
+    private static readonly float[] WideEnough = [0.7f, 1f];
+
+    private enum Throat { Stops, Tight, Passes }
+
+    /// <summary>
+    /// Two chambers joined by a throat of each radius: through one too narrow for a crawl the far chamber is beyond a pinch; through
+    /// one within the sampling's resolution of a crawl it is reached only as tight; through one wider it is reached. The near
+    /// chamber is always reached. Reports each case and returns whether all held.
+    /// </summary>
+    internal static bool CheckThroats(Action<string> report)
+    {
+        Vector3 far = NearChamber + new Vector3(ChambersApart, 0f, 0f);
+        bool all = true;
+        foreach ((float throat, Throat expected) in TooNarrow.Select(r => (r, Throat.Stops)).Concat(WithinResolution.Select(r => (r, Throat.Tight)))
+            .Concat(WideEnough.Select(r => (r, Throat.Passes))))
+        {
+            float Field(Vector3 p)
+            {
+                float rooms = MathF.Max(ChamberRadius - Vector3.Distance(p, NearChamber), ChamberRadius - Vector3.Distance(p, far));
+                float axis = MathF.Sqrt(((p.Y - NearChamber.Y) * (p.Y - NearChamber.Y)) + ((p.Z - NearChamber.Z) * (p.Z - NearChamber.Z)));
+                float tube = p.X >= NearChamber.X && p.X <= far.X ? throat - axis : float.NegativeInfinity;
+                return MathF.Max(rooms, tube);
+            }
+
+            Reach reach = Reach.Of(Field, CheckBox.X, CheckBox.Y, CheckBox.Z, NearChamber);
+            Throat found = reach.ReachedAt(far) ? Throat.Passes : reach.WithinAt(far) ? Throat.Tight : Throat.Stops;
+            bool held = reach.ReachedAt(NearChamber) && found == expected;
+            all &= held;
+            string said = found switch { Throat.Passes => "lets a body into", Throat.Tight => "is within the resolution of a crawl into", _ => "stops a body short of" };
+            report(FormattableString.Invariant($"{(held ? "ok" : "FAILED")}: a {throat * 2:F1} m throat (radius {throat:F2} m; crawl {KarstCave.CrawlRadius:F2} m, resolution {Reach.Resolution:F2} m) {said} the far chamber; {reach.Reached.Count(r => r)} of {reach.Open.Count(o => o)} open samples reached"));
+        }
+
+        return all;
+    }
+
+    /// <summary>
+    /// Each open sample's clearance, in metres: its distance to the rock's surface. An exact Euclidean distance transform finds
+    /// each open sample's nearest rock sample (taken one axis at a time; the box's outside counts as rock), and the surface is
+    /// placed where the field crosses zero on that rock sample's edge to its open neighbour, by linear interpolation of the
+    /// field, so a throat's width is resolved finer than the sampling.
+    /// </summary>
+    private static float[] Clearance(float[] values, bool[] open, int sx, int sy, int sz, float step)
+    {
+        const int Wall = -2;
+        // Farther than any sample can be from rock (the box's squared diagonal, in samples), and small enough that the squared
+        // offsets the envelope adds stay exact in single precision: a far larger value swallows them and misplaces the envelope.
+        float far = ((float)sx * sx) + ((float)sy * sy) + ((float)sz * sz) + 1f;
         float[] d = new float[open.Length];
-        for (int i = 0; i < d.Length; i++) d[i] = open[i] ? Far : 0f;
+        int[] site = new int[open.Length];
+        for (int i = 0; i < d.Length; i++)
+        {
+            d[i] = open[i] ? far : 0f;
+            site[i] = open[i] ? -1 : i;
+        }
+
         int[] sizes = [sx, sy, sz];
         int[] strides = [1, sx, sx * sy];
         for (int axis = 0; axis < 3; axis++)
@@ -281,19 +394,59 @@ internal static class CaveView
                 int origin = ((line % sizes[others[0]]) * strides[others[0]]) + ((line / sizes[others[0]]) * strides[others[1]]);
                 // The line padded with rock beyond each end, so the box's walls bound the clearance.
                 float[] f = new float[n + 2], result = new float[n + 2];
-                for (int k = 0; k < n; k++) f[k + 1] = d[origin + (k * stride)];
-                Distance1D(f, result);
-                for (int k = 0; k < n; k++) d[origin + (k * stride)] = result[k + 1];
+                int[] sites = new int[n + 2], from = new int[n + 2];
+                sites[0] = sites[n + 1] = Wall;
+                for (int k = 0; k < n; k++)
+                {
+                    f[k + 1] = d[origin + (k * stride)];
+                    sites[k + 1] = site[origin + (k * stride)];
+                }
+
+                Distance1D(f, result, from);
+                for (int k = 0; k < n; k++)
+                {
+                    d[origin + (k * stride)] = result[k + 1];
+                    site[origin + (k * stride)] = sites[from[k + 1]];
+                }
             });
         }
 
+        // How far below the surface each rock sample's centre lies: where the field crosses zero towards its nearest-crossing open
+        // neighbour; half a step for the box's wall and for a rock sample with no open neighbour.
+        int[] index = [1, -1, sx, -sx, sx * sy, -(sx * sy)];
+        float Depth(int rock)
+        {
+            if (rock == Wall) return step / 2f;
+            int x = rock % sx, y = rock / sx % sy, z = rock / (sx * sy);
+            float depth = step / 2f;
+            bool any = false;
+            for (int face = 0; face < 6; face++)
+            {
+                int nx = x + Faces[face].X, ny = y + Faces[face].Y, nz = z + Faces[face].Z;
+                if (nx < 0 || ny < 0 || nz < 0 || nx >= sx || ny >= sy || nz >= sz) continue;
+                int neighbour = rock + index[face];
+                if (!open[neighbour]) continue;
+                float crossing = step * (-values[rock] / (values[neighbour] - values[rock]));
+                depth = any ? MathF.Min(depth, crossing) : crossing;
+                any = true;
+            }
+
+            return depth;
+        }
+
         float[] metres = new float[d.Length];
-        for (int i = 0; i < d.Length; i++) metres[i] = open[i] ? MathF.Sqrt(d[i]) * step : 0f;
+        Parallel.For(0, d.Length, i =>
+        {
+            if (open[i]) metres[i] = MathF.Max(0f, (MathF.Sqrt(d[i]) * step) - Depth(site[i]));
+        });
         return metres;
     }
 
-    /// <summary>The squared distance transform of a sampled function along one line (Felzenszwalb and Huttenlocher's lower envelope).</summary>
-    private static void Distance1D(float[] f, float[] result)
+    /// <summary>
+    /// The squared distance transform of a sampled function along one line (Felzenszwalb and Huttenlocher's lower envelope),
+    /// with, for each place, the place whose parabola it lies under.
+    /// </summary>
+    private static void Distance1D(float[] f, float[] result, int[] from)
     {
         int n = f.Length;
         int[] v = new int[n];
@@ -321,6 +474,7 @@ internal static class CaveView
         {
             while (z[k + 1] < q) k++;
             result[q] = ((q - v[k]) * (q - v[k])) + f[v[k]];
+            from[q] = v[k];
         }
     }
 
@@ -359,8 +513,20 @@ internal static class CaveView
         return component;
     }
 
-    /// <summary>The sample the fill starts from: the one a body fits in nearest the arrival, within a few metres.</summary>
-    private static int Seed(Vector3 arrival, bool[] open, float[] clearance, int sx, int sy, int sz, float step)
+    /// <summary>The first point of the prepared route that the generator's own route also has: where the way down joins it.</summary>
+    private static Vector3? JoinOf(IReadOnlyList<Vector3> prepared, IReadOnlyList<Vector3> generated)
+    {
+        HashSet<Vector3> original = [.. generated];
+        foreach (Vector3 point in prepared)
+        {
+            if (original.Contains(point)) return point;
+        }
+
+        return null;
+    }
+
+    /// <summary>The sample the fill starts from: the roomiest a body fits in within a few metres of the start.</summary>
+    internal static int Seed(Vector3 arrival, bool[] open, float[] clearance, int sx, int sy, int sz, float step)
     {
         int reach = (int)MathF.Ceiling(SeedSearchMetres / step);
         int ax = (int)(arrival.X / step), ay = (int)(arrival.Y / step), az = (int)(arrival.Z / step);
@@ -372,10 +538,11 @@ internal static class CaveView
         {
             int i = (((z * sy) + y) * sx) + x;
             if (!open[i] || clearance[i] < KarstCave.CrawlRadius) continue;
-            float distance = ((x - ax) * (x - ax)) + ((y - ay) * (y - ay)) + ((z - az) * (z - az));
-            if (distance < bestDistance)
+            // The roomiest place near the start, not the nearest: a start on a floor has its pocket of rind about it.
+            float room = -clearance[i];
+            if (room < bestDistance)
             {
-                bestDistance = distance;
+                bestDistance = room;
                 best = i;
             }
         }
