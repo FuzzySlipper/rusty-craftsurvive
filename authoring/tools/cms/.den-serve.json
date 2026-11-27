@@ -1,0 +1,12 @@
+{
+  "project": "rusty-wandering-authoring",
+  "serve": {
+    "command": "exec python3 server.py --host {host} --port {port}",
+    "preferredPort": 8790,
+    "healthUrl": "/health",
+    "readyText": "Rusty Wandering Authoring",
+    "reusePolicy": "broker_owned",
+    "startupTimeout": "20s",
+    "healthInterval": "250ms"
+  }
+}

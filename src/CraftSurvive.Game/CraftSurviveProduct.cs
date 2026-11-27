@@ -379,6 +379,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             place => worldBuilt ? PlanToPlaceReadout(place) : "no world")));
         RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => mapView, style => requestedMapStyle = MapSurfaceStyle.Named(style),
             view => worldBuilt ? MapViewReadout(view) : "no world")));
+        RequireRegistration(registrar.Register(new WorldExportDebugModule(() => worlds, () => worldBuilt ? townSites : [], engine.Random)));
         RequireRegistration(registrar.Register(new MenuDebugModule(PauseReadout)));
         RequireRegistration(registrar.Register(new TownDebugModule(key => EnterTown(key is "" or TownDoorstepKey ? null : key), LeaveTown, () => town.Readout() + ";" + (townPresence?.Readout ?? "placed=none"), TownMotion,
             () => worldBuilt ? TownSites() : "no world", ApproachTown, SelectTownService, ChooseTownService)));

@@ -43,6 +43,7 @@
     <Compile Include="$(ProductModules)Weather/FrontArrivals.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Horizon/HorizonSink.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Horizon/HorizonLandmarkRules.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldExport.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/MapPalette.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Content/ColourSpace.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Horizon/HorizonGround.cs" LinkBase="Product" />

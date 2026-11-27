@@ -2,7 +2,7 @@
 # Copies the ignored authoring/assets/ to or from its store on the den NAS: the backup of the raw and working asset
 # files git does not hold (concepts, reference sheets, generated sources, downloaded packs), and the way a new
 # checkout gets them. It keeps no versions. Their text (prompts, specs, provenance, READMEs) is in git as well.
-# MapLab's output (authoring/assets/maplab-out/) is regenerable and not copied.
+# MapLab's output (authoring/assets/maplab-out/) and the golden-seed export (authoring/assets/golden-seed*/) are regenerable and not copied.
 #
 #   authoring/tools/assets-sync.sh push            # this checkout's assets to the store (adds and updates, deletes nothing)
 #   authoring/tools/assets-sync.sh pull            # the store's assets into this checkout (adds and updates, deletes nothing)
@@ -23,4 +23,4 @@ case $direction in
 esac
 [[ -d $from ]] || { echo "assets-sync: $from does not exist" >&2; exit 1; }
 mkdir -p "$to"
-rsync -rt --info=stats1 --exclude=/maplab-out/ --exclude=__pycache__/ "${mirror[@]}" "$from/" "$to/"
+rsync -rt --info=stats1 --exclude=/maplab-out/ --exclude='/golden-seed*/' --exclude=__pycache__/ "${mirror[@]}" "$from/" "$to/"

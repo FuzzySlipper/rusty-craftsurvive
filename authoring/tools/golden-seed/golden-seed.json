@@ -1,0 +1,12 @@
+{
+  "$comment": "The golden seed (#11125): one world the authoring tools export and the CMS atlas shows, so the generator's output can be watched change from run to run and its parts referred to by a stable current reference. export.py reads this; nothing in the game does. Pixels is the continent raster's side. Windows are squares at walking detail (half-side and step in metres): one about each town the game places, plus any named here as {name, x, z}.",
+  "seed": 19,
+  "size": 390000,
+  "pixels": 1024,
+  "windows": {
+    "towns": true,
+    "half": 4096,
+    "step": 16,
+    "extra": []
+  }
+}

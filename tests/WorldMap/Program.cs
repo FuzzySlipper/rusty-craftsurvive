@@ -97,6 +97,7 @@ try
             TerrainGenerationFingerprint.Startup) == expectedTerrain, "restored map and Engine draws reproduce local density and materials across hosts");
         Check.That(restored.Current.Map.Configuration.Seed == 12345 && restored.Current.Map.Configuration.Size == 4096,
             "host restart restores selected seed and extent rather than defaults");
+        WorldExportChecks.Regional(map, new EngineTerrainDraws(engine.Random));
     });
 
     // A continent (#9549): generated, saved and restored through the same catalog, with its own golden.
@@ -120,6 +121,7 @@ try
         DesignTopologyReport topology = DesignTopology.Check(continent.Map.Grid, i => continent.Map.Fields.Elevation[i] >= GenerationConstants.WaterLevel, ContinentDesign.For(continent.Map.Configuration.Size)!);
         Check.That(topology.Holds(ContinentDesign.For(continent.Map.Configuration.Size)!), $"the published continent keeps the frontier's rules: {topology}");
         RegionChecks(continent.Map);
+        WorldExportChecks.Continent(continent.Map, new EngineTerrainDraws(engine.Random));
         Check.Section("weather on the continent", () => WeatherChecks.Continent(continent.Map));
         Check.Section("the continent's bounds", () => FrontierChecks.Continent(continent.Map));
         Check.Section("the horizon's heightfield ground", () => HorizonGroundChecks.Run(continent.Map));
