@@ -40,6 +40,8 @@ export const PLACE_COLOURS: Record<string, string> = {
   VantagePoint: '#72c4ff',
 };
 
+/** A cave way's path points are x, y (height), z: its ground position is the first and third. */
+export const CAVE_Z = 2;
 const NAVIGABILITY_WIDTH = [0.6, 1.4, 2.4, 3.6];
 const NAVIGABILITY_COLOUR = ['#4f8fa0', '#6fb6c9', '#8fd3ea', '#b5ecff'];
 const TOWN_COLOUR = '#ffd166';
@@ -123,10 +125,11 @@ export function AtlasView({
         context.drawImage(image, corner.sx, corner.sy, (2 * half) / c.metresPerPixel, (2 * half) / c.metresPerPixel);
       }
     }
-    const line = (points: number[], stride: number) => {
+    // A flat point list: x then z at zOffset within each stride (rivers x,z[,halfWidth]; cave ways x,y,z).
+    const line = (points: number[], stride: number, zOffset = 1) => {
       context.beginPath();
       for (let i = 0; i < points.length; i += stride) {
-        const p = toScreen(points[i], points[i + 1]);
+        const p = toScreen(points[i], points[i + zOffset]);
         if (i === 0) context.moveTo(p.sx, p.sy);
         else context.lineTo(p.sx, p.sy);
       }
@@ -172,7 +175,7 @@ export function AtlasView({
           context.strokeStyle = 'rgba(255, 138, 92, 0.85)';
           context.lineWidth = 2;
           context.setLineDash([4, 3]);
-          for (const place of detail.places) if (place.cave) line(place.cave.path, 3);
+          for (const place of detail.places) if (place.cave) line(place.cave.path, 3, CAVE_Z);
           context.setLineDash([]);
         }
         for (const place of detail.places) {

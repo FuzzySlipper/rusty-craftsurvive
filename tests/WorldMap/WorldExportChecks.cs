@@ -13,6 +13,7 @@ internal static class WorldExportChecks
     private const int Pixels = 8;
     private const long WindowHalf = 512;
     private const long WindowStep = 64;
+    private const double CaveMouthReach = 8;
 
     internal static void Regional(WorldMap map, ITerrainDraws draws)
     {
@@ -55,6 +56,20 @@ internal static class WorldExportChecks
         }
 
         Check.That(places > 0 && mismatched == 0, $"a window's places are the recipe's own sites, caves where a mouth has one ({places} places, {mismatched} differ)");
+        // A cave way's path is x, y (height), z in world metres from outside its mouth: its first point stands at the mouth (#11125 R11125-1).
+        int caves = 0, astray = 0;
+        foreach (JsonElement place in window.RootElement.GetProperty("places").EnumerateArray())
+        {
+            if (!place.TryGetProperty("cave", out JsonElement cave)) continue;
+            caves++;
+            JsonElement path = cave.GetProperty("path");
+            if (path.GetArrayLength() % 3 != 0
+                || Math.Abs(path[0].GetDouble() - place.GetProperty("x").GetInt64()) > CaveMouthReach
+                || Math.Abs(path[2].GetDouble() - place.GetProperty("z").GetInt64()) > CaveMouthReach)
+                astray++;
+        }
+
+        Check.That(astray == 0, $"each cave way's path starts at its mouth, as x, y, z points ({caves} caves, {astray} astray)");
         Check.Throws<ArgumentOutOfRangeException>(() => export.Window(0, 0, WindowHalf, 1), "a window finer than the least step is refused");
 
         using JsonDocument named = JsonDocument.Parse(export.Places());
