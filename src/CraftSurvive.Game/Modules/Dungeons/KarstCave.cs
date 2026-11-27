@@ -12,8 +12,9 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 /// flow gathers into a branching conduit network. The conduits become the cave: round, sediment-floored tubes below the
 /// water table, canyons cut down by falling water and shafts where it drops above it, and breakdown chambers with flat
 /// bedding-plane ceilings where large flows meet. The water's flow, drip and standing water are kept for later passes.
-/// Passage is checked by whether a body fits, not by walking: a clearance field (the distance to the nearest rock) is
-/// searched for the widest way along each route, and pinches narrower than a body are widened.
+/// Passage is checked by whether a body fits, not by walking: a clearance field (the distance to the rock's surface, in the
+/// field as the layout finishes it) is searched for the widest way along each route, and pinches narrower than a body are
+/// widened. The ruin is fitted clear of every route afterwards.
 /// </summary>
 internal static class KarstCave
 {
@@ -241,6 +242,13 @@ internal static class KarstCave
     // Passage: a crawling body's radius, a standing one's, and how far past a body a pinch is widened.
     internal const float CrawlRadius = 0.45f, StandRadius = 0.85f;
     private const float WidenMargin = 0.2f;
+
+    /// <summary>
+    /// How many rounds a route is widened in, and how much wider each round after the first widens (#11170): the fine forms
+    /// the layout adds can close a pinch widened just past a crawl.
+    /// </summary>
+    private const int WidenRounds = 3;
+    private const float WidenRoundStep = 0.15f;
 
     /// <summary>The rock kept between the cave and the space's sides.</summary>
     private const float RindMetres = 1.5f;
@@ -4157,55 +4165,7 @@ private static int MostBarrensPieces => Area(400);
                 return open;
             }
 
-            open += (MicroAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * MicroFrequency, Seed ^ 0xA01UL)))
-                + (FinerAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * FinerFrequency, Seed ^ 0xA02UL)));
-            return open + FineForms(p);
-        }
-
-        /// <summary>
-        /// The forms finer than the field's samples, from what the water did where: scallops where it flowed, little
-        /// ledges along the laminae and pits where the rock stood in air, flowstone ripples where it dripped (metres,
-        /// positive opening the rock).
-        /// </summary>
-        private float FineForms(Vector3 p)
-        {
-            float flowed = SmoothStep(FlowFrom, FlowFull, GridTrilinear(Flow, p, Box));
-            float dripped = SmoothStep(DripFrom, DripFull, MathF.Max(GridTrilinear(Drip, p, Box),
-                MathF.Max(GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f), Box), GridTrilinear(Drip, p + new Vector3(0f, 2f * GridCell, 0f), Box))));
-            bool aired = p.Y > FinalTable;
-            float forms = 0f;
-
-            // Scallops: shallow dishes packed over the walls, longer along the flow (level) than across it.
-            if (flowed > 0f)
-            {
-                float f1 = Worley(p / ScallopSize, Seed ^ 0xB01UL, out _);
-                forms += ScallopDepth * flowed * MathF.Max(0f, 1f - (f1 * f1 / (ScallopReach * ScallopReach)));
-            }
-
-            if (aired)
-            {
-                // Laminae: thin beds eaten back unevenly, a sawtooth of little ledges along the dip.
-                float bedY = p.Y - (BedDip.X * p.X) - (BedDip.Y * p.Z);
-                float saw = (bedY / LaminaSpacing) - MathF.Floor(bedY / LaminaSpacing);
-                float laminated = SmoothStep(0.45f, 0.7f, NaturalCavern.Noise(p * LaminaPatchFrequency, Seed ^ 0xB02UL));
-                forms += LedgeDepth * laminated * ((saw * 2f) - 1f);
-
-                // Pits: a few small cups where the rock weathered in air.
-                float f1 = Worley(p / PitSpacing, Seed ^ 0xB03UL, out float which);
-                if (which < PitShare)
-                {
-                    forms += PitDepth * MathF.Max(0f, 1f - (f1 / PitReach));
-                }
-            }
-
-            // Flowstone: deposited rock in ripples down the walls where the water dripped.
-            if (dripped > 0f)
-            {
-                float wave = 0.5f + (0.5f * MathF.Sin((p.Y * RippleFrequency) + (3f * NaturalCavern.Noise(p * 0.6f, Seed ^ 0xB04UL))));
-                forms -= RippleHeight * dripped * wave;
-            }
-
-            return forms;
+            return open + Detail(p, Flow, Drip, FinalTable, Seed, Box);
         }
 
         /// <summary>The cave's seed, for its micro term.</summary>
@@ -4213,6 +4173,62 @@ private static int MostBarrensPieces => Area(400);
 
         /// <summary>How many stalactites, stalagmites and columns the drip left.</summary>
         internal required int Formations { get; init; }
+    }
+
+    /// <summary>
+    /// What the finished field adds to the trilinear samples where it is near the surface (metres, positive opening the
+    /// rock): the micro unevenness and the forms finer than the samples. The passage check measures the field with it
+    /// (#11170), so a pinch the fine forms narrow is widened too.
+    /// </summary>
+    private static float Detail(Vector3 p, float[] flow, float[] drip, float finalTable, ulong seed, (int X, int Y, int Z) box) =>
+        (MicroAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * MicroFrequency, seed ^ 0xA01UL)))
+        + (FinerAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * FinerFrequency, seed ^ 0xA02UL)))
+        + FineForms(p, flow, drip, finalTable, seed, box);
+
+    /// <summary>
+    /// The forms finer than the field's samples, from what the water did where: scallops where it flowed, little
+    /// ledges along the laminae and pits where the rock stood in air, flowstone ripples where it dripped (metres,
+    /// positive opening the rock).
+    /// </summary>
+    private static float FineForms(Vector3 p, float[] flow, float[] drip, float finalTable, ulong seed, (int X, int Y, int Z) box)
+    {
+        float flowed = SmoothStep(FlowFrom, FlowFull, GridTrilinear(flow, p, box));
+        float dripped = SmoothStep(DripFrom, DripFull, MathF.Max(GridTrilinear(drip, p, box),
+            MathF.Max(GridTrilinear(drip, p + new Vector3(0f, GridCell, 0f), box), GridTrilinear(drip, p + new Vector3(0f, 2f * GridCell, 0f), box))));
+        bool aired = p.Y > finalTable;
+        float forms = 0f;
+
+        // Scallops: shallow dishes packed over the walls, longer along the flow (level) than across it.
+        if (flowed > 0f)
+        {
+            float f1 = Worley(p / ScallopSize, seed ^ 0xB01UL, out _);
+            forms += ScallopDepth * flowed * MathF.Max(0f, 1f - (f1 * f1 / (ScallopReach * ScallopReach)));
+        }
+
+        if (aired)
+        {
+            // Laminae: thin beds eaten back unevenly, a sawtooth of little ledges along the dip.
+            float bedY = p.Y - (BedDip.X * p.X) - (BedDip.Y * p.Z);
+            float saw = (bedY / LaminaSpacing) - MathF.Floor(bedY / LaminaSpacing);
+            float laminated = SmoothStep(0.45f, 0.7f, NaturalCavern.Noise(p * LaminaPatchFrequency, seed ^ 0xB02UL));
+            forms += LedgeDepth * laminated * ((saw * 2f) - 1f);
+
+            // Pits: a few small cups where the rock weathered in air.
+            float f1 = Worley(p / PitSpacing, seed ^ 0xB03UL, out float which);
+            if (which < PitShare)
+            {
+                forms += PitDepth * MathF.Max(0f, 1f - (f1 / PitReach));
+            }
+        }
+
+        // Flowstone: deposited rock in ripples down the walls where the water dripped.
+        if (dripped > 0f)
+        {
+            float wave = 0.5f + (0.5f * MathF.Sin((p.Y * RippleFrequency) + (3f * NaturalCavern.Noise(p * 0.6f, seed ^ 0xB04UL))));
+            forms -= RippleHeight * dripped * wave;
+        }
+
+        return forms;
     }
 
     /// <summary>
@@ -4557,7 +4573,34 @@ private static int MostBarrensPieces => Area(400);
         }
 
         // Passage: the widest way from the first sink to the spring and to every other sink, widened where a body would not fit.
-        float[] clearance = Clearance(open);
+        // It is measured in the field as the layout finishes it (#11170): the samples with the micro unevenness and fine forms
+        // added where they lie near the surface (worked out once, for the samples that come near it), so a pinch those forms
+        // narrow is found too.
+        float[] detail = new float[open.Length];
+        Array.Fill(detail, float.NaN);
+        float[] Finished()
+        {
+            float[] finished = new float[open.Length];
+            Parallel.For(0, open.Length, i =>
+            {
+                float here = open[i];
+                if (MathF.Abs(here) > 1f)
+                {
+                    finished[i] = here;
+                    return;
+                }
+
+                if (float.IsNaN(detail[i]))
+                {
+                    detail[i] = Detail(FieldCentre(i), activeFlow, drip, finalTable, seed, Box);
+                }
+
+                finished[i] = here + detail[i];
+            });
+            return finished;
+        }
+
+        float[] clearance = Clearance(Finished());
         Mark("clearance");
         Vector3 start = sinks[0];
         // The routes made walkable (#10304): the main route from the first sink to the spring, then each other sink joined to
@@ -4582,10 +4625,30 @@ private static int MostBarrensPieces => Area(400);
         List<List<int>> routePaths = [];
         // Every route is widened where it pinches first, then the clearance is measured once and each route's final way found
         // (#10304: measuring it again after each widened route made a large cave's generation grow with its area squared).
-        List<(float Before, int Widened)> widened = [.. routes.Select(r => WidenPassage(open, clearance, r.From, r.To))];
-        if (widened.Any(w => w.Widened > 0))
+        // The fine forms can close a widened pinch again, so a route widened is checked again, widened wider, up to a few
+        // rounds (#11170); a route that needed no widening is not, as widening elsewhere only opens.
+        (float Before, int Widened)[] widened = new (float, int)[routes.Count];
+        List<int> pending = [.. Enumerable.Range(0, routes.Count)];
+        for (int round = 0; round < WidenRounds && pending.Count > 0; round++)
         {
-            clearance = Clearance(open);
+            float radius = CrawlRadius + WidenMargin + (round * WidenRoundStep);
+            List<int> again = [];
+            foreach (int r in pending)
+            {
+                (float before, int count) = WidenPassage(open, clearance, routes[r].From, routes[r].To, radius);
+                widened[r] = (round == 0 ? before : widened[r].Before, widened[r].Widened + count);
+                if (count > 0)
+                {
+                    again.Add(r);
+                }
+            }
+
+            if (again.Count > 0)
+            {
+                clearance = Clearance(Finished());
+            }
+
+            pending = again;
         }
 
         Mark("passages-clearance");
@@ -4609,7 +4672,7 @@ private static int MostBarrensPieces => Area(400);
         Mark("passages");
         // The ruin fitted into the finished passages (#10097), chosen in the cave's field as it stands: everything placed after
         // is handed it as a map, and keeps clear of it.
-        CaveRuin? fitted = ruin && !run.NoRuin ? CaveRuins.Fit(p => Trilinear(open, p), mainRoute, seed) : null;
+        CaveRuin? fitted = ruin && !run.NoRuin ? CaveRuins.Fit(p => Trilinear(open, p), mainRoute, routePaths.SelectMany(path => path).Select(FieldCentre), seed) : null;
         Mark("ruin");
         // The dark's growth starts with the drip's formation pieces (#10305): the geological kit draws with the growth, those
         // whose rock the passages' widening cut away left out.
@@ -6037,73 +6100,108 @@ private static int MostBarrensPieces => Area(400);
         });
     }
 
-    /// <summary>Each open sample's distance to the nearest rock, in metres (zero in rock): an exact distance transform.</summary>
-    internal static float[] Clearance(float[] open)
+    /// <summary>
+    /// Each open sample's clearance, in metres: its distance to the rock's surface (#11170; it was the distance to the
+    /// nearest rock sample's centre, which read any open sample beside rock half a step clear - a crawl - however close
+    /// the surface ran). An exact Euclidean distance transform finds each open sample's nearest rock sample (the box's
+    /// outside counts as rock), and the surface is placed where the field crosses zero on that rock sample's edge to its
+    /// open neighbour, so a throat's width is resolved finer than the samples. Rock reads 0.
+    /// </summary>
+    internal static float[] Clearance(float[] field)
     {
-        const float Far = 1e9f;
-        float[] d = new float[open.Length];
-        for (int i = 0; i < open.Length; i++)
-        {
-            d[i] = open[i] > 0f ? Far : 0f;
-        }
-
-        // Squared distances along x, then y, then z (Felzenszwalb and Huttenlocher), in samples.
-        Parallel.For(0, FieldZ, z =>
-        {
-            float[] line = new float[FieldX];
-            for (int y = 0; y < FieldY; y++)
-            {
-                for (int x = 0; x < FieldX; x++) line[x] = d[FieldIndex(x, y, z)];
-                float[] done = Transform(line);
-                for (int x = 0; x < FieldX; x++) d[FieldIndex(x, y, z)] = done[x];
-            }
-        });
-        Parallel.For(0, FieldZ, z =>
-        {
-            float[] line = new float[FieldY];
-            for (int x = 0; x < FieldX; x++)
-            {
-                for (int y = 0; y < FieldY; y++) line[y] = d[FieldIndex(x, y, z)];
-                float[] done = Transform(line);
-                for (int y = 0; y < FieldY; y++) d[FieldIndex(x, y, z)] = done[y];
-            }
-        });
-        Parallel.For(0, FieldY, y =>
-        {
-            float[] line = new float[FieldZ];
-            for (int x = 0; x < FieldX; x++)
-            {
-                for (int z = 0; z < FieldZ; z++) line[z] = d[FieldIndex(x, y, z)];
-                float[] done = Transform(line);
-                for (int z = 0; z < FieldZ; z++) d[FieldIndex(x, y, z)] = done[z];
-            }
-        });
+        const int Wall = -2;
+        int sx = FieldX, sy = FieldY, sz = FieldZ;
+        // Farther than any sample can be from rock (the box's squared diagonal, in samples), and small enough that the squared
+        // offsets the envelope adds stay exact in single precision.
+        float far = ((float)sx * sx) + ((float)sy * sy) + ((float)sz * sz) + 1f;
+        float[] d = new float[field.Length];
+        int[] site = new int[field.Length];
         for (int i = 0; i < d.Length; i++)
         {
-            d[i] = MathF.Sqrt(d[i]) * FieldStep;
+            bool open = field[i] > 0f;
+            d[i] = open ? far : 0f;
+            site[i] = open ? -1 : i;
         }
 
-        return d;
+        int[] sizes = [sx, sy, sz];
+        int[] strides = [1, sx, sx * sy];
+        for (int axis = 0; axis < 3; axis++)
+        {
+            int n = sizes[axis], stride = strides[axis];
+            int[] others = [.. Enumerable.Range(0, 3).Where(a => a != axis)];
+            int count = sizes[others[0]] * sizes[others[1]];
+            Parallel.For(0, count, () => (F: new float[n + 2], Result: new float[n + 2], Sites: new int[n + 2], From: new int[n + 2], V: new int[n + 2], Z: new float[n + 3]),
+                (line, _, work) =>
+                {
+                    int origin = ((line % sizes[others[0]]) * strides[others[0]]) + ((line / sizes[others[0]]) * strides[others[1]]);
+                    // The line padded with rock beyond each end, so the box's walls bound the clearance.
+                    work.F[0] = work.F[n + 1] = 0f;
+                    work.Sites[0] = work.Sites[n + 1] = Wall;
+                    for (int k = 0; k < n; k++)
+                    {
+                        work.F[k + 1] = d[origin + (k * stride)];
+                        work.Sites[k + 1] = site[origin + (k * stride)];
+                    }
+
+                    Distance1D(work.F, work.Result, work.From, work.V, work.Z);
+                    for (int k = 0; k < n; k++)
+                    {
+                        d[origin + (k * stride)] = work.Result[k + 1];
+                        site[origin + (k * stride)] = work.Sites[work.From[k + 1]];
+                    }
+
+                    return work;
+                }, _ => { });
+        }
+
+        // How far below the surface each rock sample's centre lies: where the field crosses zero towards its nearest-crossing
+        // open neighbour; half a step for the box's wall and for a rock sample with no open neighbour.
+        float Depth(int rock)
+        {
+            if (rock < 0) return FieldStep / 2f;
+            (int x, int y, int z) = FieldCell3(rock);
+            float depth = FieldStep / 2f;
+            bool any = false;
+            foreach ((int dx, int dy, int dz) in Around6)
+            {
+                int nx = x + dx, ny = y + dy, nz = z + dz;
+                if (nx < 0 || ny < 0 || nz < 0 || nx >= sx || ny >= sy || nz >= sz) continue;
+                int neighbour = FieldIndex(nx, ny, nz);
+                if (field[neighbour] <= 0f) continue;
+                float crossing = FieldStep * (-field[rock] / (field[neighbour] - field[rock]));
+                depth = any ? MathF.Min(depth, crossing) : crossing;
+                any = true;
+            }
+
+            return depth;
+        }
+
+        float[] metres = new float[d.Length];
+        Parallel.For(0, d.Length, i =>
+        {
+            if (field[i] > 0f) metres[i] = MathF.Max(0f, (MathF.Sqrt(d[i]) * FieldStep) - Depth(site[i]));
+        });
+        return metres;
     }
 
-    /// <summary>One line of the squared distance transform: the lower envelope of parabolas.</summary>
-    private static float[] Transform(float[] f)
+    /// <summary>
+    /// The squared distance transform of a sampled function along one line (Felzenszwalb and Huttenlocher's lower envelope),
+    /// with, for each place, the place whose parabola it lies under.
+    /// </summary>
+    private static void Distance1D(float[] f, float[] result, int[] from, int[] v, float[] z)
     {
         int n = f.Length;
-        float[] result = new float[n];
-        int[] v = new int[n];
-        float[] z = new float[n + 1];
         int k = 0;
         v[0] = 0;
         z[0] = float.NegativeInfinity;
         z[1] = float.PositiveInfinity;
         for (int q = 1; q < n; q++)
         {
-            float s = Meet(f, q, v[k]);
+            float s = ((f[q] + (q * q)) - (f[v[k]] + (v[k] * v[k]))) / (2f * (q - v[k]));
             while (s <= z[k])
             {
                 k--;
-                s = Meet(f, q, v[k]);
+                s = ((f[q] + (q * q)) - (f[v[k]] + (v[k] * v[k]))) / (2f * (q - v[k]));
             }
 
             k++;
@@ -6115,15 +6213,10 @@ private static int MostBarrensPieces => Area(400);
         k = 0;
         for (int q = 0; q < n; q++)
         {
-            while (z[k + 1] < q)
-            {
-                k++;
-            }
-
+            while (z[k + 1] < q) k++;
             result[q] = ((q - v[k]) * (q - v[k])) + f[v[k]];
+            from[q] = v[k];
         }
-
-        return result;
     }
 
     /// <summary>
@@ -6146,7 +6239,7 @@ private static int MostBarrensPieces => Area(400);
     /// The first half of making sure a way can be walked: how wide the widest way is now, and the samples along the shortest
     /// way that are too narrow for a body, widened. The clearance is not measured again here (the caller does, once).
     /// </summary>
-    private static (float Before, int Widened) WidenPassage(float[] open, float[] clearance, Vector3 from, Vector3 to)
+    private static (float Before, int Widened) WidenPassage(float[] open, float[] clearance, Vector3 from, Vector3 to, float radius = CrawlRadius + WidenMargin)
     {
         Mark("passages-other");
         (float before, List<int> path) = WayAtLeast(clearance, from, to);
@@ -6155,7 +6248,7 @@ private static int MostBarrensPieces => Area(400);
         {
             if (clearance[sample] < CrawlRadius)
             {
-                Widen(open, FieldCentre(sample), CrawlRadius + WidenMargin);
+                Widen(open, FieldCentre(sample), radius);
                 widened++;
             }
         }
@@ -6381,9 +6474,6 @@ private static int MostBarrensPieces => Area(400);
 
     /// <summary>How much a sample narrower than wanted adds to a way, per metre it is too narrow.</summary>
     private const float PinchCost = 400f;
-
-    /// <summary>Where the parabolas rooted at samples q and r meet.</summary>
-    private static float Meet(float[] f, int q, int r) => ((f[q] + (q * q)) - (f[r] + (r * r))) / ((2f * q) - (2f * r));
 
     /// <summary>
     /// The widest way between two places through the open samples: the path whose narrowest clearance is greatest (a

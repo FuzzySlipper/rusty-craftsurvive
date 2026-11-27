@@ -134,4 +134,7 @@ The first view of a cave takes about ten seconds; the exporter must be built (`d
 When a cave is mostly out of reach, `... -- pinch poi:CX:CZ` says which stage of the generator closed it: the same reach
 fill on the cave's field as the passages were checked, with its fine forms, and with its ruin, against the generator's
 own clearance along the main route, and what of the ruin closed the cave's air near the route. With `--summary` it
-prints one line per cave (each stage's reached share of the room a body fits in, and of the route), for sampling many.
+prints one line per cave (each stage's reached share of the room a body fits in, and of the route), for sampling many. The
+exporter's `check` (run by CI) generates three of the golden seed's caves the generator once left mostly out of reach
+(a ruin across the main route; passages one sample wide read as a crawl) and requires each reached through most of its
+room and along its main route.

@@ -39,22 +39,15 @@ internal static class Pinch
         if (summary)
         {
             // One line per cave: at each stage, the share of the room a body fits in (a crawl's clearance or more) that the fill
-            // reached, and the share of the generator's main route.
-            string Shares(CaveView.Reach fill)
+            // reached, and the share of the generator's main route - reached as the cave view counts it, through throats within
+            // the sampling's resolution of a crawl too (its tight state).
+            string Line(CaveView.Reach fill)
             {
-                int room = 0, reached = 0;
-                for (int i = 0; i < fill.Open.Length; i++)
-                {
-                    if (!fill.Open[i] || fill.Clearance[i] < KarstCave.CrawlRadius) continue;
-                    room++;
-                    if (fill.Reached[i]) reached++;
-                }
-
-                int along = route.Count(p => Near(fill, p, (f, i) => f.Reached[i]));
-                return FormattableString.Invariant($"{reached / (double)Math.Max(1, room):F2} {along / (double)Math.Max(1, route.Count):F2}");
+                (double room, double along) = Shares(fill, route);
+                return FormattableString.Invariant($"{room:F2} {along:F2}");
             }
 
-            log($"{id} ruin={KarstCave.LastRuin?.Size.ToString() ?? "none"} widened={result.Passages.Sum(w => w.Widened)} " + string.Join(" | ", fills.Select(Shares)));
+            log($"{id} ruin={KarstCave.LastRuin?.Size.ToString() ?? "none"} widened={result.Passages.Sum(w => w.Widened)} " + string.Join(" | ", fills.Select(Line)));
             return;
         }
 
@@ -106,7 +99,7 @@ internal static class Pinch
             }
         }
 
-        log("route point: generator clearance (as checked / on the final samples), view clearance per stage, field per stage");
+        log("route point: generator clearance (as checked, in the finished field / on its samples alone), view clearance per stage, field per stage");
         for (int i = 0; i < route.Count; i++)
         {
             Vector3 p = route[i];
@@ -115,6 +108,61 @@ internal static class Pinch
             string fields = string.Join(" ", stages.Select(st => $"{st.Field(p):F2}"));
             log($"{i,3} ({p.X:F1},{p.Y:F1},{p.Z:F1}) gen {generator[f]:F2}/{after[f]:F2}  view {views}  field {fields}");
         }
+    }
+
+    /// <summary>
+    /// The share of the room a body fits in (a crawl's clearance or more) a fill reached, and of a route's points, as the cave
+    /// view counts reach: through throats within the sampling's resolution of a crawl too.
+    /// </summary>
+    private static (double Room, double Along) Shares(CaveView.Reach fill, IReadOnlyList<Vector3> route)
+    {
+        int room = 0, reached = 0;
+        for (int i = 0; i < fill.Open.Length; i++)
+        {
+            if (!fill.Open[i] || fill.Clearance[i] < KarstCave.CrawlRadius) continue;
+            room++;
+            if (fill.Within[i]) reached++;
+        }
+
+        int along = route.Count(p => Near(fill, p, (f, i) => f.Within[i]));
+        return (reached / (double)Math.Max(1, room), along / (double)Math.Max(1, route.Count));
+    }
+
+    // Caves of the golden seed (seed 19, a 390 km world) each fault left mostly out of reach (#11170): a ruin's floor slab across
+    // the main route, and passages one sample wide read as a crawl. Each is its mouth as the export records it.
+    private static readonly (string Id, ulong Seed, CaveSetting Setting, PoiSite Mouth)[] Regressions =
+    [
+        ("poi:-450:142", 0xddb334bffef2b2a3UL, new(0.6581551388407052, 0.9781100612683269, 6.8167295f), new(-450, 142, (PoiKind)3, -115062, 36461, 128, 6, 6, 1)),
+        ("poi:-564:-198", 0x2a21154007b37e9dUL, new(0.2764952301810115, 0.9999999999999997, 52.555305f), new(-564, -198, (PoiKind)3, -144223, -50495, 1151, 7, 1, 3)),
+        ("poi:144:-593", 0xdb5f71bffcfa8a7aUL, new(0, 0.9728905080196582, 77.625f), new(144, -593, (PoiKind)3, 36996, -151556, 5588, 5, 7, 3)),
+    ];
+
+    private const long RegressionWorldRadius = 390000 / 2;
+
+    /// <summary>The least share of its body room and of its main route each regression cave must leave in reach.</summary>
+    private const double LeastRoom = 0.85, LeastAlong = 0.95;
+
+    /// <summary>
+    /// The regression caves generated and prepared as the game does, each reached from its way in through most of its room and
+    /// along its main route (run by the exporter's check, so CI).
+    /// </summary>
+    internal static bool CheckRegressions(Action<string> report)
+    {
+        bool all = true;
+        foreach ((string id, ulong seed, CaveSetting setting, PoiSite mouth) in Regressions)
+        {
+            CavePlacement placement = CavePlacement.Place(mouth, RegressionWorldRadius) ?? throw new InvalidOperationException($"{id} has no way underground.");
+            DungeonCandidate cave = DungeonCandidates.Generate(DungeonApproach.Karst, seed, 0, 1d, null, setting, UnderCaves.Settings());
+            UndergroundCave prepared = UnderCaves.Prepare(cave, placement);
+            Vector3 start = CaveView.JoinOf(prepared.Layout.MainRoute, cave.Layout.MainRoute) ?? cave.Layout.Arrival;
+            CaveView.Reach fill = CaveView.Reach.Of(cave.Layout.Shape!, cave.Walkable.SizeX, cave.Walkable.SizeY, cave.Walkable.SizeZ, start);
+            (double room, double along) = Shares(fill, cave.Layout.MainRoute);
+            bool held = room >= LeastRoom && along >= LeastAlong;
+            all &= held;
+            report(FormattableString.Invariant($"{(held ? "ok" : "FAILED")}: cave {id} ({KarstCave.LastRuin?.Size.ToString() ?? "no"} ruin) leaves {room * 100:F0}% of its body room and {along * 100:F0}% of its main route in reach (at least {LeastRoom * 100:F0}% and {LeastAlong * 100:F0}%)"));
+        }
+
+        return all;
     }
 
     // The view's samples within a quarter metre of a point (a route point is a generator sample's centre, a corner of the

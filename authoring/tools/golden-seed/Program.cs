@@ -66,7 +66,9 @@ if (command == "check")
 {
     // The cave view's reach on synthetic caves (#11125 R11125-2): two round chambers joined by a throat, which a body passes
     // only when the throat is wider than a crawl. Run by scripts/check-product.sh --managed.
-    return CaveView.CheckThroats(Console.WriteLine) ? 0 : 1;
+    // And the golden seed's caves each generator fault left mostly out of reach (#11170).
+    bool throats = CaveView.CheckThroats(Console.WriteLine);
+    return Pinch.CheckRegressions(Console.WriteLine) && throats ? 0 : 1;
 }
 
 if (command == "column")

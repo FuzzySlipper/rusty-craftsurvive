@@ -41,7 +41,8 @@ internal sealed record CaveRuin(RuinSize Size, IReadOnlyList<PlacedModule> Modul
     // Where the cave's rock meets the ruin's outer walls (the detail pass's joins): air the cave leaves open by less than this,
     // with a ruin's cell within this far one way and the cave's rock as near the other, is closed - the rock meets the masonry
     // rather than leaving a hairline gap.
-    private const float JoinReach = 0.75f, JoinGap = 0.6f;
+    internal const float JoinReach = 0.75f;
+    private const float JoinGap = 0.6f;
     /// <summary>The cave's air this far into a masonry voxel (metres of the cave's field) bursts it: the cave runs through.</summary>
     internal const float BurstOpen = 0.4f;
 
@@ -276,13 +277,20 @@ internal static class CaveRuins
     /// <summary>The highest storey whose cells lie whole inside the cave's space.</summary>
     private static int TopStorey => ((KarstCave.Running.ChunksY * 16) - ModularDungeon.BaseY) / ModuleCanvas.StoreyHeight - 1;
 
-    /// <summary>The ruin fitted into a cave, or null when the cave has no site for one (or only fine voxels: a ruin is laid in 1 m voxels).</summary>
-    internal static CaveRuin? Fit(Func<Vector3, float> cave, IReadOnlyList<Vector3> route, ulong seed)
+    /// <summary>
+    /// The ruin fitted into a cave, or null when the cave has no site for one (or only fine voxels: a ruin is laid in 1 m voxels).
+    /// No cell of it lies where a body passing along the cave's routes would meet its masonry, its footings or the rock closed
+    /// against its walls (#11170: its floor slab cut a cave's main route, leaving most of the cave out of reach).
+    /// </summary>
+    /// <param name="route">The main route's points, the breach set beside it.</param>
+    /// <param name="passages">Every route's path, all of which stay passable.</param>
+    internal static CaveRuin? Fit(Func<Vector3, float> cave, IReadOnlyList<Vector3> route, IEnumerable<Vector3> passages, ulong seed)
     {
         DungeonRandom random = new(seed ^ 0x2017_0097UL);
         double roll = random.Unit();
         RuinSize first = roll < ShellShare ? RuinSize.Shell : roll < ShellShare + WingShare ? RuinSize.Wing : RuinSize.Large;
-        List<(PlacedModule Breach, double Score)> sites = Sites(cave, route, random);
+        HashSet<(int X, int Y, int Z)> kept = KeptClear(passages);
+        List<(PlacedModule Breach, double Score)> sites = [.. Sites(cave, route, random).Where(s => !s.Breach.Cells().Any(kept.Contains))];
         for (RuinSize size = first; size >= RuinSize.Shell; size--)
         {
             (int least, int most, int descend, bool vault) = Rooms(size);
@@ -290,7 +298,7 @@ internal static class CaveRuins
             {
                 int rooms = random.Range(least, most);
                 var grown = ModularDungeon.Ruin(random, breach, rooms, descend, vault, TopStorey, m => BuriedWeight * Buried(cave, m));
-                if (grown.Failure is not null)
+                if (grown.Failure is not null || grown.Placed.Any(m => m.Cells().Any(kept.Contains)))
                 {
                     continue;
                 }
@@ -303,6 +311,34 @@ internal static class CaveRuins
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The lattice cells a ruin keeps out of: every cell a body on one of the routes would reach into - its crawling radius
+    /// round each path sample - with the rock closed against a ruin's outer walls beside it and the footings filled under its
+    /// floors below it (#11170).
+    /// </summary>
+    private static HashSet<(int X, int Y, int Z)> KeptClear(IEnumerable<Vector3> passages)
+    {
+        // Cells beside and below a body reach it through the rock closed against their walls; cells above it, through the
+        // footings filled under their floors.
+        float side = KarstCave.CrawlRadius + CaveRuin.JoinReach, below = KarstCave.CrawlRadius + CaveRuin.JoinReach, above = KarstCave.CrawlRadius + FootingGap;
+        HashSet<(int X, int Y, int Z)> kept = [];
+        foreach (Vector3 p in passages)
+        {
+            int x0 = (int)MathF.Floor((p.X - side) / ModuleCanvas.CellSize), x1 = (int)MathF.Floor((p.X + side) / ModuleCanvas.CellSize);
+            int z0 = (int)MathF.Floor((p.Z - side) / ModuleCanvas.CellSize), z1 = (int)MathF.Floor((p.Z + side) / ModuleCanvas.CellSize);
+            int y0 = (int)MathF.Floor((p.Y - below - ModularDungeon.BaseY) / ModuleCanvas.StoreyHeight);
+            int y1 = (int)MathF.Floor((p.Y + above - ModularDungeon.BaseY) / ModuleCanvas.StoreyHeight);
+            for (int z = z0; z <= z1; z++)
+                for (int y = y0; y <= y1; y++)
+                    for (int x = x0; x <= x1; x++)
+                    {
+                        kept.Add((x, y, z));
+                    }
+        }
+
+        return kept;
     }
 
     /// <summary>

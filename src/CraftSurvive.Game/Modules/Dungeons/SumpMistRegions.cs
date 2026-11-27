@@ -70,7 +70,10 @@ internal static class SumpMistRegions
         return (regions, covered);
     }
 
-    /// <summary>Where the straight run from <paramref name="start"/> ends (exclusive).</summary>
+    /// <summary>
+    /// Where the straight run from <paramref name="start"/> ends (exclusive). It also ends before a volume its box would leave
+    /// a heart outside (#11170): a box turns only about the vertical, so a passage that rises or bends along the run breaks it.
+    /// </summary>
     private static int RunEnd(IReadOnlyList<MistVolume> along, int start)
     {
         int end = start + 1;
@@ -79,6 +82,14 @@ internal static class SumpMistRegions
             Vector3 first = Flat(along[start + 1 < along.Count ? start + 1 : start].Centre - along[start].Centre);
             Vector3 next = Flat(along[end].Centre - along[end - 1].Centre);
             if (first != Vector3.Zero && next != Vector3.Zero && Vector3.Dot(first, next) < MathF.Cos(MostBendDegrees * MathF.PI / 180f)) break;
+            MistRegion wider = Cover(along, start, end + 1);
+            bool holds = true;
+            for (int i = start; i <= end && holds; i++)
+            {
+                holds = wider.Contains(along[i].Centre);
+            }
+
+            if (!holds) break;
             end++;
         }
 
