@@ -79,14 +79,9 @@ internal sealed class TerrainChunkPreparer : IDisposable
             }
 
             long started = Stopwatch.GetTimestamp();
-            TerrainDrawLane.OnWorker = true;
             try
             {
                 finished.Enqueue(new Prepared(address, generator.GenerateUncached(address, overlay), overlayRevision, edited, cavesRevision));
-            }
-            catch (TerrainDrawOffUpdateException)
-            {
-                finished.Enqueue(new Prepared(address, null, overlayRevision, edited, cavesRevision));
             }
             catch (Exception failure)
             {
@@ -96,7 +91,6 @@ internal sealed class TerrainChunkPreparer : IDisposable
             }
             finally
             {
-                TerrainDrawLane.OnWorker = false;
                 Interlocked.Add(ref workerTicks, Stopwatch.GetTimestamp() - started);
             }
         }, token, TaskCreationOptions.DenyChildAttach, Background);

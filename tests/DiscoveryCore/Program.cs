@@ -80,12 +80,31 @@ foreach (PoiSite site in forward.Values.Where(site => site is not null).Select(s
     Check.That(site.Kind != PoiKind.None, $"{site.Id} must have a kind");
 }
 
-// Submerged ground is refused outright, so a site is never placed in a lake.
+// Submerged ground is refused outright, so a site is never placed in a lake or elevated river (#11179).
 PoiPlacement drowned = Create(Seed, TerrainGeneratorContract.CurrentVersion, new FlatColumns(surface: 0));
+PoiPlacement highlandLake = Create(Seed, TerrainGeneratorContract.CurrentVersion, new SubmergedColumns(surface: 15, waterSurface: 18));
+PoiPlacement townPad = Create(Seed, TerrainGeneratorContract.CurrentVersion, new TownColumns(surface: 10));
 foreach ((long cellX, long cellZ) in cells)
 {
     Check.That(drowned.SiteAt(cellX, cellZ) is null,
         $"({cellX},{cellZ}) is under water and must hold no site");
+    Check.That(highlandLake.SiteAt(cellX, cellZ) is null,
+        $"({cellX},{cellZ}) is submerged under an elevated lake/river and must hold no site");
+    Check.That(townPad.SiteAt(cellX, cellZ) is null,
+        $"({cellX},{cellZ}) is on a town pad and must hold no site");
+}
+
+// On a continental world, vantage points require real height (not coastal flats, #11179).
+PoiPlacement lowContinent = new(
+    new TerrainGeneratorContract(Seed, TerrainGeneratorContract.CurrentVersion, MapScale.DefaultContinentalSize),
+    new TestDraws(), new FlatColumns(surface: 40), MapScale.DefaultContinentalSize / 2);
+foreach ((long cellX, long cellZ) in cells)
+{
+    if (lowContinent.SiteAt(cellX, cellZ) is PoiSite site)
+    {
+        Check.That(site.Kind != PoiKind.VantagePoint,
+            $"{site.Id} is at {site.Ground} m on a continent and must not be a VantagePoint");
+    }
 }
 
 // Flat ground carries no hillside and no height, so relief kinds and lookouts are
@@ -675,4 +694,15 @@ sealed class RiverColumns : ITerrainColumns
         long channel = ((x % 64) + 64) % 64;
         return new TerrainColumn(channel < channelWidth ? 0 : 6, 0);
     }
+}
+
+sealed class SubmergedColumns(long surface, double waterSurface) : ITerrainColumns
+{
+    public TerrainColumn ColumnAt(long x, long z) => new(surface, 0, waterSurface);
+}
+
+sealed class TownColumns(long surface) : ITerrainColumns
+{
+    public TerrainColumn ColumnAt(long x, long z) => new(surface, 0);
+    public bool InTown(long x, long z) => true;
 }

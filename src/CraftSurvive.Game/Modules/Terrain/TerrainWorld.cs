@@ -55,13 +55,12 @@ internal sealed class TerrainWorld : IDisposable
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         frame.Rebased += OnRebased;
         map ??= WorldMapGenerator.Generate(configuration);
-        drawsUsed = new EngineTerrainDraws(engine.Random);
-        recipe = configuration.CreateRecipe(drawsUsed, map);
+        recipe = configuration.CreateRecipe(EngineTerrainDraws.Shared, map);
 
         // The fingerprint comes from a fresh recipe, so nothing the live one memoises can hide a
         // change in the generator or in the Engine's keyed draws underneath it.
         GenerationFingerprint = TerrainGenerationFingerprint.Compute(
-            configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), map),
+            configuration.CreateRecipe(EngineTerrainDraws.Shared, map),
             TerrainGenerationFingerprint.Startup);
         CacheIdentity = TerrainGenerationFingerprint.CacheIdentity(GenerationFingerprint, TerrainGeneratorSource.Stamp);
         chunkCache = new TerrainChunkCache(engine, recipe.Contract, CacheIdentity);
@@ -390,7 +389,7 @@ internal sealed class TerrainWorld : IDisposable
             farField = new FarField(engine, content, recipe, () => Session, Water) { RadiusChunks = viewDistanceChunks, NearEdgeMetres = NearEdgeMetres };
             vegetationTiles = new VegetationTiles(engine, recipe, session, () => overlayStore.Overlay, lastCentre);
             vegetationTiles.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
-            treeTiles = new TreeTiles(engine, recipe, session, trees, MaterialAt, IsEdited, lastCentre) { DrawClock = () => (drawsUsed.DrawTicks, drawsUsed.Draws) };
+            treeTiles = new TreeTiles(engine, recipe, session, trees, MaterialAt, IsEdited, lastCentre);
             treeTiles.Grow(treeReachMetres);
             plantTiles = new PlantTiles(engine, content, recipe, session, trees.NearMeshes, presentation.ShadeGrass, () => overlayStore.Overlay, lastCentre);
             ui.Publish();
@@ -551,7 +550,6 @@ internal sealed class TerrainWorld : IDisposable
 
     private readonly List<string> syncPhases = [];
     private readonly TerrainChunkGenerator chunkGenerator;
-    private readonly EngineTerrainDraws drawsUsed;
 
     /// <summary>The lowest and highest ground over a chunk column, from its generated columns' samples (#10907).</summary>
     internal (long Low, long High) SurfaceBand(long chunkX, long chunkZ) => chunkGenerator.SurfaceBand(chunkX, chunkZ);

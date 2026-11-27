@@ -97,6 +97,8 @@ internal sealed class TerrainChunkGenerator
         VoxelAddress origin = address.Origin;
         // The chunk column's map samples, shared by the chunks stacked in it (a cave's box is several deep, #10889).
         (TerrainColumn[] columns, double[] heights) = Columns(address.X, address.Z, origin);
+        // Overlapping places, crossings, caves, and trees gathered once per chunk (#11179).
+        TerrainRecipe.ChunkFeatures features = cached is null ? recipe.PrepareChunkFeatures(address) : default;
         for (int z = 0; z < TerrainConstants.ChunkEdgeLength; z++)
         {
             for (int x = 0; x < TerrainConstants.ChunkEdgeLength; x++)
@@ -109,7 +111,7 @@ internal sealed class TerrainChunkGenerator
                     VoxelAddress voxel = new(origin.X + x, origin.Y + y, origin.Z + z);
                     int index = ToIndex(x, y, z);
                     float? underground = null;
-                    ushort generated = cached is not null ? cached[index] : recipe.GeneratedAt(voxel, column, height, out underground);
+                    ushort generated = cached is not null ? cached[index] : recipe.GeneratedAt(voxel, column, height, in features, out underground);
                     ushort material = overlay.TryGetMaterial(voxel, out ushort overridden)
                         ? overridden
                         : generated;
@@ -144,17 +146,7 @@ internal sealed class TerrainChunkGenerator
             }
         }
 
-        int edge = TerrainConstants.ChunkEdgeLength;
-        TerrainColumn[] columns = new TerrainColumn[edge * edge];
-        double[] heights = new double[edge * edge];
-        for (int z = 0; z < edge; z++)
-        {
-            for (int x = 0; x < edge; x++)
-            {
-                columns[(z * edge) + x] = recipe.ColumnAt(origin.X + x, origin.Z + z);
-                heights[(z * edge) + x] = recipe.ContinuousHeightAt(origin.X + x, origin.Z + z);
-            }
-        }
+        (TerrainColumn[] columns, double[] heights) = recipe.SampleChunkColumns(origin, TerrainConstants.ChunkEdgeLength);
 
         lock (columnLock)
         {
@@ -221,7 +213,7 @@ internal sealed class TerrainChunkGenerator
             if (voxel.Chunk != previous.Address) continue;
             if (!columns.TryGetValue((voxel.X, voxel.Z), out (TerrainColumn Column, double Height) column))
             {
-                column = columns[(voxel.X, voxel.Z)] = (recipe.ColumnAt(voxel.X, voxel.Z), recipe.ContinuousHeightAt(voxel.X, voxel.Z));
+                column = columns[(voxel.X, voxel.Z)] = recipe.ColumnAndHeightAt(voxel.X, voxel.Z);
             }
 
             int index = ToIndex((int)(voxel.X - origin.X), (int)(voxel.Y - origin.Y), (int)(voxel.Z - origin.Z));

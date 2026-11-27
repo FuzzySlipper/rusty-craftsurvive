@@ -55,8 +55,8 @@ internal sealed class TreeTiles : IDisposable
     /// <summary>Tiles whose decided trees are kept for their next commit (an edit re-asks a tile): about three views' worth.</summary>
     private const int DecidedTilesKept = 1024;
 
-    /// <summary>A tree a worker decided, with the ground under its trunk, and whether a structure may have taken its footing.</summary>
-    private readonly record struct Decided(TerrainTree Tree, bool Structured, double Ground);
+    /// <summary>A tree a worker decided, with the ground under its trunk.</summary>
+    private readonly record struct Decided(TerrainTree Tree, double Ground);
 
     private readonly Dictionary<(double X, double Z), Decided[]> decided = [];
     private readonly Queue<(double X, double Z)> decidedOrder = new();
@@ -76,10 +76,7 @@ internal sealed class TreeTiles : IDisposable
     private readonly VegetationField field;
     private readonly VegetationStreamer streamer;
     private (double X, double Z) focus;
-    private long recordsMade, decidedTiles, decidingTicks, slowestTicks, drawingTicks, drawsMade;
-
-    /// <summary>The Engine's keyed draws' time and count so far, to tell a tile's draws from its decisions (#10907).</summary>
-    internal Func<(long Ticks, long Draws)>? DrawClock { get; set; }
+    private long recordsMade, decidedTiles, decidingTicks, slowestTicks;
 
     internal TreeTiles(IEngineContext engine, TerrainRecipe recipe, SpatialSession session, TerrainTrees trees,
         Func<VoxelAddress, ushort> materialAt, Func<VoxelAddress, bool> edited, VoxelAddress centre)
@@ -133,8 +130,6 @@ internal sealed class TreeTiles : IDisposable
             engine.Vegetation.Invalidate(new VegetationInvalidateRequest(field, minX - 1, minZ - 1, maxX + 1, maxZ + 1));
         }
 
-        MakeAskedDraws();
-
         // Tiles whose trees the workers decided: kept, and asked again so they are committed with them.
         while (finished.TryDequeue(out ((double X, double Z) Origin, double Size, Decided[]? Trees) done))
         {
@@ -184,7 +179,7 @@ internal sealed class TreeTiles : IDisposable
     {
         VegetationReadout r = engine.Vegetation.Read(field);
         return string.Create(CultureInfo.InvariantCulture,
-            $"treeTiles tiles={r.Tiles} pending={r.PendingTiles} patches={r.Patches} copies={r.Instances} overBudget={r.OverBudget} deferred={r.Deferred} placeMs={r.PlacementMicroseconds / 1e3:F2} selectMs={r.SelectionMicroseconds / 1e3:F2} publishMs={r.PublicationMicroseconds / 1e3:F2} skipped={r.SettlesSkipped} reselected={r.SettlesReselected} invalidated={r.InvalidatedTiles} records={recordsMade} workerTiles={workerTiles} deciding={deciding.Count} asking={asks.Count} kept={decided.Count} givenBack={givenBack} commitMs={Milliseconds(decidedTiles == 0 ? 0 : decidingTicks / decidedTiles):F2}/tile drawMs={Milliseconds(decidedTiles == 0 ? 0 : drawingTicks / decidedTiles):F2}/tile draws={(decidedTiles == 0 ? 0 : drawsMade / decidedTiles)}/tile slowest={Milliseconds(slowestTicks):F2} committed={streamer.Committed} settled={r.PendingTiles == 0 && r.Deferred == 0 && streamer.InFlight == 0}");
+            $"treeTiles tiles={r.Tiles} pending={r.PendingTiles} patches={r.Patches} copies={r.Instances} overBudget={r.OverBudget} deferred={r.Deferred} placeMs={r.PlacementMicroseconds / 1e3:F2} selectMs={r.SelectionMicroseconds / 1e3:F2} publishMs={r.PublicationMicroseconds / 1e3:F2} skipped={r.SettlesSkipped} reselected={r.SettlesReselected} invalidated={r.InvalidatedTiles} records={recordsMade} workerTiles={workerTiles} deciding={deciding.Count} kept={decided.Count} givenBack={givenBack} commitMs={Milliseconds(decidedTiles == 0 ? 0 : decidingTicks / decidedTiles):F2}/tile slowest={Milliseconds(slowestTicks):F2} committed={streamer.Committed} settled={r.PendingTiles == 0 && r.Deferred == 0 && streamer.InFlight == 0}");
     }
 
     /// <summary>Draws the trees or not; hidden, they keep their tiles, so showing them again costs nothing.</summary>
@@ -204,12 +199,11 @@ internal sealed class TreeTiles : IDisposable
 
     /// <summary>
     /// The tile's standing trees as records in their variant's layer, on the update's thread:
-    /// the recipe's decisions use the Engine's keyed draws, and standing reads the edits.
+    /// workers decide each tile directly via KeyedRng (#11179), and standing reads the edits here.
     /// </summary>
     private void AddTrees(VegetationTileSamples samples)
     {
         long started = System.Diagnostics.Stopwatch.GetTimestamp();
-        (long drawTicksBefore, long drawsBefore) = DrawClock?.Invoke() ?? (0, 0);
         VegetationTileRequest tile = samples.Tile;
         (double X, double Z) origin = (tile.OriginX, tile.OriginZ);
         if (decided.TryGetValue(origin, out Decided[]? trees))
@@ -218,7 +212,6 @@ internal sealed class TreeTiles : IDisposable
         }
         else if (decideHere.Remove(origin))
         {
-            // A worker gave the tile back (a draw it was not given): decided here, as before the workers.
             Decide(samples);
         }
         else
@@ -228,42 +221,12 @@ internal sealed class TreeTiles : IDisposable
         }
 
         long spent = System.Diagnostics.Stopwatch.GetTimestamp() - started;
-        (long drawTicksAfter, long drawsAfter) = DrawClock?.Invoke() ?? (0, 0);
-        drawingTicks += drawTicksAfter - drawTicksBefore;
-        drawsMade += drawsAfter - drawsBefore;
         decidedTiles++;
         decidingTicks += spent;
         slowestTicks = Math.Max(slowestTicks, spent);
     }
 
-    /// <summary>A tile waiting for its keyed draws to be made on the update thread before a worker decides its trees (#10907).</summary>
-    private sealed class TileAsk((double X, double Z) origin, double size, long firstX, long lastX, long firstZ, long lastZ, Queue<(long X, long Z)> anchors)
-    {
-        internal (double X, double Z) Origin { get; } = origin;
-        internal double Size { get; } = size;
-        internal long FirstX { get; } = firstX;
-        internal long LastX { get; } = lastX;
-        internal long FirstZ { get; } = firstZ;
-        internal long LastZ { get; } = lastZ;
-        internal long Across => LastZ - FirstZ + 1;
-
-        /// <summary>The tree cells' draws, once made; null until then.</summary>
-        internal ulong[]? Draws { get; set; }
-
-        /// <summary>The place and crossing anchor cells about the tile still to decide, one at a time (each samples the ground).</summary>
-        internal Queue<(long X, long Z)> Anchors { get; } = anchors;
-    }
-
-    private readonly Queue<TileAsk> asks = new();
-    private World.Deferral askDeferral;
-
-    /// <summary>
-    /// How long an update spends making the asked tiles' draws (#10907): a tile's thousand tree cells are a fraction of a
-    /// millisecond, but a place or crossing cell decided for the first time (the tiles' 2 km frontier) samples the ground.
-    /// </summary>
-    private const double AskBudgetMs = 2d;
-
-    /// <summary>Queues a tile for its draws and its worker; it is committed bare meanwhile.</summary>
+    /// <summary>Hands a tile straight to a worker, which decides its trees directly via KeyedRng (#11179).</summary>
     private void Ask(VegetationTileRequest tile)
     {
         (double X, double Z) origin = (tile.OriginX, tile.OriginZ);
@@ -276,55 +239,6 @@ internal sealed class TreeTiles : IDisposable
         double size = tile.TileCells * tile.CellSize;
         long firstX = GridMath.FloorDivide((long)Math.Floor(tile.OriginX), cell), lastX = GridMath.FloorDivide((long)Math.Ceiling(tile.OriginX + size) - 1, cell);
         long firstZ = GridMath.FloorDivide((long)Math.Floor(tile.OriginZ), cell), lastZ = GridMath.FloorDivide((long)Math.Ceiling(tile.OriginZ + size) - 1, cell);
-        asks.Enqueue(new TileAsk(origin, size, firstX, lastX, firstZ, lastZ,
-            new(recipe.PlaceAnchorsOver(firstX * cell, firstZ * cell, ((lastX + 1) * cell) - 1, ((lastZ + 1) * cell) - 1))));
-    }
-
-    /// <summary>
-    /// Makes the asked tiles' keyed draws here within the update's budget, the tree cells' first and then the place and
-    /// crossing cells' one at a time, and hands each tile whose draws are all made to a worker (#10907).
-    /// </summary>
-    private void MakeAskedDraws()
-    {
-        if (asks.Count == 0 || !askDeferral.Runs())
-        {
-            return;
-        }
-
-        long started = System.Diagnostics.Stopwatch.GetTimestamp();
-        while (asks.TryPeek(out TileAsk? ask) && System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds < AskBudgetMs)
-        {
-            if (ask.Draws is null)
-            {
-                ulong[] draws = new ulong[(ask.LastX - ask.FirstX + 1) * ask.Across];
-                for (long anchorX = ask.FirstX; anchorX <= ask.LastX; anchorX++)
-                for (long anchorZ = ask.FirstZ; anchorZ <= ask.LastZ; anchorZ++)
-                {
-                    draws[((anchorX - ask.FirstX) * ask.Across) + anchorZ - ask.FirstZ] = recipe.TreeCellDraw(anchorX, anchorZ);
-                }
-
-                ask.Draws = draws;
-                continue;
-            }
-
-            if (ask.Anchors.TryDequeue(out (long X, long Z) anchor))
-            {
-                recipe.PrepareAnchor(anchor.X, anchor.Z);
-                continue;
-            }
-
-            asks.Dequeue();
-            Decide(ask);
-        }
-    }
-
-    /// <summary>Hands a tile whose draws are all made to a worker, which decides its trees.</summary>
-    private void Decide(TileAsk ask)
-    {
-        (double X, double Z) origin = ask.Origin;
-        double size = ask.Size;
-        long firstX = ask.FirstX, lastX = ask.LastX, firstZ = ask.FirstZ, lastZ = ask.LastZ, across = ask.Across;
-        ulong[] draws = ask.Draws!;
         CancellationToken token = stopping.Token;
         _ = Task.Factory.StartNew(() =>
         {
@@ -333,43 +247,36 @@ internal sealed class TreeTiles : IDisposable
                 return;
             }
 
-            TerrainDrawLane.OnWorker = true;
             try
             {
                 List<Decided> trees = [];
                 for (long anchorX = firstX; anchorX <= lastX; anchorX++)
                 for (long anchorZ = firstZ; anchorZ <= lastZ; anchorZ++)
                 {
-                    if (recipe.TreeInCellDrawn(anchorX, anchorZ, draws[((anchorX - firstX) * across) + anchorZ - firstZ]) is not (TerrainTree tree, bool structured))
+                    if (recipe.TreeInCell(anchorX, anchorZ) is not TerrainTree tree)
                     {
                         continue;
                     }
 
-                    trees.Add(new Decided(tree, structured, recipe.ContinuousHeightAt(tree.X, tree.Z)));
+                    trees.Add(new Decided(tree, recipe.ContinuousHeightAt(tree.X, tree.Z)));
                 }
 
                 finished.Enqueue((origin, size, [.. trees]));
             }
             catch (Exception)
             {
-                // A draw not made ahead, or any fault: the update thread decides the tile itself on its next commit.
                 finished.Enqueue((origin, size, null));
-            }
-            finally
-            {
-                TerrainDrawLane.OnWorker = false;
             }
         }, token, TaskCreationOptions.DenyChildAttach, Background);
     }
 
-    /// <summary>A tile's decided trees as records: one a structure took the footing of, or an edit felled, is left out.</summary>
+    /// <summary>A tile's decided trees as records: one an edit felled is left out.</summary>
     private void Place(VegetationTileSamples samples, Decided[] trees)
     {
         VegetationTileRequest tile = samples.Tile;
         foreach (Decided entry in trees)
         {
             TerrainTree tree = entry.Tree;
-            if (entry.Structured && !TreeFelling.Stands(tree, recipe.MaterialAt)) continue;
             bool touched = TreeFelling.Core(tree).Append(TreeFelling.Support(tree)).Any(edited);
             if (touched && !TreeFelling.Stands(tree, materialAt)) continue;
             AddRecord(samples, tile, tree, entry.Ground);

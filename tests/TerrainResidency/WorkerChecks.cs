@@ -4,8 +4,8 @@ using CraftSurvive.Game.Modules.WorldGen;
 namespace CraftSurvive.Game.Tests;
 
 /// <summary>
-/// Chunks generated on workers (#10907): the same voxels and densities as the update thread's, with every keyed draw made
-/// ahead on the update thread, and a draw not made ahead giving the chunk back rather than drawing on a worker.
+/// Chunks generated on workers (#10907, #11179): the same voxels and densities as the update thread's,
+/// drawing directly through worker-callable managed KeyedRng (rusty-engine #11177) with no pre-draw step.
 /// </summary>
 internal static class WorkerChecks
 {
@@ -18,11 +18,11 @@ internal static class WorkerChecks
     {
         TerrainConfiguration config = TerrainConfiguration.Default;
         TerrainOverlayState overlay = new(config.Seed);
-        TerrainChunkGenerator serial = new(config.CreateRecipe(new TestDraws(config.Seed)));
-        TerrainChunkGenerator parallel = new(config.CreateRecipe(new UpdateThreadDraws(new TestDraws(config.Seed))));
+        TerrainChunkGenerator serial = new(config.CreateRecipe(EngineTerrainDraws.Shared));
+        TerrainChunkGenerator parallel = new(config.CreateRecipe(EngineTerrainDraws.Shared));
 
-        // A window round the origin a few chunks across, its ground band and a chunk either side: trees, places and the
-        // overhang of features across chunk borders all come from the shared caches the workers read.
+        // A window round the origin a few chunks across, its ground band and a chunk either side: trees, places,
+        // crossings and the overhang of features across chunk borders all decide directly on workers.
         List<TerrainChunkAddress> chunks = [];
         for (long x = -4; x <= 3; x++)
         for (long z = -4; z <= 3; z++)
@@ -35,7 +35,6 @@ internal static class WorkerChecks
         {
             foreach (TerrainChunkAddress chunk in chunks)
             {
-                parallel.Recipe.PrepareDraws(chunk);
                 preparer.Queue(chunk, overlay.Snapshot(), overlay.Revision, parallel.Recipe.Caves.Revision);
             }
 
@@ -58,21 +57,32 @@ internal static class WorkerChecks
             }
 
             Check.That(preparer.Faults == 0, $"a chunk worker faulted: {preparer.Readout()}");
-            Check.That(givenBack == 0, $"{givenBack} of {chunks.Count} chunks were given back by the workers despite their draws made ahead");
+            Check.That(givenBack == 0, $"{givenBack} of {chunks.Count} chunks were given back by the workers");
             Check.That(mismatched == 0, $"{mismatched} of {chunks.Count} chunks generated on workers differ from the update thread's");
             Console.WriteLine($"{chunks.Count} chunks generated on {TerrainChunkPreparer.Workers} workers match the update thread's ({preparer.Readout()}).");
         }
 
-        // A chunk whose draws were not made ahead: its worker may not draw, so it gives the chunk back.
-        TerrainChunkGenerator unprepared = new(config.CreateRecipe(new UpdateThreadDraws(new TestDraws(config.Seed))));
-        using (TerrainChunkPreparer preparer = new(unprepared))
+        // Batch chunk column sampling and hoisted chunk features must match single-voxel MaterialAt exactly across the window.
+        TerrainRecipe direct = config.CreateRecipe(EngineTerrainDraws.Shared);
+        int voxelMismatches = 0;
+        foreach (TerrainChunkAddress chunk in chunks)
         {
-            TerrainChunkAddress chunk = new(7, 0, 7);
-            preparer.Queue(chunk, overlay.Snapshot(), overlay.Revision, unprepared.Recipe.Caves.Revision);
-            Dictionary<TerrainChunkAddress, TerrainChunkPreparer.Prepared> done = Drain(preparer, [chunk]);
-            Check.That(done[chunk].Chunk is null && preparer.Faults == 0, "a worker generated a chunk whose keyed draws were not made ahead");
-            Console.WriteLine("A chunk whose draws were not made ahead is given back to the update thread.");
+            TerrainChunk generated = serial.Generate(chunk, overlay.Snapshot());
+            VoxelAddress origin = chunk.Origin;
+            ReadOnlySpan<ushort> materials = generated.Materials.Span;
+            int edge = TerrainConstants.ChunkEdgeLength;
+            for (int z = 0; z < edge; z++)
+            for (int y = 0; y < edge; y++)
+            for (int x = 0; x < edge; x++)
+            {
+                ushort actual = materials[(z * TerrainConstants.ChunkPlaneLength) + (y * edge) + x];
+                ushort expected = direct.MaterialAt(new VoxelAddress(origin.X + x, origin.Y + y, origin.Z + z));
+                if (actual != expected) voxelMismatches++;
+            }
         }
+
+        Check.That(voxelMismatches == 0, $"{voxelMismatches} voxels from batch/hoisted chunk generation differed from direct MaterialAt");
+        Console.WriteLine($"Batch column sampling and hoisted chunk features match direct MaterialAt across all {chunks.Count} chunks.");
     }
 
     private static Dictionary<TerrainChunkAddress, TerrainChunkPreparer.Prepared> Drain(TerrainChunkPreparer preparer, IReadOnlyList<TerrainChunkAddress> chunks)
@@ -96,12 +106,5 @@ internal static class WorkerChecks
         }
 
         return done;
-    }
-
-    /// <summary>Test draws that, like the Engine's, refuse a chunk worker.</summary>
-    private sealed class UpdateThreadDraws(ITerrainDraws inner) : ITerrainDraws
-    {
-        public long Draw(string scope, string key, ulong seed, long minimum, long maximum) =>
-            TerrainDrawLane.OnWorker ? throw new TerrainDrawOffUpdateException(scope, key) : inner.Draw(scope, key, seed, minimum, maximum);
     }
 }

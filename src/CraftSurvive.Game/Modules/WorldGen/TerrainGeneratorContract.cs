@@ -80,9 +80,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// steep for snow, it is bare stone; version 42 carves each cave mouth's tendril down into its hill, smooth-walled, to
     /// the way in of the cave under it, and reads a cave generated there into the overworld's own chunks (#10889); version 43
     /// fades the walking ground's local relief out under the sea, so the open sea raises no island the map does not have; version
-    /// 44 lets rising relief lift no ground the map has under water, coming in over the shore's first metres instead (#11148).
+    /// 44 lets rising relief lift no ground the map has under water, coming in over the shore's first metres instead (#11148); version
+    /// 45 adopts worker-callable managed KeyedRng (rusty-engine #11177), decouples per-subsystem feature seed versions so future targeted
+    /// fixes do not scramble unrelated placements, refuses POIs on submerged columns or town pads, and scales continental vantage height (#11179).
     /// </summary>
-    internal const uint CurrentVersion = 44;
+    internal const uint CurrentVersion = 45;
 
     private const string GenerationScope = "craftsurvive.terrain";
 
@@ -112,6 +114,36 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     }
 
     /// <summary>
+    /// Zero-allocation coordinate keyed draw in [minimum, maximum], using a subsystem seed version
+    /// when running at <see cref="CurrentVersion"/> so unrelated fixes do not reshuffle this feature
+    /// family while explicit version overrides still move its draws (#11179).
+    /// </summary>
+    internal long DrawLong(ITerrainDraws draws, ReadOnlySpan<char> purpose, long cellX, long cellZ, long minimum, long maximum, uint featureSeedVersion)
+    {
+        ArgumentNullException.ThrowIfNull(draws);
+        if (purpose.IsEmpty)
+        {
+            throw new ArgumentException("A draw purpose must not be empty.", nameof(purpose));
+        }
+
+        if (maximum < minimum)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximum), maximum, "A draw range must not be inverted.");
+        }
+
+        Span<char> scope = stackalloc char[GenerationScope.Length + 1 + purpose.Length];
+        GenerationScope.AsSpan().CopyTo(scope);
+        scope[GenerationScope.Length] = '.';
+        purpose.CopyTo(scope[(GenerationScope.Length + 1)..]);
+
+        Span<char> key = stackalloc char[48];
+        cellX.TryFormat(key, out int xLength, default, System.Globalization.CultureInfo.InvariantCulture);
+        key[xLength] = ',';
+        cellZ.TryFormat(key[(xLength + 1)..], out int zLength, default, System.Globalization.CultureInfo.InvariantCulture);
+        return draws.Draw(scope, key[..(xLength + 1 + zLength)], MixFeatureVersion(Seed, featureSeedVersion), minimum, maximum);
+    }
+
+    /// <summary>
     /// A one-in-N draw, the shape most feature placement needs. It compares against
     /// a fraction of a wide range rather than testing a narrow draw for an exact
     /// value: a narrow modulo is only as uniform as the low bits of whatever
@@ -128,15 +160,34 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
         return DrawLong(draws, purpose, key, 0, UnitScale - 1) < UnitScale / oneIn;
     }
 
-    // Erosion refines the established geography instead of redrawing it on a recipe revision.
-    // The full recipe version still owns save/cache identity and feature draws.
+    /// <summary>Zero-allocation coordinate one-in-N draw scoped to one feature family's seed version (#11179).</summary>
+    internal bool DrawUnit(ITerrainDraws draws, ReadOnlySpan<char> purpose, long cellX, long cellZ, long oneIn, uint featureSeedVersion)
+    {
+        if (oneIn < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(oneIn), oneIn, "A one-in-N draw needs N of at least one.");
+        }
+
+        return DrawLong(draws, purpose, cellX, cellZ, 0, UnitScale - 1, featureSeedVersion) < UnitScale / oneIn;
+    }
+
+    // Independent seed versions per subsystem (#11179): geography and each feature family bump their
+    // own seed version only when their own distribution changes, while CurrentVersion still owns
+    // save/cache identity and explicit version overrides (e.g. CurrentVersion + 1) move every draw.
     private const uint GeographySeedVersion = 17;
+    internal const uint TreeSeedVersion = 44;
+    internal const uint PoiSeedVersion = 44;
+    internal const uint CrossingSeedVersion = 44;
+
     internal ulong GeographyNoiseSeed => Seed ^ unchecked(GeographySeedVersion * VersionSpread);
 
     /// <summary>Spreads the version across every bit of the seed, so neighbouring versions share nothing.</summary>
     private const ulong VersionSpread = 0x9e3779b97f4a7c15UL;
 
     private ulong MixVersion(ulong seed) => seed ^ (Version * VersionSpread);
+
+    private ulong MixFeatureVersion(ulong seed, uint featureSeedVersion) =>
+        seed ^ ((Version == CurrentVersion ? featureSeedVersion : Version) * VersionSpread);
 }
 
 /// <summary>
@@ -147,55 +198,27 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
 internal interface ITerrainDraws
 {
     long Draw(string scope, string key, ulong seed, long minimum, long maximum);
+
+    long Draw(ReadOnlySpan<char> scope, ReadOnlySpan<char> key, ulong seed, long minimum, long maximum) =>
+        Draw(scope.ToString(), key.ToString(), seed, minimum, maximum);
 }
 
 /// <summary>
-/// The Engine-backed implementation: every draw is an Engine keyed draw, so the
-/// product owns placement policy and the Engine owns reproducibility. Nothing else
-/// in generation touches randomness.
+/// The Engine-backed implementation: every draw uses the SDK's pure, stateless, thread-safe
+/// <see cref="KeyedRng"/> (rusty-engine #11177), so workers and the update thread draw identically
+/// with zero allocation and no pre-draw coordination (#11179).
 /// </summary>
-internal sealed class EngineTerrainDraws(IRandomService random) : ITerrainDraws
+internal sealed class EngineTerrainDraws : ITerrainDraws
 {
-    /// <summary>The time spent in the Engine's keyed draws so far, and how many (#10907: what a tile's tree decisions cost).</summary>
-    internal long DrawTicks { get; private set; }
+    internal static EngineTerrainDraws Shared { get; } = new();
 
-    internal long Draws { get; private set; }
+    internal EngineTerrainDraws() { }
 
-    private readonly IRandomService random = random ?? throw new ArgumentNullException(nameof(random));
+    internal EngineTerrainDraws(IRandomService _) { }
 
-    public long Draw(string scope, string key, ulong seed, long minimum, long maximum)
-    {
-        // The Engine's keyed draws are the update thread's: a chunk worker is given its draws ahead (#10907).
-        if (TerrainDrawLane.OnWorker)
-        {
-            throw new TerrainDrawOffUpdateException(scope, key);
-        }
+    public long Draw(string scope, string key, ulong seed, long minimum, long maximum) =>
+        KeyedRng.Draw(seed, scope, key, minimum, maximum);
 
-        long started = System.Diagnostics.Stopwatch.GetTimestamp();
-        KeyedRngReceipt receipt = random.DrawKeyed(new KeyedRngRequest(seed, scope, key, minimum, maximum));
-        DrawTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
-        Draws++;
-        return receipt.Value;
-    }
+    public long Draw(ReadOnlySpan<char> scope, ReadOnlySpan<char> key, ulong seed, long minimum, long maximum) =>
+        KeyedRng.Draw(seed, scope, key, minimum, maximum);
 }
-
-/// <summary>Which thread may draw (#10907): a chunk worker may not, since the Engine's keyed draws are the update thread's.</summary>
-internal static class TerrainDrawLane
-{
-    [ThreadStatic]
-    private static bool onWorker;
-
-    /// <summary>Whether this thread is generating a chunk on a worker.</summary>
-    internal static bool OnWorker
-    {
-        get => onWorker;
-        set => onWorker = value;
-    }
-}
-
-/// <summary>
-/// A keyed draw asked on a chunk worker that was not made ahead on the update thread (#10907): the worker gives its chunk back
-/// and the update thread generates it itself.
-/// </summary>
-internal sealed class TerrainDrawOffUpdateException(string scope, string key)
-    : InvalidOperationException($"The keyed draw {scope}/{key} was not made ahead of the chunk worker.");

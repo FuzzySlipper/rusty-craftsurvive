@@ -98,7 +98,6 @@ internal sealed class TerrainResidencyStreamer(
 
         long asking0 = System.Diagnostics.Stopwatch.GetTimestamp();
         TerrainRecipe recipe = generator.Recipe;
-        recipe.PrepareDraws(address);
         preparer.Queue(address, plan.Overlay, plan.OverlayRevision, recipe.Caves.Revision);
         asked++;
         askTicks += System.Diagnostics.Stopwatch.GetTimestamp() - asking0;
@@ -162,7 +161,6 @@ internal sealed class TerrainResidencyStreamer(
         pending = true;
         if (!reads.Holds(address) && reads.CanQueue)
         {
-            recipe.PrepareDraws(address);
             reads.Queue(address, snapshot, overlayRevision, recipe.Caves.Revision);
         }
 

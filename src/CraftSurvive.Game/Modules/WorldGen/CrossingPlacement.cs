@@ -45,36 +45,6 @@ internal sealed class CrossingPlacement
     /// <summary>Each anchor cell's decision, read by the chunk workers too (#10907).</summary>
     private readonly SharedCache<(long X, long Z), CrossingSite?> cells = new(PoiConstants.SiteCacheLimit);
 
-    /// <summary>Whether an anchor cell is decided already, or can be without a keyed draw (#10907).</summary>
-    internal bool Knows(long cellX, long cellZ) => cells.ContainsKey((cellX, cellZ)) || offsets.ContainsKey((cellX, cellZ));
-
-    // Each anchor cell's two lines' offsets, the only keyed draws its decision makes (#10907). Drawn ahead on the update thread
-    // (DrawOffsets), they let a worker decide the cell: a scan of up to 512 columns' ground, some 10 to 20 ms.
-    private readonly SharedCache<(long X, long Z), (long Row, long Column)> offsets = new(PoiConstants.SiteCacheLimit);
-
-    /// <summary>Makes an anchor cell's keyed draws ahead, on the update thread, so its crossing can be decided anywhere (#10907).</summary>
-    internal void DrawOffsets(long cellX, long cellZ)
-    {
-        if (!Knows(cellX, cellZ))
-        {
-            Offsets(cellX, cellZ);
-        }
-    }
-
-    private (long Row, long Column) Offsets(long cellX, long cellZ)
-    {
-        if (offsets.TryGetValue((cellX, cellZ), out (long Row, long Column) known))
-        {
-            return known;
-        }
-
-        string key = TerrainGeneratorContract.CoordinateKey(cellX, cellZ);
-        long cell = PoiConstants.CellSize;
-        (long Row, long Column) drawn = (contract.DrawLong(draws, "crossing.row", key, 0, cell - 1), contract.DrawLong(draws, "crossing.column", key, 0, cell - 1));
-        offsets.Set((cellX, cellZ), drawn);
-        return drawn;
-    }
-
     internal CrossingPlacement(TerrainGeneratorContract contract, ITerrainDraws draws, ITerrainColumns columns, long radius)
     {
         this.contract = contract;
@@ -100,7 +70,8 @@ internal sealed class CrossingPlacement
         long cell = PoiConstants.CellSize;
         long originX = cellX * cell;
         long originZ = cellZ * cell;
-        (long row, long column) = Offsets(cellX, cellZ);
+        long row = contract.DrawLong(draws, "crossing.row", cellX, cellZ, 0, cell - 1, TerrainGeneratorContract.CrossingSeedVersion);
+        long column = contract.DrawLong(draws, "crossing.column", cellX, cellZ, 0, cell - 1, TerrainGeneratorContract.CrossingSeedVersion);
         return TryLine(originX, originZ, cellX, cellZ, row, alongX: true)
             ?? TryLine(originX, originZ, cellX, cellZ, column, alongX: false);
     }

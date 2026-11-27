@@ -21,6 +21,9 @@ internal interface ITerrainColumns
         TerrainColumn column = ColumnAt(x, z);
         return (column.Surface, column.WaterTop);
     }
+
+    /// <summary>Whether a column lies on a town's pad or edge, where wild sites should not stand (#11179).</summary>
+    bool InTown(long x, long z) => false;
 }
 
 /// <summary>
@@ -78,9 +81,6 @@ internal sealed class PoiPlacement
     private readonly long radius;
     /// <summary>Each anchor cell's decision, read by the chunk workers too (#10907).</summary>
     private readonly SharedCache<(long X, long Z), PoiSite?> cells = new(PoiConstants.SiteCacheLimit);
-
-    /// <summary>Whether an anchor cell is decided already (#10907).</summary>
-    internal bool Knows(long cellX, long cellZ) => cells.ContainsKey((cellX, cellZ));
 
     internal PoiPlacement(TerrainGeneratorContract contract, ITerrainDraws draws, ITerrainColumns columns, long radius)
     {
@@ -152,49 +152,60 @@ internal sealed class PoiPlacement
 
     private PoiSite? DecideSite(long cellX, long cellZ)
     {
-        string key = TerrainGeneratorContract.CoordinateKey(cellX, cellZ);
-        if (!contract.DrawUnit(draws, "poi.present", key, PoiConstants.OneIn))
+        const uint seedVersion = TerrainGeneratorContract.PoiSeedVersion;
+        if (!contract.DrawUnit(draws, "poi.present", cellX, cellZ, PoiConstants.OneIn, seedVersion))
         {
             return null;
         }
 
         long x = (cellX * PoiConstants.CellSize)
-            + contract.DrawLong(draws, "poi.offset.x", key, 0, PoiConstants.CellSize - 1);
+            + contract.DrawLong(draws, "poi.offset.x", cellX, cellZ, 0, PoiConstants.CellSize - 1, seedVersion);
         long z = (cellZ * PoiConstants.CellSize)
-            + contract.DrawLong(draws, "poi.offset.z", key, 0, PoiConstants.CellSize - 1);
+            + contract.DrawLong(draws, "poi.offset.z", cellX, cellZ, 0, PoiConstants.CellSize - 1, seedVersion);
         if (Math.Abs(x) > radius - PoiConstants.WorldMargin || Math.Abs(z) > radius - PoiConstants.WorldMargin)
         {
             return null;
         }
 
-        TerrainColumn column = columns.ColumnAt(x, z);
-        if (column.Surface < PoiConstants.MinimumGroundHeight)
+        // Towns own their own ground (#11179): wild landmarks stay off a town's pad.
+        if (columns.InTown(x, z))
         {
             return null;
         }
 
-        PoiKind preferred = (PoiKind)contract.DrawLong(draws, "poi.kind", key,
-            PoiConstants.FirstKind, PoiConstants.LastKind);
+        TerrainColumn column = columns.ColumnAt(x, z);
+        // Refuse sites below the sea floor threshold or submerged under an elevated river or lake (#11179).
+        if (column.Surface < PoiConstants.MinimumGroundHeight || column.Submerged)
+        {
+            return null;
+        }
+
+        PoiKind preferred = (PoiKind)contract.DrawLong(draws, "poi.kind", cellX, cellZ,
+            PoiConstants.FirstKind, PoiConstants.LastKind, seedVersion);
         long aspect = AspectAt(x, z, out long relief);
-        PoiKind kind = Reconcile(preferred, column, relief);
+        long vantageMinimum = MapScale.IsContinental(contract.Extent)
+            ? PoiConstants.ContinentalVantageMinimumHeight
+            : PoiConstants.VantageMinimumHeight;
+        PoiKind kind = Reconcile(preferred, column, relief, vantageMinimum);
         (long minimum, long range) = HeightRangeFor(kind);
-        long height = contract.DrawLong(draws, "poi.height", key, minimum, minimum + range - 1);
-        long variant = contract.DrawLong(draws, "poi.variant", key, 0, PoiConstants.LastVariant);
+        long height = contract.DrawLong(draws, "poi.height", cellX, cellZ, minimum, minimum + range - 1, seedVersion);
+        long variant = contract.DrawLong(draws, "poi.variant", cellX, cellZ, 0, PoiConstants.LastVariant, seedVersion);
         return new PoiSite(cellX, cellZ, kind, x, z, column.Surface, height, variant, aspect);
     }
 
     /// <summary>
     /// Which way is uphill, as one of the four cardinals. A mouth has to open downhill or
     /// it carves nothing but air, so the direction is measured from the ground rather than
-    /// drawn - it is a property of the place, not a choice.
+    /// drawn - it is a property of the place, not a choice. Reads only heights via
+    /// <see cref="ITerrainColumns.WaterAt"/> so each probe avoids four redundant slope samples (#11179).
     /// </summary>
     private long AspectAt(long x, long z, out long relief)
     {
         Span<long> heights = stackalloc long[4];
-        heights[0] = columns.ColumnAt(x + PoiConstants.AspectSampleDistance, z).Surface;
-        heights[1] = columns.ColumnAt(x - PoiConstants.AspectSampleDistance, z).Surface;
-        heights[2] = columns.ColumnAt(x, z + PoiConstants.AspectSampleDistance).Surface;
-        heights[3] = columns.ColumnAt(x, z - PoiConstants.AspectSampleDistance).Surface;
+        heights[0] = columns.WaterAt(x + PoiConstants.AspectSampleDistance, z).Surface;
+        heights[1] = columns.WaterAt(x - PoiConstants.AspectSampleDistance, z).Surface;
+        heights[2] = columns.WaterAt(x, z + PoiConstants.AspectSampleDistance).Surface;
+        heights[3] = columns.WaterAt(x, z - PoiConstants.AspectSampleDistance).Surface;
         long best = 0;
         long lowest = heights[0];
         for (long index = 1; index < heights.Length; index++)
@@ -219,14 +230,14 @@ internal sealed class PoiPlacement
     /// site is placed in almost every cell that has dry ground: a preference that the
     /// terrain cannot support becomes the nearest kind it can, rather than nothing.
     /// </summary>
-    private static PoiKind Reconcile(PoiKind preferred, TerrainColumn column, long relief) => preferred switch
+    private static PoiKind Reconcile(PoiKind preferred, TerrainColumn column, long relief, long vantageMinimum) => preferred switch
     {
         // A way in needs a hillside to be cut into; without relief, pillars still read.
         PoiKind.CaveMouth or PoiKind.DungeonEntrance when relief < PoiConstants.ReliefMinimum
             => PoiKind.StandingStones,
 
         // A lookout needs height to be worth building; on low ground, a ruin.
-        PoiKind.VantagePoint when column.Surface < PoiConstants.VantageMinimumHeight
+        PoiKind.VantagePoint when column.Surface < vantageMinimum
             => PoiKind.Ruin,
 
         // Walls need ground flat enough to have held them; pillars stand anywhere.

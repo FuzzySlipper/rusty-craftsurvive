@@ -311,7 +311,7 @@ internal sealed class CaveUnderground
     private readonly PoiPlacement pois;
     private readonly long radius;
     private readonly ConcurrentDictionary<(long X, long Z), CavePlacement?> placed = new();
-    private readonly ConcurrentDictionary<(long X, long Z), CavePlacement[]> nearChunk = new();
+    private readonly SharedCache<(long X, long Z), CavePlacement[]> nearChunk = new(NearChunkCacheLimit);
     private const int NearChunkCacheLimit = 16_384;
 
     // The caves admitted so far, swapped whole so a reader on any thread sees one consistent set.
@@ -383,8 +383,7 @@ internal sealed class CaveUnderground
 
         long edge = TerrainConstants.ChunkEdgeLength;
         CavePlacement[] found = [.. Near(chunkX * edge, (chunkX * edge) + edge - 1, chunkZ * edge, (chunkZ * edge) + edge - 1)];
-        if (nearChunk.Count >= NearChunkCacheLimit) nearChunk.Clear();
-        nearChunk[(chunkX, chunkZ)] = found;
+        nearChunk.Set((chunkX, chunkZ), found);
         return found;
     }
 
@@ -439,9 +438,12 @@ internal sealed class CaveUnderground
     /// under its seal, or nothing (null) where neither reaches. The density is a magnitude in voxel units; the material's
     /// solidity gives its sign.
     /// </summary>
-    internal (ushort Material, float Magnitude)? At(VoxelAddress voxel, long surface, double height, ushort generated)
+    internal (ushort Material, float Magnitude)? At(VoxelAddress voxel, long surface, double height, ushort generated) =>
+        At(voxel, surface, height, generated, NearChunkColumn(GridMath.FloorDivide(voxel.X, TerrainConstants.ChunkEdgeLength), GridMath.FloorDivide(voxel.Z, TerrainConstants.ChunkEdgeLength)));
+
+    /// <summary>Underground lookup against a pre-gathered set of chunk-overlapping caves (#11179).</summary>
+    internal (ushort Material, float Magnitude)? At(VoxelAddress voxel, long surface, double height, ushort generated, CavePlacement[] near)
     {
-        CavePlacement[] near = NearChunkColumn(GridMath.FloorDivide(voxel.X, TerrainConstants.ChunkEdgeLength), GridMath.FloorDivide(voxel.Z, TerrainConstants.ChunkEdgeLength));
         if (near.Length == 0)
         {
             return null;
@@ -521,15 +523,27 @@ internal sealed class CaveUnderground
     /// </summary>
     internal bool InCave(VoxelAddress voxel, long surface, out ushort material, out float magnitude)
     {
+        if (admitted.Count == 0)
+        {
+            material = TerrainConstants.EmptyMaterial;
+            magnitude = 0f;
+            return false;
+        }
+
+        return InCave(voxel, surface, NearChunkColumn(GridMath.FloorDivide(voxel.X, TerrainConstants.ChunkEdgeLength), GridMath.FloorDivide(voxel.Z, TerrainConstants.ChunkEdgeLength)), out material, out magnitude);
+    }
+
+    /// <summary>Admitted-cave lookup against a pre-gathered set of chunk-overlapping caves (#11179).</summary>
+    internal bool InCave(VoxelAddress voxel, long surface, CavePlacement[] near, out ushort material, out float magnitude)
+    {
         material = TerrainConstants.EmptyMaterial;
         magnitude = 0f;
         IReadOnlyDictionary<(long X, long Z), CaveInterior> caves = admitted;
-        if (caves.Count == 0)
+        if (caves.Count == 0 || near.Length == 0)
         {
             return false;
         }
 
-        CavePlacement[] near = NearChunkColumn(GridMath.FloorDivide(voxel.X, TerrainConstants.ChunkEdgeLength), GridMath.FloorDivide(voxel.Z, TerrainConstants.ChunkEdgeLength));
         long seal = surface - CavePlacement.RoofMetres;
         if (voxel.Y >= seal)
         {

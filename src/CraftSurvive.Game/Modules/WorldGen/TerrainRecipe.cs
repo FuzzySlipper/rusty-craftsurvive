@@ -50,38 +50,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     private readonly CaveUnderground caves;
 
-    /// <summary>
-    /// Makes ahead, on the update thread, every keyed draw generating a chunk asks (#10907), so a worker can generate it: the
-    /// tree cells over its column, the place and crossing anchor cells whose structures can reach it, and the cave mouths
-    /// whose ways underground can. Each decision is kept in the caches the worker reads; one let go before the worker reads it
-    /// is drawn again there, which gives the chunk back to the update thread.
-    /// </summary>
-    internal void PrepareDraws(TerrainChunkAddress chunk)
-    {
-        long edge = TerrainConstants.ChunkEdgeLength;
-        long x0 = chunk.X * edge, z0 = chunk.Z * edge, x1 = x0 + edge - 1, z1 = z0 + edge - 1;
-        long tree = TreeCellMetres;
-        for (long anchorX = GridMath.FloorDivide(x0, tree); anchorX <= GridMath.FloorDivide(x1, tree); anchorX++)
-        {
-            for (long anchorZ = GridMath.FloorDivide(z0, tree); anchorZ <= GridMath.FloorDivide(z1, tree); anchorZ++)
-            {
-                TreeAt(anchorX, anchorZ);
-            }
-        }
-
-        long place = PoiConstants.CellSize;
-        for (long anchorX = GridMath.FloorDivide(x0, place) - 1; anchorX <= GridMath.FloorDivide(x1, place) + 1; anchorX++)
-        {
-            for (long anchorZ = GridMath.FloorDivide(z0, place) - 1; anchorZ <= GridMath.FloorDivide(z1, place) + 1; anchorZ++)
-            {
-                pois.SiteAt(anchorX, anchorZ);
-                crossings.DrawOffsets(anchorX, anchorZ);
-            }
-        }
-
-        caves.NearChunkColumn(chunk.X, chunk.Z);
-    }
-
     /// <summary>The caves under the world (#10889): every cave mouth's tendril, and the caves generated so far, read into the chunks.</summary>
     internal CaveUnderground Caves => caves;
 
@@ -152,6 +120,284 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         (long surface, double waterSurface, _) = Ground(x, z);
         return (surface, new TerrainColumn(surface, 0, waterSurface).WaterTop);
+    }
+
+    bool ITerrainColumns.InTown(long x, long z) => InTown(x, z);
+
+    /// <summary>
+    /// Samples every column and continuous height of a chunk in one pass (#11179): evaluates ground once per
+    /// interior column and once along its four one-cell halo edges (320 evaluations instead of 1,536 for a
+    /// 16x16 chunk), computing exact cardinal slopes from the shared surface buffer.
+    /// </summary>
+    internal (TerrainColumn[] Columns, double[] Heights) SampleChunkColumns(VoxelAddress origin, int edge)
+    {
+        TerrainColumn[] columns = new TerrainColumn[edge * edge];
+        double[] heights = new double[edge * edge];
+        int stride = edge + 2;
+        Span<long> surfaces = stride * stride <= 1024 ? stackalloc long[stride * stride] : new long[stride * stride];
+        for (int z = 0; z < edge; z++)
+        {
+            long wz = origin.Z + z;
+            int row = z * edge;
+            int surfaceRow = (z + 1) * stride;
+            for (int x = 0; x < edge; x++)
+            {
+                long wx = origin.X + x;
+                (double continuous, long surface, double waterSurface, MapSample geography) = GroundFull(wx, wz);
+                heights[row + x] = continuous;
+                surfaces[surfaceRow + x + 1] = surface;
+                columns[row + x] = wx < -radius || wx > radius || wz < -radius || wz > radius
+                    ? default
+                    : new TerrainColumn(surface, 0, waterSurface, geography);
+            }
+        }
+
+        // Four halo edges for cardinal slopes (matching CardinalSlope -> TerrainSurface, which samples Ground directly).
+        for (int i = 0; i < edge; i++)
+        {
+            surfaces[i + 1] = GroundFull(origin.X + i, origin.Z - 1).Surface;
+            surfaces[((edge + 1) * stride) + i + 1] = GroundFull(origin.X + i, origin.Z + edge).Surface;
+            surfaces[(i + 1) * stride] = GroundFull(origin.X - 1, origin.Z + i).Surface;
+            surfaces[((i + 1) * stride) + edge + 1] = GroundFull(origin.X + edge, origin.Z + i).Surface;
+        }
+
+        for (int z = 0; z < edge; z++)
+        {
+            long wz = origin.Z + z;
+            if (wz < -radius || wz > radius) continue;
+            int row = z * edge;
+            int surfaceRow = (z + 1) * stride;
+            for (int x = 0; x < edge; x++)
+            {
+                long wx = origin.X + x;
+                if (wx < -radius || wx > radius) continue;
+                int s = surfaceRow + x + 1;
+                long top = surfaces[s];
+                long slope = Math.Max(
+                    Math.Max(Math.Abs(top - surfaces[s - 1]), Math.Abs(top - surfaces[s + 1])),
+                    Math.Max(Math.Abs(top - surfaces[s - stride]), Math.Abs(top - surfaces[s + stride])));
+                columns[row + x] = columns[row + x] with { Slope = slope };
+            }
+        }
+
+        return (columns, heights);
+    }
+
+    /// <summary>One column's ground and continuous height in a single sampling pass (#11179), for edit patching.</summary>
+    internal (TerrainColumn Column, double Height) ColumnAndHeightAt(long x, long z)
+    {
+        (double continuous, long surface, double waterSurface, MapSample geography) = GroundFull(x, z);
+        TerrainColumn column = x < -radius || x > radius || z < -radius || z > radius
+            ? default
+            : new TerrainColumn(surface, CardinalSlope(x, z, surface), waterSurface, geography);
+        return (column, continuous);
+    }
+
+    /// <summary>
+    /// Pre-gathered feature sets whose bounds overlap one chunk (#11179), so the 16^3 voxel loop skips
+    /// empty structure/crossing/cave/tree passes with zero per-voxel cache lookups.
+    /// </summary>
+    internal readonly struct ChunkFeatures
+    {
+        internal PoiSite[] Pois { get; }
+        internal CrossingSite[] Crossings { get; }
+        internal CavePlacement[] Caves { get; }
+        private readonly TreeShape?[] trees;
+        private readonly long treeOriginX;
+        private readonly long treeOriginZ;
+        private readonly int treeSideX;
+
+        internal ChunkFeatures(PoiSite[] pois, CrossingSite[] crossings, CavePlacement[] caves, TreeShape?[] trees, long treeOriginX, long treeOriginZ, int treeSideX)
+        {
+            Pois = pois;
+            Crossings = crossings;
+            Caves = caves;
+            this.trees = trees;
+            this.treeOriginX = treeOriginX;
+            this.treeOriginZ = treeOriginZ;
+            this.treeSideX = treeSideX;
+        }
+
+        internal bool HasTrees => trees.Length > 0;
+
+        internal bool TryGetTree(long anchorX, long anchorZ, out TreeShape tree)
+        {
+            int index = (int)(((anchorZ - treeOriginZ) * treeSideX) + (anchorX - treeOriginX));
+            if ((uint)index < (uint)trees.Length && trees[index] is TreeShape found)
+            {
+                tree = found;
+                return true;
+            }
+
+            tree = default;
+            return false;
+        }
+    }
+
+    internal ChunkFeatures PrepareChunkFeatures(TerrainChunkAddress address)
+    {
+        long edge = TerrainConstants.ChunkEdgeLength;
+        long x0 = address.X * edge, y0 = address.Y * edge, z0 = address.Z * edge;
+        long x1 = x0 + edge - 1, y1 = y0 + edge - 1, z1 = z0 + edge - 1;
+
+        long cell = PoiConstants.CellSize;
+        long poiReach = PoiConstants.MaximumStructureReach;
+        long firstPoiX = GridMath.FloorDivide(x0 - poiReach, cell), lastPoiX = GridMath.FloorDivide(x1 + poiReach, cell);
+        long firstPoiZ = GridMath.FloorDivide(z0 - poiReach, cell), lastPoiZ = GridMath.FloorDivide(z1 + poiReach, cell);
+        List<PoiSite>? overlappingPois = null;
+        for (long anchorX = firstPoiX; anchorX <= lastPoiX; anchorX++)
+        for (long anchorZ = firstPoiZ; anchorZ <= lastPoiZ; anchorZ++)
+        {
+            if (pois.SiteAt(anchorX, anchorZ) is PoiSite site
+                && site.X + poiReach >= x0 && site.X - poiReach <= x1
+                && site.Z + poiReach >= z0 && site.Z - poiReach <= z1
+                && site.Ground + PoiConstants.MaximumStructureHeight >= y0
+                && site.Ground - PoiConstants.MaximumCarveDepth <= y1)
+            {
+                (overlappingPois ??= []).Add(site);
+            }
+        }
+
+        long crossingReach = PoiConstants.CrossingMaximumSpan + PoiConstants.CrossingRampLength + 1;
+        long crossingPad = PoiConstants.CrossingRampLength + PoiConstants.CrossingHalfWidth;
+        long crossingDepth = Math.Max(PoiConstants.CrossingPierDepth, PoiConstants.CrossingRampLength + 1);
+        long firstCrossX = GridMath.FloorDivide(x0 - crossingReach, cell), lastCrossX = GridMath.FloorDivide(x1 + crossingReach, cell);
+        long firstCrossZ = GridMath.FloorDivide(z0 - crossingReach, cell), lastCrossZ = GridMath.FloorDivide(z1 + crossingReach, cell);
+        List<CrossingSite>? overlappingCrossings = null;
+        for (long anchorX = firstCrossX; anchorX <= lastCrossX; anchorX++)
+        for (long anchorZ = firstCrossZ; anchorZ <= lastCrossZ; anchorZ++)
+        {
+            if (crossings.SiteAt(anchorX, anchorZ) is CrossingSite site
+                && Math.Max(site.FromX, site.ToX) + crossingPad >= x0 && Math.Min(site.FromX, site.ToX) - crossingPad <= x1
+                && Math.Max(site.FromZ, site.ToZ) + crossingPad >= z0 && Math.Min(site.FromZ, site.ToZ) - crossingPad <= z1
+                && site.DeckY >= y0 && site.DeckY - crossingDepth <= y1)
+            {
+                (overlappingCrossings ??= []).Add(site);
+            }
+        }
+
+        CavePlacement[] columnCaves = caves.NearChunkColumn(address.X, address.Z);
+        CavePlacement[] overlappingCaves = [];
+        if (columnCaves.Length > 0)
+        {
+            List<CavePlacement>? filtered = null;
+            foreach (CavePlacement cave in columnCaves)
+            {
+                if ((y1 >= cave.BoxMinimum.Y && y0 <= cave.BoxMaximum.Y)
+                    || (y1 >= cave.TendrilMinimum.Y - 2 && y0 <= cave.TendrilMaximum.Y + 2))
+                {
+                    (filtered ??= []).Add(cave);
+                }
+            }
+
+            if (filtered is not null) overlappingCaves = [.. filtered];
+        }
+
+        long treeCell = TreeCellMetres;
+        long firstTreeX = GridMath.FloorDivide(x0, treeCell), lastTreeX = GridMath.FloorDivide(x1, treeCell);
+        long firstTreeZ = GridMath.FloorDivide(z0, treeCell), lastTreeZ = GridMath.FloorDivide(z1, treeCell);
+        int treeSideX = (int)(lastTreeX - firstTreeX + 1);
+        int treeSideZ = (int)(lastTreeZ - firstTreeZ + 1);
+        TreeShape?[]? overlappingTrees = null;
+        for (long tz = firstTreeZ; tz <= lastTreeZ; tz++)
+        for (long tx = firstTreeX; tx <= lastTreeX; tx++)
+        {
+            if (TreeAt(tx, tz) is TreeShape tree
+                && tree.GroundY <= y1 && tree.GroundY + GenerationConstants.TreeCoreHeight - 1 >= y0)
+            {
+                overlappingTrees ??= new TreeShape?[treeSideX * treeSideZ];
+                overlappingTrees[((tz - firstTreeZ) * treeSideX) + (tx - firstTreeX)] = tree;
+            }
+        }
+
+        return new ChunkFeatures(
+            overlappingPois is null ? [] : [.. overlappingPois],
+            overlappingCrossings is null ? [] : [.. overlappingCrossings],
+            overlappingCaves,
+            overlappingTrees ?? [],
+            firstTreeX,
+            firstTreeZ,
+            treeSideX);
+    }
+
+    internal ushort GeneratedAt(VoxelAddress address, TerrainColumn column, double height, in ChunkFeatures features, out float? magnitude)
+    {
+        if (features.Caves.Length > 0 && caves.InCave(address, column.Surface, features.Caves, out ushort inside, out float within))
+        {
+            magnitude = within;
+            return inside;
+        }
+
+        ushort material = SurfaceMaterialAt(address, column, in features);
+        if (features.Caves.Length > 0 && caves.At(address, column.Surface, height, material, features.Caves) is (ushort underground, float distance))
+        {
+            magnitude = distance;
+            return underground;
+        }
+
+        magnitude = null;
+        return material;
+    }
+
+    private ushort SurfaceMaterialAt(VoxelAddress address, TerrainColumn column, in ChunkFeatures features)
+    {
+        ushort material = BaseMaterialAt(address, column, in features);
+        if (features.Pois.Length > 0)
+        {
+            PoiVoxel poi = PoiVoxel.None;
+            foreach (PoiSite site in features.Pois)
+            {
+                if (PoiStructures.MaterialAt(site, address.X, address.Y, address.Z) is { IsNone: false } voxel)
+                {
+                    poi = voxel;
+                    break;
+                }
+            }
+
+            material = StructurePasses.ApplySite(material, poi, address.Y, column);
+        }
+
+        if (features.Crossings.Length > 0)
+        {
+            foreach (CrossingSite site in features.Crossings)
+            {
+                if (CrossingStructure.MaterialAt(site, address.X, address.Y, address.Z) is { IsNone: false } span)
+                {
+                    return StructurePasses.ApplyCrossing(material, span, address.Y, column);
+                }
+            }
+        }
+
+        return material;
+    }
+
+    private ushort BaseMaterialAt(VoxelAddress address, TerrainColumn column, in ChunkFeatures features)
+    {
+        if (address.X < -radius || address.X > radius || address.Z < -radius || address.Z > radius)
+        {
+            return TerrainConstants.EmptyMaterial;
+        }
+
+        if (IsWorldFloor(address.Y) || IsWorldWall(address.X, address.Z, address.Y, column))
+        {
+            return (ushort)BlockId.Bedrock;
+        }
+
+        ushort material = NaturalMaterialAt(address, column);
+        if (material == TerrainConstants.EmptyMaterial && features.HasTrees)
+        {
+            long cell = TreeCellMetres;
+            long anchorX = GridMath.FloorDivide(address.X, cell);
+            long anchorZ = GridMath.FloorDivide(address.Z, cell);
+            if (features.TryGetTree(anchorX, anchorZ, out TreeShape tree)
+                && address.X == (anchorX * cell) + tree.OffsetX && address.Z == (anchorZ * cell) + tree.OffsetZ
+                && address.Y >= tree.GroundY && address.Y < tree.GroundY + GenerationConstants.TreeCoreHeight)
+            {
+                return (ushort)BlockId.TreeCore;
+            }
+        }
+
+        return material;
     }
 
     internal ushort MaterialAt(VoxelAddress address, TerrainColumn column)
@@ -377,16 +623,23 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>The rounded surface, the water surface over it (<see cref="WaterRules"/>), and the geography both came from.</summary>
     private (long Surface, double WaterSurface, MapSample Geography) Ground(long x, long z)
     {
+        (_, long surface, double waterSurface, MapSample geography) = GroundFull(x, z);
+        return (surface, waterSurface, geography);
+    }
+
+    private (double Continuous, long Surface, double WaterSurface, MapSample Geography) GroundFull(long x, long z)
+    {
         MapSample geography = Geography(x, z);
-        long surface = (long)Math.Round(ContinuousHeight(geography, x, z), MidpointRounding.AwayFromZero);
-        return (surface, WaterRules.Surface(geography), geography);
+        double continuous = ContinuousHeight(geography, x, z);
+        long surface = (long)Math.Round(continuous, MidpointRounding.AwayFromZero);
+        return (continuous, surface, WaterRules.Surface(geography), geography);
     }
 
     /// <summary>The generated surface height at a column, for callers that must reason about the world.</summary>
     internal long SurfaceAt(long x, long z) => TerrainSurface(x, z);
 
-    /// <summary>The highest cell under water over a column (<see cref="TerrainColumn.WaterTop"/>).</summary>
-    internal long WaterTopAt(long x, long z) => ColumnAt(x, z).WaterTop;
+    /// <summary>The highest cell under water over a column (<see cref="TerrainColumn.WaterTop"/>), without computing slope (#11179).</summary>
+    internal long WaterTopAt(long x, long z) => ((ITerrainColumns)this).WaterAt(x, z).WaterTop;
 
     /// <summary>The water surface over a column, in fractional metres: the sea, a river's surface or a lake's level.</summary>
     internal double WaterSurfaceAt(long x, long z) => Ground(x, z).WaterSurface;
@@ -837,65 +1090,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
     }
 
     /// <summary>
-    /// The one keyed draw a tree cell's choices are hashed from: the Engine's, so made on the update thread, and handed to a
-    /// worker deciding the cell's tree (#10907).
+    /// The one keyed draw a tree cell's choices are hashed from (#11179: zero-alloc worker-callable KeyedRng).
     /// </summary>
-    internal ulong TreeCellDraw(long anchorX, long anchorZ) =>
-        (ulong)Contract.DrawLong(draws, "tree.cell", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ), 0, GenerationConstants.TreeCellDrawMaximum);
-
-    /// <summary>
-    /// The tree one anchor cell owns, given its cell's draw (<see cref="TreeCellDraw"/>), decided afresh as
-    /// <see cref="TreeInCell"/> does but safe on a worker once the places and crossings about it are decided
-    /// (<see cref="PrepareDrawsOver"/>, #10907). A structure pass may take a planted tree's core or footing: such a tree is
-    /// marked, and whether it still stands is read through the materials on the update thread.
-    /// </summary>
-    internal (TerrainTree Tree, bool Structured)? TreeInCellDrawn(long anchorX, long anchorZ, ulong cellDraw)
-    {
-        if (DecideTree(anchorX, anchorZ, cellDraw) is not TreeShape shape)
-        {
-            return null;
-        }
-
-        long x = (anchorX * TreeCellMetres) + shape.OffsetX;
-        long z = (anchorZ * TreeCellMetres) + shape.OffsetZ;
-        TerrainTree tree = new(x, shape.GroundY, z, shape.Species, shape.Variant, shape.Scale, shape.Yaw);
-        bool structured = TreeFelling.Core(tree).Append(TreeFelling.Support(tree))
-            .Any(cell => !PoiAt(cell.X, cell.Y, cell.Z).IsNone || CrossingAt(cell.X, cell.Y, cell.Z) is not null);
-        return (tree, structured);
-    }
-
-    /// <summary>Makes ahead the place and crossing decisions over a rectangle of columns and the anchor cells about it (#10907).</summary>
-    internal void PrepareDrawsOver(long minimumX, long minimumZ, long maximumX, long maximumZ)
-    {
-        foreach ((long X, long Z) anchor in PlaceAnchorsOver(minimumX, minimumZ, maximumX, maximumZ))
-        {
-            PrepareAnchor(anchor.X, anchor.Z);
-        }
-    }
-
-    /// <summary>The place and crossing anchor cells whose structures can reach a rectangle of columns, not yet decided (#10907).</summary>
-    internal IEnumerable<(long X, long Z)> PlaceAnchorsOver(long minimumX, long minimumZ, long maximumX, long maximumZ)
-    {
-        long place = PoiConstants.CellSize;
-        for (long anchorX = GridMath.FloorDivide(minimumX, place) - 1; anchorX <= GridMath.FloorDivide(maximumX, place) + 1; anchorX++)
-        {
-            for (long anchorZ = GridMath.FloorDivide(minimumZ, place) - 1; anchorZ <= GridMath.FloorDivide(maximumZ, place) + 1; anchorZ++)
-            {
-                if (!pois.Knows(anchorX, anchorZ) || !crossings.Knows(anchorX, anchorZ))
-                {
-                    yield return (anchorX, anchorZ);
-                }
-            }
-        }
-    }
-
-    /// <summary>Decides one anchor cell's place and crossing here, their keyed draws the update thread's (#10907).</summary>
-    internal void PrepareAnchor(long anchorX, long anchorZ)
-    {
-        pois.SiteAt(anchorX, anchorZ);
-        // The crossing's draws only: its scan of the ground is a worker's, where the cell is first needed (#10907).
-        crossings.DrawOffsets(anchorX, anchorZ);
-    }
+    private ulong TreeCellDraw(long anchorX, long anchorZ) =>
+        (ulong)Contract.DrawLong(draws, "tree.cell", anchorX, anchorZ, 0, GenerationConstants.TreeCellDrawMaximum, TerrainGeneratorContract.TreeSeedVersion);
 
     private TreeShape? DecideTree(long anchorX, long anchorZ) => DecideTree(anchorX, anchorZ, TreeCellDraw(anchorX, anchorZ));
 
@@ -1003,6 +1201,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
         : BlockId.Grass;
 
     /// <summary>A decided tree; <c>GroundY</c> is its trunk's lowest cell, the one above the generated ground.</summary>
-    private readonly record struct TreeShape(long OffsetX, long OffsetZ, long GroundY, ushort Species, double Variant, double Scale, double Yaw);
+    internal readonly record struct TreeShape(long OffsetX, long OffsetZ, long GroundY, ushort Species, double Variant, double Scale, double Yaw);
 
 }

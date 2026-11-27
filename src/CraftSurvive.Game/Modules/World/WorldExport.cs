@@ -28,12 +28,9 @@ internal sealed class WorldExport
     internal const long MaximumWindowHalf = 32_768;
     internal const long MinimumWindowStep = 4;
 
-    /// <summary>How many anchor cells' crossing draws are made ahead at once: well under the placement caches' limit, so none is let go before its worker reads it.</summary>
-    private const int CrossingBatch = PoiConstants.SiteCacheLimit / 4;
-    private const long MaximumWindowSamples = 1 << 20;
-
     /// <summary>Water codes in the continent raster's water layer.</summary>
     private const byte Land = 0, Sea = 1, LakeWater = 2, RiverWater = 3;
+    private const long MaximumWindowSamples = 1 << 20;
 
     /// <summary>A walked reach's points are written to the metre; a raster's float values as they are.</summary>
     private const int PointDecimals = 0;
@@ -455,41 +452,24 @@ internal sealed class WorldExport
         for (long x = firstX; x <= lastX; x++)
             cells.Add((x, z));
 
-        List<PoiSite> sites = [];
-        foreach ((long x, long z) in cells)
+        ParallelOptions parallel = new() { MaxDegreeOfParallelism = workers };
+        PoiSite?[] foundSites = new PoiSite?[cells.Count];
+        Parallel.For(0, cells.Count, parallel, k =>
         {
-            if (terrain.Placement.SiteAt(x, z) is PoiSite site) sites.Add(site);
+            foundSites[k] = terrain.Placement.SiteAt(cells[k].X, cells[k].Z);
+        });
+        List<PoiSite> sites = [];
+        foreach (PoiSite? found in foundSites)
+        {
+            if (found is PoiSite site) sites.Add(site);
         }
 
         Stage("places");
         CrossingSite?[] crossings = new CrossingSite?[cells.Count];
-        for (int start = 0; start < cells.Count; start += CrossingBatch)
+        Parallel.For(0, cells.Count, parallel, k =>
         {
-            int end = Math.Min(cells.Count, start + CrossingBatch);
-            for (int k = start; k < end; k++) terrain.Crossings.DrawOffsets(cells[k].X, cells[k].Z);
-            bool[] retry = new bool[cells.Count];
-            Parallel.For(start, end, new ParallelOptions { MaxDegreeOfParallelism = workers }, k =>
-            {
-                TerrainDrawLane.OnWorker = true;
-                try
-                {
-                    crossings[k] = terrain.Crossings.SiteAt(cells[k].X, cells[k].Z);
-                }
-                catch (TerrainDrawOffUpdateException)
-                {
-                    retry[k] = true;
-                }
-                finally
-                {
-                    TerrainDrawLane.OnWorker = false;
-                }
-            });
-            // A cell whose draws were let go before its worker read them is decided here, where the draws are made.
-            for (int k = start; k < end; k++)
-            {
-                if (retry[k]) crossings[k] = terrain.Crossings.SiteAt(cells[k].X, cells[k].Z);
-            }
-        }
+            crossings[k] = terrain.Crossings.SiteAt(cells[k].X, cells[k].Z);
+        });
 
         Stage("crossings");
 

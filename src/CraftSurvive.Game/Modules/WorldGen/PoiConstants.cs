@@ -62,8 +62,11 @@ internal static class PoiConstants
     /// </summary>
     internal const long ReliefMinimum = 2;
 
-    /// <summary>The ground height at which a vantage point is worth building.</summary>
+    /// <summary>The ground height at which a vantage point is worth building on a regional world.</summary>
     internal const long VantageMinimumHeight = 7;
+
+    /// <summary>The ground height at which a vantage point is worth building on a continent (#11179): actual hills/uplands rather than coastal flats.</summary>
+    internal const long ContinentalVantageMinimumHeight = 120;
 
     /// <summary>A site draws its variant from zero to this, inclusive.</summary>
     internal const long LastVariant = 7;
