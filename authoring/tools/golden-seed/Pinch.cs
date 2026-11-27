@@ -47,7 +47,11 @@ internal static class Pinch
                 return FormattableString.Invariant($"{room:F2} {along:F2}");
             }
 
-            log($"{id} ruin={KarstCave.LastRuin?.Size.ToString() ?? "none"} widened={result.Passages.Sum(w => w.Widened)} " + string.Join(" | ", fills.Select(Line)));
+            // And whether a body comes to the ruin: its mouth on the cave's floor and its broken wall's foot, a little above each.
+            string Breach(CaveView.Reach fill) => KarstCave.LastRuin is CaveRuin r
+                ? $" mouth={(Near(fill, r.Mouth + BodyLift, (f, i) => f.Within[i]) ? "yes" : "no")} foot={(Near(fill, r.WallFoot + BodyLift, (f, i) => f.Within[i]) ? "yes" : "no")}"
+                : string.Empty;
+            log($"{id} ruin={KarstCave.LastRuin?.Size.ToString() ?? "none"} widened={result.Passages.Sum(w => w.Widened)} " + string.Join(" | ", fills.Select(Line)) + Breach(fills[^1]));
             return;
         }
 
@@ -136,6 +140,9 @@ internal static class Pinch
         ("poi:-564:-198", 0x2a21154007b37e9dUL, new(0.2764952301810115, 0.9999999999999997, 52.555305f), new(-564, -198, (PoiKind)3, -144223, -50495, 1151, 7, 1, 3)),
         ("poi:144:-593", 0xdb5f71bffcfa8a7aUL, new(0, 0.9728905080196582, 77.625f), new(144, -593, (PoiKind)3, 36996, -151556, 5588, 5, 7, 3)),
     ];
+
+    /// <summary>How far above a floor point a body's centre is looked for.</summary>
+    private static readonly Vector3 BodyLift = new(0f, 0.6f, 0f);
 
     private const long RegressionWorldRadius = 390000 / 2;
 
