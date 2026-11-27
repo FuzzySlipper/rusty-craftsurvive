@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CraftSurvive.Game.Modules.Dungeons;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.Towns;
 using CraftSurvive.Game.Modules.World;
@@ -18,6 +19,7 @@ using Rusty.Engine.Testing;
 //   dotnet run --project authoring/tools/golden-seed -c Release [-- export] [--config FILE] [--out DIR] [--cache DIR] [--workers N] [--limit N]
 //       [--carry-from IDENTITY [--verify-every N]]
 //   dotnet run --project authoring/tools/golden-seed -c Release -- cave poi:CX:CZ [--out DIR] [--cache DIR]
+//   dotnet run --project authoring/tools/golden-seed -c Release -- pinch poi:CX:CZ [--summary] [--out DIR]
 //
 // export generates the world golden-seed.json names with the product's generator and the Engine's keyed draws (this is an
 // Engine tool host, so no game runs), and writes every layer to the export folder (default authoring/assets/golden-seed/):
@@ -25,6 +27,7 @@ using Rusty.Engine.Testing;
 // the continent a region tile at a time, and the walking-detail windows about the towns. A tile is cached under the
 // generator's identity (authoring/assets/golden-seed-cache/<identity>/), so a rerun with unchanged generator code reuses it.
 // cave generates the cave under one cave mouth of the current export and writes its simplified view for the CMS.
+// pinch is a diagnostic: which stage of the generator closed a cave's route (see Pinch.cs).
 
 const int RasterRows = 256;
 const double SeaMarginMetres = 10;
@@ -48,6 +51,15 @@ if (command == "cave")
 {
     string id = args.Length > 1 ? args[1] : throw new ArgumentException("cave needs a mouth's id, poi:CX:CZ");
     return CaveCommand(id);
+}
+
+if (command == "pinch")
+{
+    // Diagnostic: where a cave's route goes out of reach, stage by stage (see Pinch).
+    string id = args.Length > 1 ? args[1] : throw new ArgumentException("pinch needs a mouth's id, poi:CX:CZ");
+    (ulong pinchSeed, CaveSetting pinchSetting, CavePlacement pinchPlacement) = Locate(id);
+    Pinch.Run(id, pinchSeed, pinchSetting, pinchPlacement, options.ContainsKey("summary"), Console.WriteLine);
+    return 0;
 }
 
 if (command == "check")
@@ -101,7 +113,7 @@ if (command == "tile")
 
 if (command != "export")
 {
-    Console.Error.WriteLine("usage: export [--config FILE] [--out DIR] [--cache DIR] [--workers N] [--limit N] | cave poi:CX:CZ | tile X Z | check");
+    Console.Error.WriteLine("usage: export [--config FILE] [--out DIR] [--cache DIR] [--workers N] [--limit N] | cave poi:CX:CZ | pinch poi:CX:CZ [--summary] | tile X Z | check");
     return 2;
 }
 
@@ -380,29 +392,37 @@ int CaveCommand(string id)
 {
     JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(output, "manifest.json")))!.AsObject();
     string identity = manifest["identity"]?["key"]?.GetValue<string>() ?? throw new InvalidOperationException("The export has no generator identity; rerun the export.");
-    JsonNode? row = JsonNode.Parse(File.ReadAllText(Path.Combine(output, "caves.json")))!["caves"]!.AsArray().FirstOrDefault(cave => cave!["id"]!.GetValue<string>() == id)
-        ?? throw new ArgumentException($"The export has no cave under {id}.");
     // A cave view is the generator's cave reduced by this tool: cached under both, so a change to either makes it afresh.
     string directory = Path.Combine(cacheRoot, identity, "caves-" + GoldenSeedSource.ToolStamp.ToString("x16", CultureInfo.InvariantCulture));
     Directory.CreateDirectory(directory);
     string file = Path.Combine(directory, id.Replace(':', '_') + ".json.gz");
     if (!File.Exists(file))
     {
-        // The mouth as its tile recorded it, placed as the game places its cave.
-        JsonArray tileAt = row["tile"]!.AsArray();
-        JsonArray place = JsonNode.Parse(ReadGzip(Path.Combine(output, "tiles", $"{tileAt[0]}_{tileAt[1]}.json.gz")))!["places"]!.AsArray()
-            .Select(p => p!.AsArray()).First(p => PoiSite.IdFor(p[0]!.GetValue<long>(), p[1]!.GetValue<long>()) == id);
-        long[] v = [.. place.Select(p => p!.GetValue<long>())];
-        PoiSite site = new(v[0], v[1], (PoiKind)v[2], v[3], v[4], v[5], v[6], v[7], v[8]);
-        long radius = manifest["world"]!["size"]!.GetValue<long>() / 2;
-        CavePlacement placement = CavePlacement.Place(site, radius) ?? throw new InvalidOperationException($"{id} has no way underground.");
-        JsonArray setting = row["setting"]!.AsArray();
-        WriteGzip(file, CaveView.Make(id, ulong.Parse(row["seed"]!.GetValue<string>(), NumberStyles.HexNumber, CultureInfo.InvariantCulture),
-            new(setting[0]!.GetValue<double>(), setting[1]!.GetValue<double>(), setting[2]!.GetValue<float>()), placement));
+        (ulong seed, CaveSetting setting, CavePlacement placement) = Locate(id);
+        WriteGzip(file, CaveView.Make(id, seed, setting, placement));
     }
 
     Console.WriteLine(file);
     return 0;
+}
+
+// A cave in the export: its seed and setting as the export recorded them, and the mouth as its tile recorded it, placed as
+// the game places its cave.
+(ulong Seed, CaveSetting Setting, CavePlacement Placement) Locate(string id)
+{
+    JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(output, "manifest.json")))!.AsObject();
+    JsonNode row = JsonNode.Parse(File.ReadAllText(Path.Combine(output, "caves.json")))!["caves"]!.AsArray().FirstOrDefault(cave => cave!["id"]!.GetValue<string>() == id)
+        ?? throw new ArgumentException($"The export has no cave under {id}.");
+    JsonArray tileAt = row["tile"]!.AsArray();
+    JsonArray place = JsonNode.Parse(ReadGzip(Path.Combine(output, "tiles", $"{tileAt[0]}_{tileAt[1]}.json.gz")))!["places"]!.AsArray()
+        .Select(p => p!.AsArray()).First(p => PoiSite.IdFor(p[0]!.GetValue<long>(), p[1]!.GetValue<long>()) == id);
+    long[] v = [.. place.Select(p => p!.GetValue<long>())];
+    PoiSite site = new(v[0], v[1], (PoiKind)v[2], v[3], v[4], v[5], v[6], v[7], v[8]);
+    long radius = manifest["world"]!["size"]!.GetValue<long>() / 2;
+    CavePlacement placement = CavePlacement.Place(site, radius) ?? throw new InvalidOperationException($"{id} has no way underground.");
+    JsonArray setting = row["setting"]!.AsArray();
+    return (ulong.Parse(row["seed"]!.GetValue<string>(), NumberStyles.HexNumber, CultureInfo.InvariantCulture),
+        new(setting[0]!.GetValue<double>(), setting[1]!.GetValue<double>(), setting[2]!.GetValue<float>()), placement);
 }
 
 static bool AllSea(WorldMap map, int tileX, int tileZ, long radius)

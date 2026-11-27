@@ -537,7 +537,7 @@ internal static class CaveView
     }
 
     /// <summary>The first point of the prepared route that the generator's own route also has: where the way down joins it.</summary>
-    private static Vector3? JoinOf(IReadOnlyList<Vector3> prepared, IReadOnlyList<Vector3> generated)
+    internal static Vector3? JoinOf(IReadOnlyList<Vector3> prepared, IReadOnlyList<Vector3> generated)
     {
         HashSet<Vector3> original = [.. generated];
         foreach (Vector3 point in prepared)

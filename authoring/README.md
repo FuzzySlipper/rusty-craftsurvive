@@ -130,3 +130,8 @@ mouth on the atlas) generates its cave as the walking session admits it - the sa
 - what stands out: cut-off spaces, a bottom out of reach, climbs too tall for one bar, a mostly vertical route.
 
 The first view of a cave takes about ten seconds; the exporter must be built (`dotnet build authoring/tools/golden-seed -c Release`).
+
+When a cave is mostly out of reach, `... -- pinch poi:CX:CZ` says which stage of the generator closed it: the same reach
+fill on the cave's field as the passages were checked, with its fine forms, and with its ruin, against the generator's
+own clearance along the main route, and what of the ruin closed the cave's air near the route. With `--summary` it
+prints one line per cave (each stage's reached share of the room a body fits in, and of the route), for sampling many.
