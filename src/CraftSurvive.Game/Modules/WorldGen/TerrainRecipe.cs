@@ -642,8 +642,16 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     private double ContinuousHeight(MapSample geography, long x, long z)
     {
-        double ground = Math.Max(geography.Elevation + RegionalTerrain.Relief(Contract.GeographyNoiseSeed, geography, x, z),
-            GenerationConstants.MinimumTerrainHeight);
+        double relief = RegionalTerrain.Relief(Contract.GeographyNoiseSeed, geography, x, z);
+        // Under the sea the relief lifts nothing (#11148): it fades from full at the water level to none at the map's floor, so
+        // the open sea keeps the map's seabed and raises no island the map does not have, and the coast meets the land evenly.
+        if (relief > 0 && geography.Elevation < GenerationConstants.WaterLevel)
+        {
+            relief *= WorldMap.Smooth(Math.Clamp((geography.Elevation - GenerationConstants.MinimumTerrainHeight)
+                / (GenerationConstants.WaterLevel - GenerationConstants.MinimumTerrainHeight), 0, 1));
+        }
+
+        double ground = Math.Max(geography.Elevation + relief, GenerationConstants.MinimumTerrainHeight);
         // A town's pad (#9895): flat ground beside its water, eased into the country around it.
         foreach (TownGround town in Towns) ground = town.Level(ground, x, z);
         return ground;

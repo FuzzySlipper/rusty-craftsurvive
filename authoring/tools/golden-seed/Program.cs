@@ -16,6 +16,7 @@ using Rusty.Engine.Testing;
 // The golden-seed exporter (#11125). Run from the repository root:
 //
 //   dotnet run --project authoring/tools/golden-seed -c Release [-- export] [--config FILE] [--out DIR] [--cache DIR] [--workers N] [--limit N]
+//       [--carry-from IDENTITY [--verify-every N]]
 //   dotnet run --project authoring/tools/golden-seed -c Release -- cave poi:CX:CZ [--out DIR] [--cache DIR]
 //
 // export generates the world golden-seed.json names with the product's generator and the Engine's keyed draws (this is an
@@ -28,6 +29,10 @@ using Rusty.Engine.Testing;
 const int RasterRows = 256;
 const double SeaMarginMetres = 10;
 const double SeaProbeMetres = 250;
+// --carry-from: a tile whose ground, a kilometre round, stands this far above the water on the continent map is copied from
+// an earlier identity's cache rather than made again; every --verify-every'th carried tile is made again and must match.
+const double DryMarginMetres = 50;
+const double DryReachMetres = 1000;
 string[] rasterLayers = ["elevation", "temperature", "moisture", "rock", "biome", "water"];
 string[] rasterKinds = ["f32", "f32", "f32", "f32", "u8", "u8"];
 JsonSerializerOptions indented = new() { WriteIndented = true };
@@ -49,6 +54,32 @@ if (command == "check")
     // The cave view's reach on synthetic caves (#11125 R11125-2): two round chambers joined by a throat, which a body passes
     // only when the throat is wider than a crawl. Run by scripts/check-product.sh --managed.
     return CaveView.CheckThroats(Console.WriteLine) ? 0 : 1;
+}
+
+if (command == "column")
+{
+    // What each layer of the generator says at a point: the continent map, the region tiles' blend, the walking column.
+    double columnX = double.Parse(args[1], CultureInfo.InvariantCulture), columnZ = double.Parse(args[2], CultureInfo.InvariantCulture);
+    JsonObject columnConfig = JsonNode.Parse(File.ReadAllText(options.GetValueOrDefault("config", Path.Combine(repo, "authoring/tools/golden-seed/golden-seed.json"))))!.AsObject();
+    using EngineTestHost columnHost = EngineTestHost.Create(new() { PersistenceRoot = Path.Combine(Path.GetTempPath(), "golden-seed-" + Guid.NewGuid().ToString("N")) });
+    columnHost.Call(engine =>
+    {
+        TerrainConfiguration columnConfiguration = new(columnConfig["seed"]!.GetValue<ulong>(), columnConfig["size"]!.GetValue<int>());
+        WorldMap columnMap = WorldMapGenerator.Generate(columnConfiguration);
+        TerrainRecipe columnRecipe = columnConfiguration.CreateRecipe(new EngineTerrainDraws(engine.Random), columnMap);
+        Console.WriteLine($"map sample {columnMap.Sample(columnX, columnZ)}");
+        Console.WriteLine($"map broad {columnMap.Broad(columnX, columnZ)}");
+        if (columnRecipe.Regions is MapRegions regions)
+        {
+            (int tx, int tz) = MapRegions.TileAt(columnX, columnZ);
+            Console.WriteLine($"region tile ({tx},{tz}) blended {regions.Blended(columnX, columnZ)}");
+            Console.WriteLine($"region tile own broad {regions.Tile((tx, tz)).Map.Broad(columnX - (tx * MapRegions.TileSpacing), columnZ - (tz * MapRegions.TileSpacing))}");
+        }
+
+        Console.WriteLine($"geography {columnRecipe.Geography(columnX, columnZ)}");
+        Console.WriteLine($"column {columnRecipe.ColumnAt((long)Math.Floor(columnX), (long)Math.Floor(columnZ))}");
+    });
+    return 0;
 }
 
 if (command == "tile")
@@ -146,7 +177,10 @@ host.Call(engine =>
     (int highX, int highZ) = MapRegions.TileAt(radius, radius);
     JsonArray index = [];
     JsonArray caves = [];
-    int built = 0, reused = 0, sea = 0, failed = 0;
+    int built = 0, reused = 0, sea = 0, failed = 0, carried = 0;
+    string? carryFrom = options.GetValueOrDefault("carry-from");
+    int verifyEvery = int.Parse(options.GetValueOrDefault("verify-every", "25"), CultureInfo.InvariantCulture);
+    List<(int X, int Z, string Json)> carriedTiles = [];
     Stopwatch tiling = Stopwatch.StartNew();
     for (int tz = lowZ; tz <= highZ; tz++)
     for (int tx = lowX; tx <= highX; tx++)
@@ -162,10 +196,19 @@ host.Call(engine =>
         string cached = Path.Combine(tileCache, name + ".json.gz");
         Stopwatch one = Stopwatch.StartNew();
         string json;
+        string? earlier = carryFrom is null ? null : Path.Combine(cacheRoot, carryFrom, "tiles", name + ".json.gz");
         if (File.Exists(cached))
         {
             json = ReadGzip(cached);
             reused++;
+        }
+        else if (earlier is not null && File.Exists(earlier) && Dry(map, tx, tz))
+        {
+            // A change that reaches only ground near the water leaves a dry tile as it was (checked below).
+            json = ReadGzip(earlier);
+            WriteGzip(cached, json);
+            carried++;
+            carriedTiles.Add((tx, tz, json));
         }
         else
         {
@@ -211,7 +254,23 @@ host.Call(engine =>
         {
             ["tile"] = new JsonArray(tx, tz), ["places"] = kinds, ["caves"] = tile["caves"]!.AsArray().Count, ["crossings"] = tile["crossings"]!.AsArray().Count,
         });
-        Log(FormattableString.Invariant($"tile {name}: {tile["places"]!.AsArray().Count} places, {tile["caves"]!.AsArray().Count} caves, {tile["crossings"]!.AsArray().Count} crossings in {one.Elapsed.TotalSeconds:F1} s ({built} built, {reused} cached, {tiling.Elapsed.TotalMinutes:F1} min)"));
+        Log(FormattableString.Invariant($"tile {name}: {tile["places"]!.AsArray().Count} places, {tile["caves"]!.AsArray().Count} caves, {tile["crossings"]!.AsArray().Count} crossings in {one.Elapsed.TotalSeconds:F1} s ({built} built, {reused} cached, {carried} carried, {tiling.Elapsed.TotalMinutes:F1} min)"));
+    }
+
+    // The carried tiles were made by the earlier generator: a spread of them is made again by this one and must match.
+    int verified = 0;
+    for (int k = 0; k < carriedTiles.Count; k += Math.Max(1, verifyEvery))
+    {
+        (int vx, int vz, string earlierJson) = carriedTiles[k];
+        if (export.Tile(vx, vz, workers) != earlierJson)
+        {
+            Log($"tile {vx}_{vz} carried from {carryFrom} differs when made again: the change reaches dry ground, so carrying is wrong; rerun without --carry-from");
+            exit = 1;
+            return;
+        }
+
+        verified++;
+        Log($"carried tile {vx}_{vz} made again: identical ({verified} verified)");
     }
 
     File.WriteAllText(Path.Combine(work, "tiles", "index.json"), index.ToJsonString());
@@ -268,7 +327,8 @@ host.Call(engine =>
         ["tiles"] = new JsonObject
         {
             ["spacing"] = MapRegions.TileSpacing, ["land"] = index.Count - sea, ["sea"] = sea, ["built"] = built, ["cached"] = reused,
-            ["failed"] = failed, ["caves"] = caves.Count, ["complete"] = built + reused + sea == index.Count,
+            ["failed"] = failed, ["carried"] = carried, ["carriedFrom"] = carryFrom, ["carriedVerified"] = verified,
+            ["caves"] = caves.Count, ["complete"] = built + reused + carried + sea == index.Count,
         },
         ["windows"] = windows,
         ["timings"] = new JsonObject(timings.Select(pair => KeyValuePair.Create(pair.Key, (JsonNode?)pair.Value))),
@@ -280,7 +340,7 @@ host.Call(engine =>
     if (Directory.Exists(output)) Directory.Move(output, previous);
     Directory.Move(work, output);
     if (Directory.Exists(previous)) Directory.Delete(previous, true);
-    Log(FormattableString.Invariant($"exported seed {seed} at {size} m to {output} in {total.Elapsed.TotalMinutes:F1} min: {built} tiles built, {reused} cached, {sea} sea, {failed} failed, {caves.Count} caves"));
+    Log(FormattableString.Invariant($"exported seed {seed} at {size} m to {output} in {total.Elapsed.TotalMinutes:F1} min: {built} tiles built, {reused} cached, {carried} carried ({verified} verified), {sea} sea, {failed} failed, {caves.Count} caves"));
 });
 if (Directory.Exists(scratch)) Directory.Delete(scratch, true);
 return exit;
@@ -322,6 +382,18 @@ static bool AllSea(WorldMap map, int tileX, int tileZ, long radius)
     {
         if (Math.Abs(x) > radius || Math.Abs(z) > radius) continue;
         if (map.Sample(x, z).Elevation >= GenerationConstants.WaterLevel - SeaMarginMetres) return false;
+    }
+
+    return true;
+}
+
+static bool Dry(WorldMap map, int tileX, int tileZ)
+{
+    double half = (MapRegions.TileSpacing / 2) + DryReachMetres;
+    for (double z = (tileZ * MapRegions.TileSpacing) - half; z <= (tileZ * MapRegions.TileSpacing) + half; z += SeaProbeMetres)
+    for (double x = (tileX * MapRegions.TileSpacing) - half; x <= (tileX * MapRegions.TileSpacing) + half; x += SeaProbeMetres)
+    {
+        if (!map.Contains(x, z) || map.Sample(x, z).Elevation < GenerationConstants.WaterLevel + DryMarginMetres) return false;
     }
 
     return true;
