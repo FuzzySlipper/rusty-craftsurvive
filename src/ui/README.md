@@ -44,7 +44,9 @@ the pointer comes back without a click (in a browser, only on a click or key the
 browser counts as a gesture; Escape is not one). The world map and the town are
 free-cursor scenes whose clicks reach C# as canvas positions, so they stay in
 gameplay with `context.ui.setCursorMode('unlocked')` and return to
-`'pointer-lock'` when they close.
+`'pointer-lock'` when they close. `world.ts` marks such a scene (`layers.scene`)
+before it releases the pointer, so the interaction owner does not take that
+release for Escape and open the menu over the town or the map.
 
 **Escape.** Under pointer lock the browser and the desktop shell spend Escape on
 ending the lock, and the page sees only the lock end. A lock lost in play with no

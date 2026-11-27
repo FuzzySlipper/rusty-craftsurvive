@@ -1,16 +1,18 @@
 /**
  * Which of the UI's own surfaces is open - the pack or journal, the casting ring, the pause menu, the
  * town, the developer tools - so Escape goes to the innermost one and the interaction owner
- * (`interaction.ts`) knows whether a surface needs the cursor. A surface sets its flag with `open`;
- * nothing here is a game fact.
+ * (`interaction.ts`) knows whether a surface needs the cursor. `scene` is set while a free-cursor
+ * scene (the world map or the town) holds the pointer released on purpose, before the release, so
+ * the lock it gives up is not taken for Escape. A surface sets its flag with `open`; nothing here is
+ * a game fact.
  */
 export const layers = {
-  screen: false, ring: false, menu: false, town: false, developer: false,
+  screen: false, ring: false, menu: false, town: false, developer: false, scene: false,
   /** Re-decides interface or gameplay; the interaction owner installs it. */
   changed: (_focus?: boolean): void => {},
 };
 
-type Surface = 'screen' | 'ring' | 'menu' | 'town' | 'developer';
+type Surface = 'screen' | 'ring' | 'menu' | 'town' | 'developer' | 'scene';
 
 /** Marks a surface open or closed and re-decides the interaction mode. */
 export function open(surface: Surface, value: boolean): void {

@@ -12,7 +12,8 @@ import { layers } from './layers.js';
  * in gameplay with an unlocked cursor (`world.ts`).
  *
  * A pointer lock lost while the world has it (Escape, which the browser and the desktop shell spend
- * on releasing the lock, or focus loss) is the player asking for the menu.
+ * on releasing the lock, or focus loss) is the player asking for the menu. A lock a free-cursor scene
+ * releases on purpose is not: the scene marks itself (`layers.scene`) before it unlocks.
  */
 export interface Interaction {
   /** Re-decide the mode now; `focus` asks for gameplay focus even if the mode did not change. */
@@ -42,9 +43,10 @@ export function mountInteraction(ui: RustyApplicationUiPort, options: Interactio
   let pointerWasLocked = document.pointerLockElement !== null;
   const onPointerLockChange = (): void => {
     const locked = document.pointerLockElement !== null;
-    // A surface opening releases the lock as it enters interface mode, after its flag is set: a lock
-    // lost to a surface that already needs the cursor is not the player asking for the menu.
-    if (pointerWasLocked && !locked && mode === 'gameplay' && !needsCursor()) options.onLockLostInPlay?.();
+    // A surface opening releases the lock as it enters interface mode, after its flag is set, and a
+    // free-cursor scene marks itself before it unlocks: a lock lost to either is not the player asking
+    // for the menu.
+    if (pointerWasLocked && !locked && mode === 'gameplay' && !needsCursor() && !layers.scene) options.onLockLostInPlay?.();
     pointerWasLocked = locked;
   };
   document.addEventListener('pointerlockchange', onPointerLockChange);

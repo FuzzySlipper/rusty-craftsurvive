@@ -1,6 +1,7 @@
 import type { RustyApplicationUiIntentsPort, RustyApplicationUiPort, RustyApplicationUiProjectionView } from '@rusty-engine/product-ui';
 import { button, element, isolateEvents } from './dom.js';
 import { number, projectionValues, text } from './hud.js';
+import { open as openLayer } from './layers.js';
 
 export const WORLD_INTENT = 'craftsurvive.world';
 export const WORLD_CONTRACT = 'craftsurvive.world.action.v1';
@@ -18,6 +19,8 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
   const freeCursor = (free: boolean): void => {
     if (free === freedCursor) return;
     freedCursor = free;
+    // Marked before the release, so the interaction owner does not take the lost lock for Escape.
+    openLayer('scene', free);
     ui.setCursorMode(free ? 'unlocked' : 'pointer-lock');
     // Back from the map or the town, play takes the pointer again (nothing happens under a surface).
     if (!free) ui.focusGameplay();
