@@ -153,65 +153,7 @@ internal sealed partial class DungeonModule
     /// read it - its rock, mud and silt the cave's own blocks, the densities a natural cave is admitted with - and the
     /// walking session's chunks holding its air, with every chunk beside them.
     /// </summary>
-    internal static UndergroundCave Prepare(DungeonCandidate candidate, CavePlacement cave)
-    {
-        DungeonLayout all = candidate.AllVoxels;
-        DungeonVolume volume = all.Volume;
-        if (volume.SizeX != CavePlacement.SizeX || volume.SizeY != CavePlacement.SizeY || volume.SizeZ != CavePlacement.SizeZ)
-        {
-            throw new InvalidOperationException($"A cave under the world must fill its {CavePlacement.SizeX}x{CavePlacement.SizeY}x{CavePlacement.SizeZ} box.");
-        }
-
-        int edge = TerrainConstants.ChunkEdgeLength;
-        ushort[] materials = new ushort[volume.SizeX * volume.SizeY * volume.SizeZ];
-        float[] densities = new float[materials.Length];
-        HashSet<TerrainChunkAddress> open = [];
-        CaveInterior? interior = null;
-        foreach ((int cx, int cy, int cz) in DungeonCollision.Chunks(volume))
-        {
-            (uint[] slots, float[]? values) = DungeonCollision.Prepare(volume, (cx, cy, cz), all.Densities, weathered: false, pinned: false, voxelSize: 1d);
-            for (int index = 0; index < slots.Length; index++)
-            {
-                int i = (cx * edge) + (index % edge), j = (cy * edge) + (index / edge % edge), k = (cz * edge) + (index / (edge * edge));
-                int at = (((k * volume.SizeY) + j) * volume.SizeX) + i;
-                BlockId block = (BlockId)slots[index];
-                materials[at] = (ushort)CaveMaterials.Underground(block);
-                densities[at] = MathF.Abs(values?[index] ?? 0.5f);
-                if (block == BlockId.Air)
-                {
-                    Vector3 world = cave.ToWorld(new Vector3(i + 0.5f, j + 0.5f, k + 0.5f));
-                    open.Add(new Terrain.VoxelAddress((long)MathF.Floor(world.X), (long)MathF.Floor(world.Y), (long)MathF.Floor(world.Z)).Chunk);
-                }
-            }
-        }
-
-        // The way down from the tendril's end past the cave's first sink (R10889-3): a ramp the player walks back up, and the
-        // route starting with it.
-        Vector3[] lead = [.. cave.Path.Select(cave.ToCanonical).Where(p => p.X >= 0f && p.X < volume.SizeX && p.Z >= 0f && p.Z < volume.SizeZ && p.Y >= 0f && p.Y < volume.SizeY)];
-        CaveWayDown.Carved? down = CaveWayDown.Carve(volume.SizeX, volume.SizeY, volume.SizeZ, materials, densities, lead.Length > 0 ? lead : [cave.ToCanonical(cave.Path[^1])],
-            candidate.Layout.MainRoute, CavePlacement.TendrilHalfWidth, CavePlacement.TendrilHalfHeight, CavePlacement.TendrilFloorBelowCentre,
-            TerrainConstants.EmptyMaterial, (ushort)BlockId.CaveLimestone);
-        foreach (int at in down?.Opened ?? [])
-        {
-            int i = at % volume.SizeX, j = at / volume.SizeX % volume.SizeY, k = at / (volume.SizeX * volume.SizeY);
-            Vector3 world = cave.ToWorld(new Vector3(i + 0.5f, j + 0.5f, k + 0.5f));
-            open.Add(new Terrain.VoxelAddress((long)MathF.Floor(world.X), (long)MathF.Floor(world.Y), (long)MathF.Floor(world.Z)).Chunk);
-        }
-
-        interior = new CaveInterior(volume.SizeX, volume.SizeY, volume.SizeZ, materials, densities);
-        // What dressing it reads: the layout without the voxels it was generated in.
-        DungeonLayout dressing = candidate.Layout with
-        {
-            Volume = new DungeonVolume(1, 1, 1, BlockId.Air), Rock = null, Densities = null, KitDrawn = null, Moisture = null,
-            MainRoute = down?.Route ?? candidate.Layout.MainRoute,
-        };
-        if (down is not null)
-        {
-            // What the way down cut through: the ruin's pieces in its way and the dressing left hanging in its air.
-            dressing = CaveWayDown.Clear(dressing, down, CavePlacement.TendrilHalfWidth, CavePlacement.TendrilHalfHeight, CavePlacement.TendrilFloorBelowCentre);
-        }
-        return new UndergroundCave(dressing, interior, TerrainCaves.Beside(open));
-    }
+    internal static UndergroundCave Prepare(DungeonCandidate candidate, CavePlacement cave) => UnderCaves.Prepare(candidate, cave);
 
     /// <summary>Reads the caves the background has finished into the walking session.</summary>
     private void AdmitFinishedCaves()
@@ -918,14 +860,7 @@ internal sealed partial class DungeonModule
     }
 
     /// <summary>The box and switches a cave under the world is generated with: the placement's box, its way in, nothing open to a sky.</summary>
-    private static KarstCave.Settings UndergroundSettings() => KarstCave.Next with
-    {
-        ChunksX = CavePlacement.BoxChunksX,
-        ChunksY = CavePlacement.BoxChunksY,
-        ChunksZ = CavePlacement.BoxChunksZ,
-        Underground = true,
-        WayIn = CavePlacement.WayIn,
-    };
+    private static KarstCave.Settings UndergroundSettings() => UnderCaves.Settings();
 
     /// <summary>The nearest cave mouth with a cave under it, within a reach.</summary>
     private CavePlacement? NearestPlacement(double reach)

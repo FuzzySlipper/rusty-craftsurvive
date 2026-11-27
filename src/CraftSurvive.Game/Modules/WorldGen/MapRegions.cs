@@ -418,7 +418,9 @@ internal sealed record RegionTile(WorldMap Map, MapRivers Rivers)
         MapErosion.Relax(grid, h, outlet, TalusSlope, TalusIterations);
 
         MapFlow.Fill(grid, h, outlet, MapFlow.FillGradient);
-        float[] elevation = h.Select(v => (float)Math.Min(v, scale.MaximumElevation - 1)).ToArray();
+        // Every node within the map's bounds (#11125): the outlets above keep their own height, and a sea node's refined relief
+        // can dip just under the lowest terrain, which a tile then refuses (seed 19's tile (0,-10) did, at -2.06 m).
+        float[] elevation = h.Select(v => (float)Math.Clamp(v, GenerationConstants.MinimumTerrainHeight, scale.MaximumElevation - 1)).ToArray();
         double[] routed = elevation.Select(v => (double)v).ToArray();
         MapFlow flow = MapFlow.Route(grid, routed, outlet, rain, MapFlow.FillGradient);
         MapFields fields = new(grid, elevation, temperature, moisture, hardness.Select(v => (float)v).ToArray(),

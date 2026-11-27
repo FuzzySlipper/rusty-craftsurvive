@@ -1,0 +1,149 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The golden-seed exporter (#11125): generates the golden world with the product's own generator and the Engine's keyed
+    draws (an Engine tool host, as the managed lanes run one), and writes every layer the CMS atlas shows. It compiles the
+    product's sources as the WorldMap, Towns and DungeonBank lanes do; GoldenSeedSource.Stamp hashes them, so a cached tile
+    is never served for different generator code.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RustyEngineToolHost>true</RustyEngineToolHost>
+    <RootNamespace>GoldenSeed</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
+    <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConstants.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConfiguration.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainChunk.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainChunkCache.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TreeFelling.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainOverlayState.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainOverlayCodec.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainEditPolicy.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainGenerationFingerprint.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainGenerationGoldens.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductStore.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductSaveSlot.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/EngineClock.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/SaveManifest.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/SaveRestore.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/SaveEnvelope.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldMapSave.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldCatalog.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldOwners.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductUiPublisher.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductUiProjection.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/WeatherKind.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/WeatherKinds.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/WeatherFront.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/WeatherField.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/WeatherHere.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/SnowCover.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/SnowCell.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/TrackFading.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/FootprintPool.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/RouteForecast.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/FrontArrivals.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Horizon/HorizonSink.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Horizon/HorizonLandmarkRules.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldExport.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/MapPalette.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/ColourSpace.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Horizon/HorizonGround.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/FarGround.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Places/KnownPlaceKind.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Travel/PartyTravel.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Travel/TravelRoute.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Travel/TravelCostModel.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Travel/TravelCalendar.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Travel/Boat.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Travel/Windbound.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Travel/BoatKind.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Travel/RiverRouter.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/Seasons.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/ReachStage.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/RiverStage.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/Floods.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/WaterModel.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/StreamRibbons.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/WaterWaveSettings.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/SeaWaves.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/SeaState.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/BoatFloat.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/NearWaterSquare.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/RiverStageModule.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Water/RiverStageState.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductStep.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Sky/Twilight.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Sky/Moon.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Sky/Stars.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Sky/WindSway.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Towns/*.cs" Exclude="$(ProductModules)Towns/TownDebugModule.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldFrame.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/PropMesh.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/PropMaterials.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/SurfaceMoss.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonVolume.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonLayout.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveGrowths.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveCommunities.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveRuins.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveWater.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/MistWake.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/SumpMistRegions.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveWaterShore.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/KarstCave.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/NaturalCavern.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/StudyField.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonWalk.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CarveAndStamp.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/SculptedRock.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/SculptedCave.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonModules.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/ModularDungeon.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/RuinDoorway.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveRuinSites.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Wildlife/RuinSites.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonMoisture.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/KitMoss.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/KitOvergrowth.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/OvergrowthPlacement.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonDrips.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/LanternDrain.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonKit.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/VerticalSampler.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonCollision.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/VoxelMaterialRules.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonRoutes.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonCandidates.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveGenerator.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveStore.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveWaterGeometry.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveWayDown.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonSurfaces.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Player/PlayerBody.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldExportDebugModule.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/UnderCaves.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Player/PlayerStamina.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Rpg/CharacterRules.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/ChunkNeighbours.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/CaveMaterials.cs" LinkBase="Product" />
+    <EmbeddedResource Include="$(ProductModules)WorldGen/Designs/*.json" LogicalName="WorldGen.Designs.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../../content/game/flora/catalog.json" LogicalName="WorldGen.Flora.catalog.json" />
+    <GoldenSeedSource Include="../../../content/game/flora/catalog.json;../../../content/game/towns/**/*.json" />
+  </ItemGroup>
+  <Import Project="GoldenSeedSource.targets" />
+</Project>

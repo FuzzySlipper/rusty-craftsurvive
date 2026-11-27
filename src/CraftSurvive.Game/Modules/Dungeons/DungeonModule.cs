@@ -1473,16 +1473,7 @@ internal sealed partial class DungeonModule : IProductModule
     }
 
     /// <summary>A dungeon's seed: the world's seed mixed with its entrance's cell, so each entrance is its own dungeon.</summary>
-    internal static ulong DungeonSeed(ulong worldSeed, PoiSite entrance)
-    {
-        ulong hash = worldSeed ^ 0x6A09_E667_F3BC_C908UL;
-        foreach (long coordinate in (ReadOnlySpan<long>)[entrance.CellX, entrance.CellZ])
-        {
-            hash = unchecked((hash ^ (ulong)coordinate) * 0x0000_0100_0000_01B3UL);
-        }
-
-        return hash;
-    }
+    internal static ulong DungeonSeed(ulong worldSeed, PoiSite entrance) => UnderCaves.Seed(worldSeed, entrance.CellX, entrance.CellZ);
 
     /// <summary>Moves the player to a named place in the dungeon (arrival, breach, loot, or floor0..floorN), for a live look.</summary>
     internal string Visit(string place)

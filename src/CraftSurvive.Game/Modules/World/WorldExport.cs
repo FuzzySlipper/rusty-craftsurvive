@@ -27,6 +27,9 @@ internal sealed class WorldExport
     internal const int ReachesPerPage = 2000;
     internal const long MaximumWindowHalf = 32_768;
     internal const long MinimumWindowStep = 4;
+
+    /// <summary>How many anchor cells' crossing draws are made ahead at once: well under the placement caches' limit, so none is let go before its worker reads it.</summary>
+    private const int CrossingBatch = PoiConstants.SiteCacheLimit / 4;
     private const long MaximumWindowSamples = 1 << 20;
 
     /// <summary>Water codes in the continent raster's water layer.</summary>
@@ -172,6 +175,7 @@ internal sealed class WorldExport
             foreach (Reach reach in Page(reaches, page))
             {
                 writer.WriteStartObject();
+                writer.WriteString("key", ReachKey(drainage!, reach));
                 writer.WriteNumber("id", reach.Id);
                 writer.WriteNumber("downstream", reach.Downstream);
                 writer.WriteBoolean("mouth", reach.Mouth);
@@ -251,6 +255,7 @@ internal sealed class WorldExport
 
                 int nodes = Math.Max(1, lake.Nodes.Length);
                 writer.WriteStartObject();
+                writer.WriteString("key", LakeKey(lake));
                 writer.WriteNumber("id", lake.Id);
                 writer.WriteString("name", lake.Name);
                 writer.WriteString("kind", lake.Kind.ToString());
@@ -361,23 +366,7 @@ internal sealed class WorldExport
                 if (terrain.Caves.For(site) is CavePlacement cave)
                 {
                     writer.WriteStartObject("cave");
-                    writer.WriteStartArray("path");
-                    foreach (System.Numerics.Vector3 point in cave.Path)
-                    {
-                        writer.WriteNumberValue(Math.Round(point.X, 1));
-                        writer.WriteNumberValue(Math.Round(point.Y, 1));
-                        writer.WriteNumberValue(Math.Round(point.Z, 1));
-                    }
-
-                    writer.WriteEndArray();
-                    writer.WriteStartArray("box");
-                    writer.WriteNumberValue(cave.BoxMinimum.X);
-                    writer.WriteNumberValue(cave.BoxMinimum.Y);
-                    writer.WriteNumberValue(cave.BoxMinimum.Z);
-                    writer.WriteNumberValue(cave.BoxMaximum.X);
-                    writer.WriteNumberValue(cave.BoxMaximum.Y);
-                    writer.WriteNumberValue(cave.BoxMaximum.Z);
-                    writer.WriteEndArray();
+                    CaveWay(writer, cave);
                     writer.WriteEndObject();
                 }
 
@@ -421,6 +410,154 @@ internal sealed class WorldExport
 
             writer.WriteEndArray();
         });
+    }
+
+    /// <summary>
+    /// A walked reach's stable reference (#11125): the lattice node it starts at, in world metres. Every node drains one way, so
+    /// no two reaches start at the same node, and the key holds while the network keeps its shape there; a reach's index does not.
+    /// </summary>
+    internal static string ReachKey(MapDrainage drainage, Reach reach) => string.Create(CultureInfo.InvariantCulture,
+        $"reach:{drainage.Grid.X(reach.Source):F0}:{drainage.Grid.Z(reach.Source):F0}");
+
+    /// <summary>A lake's stable reference (#11125): its deepest node on the map lattice, in world metres.</summary>
+    internal string LakeKey(Lake lake)
+    {
+        int deepest = lake.Nodes.Length == 0 ? lake.Outlet : lake.Nodes.MinBy(node => map.Fields.Elevation[node]);
+        return string.Create(CultureInfo.InvariantCulture, $"lake:{map.Grid.X(deepest):F0}:{map.Grid.Z(deepest):F0}");
+    }
+
+    /// <summary>
+    /// Every place, cave way and crossing whose anchor cell lies in one region tile's owned square (#11125): the whole continent is
+    /// these pages, one a tile. Places and cave ways are decided here, on the thread that owns the keyed draws; a crossing's two
+    /// draws are made here too, a batch at a time, and its scan of the ground is shared among <paramref name="workers"/> threads,
+    /// as the chunk workers share it (#10907). Places are [cellX, cellZ, kind, x, z, ground, height, variant, aspect]; crossings
+    /// [cellX, cellZ, fromX, fromZ, toX, toZ, deck]; a cave carries what its interior is generated from (seed and setting).
+    /// </summary>
+    internal string Tile(int tileX, int tileZ, int workers)
+    {
+        if (workers < 1) throw new ArgumentOutOfRangeException(nameof(workers));
+        TerrainRecipe terrain = recipe.Value;
+        double half = MapRegions.TileSpacing / 2, centreX = tileX * MapRegions.TileSpacing, centreZ = tileZ * MapRegions.TileSpacing;
+        long cell = PoiConstants.CellSize, edge = (long)(map.Radius / cell) + 1;
+        long firstX = Math.Max(-edge, GridMath.FloorDivide((long)(centreX - half), cell)), lastX = Math.Min(edge, GridMath.FloorDivide((long)(centreX + half), cell) - 1);
+        long firstZ = Math.Max(-edge, GridMath.FloorDivide((long)(centreZ - half), cell)), lastZ = Math.Min(edge, GridMath.FloorDivide((long)(centreZ + half), cell) - 1);
+        List<(long X, long Z)> cells = [];
+        for (long z = firstZ; z <= lastZ; z++)
+        for (long x = firstX; x <= lastX; x++)
+            cells.Add((x, z));
+
+        List<PoiSite> sites = [];
+        foreach ((long x, long z) in cells)
+        {
+            if (terrain.Placement.SiteAt(x, z) is PoiSite site) sites.Add(site);
+        }
+
+        CrossingSite?[] crossings = new CrossingSite?[cells.Count];
+        for (int start = 0; start < cells.Count; start += CrossingBatch)
+        {
+            int end = Math.Min(cells.Count, start + CrossingBatch);
+            for (int k = start; k < end; k++) terrain.Crossings.DrawOffsets(cells[k].X, cells[k].Z);
+            bool[] retry = new bool[cells.Count];
+            Parallel.For(start, end, new ParallelOptions { MaxDegreeOfParallelism = workers }, k =>
+            {
+                TerrainDrawLane.OnWorker = true;
+                try
+                {
+                    crossings[k] = terrain.Crossings.SiteAt(cells[k].X, cells[k].Z);
+                }
+                catch (TerrainDrawOffUpdateException)
+                {
+                    retry[k] = true;
+                }
+                finally
+                {
+                    TerrainDrawLane.OnWorker = false;
+                }
+            });
+            // A cell whose draws were let go before its worker read them is decided here, where the draws are made.
+            for (int k = start; k < end; k++)
+            {
+                if (retry[k]) crossings[k] = terrain.Crossings.SiteAt(cells[k].X, cells[k].Z);
+            }
+        }
+
+        return Json(writer =>
+        {
+            writer.WriteStartArray("tile");
+            writer.WriteNumberValue(tileX);
+            writer.WriteNumberValue(tileZ);
+            writer.WriteEndArray();
+            writer.WriteNumber("cells", cells.Count);
+            writer.WriteStartArray("places");
+            foreach (PoiSite site in sites)
+            {
+                writer.WriteStartArray();
+                foreach (long value in (ReadOnlySpan<long>)[site.CellX, site.CellZ, (long)site.Kind, site.X, site.Z, site.Ground, site.Height, site.Variant, site.Aspect])
+                {
+                    writer.WriteNumberValue(value);
+                }
+
+                writer.WriteEndArray();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteStartArray("caves");
+            foreach (PoiSite site in sites)
+            {
+                if (terrain.Caves.For(site) is not CavePlacement cave) continue;
+                Dungeons.CaveSetting setting = Dungeons.UnderCaves.SettingAt(terrain, site.X, site.Z);
+                writer.WriteStartObject();
+                writer.WriteString("id", site.Id);
+                writer.WriteNumber("x", site.X);
+                writer.WriteNumber("z", site.Z);
+                writer.WriteNumber("ground", site.Ground);
+                writer.WriteString("seed", Dungeons.UnderCaves.Seed(map.Configuration.Seed, site.CellX, site.CellZ).ToString("x16", CultureInfo.InvariantCulture));
+                writer.WriteStartArray("setting");
+                writer.WriteNumberValue(setting.Temperature);
+                writer.WriteNumberValue(setting.Moisture);
+                writer.WriteNumberValue(setting.DepthMetres);
+                writer.WriteEndArray();
+                writer.WriteNumber("turns", cave.QuarterTurns);
+                CaveWay(writer, cave);
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteStartArray("crossings");
+            foreach (CrossingSite? found in crossings)
+            {
+                if (found is not CrossingSite crossing) continue;
+                writer.WriteStartArray();
+                foreach (long value in (ReadOnlySpan<long>)[crossing.CellX, crossing.CellZ, crossing.FromX, crossing.FromZ, crossing.ToX, crossing.ToZ, crossing.DeckY])
+                {
+                    writer.WriteNumberValue(value);
+                }
+
+                writer.WriteEndArray();
+            }
+
+            writer.WriteEndArray();
+        });
+    }
+
+    private static void CaveWay(Utf8JsonWriter writer, CavePlacement cave)
+    {
+        writer.WriteStartArray("path");
+        foreach (System.Numerics.Vector3 point in cave.Path)
+        {
+            writer.WriteNumberValue(Math.Round(point.X, 1));
+            writer.WriteNumberValue(Math.Round(point.Y, 1));
+            writer.WriteNumberValue(Math.Round(point.Z, 1));
+        }
+
+        writer.WriteEndArray();
+        writer.WriteStartArray("box");
+        foreach (long value in (ReadOnlySpan<long>)[cave.BoxMinimum.X, cave.BoxMinimum.Y, cave.BoxMinimum.Z, cave.BoxMaximum.X, cave.BoxMaximum.Y, cave.BoxMaximum.Z])
+        {
+            writer.WriteNumberValue(value);
+        }
+
+        writer.WriteEndArray();
     }
 
     private static string Css(Color colour) => string.Create(CultureInfo.InvariantCulture,

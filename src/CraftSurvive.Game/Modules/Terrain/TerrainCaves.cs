@@ -197,26 +197,9 @@ internal sealed class TerrainCaves
             }
         }
 
-        HashSet<TerrainChunkAddress> chunks = Beside(open);
+        HashSet<TerrainChunkAddress> chunks = ChunkNeighbours.Beside(open);
         tendrils[cave.Key] = chunks;
         return chunks;
-    }
-
-    /// <summary>Chunks and every chunk touching one.</summary>
-    internal static HashSet<TerrainChunkAddress> Beside(IEnumerable<TerrainChunkAddress> chunks)
-    {
-        HashSet<TerrainChunkAddress> beside = [];
-        foreach (TerrainChunkAddress chunk in chunks)
-        {
-            for (long dx = -1; dx <= 1; dx++)
-            for (long dy = -1; dy <= 1; dy++)
-            for (long dz = -1; dz <= 1; dz++)
-            {
-                beside.Add(new TerrainChunkAddress(chunk.X + dx, chunk.Y + dy, chunk.Z + dz));
-            }
-        }
-
-        return beside;
     }
 
     private static bool InBoxChunks(CavePlacement cave, TerrainChunkAddress address)

@@ -93,7 +93,25 @@ internal static class KarstCave
     /// fitted and the settings it ran with. It travels on the result, so a cave generated in the background brings its own.
     /// </summary>
     internal sealed record Report(IReadOnlyDictionary<string, double> Stages, IReadOnlyList<(float Least, int Explored)> Ways, CaveRuin? Ruin, Settings Settings,
-        double Milliseconds);
+        double Milliseconds)
+    {
+        /// <summary>Where the cave's own features lie, in its box's metres (#11125: the authoring tools' cave view draws them).</summary>
+        internal Features? Shape { get; init; }
+    }
+
+    /// <summary>
+    /// A generated cave's features, in its box's metres: the sinks its water came in by (the first is where the player arrives),
+    /// the spring it leaves by, its chambers, rifts, bedding rooms, sponge and maze, a tiankeng's floor, a chasm, a great hall and
+    /// each passage route the generator checked.
+    /// </summary>
+    internal sealed record Features(Vector3[] Sinks, Vector3 Spring, Vector3[] Chambers, Vector3[] Rifts, Vector3[] BeddingRooms, Vector3? Sponge,
+        Vector3? Maze, (Vector3 Floor, float Radius)? Tiankeng, (Vector2 Centre, float Radius)? Chasm, (Vector2 Centre, float Floor, float RadiusX, float RadiusZ)? Hall,
+        Passage[] Passages, bool SkyOpen)
+    {
+        internal static Features Of(Result cave) => new(cave.SinkPoints, cave.Spring, cave.Chambers, cave.Rifts, cave.BeddingRooms, cave.Sponge, cave.MazeAt,
+            cave.Tiankeng, cave.Chasm is ChasmShape chasm ? (chasm.Centre, chasm.Radius) : null,
+            cave.GreatHall is Hall hall ? (hall.Centre, hall.Floor, hall.RadiusX, hall.RadiusZ) : null, cave.Passages, cave.SkyOpen);
+    }
 
     /// <summary>Runs one generation with its own settings (a copy of the next caves' unless given), one at a time.</summary>
     private static T WithLock<T>(Settings? settings, Func<T> generate)
@@ -4345,7 +4363,10 @@ private static int MostBarrensPieces => Area(400);
             RuinDoorways = ruin is null ? [] : [.. ModularDungeon.Doorways(ruin.Joins).Where(door => ModularDungeon.Framed(volume, door))],
         };
         string grown = string.Join(",", Enum.GetValues<MossCardKind>().Select(k => $"{k}:{cards.Count(c => c.Kind == k)}"));
-        Report report = new(new Dictionary<string, double>(Stages), [.. ShortestLog], ruin, run, Stopwatch.GetElapsedTime(generating).TotalMilliseconds);
+        Report report = new(new Dictionary<string, double>(Stages), [.. ShortestLog], ruin, run, Stopwatch.GetElapsedTime(generating).TotalMilliseconds)
+        {
+            Shape = Features.Of(cave),
+        };
         return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
             $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} ferns={ferns.Count} fungalPockets={cave.FungalPockets.Count} ruin={(ruin is null ? "none" : $"{ruin.Size}:{ruin.Modules.Count}m{(ruin.Vault is null ? "" : "+vault")}:overgrown{ruin.Overgrown.Count}:footings{ruin.Footings.Count}")} kit={kit.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume, report);
     }

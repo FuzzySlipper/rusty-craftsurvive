@@ -42,7 +42,8 @@ public sealed class WorldExportDebugModule : IDebugCommandModule
     [DebugCommand("craft.export.window", Description = "Export (#11125): a square window at walking detail about (x, z) of half-side half metres: ground height and biome every step metres, the places, crossings and cave ways whose anchor cells lie in it, and its walked rivers.")]
     public string Window(long x, long z, long half, long step) => Read(e => e.Window(x, z, half, step));
 
-    private static ExportedTown Exported(TownSite town)
+    /// <summary>A town as the export writes it; the authoring tools' exporter seats towns the same way.</summary>
+    internal static ExportedTown Exported(TownSite town)
     {
         (double arrivalX, double arrivalZ) = town.Arrival;
         Settlement settlement = town.Settlement;

@@ -1,0 +1,57 @@
+<Project>
+  <!--
+    The exporter's tile cache must never serve a tile made by different generator code. This hashes the
+    GoldenSeedSource items (the product sources and content the exporter compiles or reads) at build
+    time, sorted by path and with line endings normalised, into GoldenSeedSource.Stamp below obj/,
+    as the product's TerrainGeneratorSource.targets does for its chunk cache.
+  -->
+  <UsingTask TaskName="StampGoldenSeedSource" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Files ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <Stamp ParameterType="System.String" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.Linq" />
+      <Using Namespace="System.Security.Cryptography" />
+      <Using Namespace="System.Text" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        using var sha = SHA256.Create();
+        foreach (var item in Files.OrderBy(f => f.ItemSpec.Replace('\\', '/'), StringComparer.Ordinal))
+        {
+            string text = File.ReadAllText(item.GetMetadata("FullPath")).Replace("\r\n", "\n");
+            byte[] entry = Encoding.UTF8.GetBytes(item.ItemSpec.Replace('\\', '/') + "\n" + text + "\n");
+            sha.TransformBlock(entry, 0, entry.Length, null, 0);
+        }
+
+        sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+        Stamp = string.Concat(sha.Hash.Take(8).Select(b => b.ToString("x2")));
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="StampGoldenSeedSource" BeforeTargets="CoreCompile">
+    <!-- Every product source the exporter compiles, beside the content listed in the project. -->
+    <ItemGroup>
+      <GoldenSeedSource Include="@(Compile)" Condition="$([System.String]::Copy('%(Compile.FullPath)').Replace('\','/').Contains('/src/CraftSurvive.Game/'))" />
+    </ItemGroup>
+    <StampGoldenSeedSource Files="@(GoldenSeedSource)">
+      <Output TaskParameter="Stamp" PropertyName="GoldenSeedSourceStamp" />
+    </StampGoldenSeedSource>
+    <!-- Every source compiled, the exporter's own too: what a cached cave view was made by. -->
+    <StampGoldenSeedSource Files="@(Compile);@(GoldenSeedSource)">
+      <Output TaskParameter="Stamp" PropertyName="GoldenSeedToolStamp" />
+    </StampGoldenSeedSource>
+    <PropertyGroup>
+      <GoldenSeedSourceFile>$(IntermediateOutputPath)GoldenSeedSource.g.cs</GoldenSeedSourceFile>
+    </PropertyGroup>
+    <WriteLinesToFile
+      File="$(GoldenSeedSourceFile)"
+      Lines="namespace GoldenSeed%3B;internal static class GoldenSeedSource;{;    /// &lt;summary&gt;A hash of the product sources and content the exporter compiles, at build time%3B see GoldenSeedSource.targets.&lt;/summary&gt;;    internal const ulong Stamp = 0x$(GoldenSeedSourceStamp)UL%3B;    /// &lt;summary&gt;The same over every source compiled, the exporter's own included.&lt;/summary&gt;;    internal const ulong ToolStamp = 0x$(GoldenSeedToolStamp)UL%3B;}"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(GoldenSeedSourceFile)" />
+      <FileWrites Include="$(GoldenSeedSourceFile)" />
+    </ItemGroup>
+  </Target>
+</Project>
