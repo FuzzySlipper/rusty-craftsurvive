@@ -79,9 +79,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// large river's, and local relief stays off a river's bank; version 41 leaves frozen ground no soil (#10629): too
     /// steep for snow, it is bare stone; version 42 carves each cave mouth's tendril down into its hill, smooth-walled, to
     /// the way in of the cave under it, and reads a cave generated there into the overworld's own chunks (#10889); version 43
-    /// fades the walking ground's local relief out under the sea, so the open sea raises no island the map does not have (#11148).
+    /// fades the walking ground's local relief out under the sea, so the open sea raises no island the map does not have; version
+    /// 44 lets rising relief lift no ground the map has under water, coming in over the shore's first metres instead (#11148).
     /// </summary>
-    internal const uint CurrentVersion = 43;
+    internal const uint CurrentVersion = 44;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

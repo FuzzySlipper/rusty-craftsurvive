@@ -640,15 +640,18 @@ internal sealed class TerrainRecipe : ITerrainColumns
         return (ContinuousHeight(geography, x, z), geography);
     }
 
+    /// <summary>How far above the water the walking ground's rising relief comes in fully (#11148).</summary>
+    private const double ShoreReliefMetres = 4;
+
     private double ContinuousHeight(MapSample geography, long x, long z)
     {
         double relief = RegionalTerrain.Relief(Contract.GeographyNoiseSeed, geography, x, z);
-        // Under the sea the relief lifts nothing (#11148): it fades from full at the water level to none at the map's floor, so
-        // the open sea keeps the map's seabed and raises no island the map does not have, and the coast meets the land evenly.
-        if (relief > 0 && geography.Elevation < GenerationConstants.WaterLevel)
+        // Relief lifts no ground out of the sea (#11148): rising relief is none at the water level and below, and comes in over
+        // the shore's first metres above it, as the region tiles' own relief fades at the coast. Ground the map has under water
+        // stays under it, so the walking ground raises no island the map does not have, and the coastline stays where the map's is.
+        if (relief > 0)
         {
-            relief *= WorldMap.Smooth(Math.Clamp((geography.Elevation - GenerationConstants.MinimumTerrainHeight)
-                / (GenerationConstants.WaterLevel - GenerationConstants.MinimumTerrainHeight), 0, 1));
+            relief *= WorldMap.Smooth(Math.Clamp((geography.Elevation - GenerationConstants.WaterLevel) / ShoreReliefMetres, 0, 1));
         }
 
         double ground = Math.Max(geography.Elevation + relief, GenerationConstants.MinimumTerrainHeight);
