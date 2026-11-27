@@ -364,5 +364,6 @@ export interface CaveView {
   plan: { state: string; top: string };
   sideX: string;
   sideZ: string;
+  cells: { size: [number, number, number]; metres: number; state: string };
   stats: CaveViewStats;
 }

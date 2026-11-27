@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       preact:
-        specifier: ^10.26.4
-        version: 10.29.8
+        specifier: 10.26.4
+        version: 10.26.4
       three:
-        specifier: ^0.187.0
+        specifier: 0.187.0
         version: 0.187.0
     devDependencies:
       '@types/three':
-        specifier: ^0.187.0
+        specifier: 0.187.0
         version: 0.187.0
       esbuild:
         specifier: ^0.25.0
@@ -209,13 +209,8 @@ packages:
   meshoptimizer@1.1.1:
     resolution: {integrity: sha512-oRFNWJRDA/WTrVj7NWvqa5HqE1t9MYDj2VaWirQCzCCrAd2GHrqR/sQezCxiWATPNlKTcRaPRHPJwIRoPBAp5g==}
 
-  preact@10.29.8:
-    resolution: {integrity: sha512-ej2aVZ+vZ8WO7tvlQWRM9N63A0KzF9q4mWJfDUHgYaIofWY9hu74QdnQrjoPMmZi2/nZ5gN0bJCQF49xQqx09Q==}
-    peerDependencies:
-      preact-render-to-string: '>=5'
-    peerDependenciesMeta:
-      preact-render-to-string:
-        optional: true
+  preact@10.26.4:
+    resolution: {integrity: sha512-KJhO7LBFTjP71d83trW+Ilnjbo+ySsaAgCfXOXUlmGzJ4ygYPWmysm77yg4emwfmoz3b22yvH5IsVFHbhUaH5w==}
 
   three@0.187.0:
     resolution: {integrity: sha512-Qiu7R+Cmh8CstZsY1uJOSWnVlfo7ZtNLV7mF8Jltk3LB3AtDu9cRZlcnRKkAk8Y4z6KKw35z7Y7Urd7jWY8etA==}
@@ -355,7 +350,7 @@ snapshots:
 
   meshoptimizer@1.1.1: {}
 
-  preact@10.29.8: {}
+  preact@10.26.4: {}
 
   three@0.187.0: {}
 

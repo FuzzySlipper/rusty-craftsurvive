@@ -4,6 +4,7 @@ import { atlasUrl, caveUrl } from '../router';
 import type { CaveView, GoldenCaveRow, GoldenPlaces } from '../types';
 import { Breadcrumb, Empty, FactList, PageHeading } from '../components/ui';
 import { ReviewPanel } from '../components/ReviewControls';
+import { CaveViewer3D } from '../components/CaveViewer3D';
 import { useSessionState } from '../useSessionState';
 
 const PAGE = 100;
@@ -394,6 +395,12 @@ export function CavePage({ id }: { id: string }) {
           </figure>
         </div>
       </section>
+      {view.cells ? (
+        <section class="panel">
+          <h2>In three dimensions</h2>
+          <CaveViewer3D view={view} />
+        </section>
+      ) : null}
       <section class="panel">
         <h2>The main route</h2>
         <p class="muted">

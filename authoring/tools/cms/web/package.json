@@ -8,11 +8,11 @@
     "watch": "esbuild src/main.tsx --bundle --splitting --format=esm --target=es2022 --jsx=automatic --jsx-import-source=preact --sourcemap --watch --outdir=dist --entry-names=app"
   },
   "dependencies": {
-    "preact": "^10.26.4",
-    "three": "^0.187.0"
+    "preact": "10.26.4",
+    "three": "0.187.0"
   },
   "devDependencies": {
-    "@types/three": "^0.187.0",
+    "@types/three": "0.187.0",
     "esbuild": "^0.25.0",
     "typescript": "5.9.2"
   }

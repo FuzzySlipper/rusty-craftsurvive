@@ -172,3 +172,7 @@ pre.json { max-height: 480px; font-size: .8rem; }
 .cave-legend { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); margin: 8px 0 12px; }
 .route-profile { width: 100%; max-width: 900px; height: auto; background: #1a211c; border-radius: 6px; }
 .warning-text { color: #f6d9a2; display: block; }
+.cave-3d-controls { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-bottom: 8px; }
+.cave-3d-controls label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: .86rem; }
+.cave-3d-controls input[type="range"] { min-height: 0; width: 140px; accent-color: var(--accent); }
+.cave-3d-canvas { height: min(70vh, 620px); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }

@@ -37,12 +37,12 @@ WATCHED = ("content/game", "content", "authoring/tools", "authoring/assets")
 class Workspace:
     """Composition root: the library's roots, one file cache, and the domain stores."""
 
-    def __init__(self, library: Library, review_store: ReviewStore | None = None, cache: FileCache | None = None):
+    def __init__(self, library: Library, review_store: ReviewStore | None = None, cache: FileCache | None = None, exporter: Path | None = None):
         self.library = library
         self.review_store = review_store
         self.cache = cache if cache is not None else FileCache()
         self.catalog_store = CatalogStore(library, self.cache)
-        self.golden = GoldenStore(library, self.cache)
+        self.golden = GoldenStore(library, self.cache, exporter)
 
     def catalog(self):
         return self.catalog_store.catalog()
@@ -175,11 +175,12 @@ def main():
     parser.add_argument("--repo", type=Path, default=REPO)
     parser.add_argument("--reviews", type=Path, default=None, help="the review database (default authoring/assets/cms/reviews.sqlite3)")
     parser.add_argument("--golden", type=Path, default=None, help="the golden-seed export folder (default authoring/assets/golden-seed)")
+    parser.add_argument("--exporter", type=Path, default=None, help="the built exporter that makes cave views (default its Release build)")
     args = parser.parse_args()
     repo = args.repo.resolve()
     library = Library(repo=repo, golden_dir=args.golden.resolve() if args.golden else None)
     reviews = (args.reviews or (repo / DEFAULT_REVIEWS.relative_to(REPO))).resolve()
-    workspace = Workspace(library, ReviewStore(reviews))
+    workspace = Workspace(library, ReviewStore(reviews), exporter=args.exporter.resolve() if args.exporter else None)
     with make_server(args.host, args.port, workspace) as server:
         shown = socket.gethostname() if args.host == DEFAULT_HOST else args.host
         print(f"{SERVICE} at http://{shown}:{server.server_port}", flush=True)

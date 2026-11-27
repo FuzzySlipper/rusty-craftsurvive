@@ -23,5 +23,7 @@ python3 -m unittest discover -s authoring/tools/cms
 
 A page is a component under `web/src/pages/` with a hash route in `web/src/router.ts` and an entry in
 `web/src/App.tsx`. The atlas draws the export on a 2D canvas (`web/src/atlas/`), loading the region tiles about the view once it is close
-enough to show places; the cave pages are `web/src/pages/CavesPage.tsx`; the 3D view loads three.js as its
-own chunk (`web/src/viewer/`). To test against scratch data, pass `--repo`, `--reviews` and `--golden`.
+enough to show places; the cave pages are `web/src/pages/CavesPage.tsx`, their 3D view `web/src/viewer/CaveScene.ts` (its own chunk, with the
+model viewer's three.js, pinned to an exact version); the 3D view loads three.js as its
+own chunk (`web/src/viewer/`). To test against scratch data, pass `--repo`, `--reviews` and `--golden`, and `--exporter` for a scratch build of the
+exporter.

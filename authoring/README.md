@@ -120,6 +120,9 @@ mouth on the atlas) generates its cave as the walking session admits it - the sa
 - a plan and two sections of its open space, coloured by whether a body fits through from where the way down joins
   the cave (standing or crawling, by the karst generator's own radii, measured to the rock's surface), lies beyond a
   pinch narrower than a crawl, or is cut off by rock;
+- the cave in three dimensions (three.js, orbit with the mouse): each metre of open space beside rock as a block in its
+  reach colour, the route, the way in and the features over it, with layer toggles and a cut-away and a slice to see
+  inside;
 - the main route's profile, its climbs against a full stamina bar;
 - its chambers, sinks, spring, water, ruin and the generator's own dead ends;
 - what stands out: cut-off spaces, a bottom out of reach, climbs too tall for one bar, a mostly vertical route.

@@ -24,6 +24,9 @@ internal static class CaveView
     private const float ClimbSlope = 1.5f;
     private const float SteepSlope = 0.5f;
 
+    /// <summary>The 3D view's cells, in metres: each the best state of the samples in it.</summary>
+    private const float CellMetres = 1f;
+
     /// <summary>Open spaces smaller than this (cubic metres) are noise, not a cut-off space.</summary>
     private const float LeastSpaceCubicMetres = 8f;
 
@@ -70,15 +73,16 @@ internal static class CaveView
         // Beyond a pinch: open space joined to the arrival's only through pinches narrower than a crawl, counted where it is a
         // space of its own (a few cubic metres or more), not the thin rind a fill leaves along every wall.
         bool[] beyond = new bool[open.Length];
-        for (int i = 0; i < open.Length; i++) beyond[i] = open[i] && !within[i] && component[i] == home && clearance[i] >= Reach.LenientCrawl;
+        for (int i = 0; i < open.Length; i++) beyond[i] = open[i] && !within[i] && component[i] == home && clearance[i] >= KarstCave.CrawlRadius;
         int[] pocket = Components(beyond, sx, sy, sz, out List<int> pocketSizes);
-        // Open space a body would fit in (a crawl's clearance or more) that the fill did not reach lies beyond a pinch; the thin
-        // rind along every wall, where no body fits anyway, counts with the rock.
+        // Room a body would fit in (a crawl's clearance or more): reached, reached only through tight throats, or beyond a pinch;
+        // the thin rind along every wall, where no body's centre fits, counts with the rock.
         byte State(int i) => !open[i] ? Rock
             : reached[i] ? (clearance[i] >= KarstCave.StandRadius ? Stand : Crawl)
-            : within[i] ? Tight
             : component[i] != home ? (sizes[component[i]] >= leastSamples ? CutOff : Rock)
-            : clearance[i] >= Reach.LenientCrawl && pocketSizes[pocket[i]] >= leastSamples ? Narrow : Rock;
+            : clearance[i] < KarstCave.CrawlRadius ? Rock
+            : within[i] ? Tight
+            : pocketSizes[pocket[i]] >= leastSamples ? Narrow : Rock;
 
         byte[] planState = new byte[sx * sz], sideX = new byte[sx * sy], sideZ = new byte[sz * sy];
         short[] planTop = new short[sx * sz];
@@ -109,6 +113,24 @@ internal static class CaveView
             sideX[(y * sx) + x] = Math.Max(sideX[(y * sx) + x], state);
             sideZ[(y * sz) + z] = Math.Max(sideZ[(y * sz) + z], state);
         }
+
+        // The 3D view's grid (#11149): each metre cell the best state of its samples, as the plan and sections show columns.
+        int perCell = (int)MathF.Round(CellMetres / step);
+        int cx = sx / perCell, cy = sy / perCell, cz = sz / perCell;
+        byte[] cells = new byte[cx * cy * cz];
+        Parallel.For(0, cz, k =>
+        {
+            for (int j = 0; j < cy; j++)
+            for (int i = 0; i < cx; i++)
+            {
+                byte best = Rock;
+                for (int dz = 0; dz < perCell; dz++)
+                for (int dy = 0; dy < perCell; dy++)
+                for (int dx = 0; dx < perCell; dx++)
+                    best = Math.Max(best, State(Index((i * perCell) + dx, (j * perCell) + dy, (k * perCell) + dz)));
+                cells[(((k * cy) + j) * cx) + i] = best;
+            }
+        });
 
         int[] cutOff = [.. sizes.Select((count, label) => (count, label)).Where(c => c.label != 0 && c.label != home && c.count >= leastSamples).Select(c => c.count)];
 
@@ -210,6 +232,7 @@ internal static class CaveView
             },
             ["sideX"] = Convert.ToBase64String(sideX),
             ["sideZ"] = Convert.ToBase64String(sideZ),
+            ["cells"] = new JsonObject { ["size"] = new JsonArray(cx, cy, cz), ["metres"] = CellMetres, ["state"] = Convert.ToBase64String(cells) },
             ["stats"] = new JsonObject
             {
                 ["openCubicMetres"] = Cubic(openCount),
