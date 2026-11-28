@@ -713,7 +713,38 @@ internal static class UndergroundExport
                 $"{(held ? "ok" : "FAILED")}: underground plan {preset.Name} (3 tiles incl. steep -5,-1) -> {totalSys} systems ({stacked} stacked), {totalBoxes} boxes, {totalLinks} links ({shafts} shafts), deterministic={sameAll}, bounded={boundedAll}, geometry={geometryAll}, buried={buriedAll}{(firstError is not null ? $" ({firstError})" : "")}"));
         }
 
+        ok &= CheckOrderIndependence(map, report);
         return ok;
+    }
+
+    /// <summary>
+    /// The plan does not depend on the order systems are asked for (#11219): one planner builds a tile's every system in id
+    /// order; another first builds the neighbouring tiles from the far side, then each of the tile's systems alone in reverse.
+    /// Every system must come out byte for byte the same.
+    /// </summary>
+    private static bool CheckOrderIndependence(WorldMap map, Action<string> report)
+    {
+        UndergroundCoarseness preset = UndergroundPlan.Presets[0];
+        (int X, int Z) tile = (-5, -1);
+        UndergroundPlanner inOrder = new(map, preset);
+        Dictionary<string, string> first = inOrder.BuildTile(tile.X, tile.Z).Systems.ToDictionary(s => s.Id, s => SerializeSystemFull(s).ToJsonString());
+        UndergroundPlanner reversed = new(map, preset);
+        foreach ((int dx, int dz) in new[] { (1, 1), (1, 0), (0, 1), (-1, -1) })
+        {
+            _ = reversed.BuildTile(tile.X + dx, tile.Z + dz);
+        }
+
+        int same = 0, compared = 0;
+        foreach (UndergroundSite site in reversed.Skeleton(tile.X, tile.Z).Sites.Reverse())
+        {
+            if (reversed.SystemAt(site) is not UndergroundSystem system) continue;
+            compared++;
+            if (first.TryGetValue(system.Id, out string? json) && json == SerializeSystemFull(system).ToJsonString()) same++;
+        }
+
+        bool held = compared > 0 && same == compared && compared == first.Count;
+        report(FormattableString.Invariant($"{(held ? "ok" : "FAILED")}: underground plan order independence ({preset.Name}, tile {tile.X},{tile.Z}): {same}/{compared} systems byte-identical whatever is built first ({first.Count} in id order)"));
+        return held;
     }
 
     /// <summary>How the continent's land divides among the census bands, sampled on a lattice.</summary>
