@@ -249,6 +249,33 @@ internal sealed partial class DungeonModule
                 $"outside {id} M{mouthIndex} ({mouth.Kind}, level {mouth.Level}, box {mouth.BoxIndex}, tendril {mouth.TendrilMetres:F0} m) at {outside.X:F1},{standY:F1},{outside.Z:F1}; {PlannedReadout()}");
         }
 
+        if (words[0] == "routes" && words.Length == 2 && int.TryParse(words[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int routeBox)
+            && plannedHeld.TryGetValue(id, out PlannedHeld? routesHeld) && routeBox >= 0 && routeBox < routesHeld.Boxes.Count)
+        {
+            // A box's required routes in world metres: each one's ends and its path every few points (for traversal proof).
+            CavePlacement box = routesHeld.Boxes[routeBox];
+            if (!underCaves.TryGetValue(box.Key, out UnderCave? routeCave) || routeCave.Ready is not UndergroundCave routeReady)
+            {
+                return $"box {routeBox} is not ready";
+            }
+
+            System.Text.StringBuilder text = new();
+            foreach ((string name, (Vector3 routeFrom, Vector3 routeTo, IReadOnlyList<Vector3> path)) in routeReady.Layout.PortRoutes)
+            {
+                Vector3 f = box.ToWorld(routeFrom), t = box.ToWorld(routeTo);
+                text.Append(CultureInfo.InvariantCulture, $"{name}: {f.X:F0},{f.Y:F0},{f.Z:F0} -> {t.X:F0},{t.Y:F0},{t.Z:F0} ({Length(path):F0} m):");
+                for (int i = 0; i < path.Count; i += Math.Max(1, path.Count / 12))
+                {
+                    Vector3 w = box.ToWorld(path[i]);
+                    text.Append(CultureInfo.InvariantCulture, $" {w.X:F0},{w.Y:F0},{w.Z:F0}");
+                }
+
+                text.Append('\n');
+            }
+
+            return text.ToString();
+        }
+
         if (words[0] == "way" && words.Length == 3 && int.TryParse(words[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int from)
             && int.TryParse(words[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int to))
         {

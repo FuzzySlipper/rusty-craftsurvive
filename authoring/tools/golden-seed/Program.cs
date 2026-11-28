@@ -490,18 +490,9 @@ int CaveCommand(string id)
 
 int SystemCommand(string level, string id)
 {
-    // Parse system id ug:<level>:<tx>:<tz>:<idx> to locate its tile plan directly.
-    string[] parts = id.Split(':');
-    if (parts.Length != 5 || parts[0] != "ug") throw new ArgumentException($"Invalid underground system id '{id}'.");
-    int tx = int.Parse(parts[2], CultureInfo.InvariantCulture);
-    int tz = int.Parse(parts[3], CultureInfo.InvariantCulture);
-    string tileFile = Path.Combine(output, "underground", level, "tiles", $"{tx}_{tz}.json.gz");
-    if (!File.Exists(tileFile)) throw new FileNotFoundException($"No underground tile plan at {tileFile}. Run `underground` first.");
-
-    JsonObject tile = JsonNode.Parse(ReadGzip(tileFile))!.AsObject();
-    JsonObject system = tile["systems"]!.AsArray().Select(n => n!.AsObject()).FirstOrDefault(s => s["id"]!.GetValue<string>() == id)
-        ?? throw new ArgumentException($"System '{id}' was not found in tile ({tx},{tz}) at level '{level}'.");
-
+    // The system built from the plan as the walking session builds it (#11219): the planner on the walked ground, so the
+    // CMS's stitched detail is the game's own; its id names its level, tile and index.
+    if (UndergroundPlan.Presets.FirstOrDefault(p => p.Name == level) is not UndergroundCoarseness preset) throw new ArgumentException($"Unknown underground level '{level}'.");
     JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(output, "underground", "manifest.json")))!.AsObject();
     string identity = manifest["world"]!["fingerprint"]!.GetValue<string>();
     string directory = Path.Combine(cacheRoot, identity, "systems-" + GoldenSeedSource.ToolStamp.ToString("x16", CultureInfo.InvariantCulture));
@@ -511,6 +502,13 @@ int SystemCommand(string level, string id)
     string file = Path.Combine(directory, $"{level}__{id.Replace(':', '_')}{(measureStep == 0.5f ? "" : FormattableString.Invariant($"__{measureStep:F2}"))}.json.gz");
     if (!File.Exists(file))
     {
+        JsonObject config = JsonNode.Parse(File.ReadAllText(options.GetValueOrDefault("config", Path.Combine(repo, "authoring/tools/golden-seed/golden-seed.json"))))!.AsObject();
+        TerrainConfiguration configuration = new(config["seed"]!.GetValue<ulong>(), config["size"]!.GetValue<int>());
+        WorldMap map = WorldMapGenerator.Generate(configuration);
+        TerrainRecipe recipe = configuration.CreateRecipe(EngineTerrainDraws.Shared, map);
+        UndergroundPlanner planner = new(map, preset, (x, z) => recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)));
+        UndergroundSystem system = (planner.Site(id) is UndergroundSite site ? planner.SystemAt(site) : null)
+            ?? throw new ArgumentException($"The plan has no system '{id}'.");
         WriteGzip(file, SystemView.Make(system, level, measureStep));
     }
 
