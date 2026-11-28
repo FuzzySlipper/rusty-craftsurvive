@@ -25,21 +25,29 @@ internal static class KarstCave
         PosX = 1,
         NegZ = 2,
         PosZ = 3,
+        /// <summary>The box's floor: a shaft down to the level below (#11209 round 3).</summary>
+        NegY = 4,
+        /// <summary>The box's roof: a shaft up to the level above, or a sinkhole to the surface (#11209 round 3).</summary>
+        PosY = 5,
     }
 
     /// <summary>
     /// A planned passage opening on one face of a cave box (#11209, generalising <see cref="Settings.WayIn"/>).
+    /// On a side face <see cref="U"/> runs along the face and <see cref="V"/> is the height; on the floor or roof (round 3)
+    /// <see cref="U"/> is the box's x and <see cref="V"/> its z.
     /// Adjacent boxes share matching face coordinates, radius, water level and <see cref="SeamSeed"/> so their
     /// openings align across the shared boundary plane.
     /// </summary>
     internal readonly record struct BoundaryPort(BoxFace Face, float U, float V, float Radius, float WaterLevel, ulong SeamSeed, string Label)
     {
-        internal Vector3 FacePoint(float sizeX, float sizeZ) => Face switch
+        internal Vector3 FacePoint(float sizeX, float sizeY, float sizeZ) => Face switch
         {
             BoxFace.NegX => new Vector3(0f, V, U),
             BoxFace.PosX => new Vector3(sizeX, V, U),
             BoxFace.NegZ => new Vector3(U, V, 0f),
-            _ => new Vector3(U, V, sizeZ),
+            BoxFace.PosZ => new Vector3(U, V, sizeZ),
+            BoxFace.NegY => new Vector3(U, 0f, V),
+            _ => new Vector3(U, sizeY, V),
         };
 
         internal Vector3 InwardNormal => Face switch
@@ -47,18 +55,31 @@ internal static class KarstCave
             BoxFace.NegX => Vector3.UnitX,
             BoxFace.PosX => -Vector3.UnitX,
             BoxFace.NegZ => Vector3.UnitZ,
-            _ => -Vector3.UnitZ,
+            BoxFace.PosZ => -Vector3.UnitZ,
+            BoxFace.NegY => Vector3.UnitY,
+            _ => -Vector3.UnitY,
         };
+
+        /// <summary>Whether the port opens through the floor or roof (a shaft) rather than a side face.</summary>
+        internal bool Vertical => Face is BoxFace.NegY or BoxFace.PosY;
 
         internal Vector3 AnchorPoint(float sizeX, float sizeY, float sizeZ)
         {
-            Vector3 p = FacePoint(sizeX, sizeZ) + (InwardNormal * PortAnchorDepth);
+            Vector3 p = FacePoint(sizeX, sizeY, sizeZ) + (InwardNormal * PortAnchorDepth);
             return new Vector3(
                 Math.Clamp(p.X, 4f, sizeX - 4f),
                 Math.Clamp(p.Y, 4f, sizeY - 4f),
                 Math.Clamp(p.Z, 4f, sizeZ - 4f));
         }
     }
+
+    /// <summary>
+    /// What the passes that make a planned port's routes walkable did to one required route (#11209 round 3, CMS-only): the
+    /// route's narrowest clearance before any widening, how many samples were widened, how long the tube joining the port's
+    /// anchor to the nearest open sample was, whether a pocket connector or the standing-width fallback tube was carved, and
+    /// the narrowest clearance once all of it was done.
+    /// </summary>
+    internal sealed record PortRoute(string Name, float Before, int Widened, float AnchorTubeMetres, bool PocketConnector, bool StandFallback, float After);
 
     private const float PortAnchorDepth = 6.5f;
     private const float PortMinRadius = StandRadius + 0.65f;
@@ -106,6 +127,12 @@ internal static class KarstCave
         /// <summary>Optional target final water table (local box Y in metres) when harmonising linked boxes (#11209).</summary>
         internal float? WaterTableTarget { get; init; }
 
+        /// <summary>
+        /// Where the box's water leaves (metres across its box, #11209 round 3): the port toward the system's resurgence, so the
+        /// water a planned box carries runs the way the plan drains. Null for the spring where chance and the +X side put it.
+        /// </summary>
+        internal Vector2? SpringAt { get; init; }
+
         /// <summary>A community's study count: how many of it the cave grows, 0 for the choice by region and depth.</summary>
         internal int Count(CaveCommunity community) => community switch
         {
@@ -121,7 +148,7 @@ internal static class KarstCave
 
         /// <summary>The settings that shape a cave, for a generated cave's key.</summary>
         internal string Key => string.Create(CultureInfo.InvariantCulture,
-            $"{ChunksX}x{ChunksY}x{ChunksZ}-{string.Join(".", Enum.GetValues<CaveCommunity>().Select(Count))}{(NoCommunities ? "-none" : string.Empty)}{(CarvedFormations ? "-carved" : string.Empty)}{(NoLightGrowth ? "-unlit" : string.Empty)}{(NoRuin ? "-noruin" : string.Empty)}{(NoRuinDetail ? "-nodetail" : string.Empty)}{(Underground ? "-under" : string.Empty)}{(WayIn is Vector2 w ? $"-in{w.X:F1},{w.Y:F1}" : string.Empty)}{(WaterTableTarget is float wt ? $"-wt{wt:F1}" : string.Empty)}{(BoundaryPorts is { Count: > 0 } ports ? $"-p{ports.Count}" : string.Empty)}");
+            $"{ChunksX}x{ChunksY}x{ChunksZ}-{string.Join(".", Enum.GetValues<CaveCommunity>().Select(Count))}{(NoCommunities ? "-none" : string.Empty)}{(CarvedFormations ? "-carved" : string.Empty)}{(NoLightGrowth ? "-unlit" : string.Empty)}{(NoRuin ? "-noruin" : string.Empty)}{(NoRuinDetail ? "-nodetail" : string.Empty)}{(Underground ? "-under" : string.Empty)}{(WayIn is Vector2 w ? $"-in{w.X:F1},{w.Y:F1}" : string.Empty)}{(WaterTableTarget is float wt ? $"-wt{wt:F1}" : string.Empty)}{(BoundaryPorts is { Count: > 0 } ports ? $"-p{ports.Count}" : string.Empty)}{(SpringAt is Vector2 sp ? $"-sp{sp.X:F1},{sp.Y:F1}" : string.Empty)}");
     }
 
     /// <summary>The settings the caves generated next take (studies and the bank set them).</summary>
@@ -154,6 +181,9 @@ internal static class KarstCave
     {
         /// <summary>Where the cave's own features lie, in its box's metres (#11125: the authoring tools' cave view draws them).</summary>
         internal Features? Shape { get; init; }
+
+        /// <summary>The planned ports' required routes and what was carved to make them walkable (#11209 round 3); empty without ports.</summary>
+        internal IReadOnlyList<PortRoute> PortRoutes { get; init; } = [];
     }
 
     /// <summary>
@@ -4032,6 +4062,9 @@ private static int MostBarrensPieces => Area(400);
         /// <summary>The damp dead ends fungi grow in (#10305): each pocket's floor.</summary>
         internal IReadOnlyList<Vector3> FungalPockets { get; init; } = [];
 
+        /// <summary>The planned ports' required routes and what was carved for them (#11209 round 3); empty without ports.</summary>
+        internal IReadOnlyList<PortRoute> PortRoutes { get; init; } = [];
+
         /// <summary>How much daylight reaches a place (#10305), 0 to 1.</summary>
         internal float DaylightAt(Vector3 p) => GridTrilinear(Daylight, p, Box);
 
@@ -4438,6 +4471,7 @@ private static int MostBarrensPieces => Area(400);
         Report report = new(new Dictionary<string, double>(Stages), [.. ShortestLog], ruin, run, Stopwatch.GetElapsedTime(generating).TotalMilliseconds)
         {
             Shape = Features.Of(cave),
+            PortRoutes = cave.PortRoutes,
         };
         return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
             $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} ferns={ferns.Count} fungalPockets={cave.FungalPockets.Count} ruin={(ruin is null ? "none" : $"{ruin.Size}:{ruin.Modules.Count}m{(ruin.Vault is null ? "" : "+vault")}:overgrown{ruin.Overgrown.Count}:footings{ruin.Footings.Count}")} kit={kit.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume, report);
@@ -4531,6 +4565,12 @@ private static int MostBarrensPieces => Area(400);
         ChasmShape? chasm = null;
         bool skyOpen = false;
         Vector3 spring = new((GridX - 2.5f) * GridCell, finalTable - 2f, GridZ * GridCell * 0.5f);
+        // A planned box (#11209 round 3) drains where the plan's water leaves it; the draw is still made, so the stream of chance
+        // runs as it would.
+        Vector3 Planned(Vector3 drawn) => run.SpringAt is Vector2 at
+            ? new Vector3(Math.Clamp(at.X, 4f, (GridX * GridCell) - 4f), drawn.Y, Math.Clamp(at.Y, 4f, (GridZ * GridCell) - 4f))
+            : drawn;
+        spring = Planned(spring);
         int carved = 0;
         for (int index = 0; index < eras.Length; index++)
         {
@@ -4540,7 +4580,7 @@ private static int MostBarrensPieces => Area(400);
             {
                 case Era.Phreatic:
                 case Era.VadoseCanyons:
-                    spring = new Vector3((GridX - 2.5f) * GridCell, table - 2f, Between(random, 16f, (GridZ * GridCell) - 16f));
+                    spring = Planned(new Vector3((GridX - 2.5f) * GridCell, table - 2f, Between(random, 16f, (GridZ * GridCell) - 16f)));
                     carved += Flow(eras[index], index, open, solubility, joint, parting, beds, conduit, activeFlow, sinks, discharge, spring, table,
                         seed, random, chambers, beddingRooms, passages0);
                     Mark("flow");
@@ -4622,9 +4662,10 @@ private static int MostBarrensPieces => Area(400);
         Roughen(open, seed, beds, finalTable);
         Mark("roughen");
         Enclose(open, skyOpen, chasm);
+        Dictionary<string, float> anchorTubes = [];
         if (run.BoundaryPorts is { Count: > 0 } boundaryPorts)
         {
-            CarveBoundaryPorts(open, boundaryPorts);
+            anchorTubes = CarveBoundaryPorts(open, boundaryPorts);
         }
         Mark("enclose");
 
@@ -4718,6 +4759,7 @@ private static int MostBarrensPieces => Area(400);
         // The fine forms can close a widened pinch again, so a route widened is checked again, widened wider, up to a few
         // rounds (#11170); a route that needed no widening is not, as widening elsewhere only opens.
         (float Before, int Widened)[] widened = new (float, int)[routes.Count];
+        bool[] pocketConnector = new bool[routes.Count], standFallback = new bool[routes.Count];
         List<int> pending = [.. Enumerable.Range(0, routes.Count)];
         for (int round = 0; round < WidenRounds && pending.Count > 0; round++)
         {
@@ -4725,7 +4767,8 @@ private static int MostBarrensPieces => Area(400);
             List<int> again = [];
             foreach (int r in pending)
             {
-                bool isPort = routes[r].Name.StartsWith("port:", StringComparison.Ordinal);
+                // In a planned box (#11209 round 3) the ports join through the main route, so it is widened to standing too.
+                bool isPort = routes[r].Name.StartsWith("port:", StringComparison.Ordinal) || (r == 0 && run.BoundaryPorts is { Count: > 0 });
                 float routeRadius = isPort ? StandRadius + 0.55f + (round * WidenRoundStep) : radius;
                 float minClearance = isPort ? StandRadius : CrawlRadius;
                 (float before, int count) = WidenPassage(open, clearance, routes[r].From, routes[r].To, routeRadius, minClearance);
@@ -4733,6 +4776,7 @@ private static int MostBarrensPieces => Area(400);
                 {
                     // Port anchor landed in a rock-separated pocket: carve a natural limestone gallery to its tree parent.
                     CarvePortConnector(open, routes[r].To, routes[r].From, routeRadius, seed ^ (ulong)(r + 0x700));
+                    pocketConnector[r] = true;
                     count = 1;
                 }
                 widened[r] = (round == 0 ? before : widened[r].Before, widened[r].Widened + count);
@@ -4763,6 +4807,7 @@ private static int MostBarrensPieces => Area(400);
                 if (checkPath.Count == 0 || narrowest < StandRadius)
                 {
                     CarvePortConnector(open, routes[r].From, routes[r].To, StandRadius + 0.70f, seed ^ (ulong)(r + 0x900));
+                    standFallback[r] = true;
                     carvedFallback = true;
                 }
             }
@@ -4774,11 +4819,17 @@ private static int MostBarrensPieces => Area(400);
         }
 
         Mark("passages-clearance");
+        List<PortRoute> portReport = [];
         for (int r = 0; r < routes.Count; r++)
         {
             (string name, Vector3 from, Vector3 to) = routes[r];
             (Passage passage, List<int> path) = FinishPassage(clearance, name, from, to, widened[r].Before, widened[r].Widened);
             passages.Add(passage);
+            if (run.BoundaryPorts is { Count: > 0 } && (r == 0 || name.StartsWith("port:", StringComparison.Ordinal)))
+            {
+                string label = name.StartsWith("port:", StringComparison.Ordinal) ? name["port:".Length..] : name;
+                portReport.Add(new PortRoute(name, widened[r].Before, widened[r].Widened, anchorTubes.GetValueOrDefault(label), pocketConnector[r], standFallback[r], passage.After));
+            }
             routePaths.Add(path);
             if (name == "spring")
             {
@@ -5030,6 +5081,7 @@ private static int MostBarrensPieces => Area(400);
             DaylightSources = daylightSources,
             Daylight = daylight,
             FungalPockets = pockets,
+            PortRoutes = portReport,
             Spring = spring,
             Chambers = [.. chambers],
             MainRoute = mainRoute,
@@ -6227,8 +6279,9 @@ private static int MostBarrensPieces => Area(400);
     /// over in-face coordinates (u, v) so two neighbouring boxes carve matching cross-sections on their shared boundary plane,
     /// then joins each port's interior anchor into the nearest open interior karst passage.
     /// </summary>
-    private static void CarveBoundaryPorts(float[] open, IReadOnlyList<BoundaryPort> ports)
+    private static Dictionary<string, float> CarveBoundaryPorts(float[] open, IReadOnlyList<BoundaryPort> ports)
     {
+        Dictionary<string, float> anchorTubes = [];
         float sizeX = FieldX * FieldStep, sizeY = FieldY * FieldStep, sizeZ = FieldZ * FieldStep;
 
         // Collect interior open karst samples (well clear of the box walls) so every port joins an existing passage.
@@ -6245,7 +6298,7 @@ private static int MostBarrensPieces => Area(400);
 
         foreach (BoundaryPort port in ports)
         {
-            Vector3 faceAt = port.FacePoint(sizeX, sizeZ);
+            Vector3 faceAt = port.FacePoint(sizeX, sizeY, sizeZ);
             Vector3 anchor = port.AnchorPoint(sizeX, sizeY, sizeZ);
             Vector3 axis = anchor - faceAt;
             float length = axis.Length();
@@ -6262,6 +6315,7 @@ private static int MostBarrensPieces => Area(400);
             Vector3 mid = (min + max) * 0.5f;
             Vector3 half = (max - min) * 0.5f;
             bool xFace = port.Face is BoxFace.NegX or BoxFace.PosX;
+            bool vertical = port.Vertical;
 
             ForBox(mid, half, (index, p) =>
             {
@@ -6274,7 +6328,7 @@ private static int MostBarrensPieces => Area(400);
                 float clampedAlong = Math.Clamp(along, 0f, length);
                 Vector3 closest = faceAt + (dir * clampedAlong);
                 float du = (xFace ? p.Z : p.X) - port.U;
-                float dv = p.Y - port.V;
+                float dv = (vertical ? p.Z : p.Y) - port.V;
 
                 // Slightly flatter floor and arched roof, with shared seam noise depending only on (du, dv) at the face.
                 float seamBlend = 1f - SmoothStep(0f, length, clampedAlong);
@@ -6285,10 +6339,10 @@ private static int MostBarrensPieces => Area(400);
                 float dist = Vector3.Distance(p, closest);
                 float tube = localRadius - dist;
 
-                // Level the bottom slightly so walking across the face seam stays smooth.
+                // Level the bottom slightly so walking across the face seam stays smooth (a shaft has no floor to level).
                 float floorY = port.V - (radius * 0.62f);
                 float floorCap = p.Y - floorY;
-                float shaped = MathF.Min(tube, floorCap + 0.35f);
+                float shaped = vertical ? tube : MathF.Min(tube, floorCap + 0.35f);
 
                 if (shaped > open[index])
                 {
@@ -6301,8 +6355,11 @@ private static int MostBarrensPieces => Area(400);
             {
                 Vector3 target = interiorOpen.MinBy(c => Vector3.DistanceSquared(c, anchor));
                 CarvePortConnector(open, anchor, target, MathF.Max(PortMinRadius, radius * 0.85f), port.SeamSeed ^ 0x5EED1234UL);
+                anchorTubes[port.Label] = Vector3.Distance(anchor, target);
             }
         }
+
+        return anchorTubes;
     }
 
     /// <summary>Carves a gently undulating natural limestone passage from a boundary port's anchor into an interior karst chamber.</summary>

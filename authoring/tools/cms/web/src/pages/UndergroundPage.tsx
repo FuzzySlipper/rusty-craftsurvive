@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { apiRequest, isAbortError } from '../api';
 import { atlasUrl, systemUrl, undergroundUrl } from '../router';
-import type { SystemKarstView, UndergroundLevelReport, UndergroundOverview, UndergroundSystemDetail } from '../types';
+import type {
+  SystemKarstView,
+  SystemPortRoute,
+  UndergroundBox,
+  UndergroundCensusBucket,
+  UndergroundLevelReport,
+  UndergroundMouth,
+  UndergroundOverview,
+  UndergroundQuantiles,
+  UndergroundSystemDetail,
+} from '../types';
 import { Breadcrumb, Empty, FactList, PageHeading } from '../components/ui';
 import { useSessionState } from '../useSessionState';
 import type { DetailSceneHandle, PlanSceneHandle } from '../viewer/SystemScene';
@@ -26,11 +36,69 @@ function decode(base64: string): Uint8Array {
   return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 }
 
-/** Coarseness comparison dashboard and census explorer for the CMS-only underground plan (#11209). */
+/** A distribution's quantiles in one cell. */
+function q(x: UndergroundQuantiles | undefined, unit = ' m'): string {
+  if (!x || !x.count) return '—';
+  return `${x.p10} / ${x.p50} / ${x.p90} · max ${x.max}${unit}`;
+}
+
+function pairs(record: Record<string, number> | undefined): string {
+  return record ? Object.entries(record).map(([k, v]) => `${k}: ${v.toLocaleString()}`).join(' · ') : '—';
+}
+
+function pct(x: number | undefined): string {
+  return x === undefined ? '—' : `${(x * 100).toFixed(1)}%`;
+}
+
+/** The spread of systems over a set of bands against each band's share of land (round 3). */
+function SpreadTable({ title, rows }: { title: string; rows: Record<string, UndergroundCensusBucket> | undefined }) {
+  if (!rows) return null;
+  return (
+    <section class="panel">
+      <h2>{title}</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Band</th>
+              <th>Share of land</th>
+              <th>Limestone in band</th>
+              <th>Share of systems</th>
+              <th>Systems / 1,000 km²</th>
+              <th>Systems</th>
+              <th>Stacked</th>
+              <th>From regional floor</th>
+              <th>Mean floor below ground</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(rows).map(([name, row]) => (
+              <tr key={name}>
+                <td>{name}</td>
+                <td>{pct(row.landShare)}</td>
+                <td>{pct(row.karstShareOfBand)}</td>
+                <td>
+                  <strong>{pct(row.systemShare)}</strong>
+                </td>
+                <td>{row.systemsPer1000Km2 ?? '—'}</td>
+                <td>{row.systems.toLocaleString()}</td>
+                <td>{row.stacked ?? '—'}</td>
+                <td>{row.fromRegionalFloor ?? '—'}</td>
+                <td>{row.avgDepth} m</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/** Plan dashboard and census explorer for the CMS-only underground plan (#11209). */
 export function UndergroundPage() {
   const [overview, setOverview] = useState<UndergroundOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedLevel, setSelectedLevel] = useSessionState<string>('ug:level', 'medium');
+  const [selectedLevel, setSelectedLevel] = useSessionState<string>('ug:level', 'fine');
 
   useEffect(() => {
     apiRequest<UndergroundOverview>('/api/golden/underground')
@@ -43,7 +111,7 @@ export function UndergroundPage() {
   if (!overview.available || !overview.manifest) {
     return (
       <section class="panel">
-        <PageHeading title="Underground plan" intro="CMS-only exploratory cave-system plan across coarseness levels (#11209)." />
+        <PageHeading title="Underground plan" intro="CMS-only exploratory cave-system plan (#11209)." />
         <Empty>
           No underground plan export found. Run <code>{overview.command}</code> from the repository root.
         </Empty>
@@ -53,12 +121,14 @@ export function UndergroundPage() {
 
   const manifest = overview.manifest;
   const active: UndergroundLevelReport = manifest.levels.find(l => l.name === selectedLevel) ?? manifest.levels[0];
+  const c = active.census;
+  const depth = c.depth;
 
   return (
     <>
       <PageHeading
         title="Underground plan (#11209)"
-        intro={`Provisional CMS-only exploration of cave systems from the continent map (seed ${manifest.world.seed}, ${(manifest.world.size / 1000).toFixed(0)} km, ${manifest.world.totalTiles} region tiles). Runtime gameplay and worldgen goldens are unchanged.`}
+        intro={`Provisional CMS-only exploration of cave systems from the continent map (seed ${manifest.world.seed}, ${(manifest.world.size / 1000).toFixed(0)} km, ${manifest.world.totalTiles} region tiles), boxes buried under the ${manifest.ground ?? 'smooth'} ground. Runtime gameplay and worldgen goldens are unchanged.`}
         action={
           <a class="button primary" href={atlasUrl()}>
             Inspect on the atlas
@@ -67,7 +137,7 @@ export function UndergroundPage() {
       />
 
       <section class="panel">
-        <h2>Coarseness levels: time, memory, disk &amp; census</h2>
+        <h2>Levels: time, memory, disk &amp; counts</h2>
         <p class="muted">{manifest.note}</p>
         <div class="table-wrap">
           <table>
@@ -77,33 +147,30 @@ export function UndergroundPage() {
                 <th>Lattice</th>
                 <th>Box (m)</th>
                 <th>Export time (gen + io)</th>
-                <th>Avg / max tile</th>
-                <th>Retained RAM (all tiles)</th>
-                <th>Per land tile</th>
+                <th>Retained RAM</th>
                 <th>Gzip disk</th>
                 <th>Systems</th>
-                <th>Multi-box</th>
+                <th>Stacked</th>
                 <th>Boxes</th>
+                <th>Shafts</th>
                 <th>Mouths</th>
-                <th>Links</th>
-                <th>Upfront rooms</th>
+                <th>Box overlaps</th>
               </tr>
             </thead>
             <tbody>
               {manifest.levels.map(lvl => {
                 const m = lvl.metrics;
-                const c = lvl.census;
-                const st = lvl.settings;
-                const isSelected = lvl.name === active.name;
+                const lc = lvl.census;
+                const stacked = lc.levelsHistogram ? lc.systems - (lc.levelsHistogram['1'] ?? 0) : null;
                 return (
-                  <tr key={lvl.name} style={isSelected ? { background: 'rgba(77, 224, 201, 0.08)' } : undefined}>
+                  <tr key={lvl.name} style={lvl.name === active.name ? { background: 'rgba(77, 224, 201, 0.08)' } : undefined}>
                     <td>
                       <button type="button" onClick={() => setSelectedLevel(lvl.name)}>
                         {lvl.name}
                       </button>
                     </td>
-                    <td>{st.siteSpacingMetres} m</td>
-                    <td>{st.boxSize.join('×')}</td>
+                    <td>{lvl.settings.siteSpacingMetres} m</td>
+                    <td>{lvl.settings.boxSize.join('×')}</td>
                     <td>
                       <strong>{(m.exportMs ?? m.wallMs).toFixed(0)} ms</strong>
                       {m.generateMs !== undefined && m.serializeMs !== undefined ? (
@@ -114,23 +181,15 @@ export function UndergroundPage() {
                       ) : null}
                     </td>
                     <td>
-                      {m.avgLandTileMs.toFixed(2)} / {m.maxTileMs.toFixed(1)} ms
+                      {m.retainedInMemoryMB.toFixed(1)} MB{m.retainedIncludesRegionTiles ? <small class="muted"> (incl. region tiles)</small> : null}
                     </td>
-                    <td>
-                      <strong>{m.retainedInMemoryMB.toFixed(1)} MB</strong>
-                    </td>
-                    <td>{m.retainedPerLandTileKB.toFixed(1)} KB</td>
-                    <td>
-                      {m.totalGzipMB.toFixed(2)} MB{m.gzipGridMB > 0 ? ` (grid ${m.gzipGridMB.toFixed(2)})` : ''}
-                    </td>
-                    <td>{c.systems.toLocaleString()}</td>
-                    <td>
-                      {(c.multiBoxShare * 100).toFixed(1)}% ({c.multiBoxSystems.toLocaleString()})
-                    </td>
-                    <td>{c.totalBoxes.toLocaleString()}</td>
-                    <td>{c.mouths.toLocaleString()}</td>
-                    <td>{c.links.toLocaleString()}</td>
-                    <td>{c.rooms.toLocaleString()}</td>
+                    <td>{m.totalGzipMB.toFixed(2)} MB</td>
+                    <td>{lc.systems.toLocaleString()}</td>
+                    <td>{stacked === null ? '—' : `${stacked.toLocaleString()} (${((stacked / Math.max(1, lc.systems)) * 100).toFixed(1)}%)`}</td>
+                    <td>{lc.totalBoxes.toLocaleString()}</td>
+                    <td>{lc.shafts?.toLocaleString() ?? '—'}</td>
+                    <td>{lc.mouths.toLocaleString()}</td>
+                    <td>{lc.overlapPairs ?? '—'}</td>
                   </tr>
                 );
               })}
@@ -156,40 +215,114 @@ export function UndergroundPage() {
         <p class="muted">{active.description}</p>
         <FactList
           facts={{
-            'Scan lattice': `${active.settings.siteSpacingMetres} m`,
-            'Box footprint': `${active.settings.boxSize.join(' × ')} m (${active.settings.boxChunks.join('×')} chunks)`,
-            'Single / multi split': `${active.census.singleBoxSystems} single (${((1 - active.census.multiBoxShare) * 100).toFixed(1)}%) · ${active.census.multiBoxSystems} multi (${(active.census.multiBoxShare * 100).toFixed(1)}%)`,
-            'Boxes per multi-box system': `avg ${active.census.avgBoxesPerMultiSystem}, max ${active.census.maxBoxesInSystem}`,
-            'Boxes histogram': Object.entries(active.census.boxesHistogram)
-              .map(([k, v]) => `${k} box: ${v}`)
-              .join(' · '),
-            'Depth bands (boxes)': Object.entries(active.census.byDepthBand)
-              .map(([k, v]) => `${k}: ${v}`)
-              .join(' · '),
-            'Big-space markers': Object.entries(active.census.byBigSpace)
-              .map(([k, v]) => `${k}: ${v}`)
-              .join(' · '),
-            'Per-tile field grid': active.settings.includeFieldGrid
-              ? `yes (${active.metrics.rawGridMB.toFixed(1)} MB raw / ${active.metrics.gzipGridMB.toFixed(2)} MB gz)`
-              : 'no (sparse graph only)',
+            'Box size': `${active.settings.boxSize.join(' × ')} m; at most ${active.settings.maxBoxesPerSystem} boxes and ${active.settings.maxLevels ?? 1} levels a system`,
+            'Levels per system': pairs(c.levelsHistogram),
+            'Boxes per system': pairs(c.boxesHistogram),
+            'Mouths by kind': pairs(c.mouthKinds),
+            'Systems by levels with a mouth': pairs(c.mouthLevelsHistogram),
+            'Links by kind': pairs(c.linkKinds),
+            'Styles (climate)': pairs(c.styles),
+            'Reach their base level': c.reachesBaseLevel !== undefined ? `${c.reachesBaseLevel.toLocaleString()} of ${c.systems.toLocaleString()}` : undefined,
+            'Placed by the regional floor': c.fromRegionalFloor,
+            'Lowest floor held by the world floor (y = −74)': c.floorClampedAtWorldFloor,
+            'Kept out by box overlap (in tile) / overlapping pairs left': `${c.rejectedForOverlap ?? '—'} / ${c.overlapPairs ?? '—'}`,
+            'Limestone (karst) country': c.land ? `${c.land.karstKm2.toLocaleString()} of ${c.land.landKm2.toLocaleString()} km² of land (${pct(c.land.karstShare)}); ${c.land.systemsPer1000KarstKm2} systems per 1,000 km² of it` : undefined,
+            'Big spaces': pairs(c.byBigSpace),
           }}
         />
       </section>
 
+      {depth ? (
+        <section class="panel">
+          <h2>Depth ({active.name})</h2>
+          <p class="muted">Below the ground over each box (p10 / median / p90 · max). The base level is the lowest ground within 1.4 km; the lowest level runs at it where the five levels allowed reach.</p>
+          <FactList
+            facts={{
+              'Box top below ground': q(depth.boxTopBelowGround),
+              'Box floor below ground': q(depth.boxFloorBelowGround),
+              'System vertical span': q(depth.systemSpan),
+              'Relief above the base level': q(depth.relief),
+              'Box floors by 32 m band': pairs(depth.boxFloorHistogram),
+              'Side-mouth tendril': q(c.sideMouths?.tendril),
+              'Side-mouth mean slope (rise / run)': q(c.sideMouths?.slope, ''),
+            }}
+          />
+          <div class="table-wrap" style={{ marginTop: '0.75rem' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Ground elevation</th>
+                  <th>Systems</th>
+                  <th>Floor below ground (median / p90 / max)</th>
+                  <th>Vertical span (median / p90 / max)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(depth.byElevationBand).map(([band, row]) => (
+                  <tr key={band}>
+                    <td>{band}</td>
+                    <td>{row.systems.toLocaleString()}</td>
+                    <td>
+                      {row.floorBelowGroundP50} / {row.floorBelowGroundP90} / {row.floorBelowGroundMax} m
+                    </td>
+                    <td>
+                      {row.spanP50} / {row.spanP90} / {row.spanMax} m
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      <SpreadTable title={`By elevation band (${active.name})`} rows={c.byElevationBand} />
+      <SpreadTable title={`By moisture band (${active.name})`} rows={c.byMoistureBand} />
+      <SpreadTable title={`By biome (${active.name})`} rows={c.byBiome} />
+
+      {c.styleByBiome ? (
+        <section class="panel">
+          <h2>Style by biome ({active.name})</h2>
+          <p class="muted">The rock decides where caves are; the climate decides what they are like: active river caves in wet ground, old dry (relict) ones in dry ground, hypogene ones where dry ground stands far above its base level, ice caves in cold ground.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Biome</th>
+                  {['ActiveRiver', 'Relict', 'Hypogene', 'Ice'].map(k => (
+                    <th key={k}>{k}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(c.styleByBiome).map(([biome, row]) => (
+                  <tr key={biome}>
+                    <td>{biome}</td>
+                    {['ActiveRiver', 'Relict', 'Hypogene', 'Ice'].map(k => (
+                      <td key={k}>{row[k] ?? 0}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       <section class="panel">
-        <h2>Notable multi-box systems ({active.name})</h2>
-        <p class="muted">Open any system to view its boxes, inter-box links, depth, and generate stitched multi-box KarstCave detail from its boundary ports.</p>
+        <h2>Sample systems ({active.name})</h2>
+        <p class="muted">A few of each kind the round asked about. Open one for its side-on section, its 3D plan and stitched KarstCave detail.</p>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>System</th>
-                <th>Boxes / links</th>
+                <th>Why</th>
+                <th>Boxes / levels</th>
+                <th>Span / floor below ground</th>
                 <th>Mouths</th>
-                <th>Max depth</th>
-                <th>Solubility</th>
+                <th>Style</th>
                 <th>Biome</th>
-                <th>Big spaces</th>
                 <th>Nearest town</th>
                 <th>Inspect</th>
               </tr>
@@ -200,14 +333,16 @@ export function UndergroundPage() {
                   <td>
                     <a href={systemUrl(active.name, s.id)}>{s.id}</a>
                   </td>
+                  <td>{s.why ?? '—'}</td>
                   <td>
-                    {s.boxes} boxes · {s.links} links
+                    {s.boxes} / {s.levels ?? 1}
                   </td>
-                  <td>{s.mouths}</td>
-                  <td>{s.maxDepth} m</td>
-                  <td>{s.solubility.toFixed(2)}</td>
+                  <td>
+                    {s.spanMetres ?? '—'} m / {s.floorBelowGround ?? s.maxDepth} m
+                  </td>
+                  <td>{s.mouthKinds ? s.mouthKinds.join(', ') : s.mouths}</td>
+                  <td>{s.style ?? '—'}</td>
                   <td>{s.biome}</td>
-                  <td>{s.bigSpaces.length ? s.bigSpaces.join(', ') : '—'}</td>
                   <td>{s.nearestTown ? `${s.nearestTown} (${s.nearestTownKm} km)` : '—'}</td>
                   <td>
                     <a href={systemUrl(active.name, s.id)}>System view</a> · <a href={atlasUrl(s.id)}>Atlas</a>
@@ -218,79 +353,134 @@ export function UndergroundPage() {
           </table>
         </div>
       </section>
-
-      <section class="panel">
-        <h2>By biome ({active.name})</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Biome</th>
-                <th>Systems</th>
-                <th>Single</th>
-                <th>Multi</th>
-                <th>Multi %</th>
-                <th>Boxes</th>
-                <th>Mouths</th>
-                <th>Avg depth</th>
-                <th>Avg solubility</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(active.census.byBiome).map(([name, row]) => (
-                <tr key={name}>
-                  <td>{name}</td>
-                  <td>{row.systems}</td>
-                  <td>{row.singleBox}</td>
-                  <td>{row.multiBox}</td>
-                  <td>{(row.multiShare * 100).toFixed(1)}%</td>
-                  <td>{row.boxes}</td>
-                  <td>{row.mouths}</td>
-                  <td>{row.avgDepth} m</td>
-                  <td>{row.avgSolubility.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>By rock hardness ({active.name})</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Hardness band</th>
-                <th>Systems</th>
-                <th>Single</th>
-                <th>Multi</th>
-                <th>Multi %</th>
-                <th>Boxes</th>
-                <th>Mouths</th>
-                <th>Avg depth</th>
-                <th>Avg solubility</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(active.census.byHardness).map(([band, row]) => (
-                <tr key={band}>
-                  <td>{band}</td>
-                  <td>{row.systems}</td>
-                  <td>{row.singleBox}</td>
-                  <td>{row.multiBox}</td>
-                  <td>{(row.multiShare * 100).toFixed(1)}%</td>
-                  <td>{row.boxes}</td>
-                  <td>{row.mouths}</td>
-                  <td>{row.avgDepth} m</td>
-                  <td>{row.avgSolubility.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </>
+  );
+}
+
+const AXIS: Record<string, [number, number]> = { PosX: [0, 1], NegX: [0, -1], PosZ: [2, 1], NegZ: [2, -1] };
+const MOUTH_FILL: Record<string, string> = { Hillside: '#ff8a5c', Sinkhole: '#ffd166', Resurgence: '#4de0c9', Cliff: '#ff5cf0' };
+
+/** A system's side-on section along its main axis (round 3): ground, base level, boxes by level, water, shafts and mouths. */
+function SystemSection({ system }: { system: UndergroundSystemDetail }) {
+  const section = system.section;
+  if (!section) return <Empty>This export has no section for the system (re-export with round 3's exporter).</Empty>;
+  const [axis, sign] = AXIS[section.axis] ?? [0, 1];
+  const site = axis === 0 ? system.x : system.z;
+  const along = (v: number) => (v - site) * sign;
+  const ground = section.ground.map((g, i) => [section.start + i * section.step, g] as const);
+  const lateral = (b: UndergroundBox) => (axis === 0 ? b.grid[2] : b.grid[0]) !== 0;
+  const portAt = (m: UndergroundMouth): [number, number, number] => {
+    const b = system.boxes[m.box];
+    const [ox, oy, oz] = b.origin;
+    const [sx, sy, sz] = b.size;
+    switch (m.face) {
+      case 'PosY':
+        return [ox + m.portU, oy + sy, oz + m.portV];
+      case 'PosX':
+        return [ox + sx, m.portY, oz + m.portU];
+      case 'NegX':
+        return [ox, m.portY, oz + m.portU];
+      case 'PosZ':
+        return [ox + m.portU, m.portY, oz + sz];
+      default:
+        return [ox + m.portU, m.portY, oz];
+    }
+  };
+
+  let minS = section.start;
+  let maxS = section.start + (section.ground.length - 1) * section.step;
+  let minY = Math.min(...system.boxes.map(b => b.origin[1]), system.baseLevelY ?? Infinity) - 12;
+  let maxY = Math.max(...section.ground, ...system.boxes.map(b => b.origin[1] + b.size[1])) + 12;
+  minS -= 8;
+  maxS += 8;
+  const width = 900;
+  const scale = width / (maxS - minS);
+  const height = Math.max(160, Math.min(720, (maxY - minY) * scale));
+  const yScale = height / (maxY - minY);
+  const X = (s: number) => (s - minS) * scale;
+  const Y = (y: number) => (maxY - y) * yScale;
+  const exaggeration = yScale / scale;
+
+  return (
+    <figure style={{ margin: 0 }}>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', maxWidth: `${width}px`, background: '#101412', borderRadius: '6px' }}>
+        <polygon
+          points={[...ground.map(([s, g]) => `${X(s)},${Y(g)}`), `${X(maxS)},${height}`, `${X(minS)},${height}`].join(' ')}
+          fill="#2a2620"
+          stroke="none"
+        />
+        <polyline points={ground.map(([s, g]) => `${X(s)},${Y(g)}`).join(' ')} fill="none" stroke="#c7966c" stroke-width="2" />
+        {system.baseLevelY !== undefined ? (
+          <>
+            <line x1={0} x2={width} y1={Y(system.baseLevelY)} y2={Y(system.baseLevelY)} stroke="#3b8fd6" stroke-dasharray="6 4" />
+            <text x={6} y={Y(system.baseLevelY) - 4} fill="#7fb8e8" font-size="11">
+              base level {system.baseLevelY} m
+            </text>
+          </>
+        ) : null}
+        {system.boxes.map(b => {
+          const s0 = along(b.origin[axis] + (sign > 0 ? 0 : b.size[axis]));
+          const s1 = along(b.origin[axis] + (sign > 0 ? b.size[axis] : 0));
+          const off = lateral(b);
+          return (
+            <g key={b.index}>
+              <rect
+                x={X(Math.min(s0, s1))}
+                y={Y(b.origin[1] + b.size[1])}
+                width={Math.abs(s1 - s0) * scale}
+                height={b.size[1] * yScale}
+                fill={off ? 'rgba(77,224,201,0.04)' : 'rgba(77,224,201,0.10)'}
+                stroke="#4de0c9"
+                stroke-dasharray={off ? '4 3' : undefined}
+              />
+              <line
+                x1={X(Math.min(s0, s1)) + 2}
+                x2={X(Math.max(s0, s1)) - 2}
+                y1={Y(b.origin[1] + b.waterLocalY)}
+                y2={Y(b.origin[1] + b.waterLocalY)}
+                stroke="#3b8fd6"
+                stroke-opacity="0.7"
+              />
+              <text x={X(Math.min(s0, s1)) + 4} y={Y(b.origin[1] + b.size[1]) + 13} fill="#9fe8dc" font-size="11">
+                #{b.index} L{b.grid[1]}
+              </text>
+            </g>
+          );
+        })}
+        {system.links.map((l, i) =>
+          l.kind === 'Shaft' ? (
+            <line
+              key={i}
+              x1={X(along(l.at[axis]))}
+              x2={X(along(l.at[axis]))}
+              y1={Y(l.at[1] + 10)}
+              y2={Y(l.at[1] - 10)}
+              stroke="#f2f2f2"
+              stroke-width="3"
+            />
+          ) : (
+            <circle key={i} cx={X(along(l.at[axis]))} cy={Y(l.at[1])} r={3.5} fill="#7ef0e6" />
+          ),
+        )}
+        {system.mouths.map((m, i) => {
+          const p = portAt(m);
+          const col = MOUTH_FILL[m.kind] ?? '#ff8a5c';
+          return (
+            <g key={i}>
+              <line x1={X(along(p[axis]))} y1={Y(p[1])} x2={X(along(m.at[axis]))} y2={Y(m.at[1])} stroke={col} stroke-width="2" />
+              <circle cx={X(along(m.at[axis]))} cy={Y(m.at[1])} r={5} fill={col} stroke="#101412" />
+              <text x={X(along(m.at[axis])) + 7} y={Y(m.at[1]) - 6} fill={col} font-size="11">
+                {m.kind} L{m.level}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <figcaption class="muted">
+        Section along {section.axis} (toward the base level) through the anchor; {exaggeration.toFixed(1)}× vertical scale. Teal boxes by level (dashed: a side branch off the axis), blue lines the water
+        tables, white bars shafts, dots side passages; coloured lines run from each mouth&apos;s port along its tendril to where it comes out.
+      </figcaption>
+    </figure>
   );
 }
 
@@ -353,6 +543,13 @@ function DetailProjectionCanvas({ view, projection }: { view: SystemKarstView; p
   }, [view, projection, scale]);
 
   return <canvas ref={ref} class="cave-canvas" />;
+}
+
+/** What the walkability passes carved for one side of a seam: the fallback tubes, if any, and the anchor's joining tube. */
+function routeText(r: SystemPortRoute | undefined): string {
+  if (!r || r.missing) return '—';
+  const fired = [r.standFallback ? 'standing tube' : '', r.pocketConnector ? 'pocket connector' : ''].filter(Boolean).join(' + ');
+  return `${fired || 'none'} (join ${r.anchorTubeMetres} m, ${r.before}→${r.after} m)`;
 }
 
 /** Interactive system view: 3D box/link/room plan + on-demand multi-box KarstCave detail stitched across boundary ports. */
@@ -474,7 +671,12 @@ export function SystemPage({ level, id }: { level: string; id: string }) {
           facts={{
             Location: `x ${system.x} m, z ${system.z} m (tile ${system.tile.join(', ')})`,
             'Ground elevation': `${system.ground} m`,
-            'Max depth': `${system.maxDepth} m`,
+            Style: system.style,
+            Levels: system.levels,
+            'Base level / relief': system.baseLevelY !== undefined ? `${system.baseLevelY} m / ${system.relief} m${system.reachesBaseLevel ? '' : ' (levels stop above it)'}` : undefined,
+            'Box floors / tops (world Y)': system.floorY !== undefined ? `${system.floorY} m to ${system.topY} m (span ${((system.topY ?? 0) - system.floorY).toFixed(0)} m)` : undefined,
+            'Deepest floor below ground': `${system.maxDepth} m`,
+            'Placed by the regional floor': system.fromRegionalFloor,
             Biome: system.biome,
             'Karst solubility': system.solubility.toFixed(3),
             'Rock hardness': system.hardness.toFixed(3),
@@ -483,6 +685,45 @@ export function SystemPage({ level, id }: { level: string; id: string }) {
             'Big spaces': system.bigSpaces.length ? system.bigSpaces.map(b => `${b.kind} (box ${b.box}, r=${b.radius} m)`).join(', ') : 'none',
           }}
         />
+      </section>
+
+      <section class="panel">
+        <h2>Side-on section</h2>
+        <SystemSection system={system} />
+        {system.mouths.length ? (
+          <div class="table-wrap" style={{ marginTop: '0.75rem' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Mouth</th>
+                  <th>Kind</th>
+                  <th>Level / box</th>
+                  <th>Face</th>
+                  <th>Port Y</th>
+                  <th>Comes out at</th>
+                  <th>Tendril</th>
+                  <th>Mean slope</th>
+                </tr>
+              </thead>
+              <tbody>
+                {system.mouths.map((m, i) => (
+                  <tr key={i}>
+                    <td>M{i}</td>
+                    <td>{m.kind}</td>
+                    <td>
+                      L{m.level} / #{m.box}
+                    </td>
+                    <td>{m.face}</td>
+                    <td>{m.portY} m</td>
+                    <td>{m.at.join(', ')}</td>
+                    <td>{m.face === 'PosY' ? `${m.tendril} m up` : `${m.tendril} m`}</td>
+                    <td>{m.slope}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </section>
 
       <section class="panel">
@@ -508,6 +749,13 @@ export function SystemPage({ level, id }: { level: string; id: string }) {
           <>
             <FactList
               facts={{
+                'Boxes reached standing': detail.stats.boxesReachedStand !== undefined ? `${detail.stats.boxesReachedStand} / ${detail.stats.boxes}` : undefined,
+                'Seams crossed standing': detail.stats.seamsTraversedStand !== undefined ? `${detail.stats.seamsTraversedStand} / ${detail.stats.links}` : undefined,
+                'Mouths reached standing / crawling': detail.stats.mouths !== undefined ? `${detail.stats.mouthsReachedStand} / ${detail.stats.mouthsReachedCrawl} of ${detail.stats.mouths}` : undefined,
+                'Fallback tubes': detail.stats.requiredRoutes !== undefined
+                  ? `${detail.stats.seamsWithFallback} of ${detail.stats.links} seams, ${detail.stats.mouthsWithFallback} mouths; ${detail.stats.standFallbacks} standing-width and ${detail.stats.pocketConnectors} pocket connectors over ${detail.stats.requiredRoutes} required routes`
+                  : undefined,
+                'Shaft pitches': detail.seams.filter(s => s.vertical).map(s => `L${s.index} ${s.pitchMetres} m`).join(', ') || undefined,
                 'Boxes reached (crawl)': `${detail.stats.boxesReachedCrawl} / ${detail.stats.boxes}`,
                 ...(detail.stats.boxesReachedTight !== undefined
                   ? { 'Boxes reached (incl. tight)': `${detail.stats.boxesReachedTight} / ${detail.stats.boxes}` }
@@ -532,6 +780,8 @@ export function SystemPage({ level, id }: { level: string; id: string }) {
                       <th>Side B open</th>
                       <th>Seam IoU</th>
                       <th>Traversed</th>
+                      <th>Fallback (side A · side B)</th>
+                      <th>Pitch</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -548,7 +798,11 @@ export function SystemPage({ level, id }: { level: string; id: string }) {
                         <td>
                           <strong>{(s.overlapIoU * 100).toFixed(0)}%</strong>
                         </td>
-                        <td>{s.seamReachedCrawl ? 'yes (crawl)' : s.seamReachedTight ? 'tight only' : 'no'}</td>
+                        <td>{s.seamReachedStand ? 'standing' : s.seamReachedCrawl ? 'crawl' : s.seamReachedTight ? 'tight only' : 'no'}</td>
+                        <td>
+                          {routeText(s.routeA)} · {routeText(s.routeB)}
+                        </td>
+                        <td>{s.pitchMetres !== undefined ? `${s.pitchMetres} m` : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -617,7 +871,7 @@ export function SystemPage({ level, id }: { level: string; id: string }) {
                 <tr key={b.index}>
                   <td>#{b.index}</td>
                   <td>
-                    ({b.grid[0]}, {b.grid[1]})
+                    ({b.grid.join(', ')})
                   </td>
                   <td>{b.origin.join(', ')}</td>
                   <td>{b.size.join('×')}</td>

@@ -64,7 +64,9 @@ const TOWN_COLOUR = '#ffd166';
 const SELECT_COLOUR = '#ffffff';
 const DEPTH_BAND_COLOURS = ['#4de0c9', '#f2b84b', '#d96be6'];
 const LINK_KIND_COLOURS = ['#7ef0e6', '#56b4ff', '#3a6fe6', '#ff9e64'];
-const MOUTH_KIND_COLOURS = ['#ff8a5c', '#ffd166', '#4de0c9'];
+const UNDERGROUND_STYLES = ['ActiveRiver', 'Relict', 'Hypogene', 'Ice'];
+// Hillside, sinkhole, resurgence, cliff (#11209 round 3).
+const MOUTH_KIND_COLOURS = ['#ff8a5c', '#ffd166', '#4de0c9', '#ff5cf0'];
 const PICK_PIXELS = 9;
 /** Places, caves and crossings show once a pixel is this many metres or fewer: closer than that they would be a smear. */
 export const DETAIL_METRES_PER_PIXEL = 40;
@@ -424,7 +426,7 @@ export function AtlasView({
         candidates.push({
           ref: sys.id,
           kind: 'underground',
-          label: `Underground ${sys.m ? `${sys.boxes.length}-box system` : 'single cave'} (${undergroundLevel})`,
+          label: `Underground ${sys.m ? `${sys.boxes.length}-box system` : 'single cave'}${sys.lv && sys.lv > 1 ? `, ${sys.lv} levels` : ''} (${undergroundLevel})`,
           x: sys.x,
           z: sys.z,
           data: {
@@ -434,7 +436,10 @@ export function AtlasView({
             links: sys.links.length,
             mouths: sys.mouths.length,
             bigSpaces: sys.big.length,
-            maxDepthMetres: sys.d,
+            floorBelowGroundMetres: sys.d,
+            levels: sys.lv ?? 1,
+            style: UNDERGROUND_STYLES[sys.st ?? 0] ?? 'ActiveRiver',
+            regionalFloor: sys.f === 1,
             solubility: sys.s,
             hardness: sys.h,
             biome: sys.b,

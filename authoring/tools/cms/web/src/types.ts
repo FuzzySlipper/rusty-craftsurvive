@@ -370,31 +370,75 @@ export interface CaveView {
 
 // ---- underground plan (#11209, CMS-only exploratory)
 
+
 export interface UndergroundCensusBucket {
   systems: number;
+  systemShare?: number;
   singleBox: number;
   multiBox: number;
   multiShare: number;
+  stacked?: number;
+  fromRegionalFloor?: number;
   boxes: number;
   mouths: number;
   avgDepth: number;
   avgSolubility: number;
+  landKm2?: number;
+  landShare?: number;
+  karstShareOfBand?: number;
+  systemsPer1000Km2?: number;
+}
+
+export interface UndergroundQuantiles {
+  count: number;
+  p10: number;
+  p50: number;
+  p90: number;
+  max: number;
 }
 
 export interface UndergroundSampleSystem {
   id: string;
+  why?: string;
   tile: [number, number];
   x: number;
   z: number;
+  ground?: number;
   boxes: number;
+  levels?: number;
+  spanMetres?: number;
+  floorBelowGround?: number;
   links: number;
   mouths: number;
+  mouthKinds?: string[];
+  style?: string;
   bigSpaces: string[];
   biome: string;
   maxDepth: number;
   solubility: number;
   nearestTown: string;
   nearestTownKm: number;
+}
+
+export interface UndergroundDepthCensus {
+  boxTopBelowGround: UndergroundQuantiles;
+  boxFloorBelowGround: UndergroundQuantiles;
+  systemSpan: UndergroundQuantiles;
+  relief: UndergroundQuantiles;
+  boxFloorHistogram: Record<string, number>;
+  systemSpanHistogram: Record<string, number>;
+  byElevationBand: Record<
+    string,
+    {
+      systems: number;
+      floorBelowGroundP50: number;
+      floorBelowGroundP90: number;
+      floorBelowGroundMax: number;
+      spanP50: number;
+      spanP90: number;
+      spanMax: number;
+    }
+  >;
 }
 
 export interface UndergroundLevelReport {
@@ -406,6 +450,7 @@ export interface UndergroundLevelReport {
     boxChunks: [number, number, number];
     minSystemSeparationMetres: number;
     maxBoxesPerSystem: number;
+    maxLevels?: number;
     targetMultiBoxShare: number;
     subChambersPerBox: number;
     includeFieldGrid: boolean;
@@ -422,6 +467,7 @@ export interface UndergroundLevelReport {
     allocatedMB: number;
     retainedInMemoryMB: number;
     retainedPerLandTileKB: number;
+    retainedIncludesRegionTiles?: boolean;
     rawJsonMB: number;
     gzipTilesMB: number;
     rawGridMB: number;
@@ -439,13 +485,30 @@ export interface UndergroundLevelReport {
     avgBoxesPerMultiSystem: number;
     maxBoxesInSystem: number;
     links: number;
+    shafts?: number;
     mouths: number;
     rooms: number;
     conduits: number;
+    fromRegionalFloor?: number;
+    reachesBaseLevel?: number;
+    floorClampedAtWorldFloor?: number;
+    rejectedForOverlap?: number;
+    overlapPairs?: number;
     boxesHistogram: Record<string, number>;
+    levelsHistogram?: Record<string, number>;
+    mouthLevelsHistogram?: Record<string, number>;
+    mouthKinds?: Record<string, number>;
+    linkKinds?: Record<string, number>;
+    styles?: Record<string, number>;
+    styleByBiome?: Record<string, Record<string, number>>;
     byDepthBand: Record<string, number>;
     byBigSpace: Record<string, number>;
+    depth?: UndergroundDepthCensus;
+    sideMouths?: { tendril: UndergroundQuantiles; slope: UndergroundQuantiles };
+    land?: { landKm2: number; karstKm2: number; karstShare: number; systemsPer1000Km2: number; systemsPer1000KarstKm2: number };
     byBiome: Record<string, UndergroundCensusBucket>;
+    byElevationBand?: Record<string, UndergroundCensusBucket>;
+    byMoistureBand?: Record<string, UndergroundCensusBucket>;
     byHardness: Record<string, UndergroundCensusBucket>;
   };
   sampleMultiSystems: UndergroundSampleSystem[];
@@ -455,8 +518,9 @@ export interface UndergroundManifest {
   format: number;
   provisional: boolean;
   note: string;
+  ground?: string;
   world: { seed: number; size: number; radius: number; fingerprint: string; tileSpacing: number; totalTiles: number };
-  solubilityRaster: { file: string; pixels: number; metresPerPixel: number };
+  solubilityRaster: { file: string; pixels: number; metresPerPixel: number; karstThreshold?: number };
   levels: UndergroundLevelReport[];
 }
 
@@ -478,9 +542,12 @@ export interface UndergroundSystemSummary {
   h: number; // hardness
   b: string; // biome
   m: number; // 1 if multi-box
-  boxes: Array<[number, number, number, number, number]>; // originX, originZ, sizeX, sizeZ, depthBand
+  st?: number; // style: 0 active river, 1 relict, 2 hypogene, 3 ice (round 3)
+  lv?: number; // stacked levels (round 3)
+  f?: number; // 1 if placed by its region's floor (round 3)
+  boxes: Array<[number, number, number, number, number, number?]>; // originX, originZ, sizeX, sizeZ, depthBand, level
   links: Array<[number, number, number, number, number]>; // x0, z0, x1, z1, kind
-  mouths: Array<[number, number, number]>; // x, z, kind
+  mouths: Array<[number, number, number, number?]>; // x, z, kind, level
   big: Array<[number, number, number]>; // x, z, kind
 }
 
@@ -502,12 +569,14 @@ export interface UndergroundConduit {
 
 export interface UndergroundBox {
   index: number;
-  grid: [number, number];
+  grid: [number, number, number];
   origin: [number, number, number];
   chunks: [number, number, number];
   size: [number, number, number];
   ground: number;
+  groundMin?: number;
   depth: number;
+  topBelowGround?: number;
   waterLocalY: number;
   depthBand: string;
   seed: string;
@@ -531,8 +600,14 @@ export interface UndergroundLink {
 
 export interface UndergroundMouth {
   box: number;
+  face: string;
+  portU: number;
+  portV: number;
+  portY: number;
   at: [number, number, number];
-  local: [number, number];
+  tendril: number;
+  slope: number;
+  level: number;
   kind: string;
 }
 
@@ -541,6 +616,13 @@ export interface UndergroundBigSpace {
   kind: string;
   local: [number, number, number];
   radius: number;
+}
+
+export interface UndergroundSection {
+  axis: string;
+  start: number;
+  step: number;
+  ground: number[];
 }
 
 export interface UndergroundSystemDetail {
@@ -557,11 +639,30 @@ export interface UndergroundSystemDetail {
   temperature: number;
   moisture: number;
   maxDepth: number;
+  style?: string;
+  baseLevelY?: number;
+  relief?: number;
+  levels?: number;
+  reachesBaseLevel?: boolean;
+  fromRegionalFloor?: boolean;
+  floorY?: number;
+  topY?: number;
   multi: boolean;
   boxes: UndergroundBox[];
   links: UndergroundLink[];
   mouths: UndergroundMouth[];
   bigSpaces: UndergroundBigSpace[];
+  section?: UndergroundSection;
+}
+
+export interface SystemPortRoute {
+  missing?: boolean;
+  before?: number;
+  after?: number;
+  widened?: number;
+  anchorTubeMetres?: number;
+  pocketConnector?: boolean;
+  standFallback?: boolean;
 }
 
 export interface SystemKarstSeam {
@@ -569,14 +670,20 @@ export interface SystemKarstSeam {
   from: number;
   to: number;
   kind: string;
+  vertical?: boolean;
   radius: number;
   at: [number, number, number];
   openShareA: number;
   openShareB: number;
   overlapIoU: number;
   connectedBothSides: boolean;
+  seamReachedStand?: boolean;
   seamReachedCrawl: boolean;
   seamReachedTight?: boolean;
+  fallbackFired?: boolean;
+  routeA?: SystemPortRoute;
+  routeB?: SystemPortRoute;
+  pitchMetres?: number;
 }
 
 export interface SystemKarstView {
@@ -590,12 +697,23 @@ export interface SystemKarstView {
   totalMs: number;
   stats: {
     boxes: number;
+    boxesReachedStand?: number;
     boxesReachedCrawl: number;
     boxesReachedTight?: number;
     links: number;
+    shafts?: number;
     seamsMatched: number;
+    seamsTraversedStand?: number;
     seamsTraversedCrawl?: number;
     seamsTraversedTight?: number;
+    seamsWithFallback?: number;
+    mouths?: number;
+    mouthsReachedStand?: number;
+    mouthsReachedCrawl?: number;
+    mouthsWithFallback?: number;
+    requiredRoutes?: number;
+    standFallbacks?: number;
+    pocketConnectors?: number;
     avgSeamOverlapIoU: number;
     openCubicMetres: number;
     standCubicMetres: number;
@@ -611,13 +729,28 @@ export interface SystemKarstView {
     depth: number;
     waterLocalY: number;
     generateMs: number;
+    reachedStand?: boolean;
     reachedCrawl: boolean;
     reachedTight?: boolean;
+    requiredRoutes?: number;
+    standFallbacks?: number;
+    pocketConnectors?: number;
     verdict: string;
   }>;
   seams: SystemKarstSeam[];
   routes: number[][][];
-  mouths: Array<{ box: number; kind: string; at: [number, number, number] }>;
+  mouths: Array<{
+    box: number;
+    kind: string;
+    face?: string;
+    entry?: boolean;
+    tendril?: number;
+    at: [number, number, number];
+    reachedStand?: boolean;
+    reachedCrawl?: boolean;
+    fallbackFired?: boolean;
+    route?: SystemPortRoute;
+  }>;
   bigSpaces: Array<{ box: number; kind: string; radius: number; at: [number, number, number] }>;
   plan: { state: string; top: string };
   sideX: string;

@@ -140,7 +140,7 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
   const [tiles, setTiles] = useState<Map<string, GoldenTile>>(() => new Map());
   const [caveList, setCaveList] = useState<GoldenCaveRow[] | null>(null);
   const [ugOverview, setUgOverview] = useState<UndergroundOverview | null>(null);
-  const [ugLevel, setUgLevel] = useSessionState<string>('atlas:ugLevel', 'medium');
+  const [ugLevel, setUgLevel] = useSessionState<string>('atlas:ugLevel', 'fine');
   const [ugSystems, setUgSystems] = useState<UndergroundSystemSummary[] | null>(null);
   const [mode, setMode] = useSessionState<BaseMode>('atlas:mode', 'relief');
   const [storedToggles, setToggles] = useSessionState<AtlasToggles>('atlas:toggles', DEFAULT_TOGGLES);

@@ -6,7 +6,8 @@ const BACKGROUND = 0x101412;
 const FIELD_OF_VIEW = 45;
 const DEPTH_COLOURS: Record<string, number> = { Shallow: 0x4de0c9, Mid: 0xf2b84b, Deep: 0xd96be6 };
 const BIG_COLOURS: Record<string, number> = { UndergroundLake: 0x3b8fd6, FogSpace: 0xc5b4e3, CaveRuin: 0xb88cf0, GreatHall: 0xffd166 };
-const LINK_COLOURS: Record<string, number> = { DryPassage: 0x7ef0e6, StreamTube: 0x56b4ff, WetSump: 0x3a6fe6, TallRift: 0xff9e64 };
+const LINK_COLOURS: Record<string, number> = { DryPassage: 0x7ef0e6, StreamTube: 0x56b4ff, WetSump: 0x3a6fe6, TallRift: 0xff9e64, Shaft: 0xf2f2f2 };
+const MOUTH_COLOURS: Record<string, number> = { Hillside: 0xff8a5c, Sinkhole: 0xffd166, Resurgence: 0x4de0c9, Cliff: 0xff5cf0 };
 const STATE_COLOURS: Record<number, number> = { 1: 0xc44840, 2: 0xa85ccc, 3: 0xd67856, 4: 0xdea84c, 5: 0x60ba78 };
 const CAVE_STATES = [1, 2, 3, 4, 5] as const;
 
@@ -106,26 +107,41 @@ export function mountSystemPlan(container: HTMLElement, system: UndergroundSyste
     const ring = new THREE.Mesh(new THREE.TorusGeometry(Math.max(1.8, l.radius), 0.45, 10, 24), new THREE.MeshBasicMaterial({ color: col }));
     ring.position.copy(pos);
     if (l.fromFace === 'PosX' || l.fromFace === 'NegX') ring.rotation.y = Math.PI / 2;
+    // A shaft (round 3) crosses a floor or roof: its ring lies flat.
+    if (l.fromFace === 'PosY' || l.fromFace === 'NegY') ring.rotation.x = Math.PI / 2;
     scene.add(ring);
 
     const a = system.boxes[l.from];
     const b = system.boxes[l.to];
     if (a && b) {
-      const ca = shift(a.origin[0] + a.size[0] / 2, l.at[1], a.origin[2] + a.size[2] / 2);
-      const cb = shift(b.origin[0] + b.size[0] / 2, l.at[1], b.origin[2] + b.size[2] / 2);
+      const vertical = l.kind === 'Shaft';
+      const ca = shift(a.origin[0] + a.size[0] / 2, vertical ? a.origin[1] + a.size[1] / 2 : l.at[1], a.origin[2] + a.size[2] / 2);
+      const cb = shift(b.origin[0] + b.size[0] / 2, vertical ? b.origin[1] + b.size[1] / 2 : l.at[1], b.origin[2] + b.size[2] / 2);
       scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([ca, pos, cb]), new THREE.LineBasicMaterial({ color: col })));
     }
   }
 
-  // Surface mouths (vertical shaft line from box top up to surface marker).
+  // Surface mouths (round 3): a line from the port on the box face along its tendril to where it comes out.
   for (const m of system.mouths) {
     const box = system.boxes[m.box];
     if (!box) continue;
-    const top = shift(box.origin[0] + m.local[0], box.origin[1] + box.size[1] + 10, box.origin[2] + m.local[1]);
-    const entry = shift(box.origin[0] + m.local[0], box.origin[1] + box.size[1] - 8, box.origin[2] + m.local[1]);
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([top, entry]), new THREE.LineBasicMaterial({ color: 0xff8a5c })));
-    const marker = new THREE.Mesh(new THREE.OctahedronGeometry(3.2), new THREE.MeshBasicMaterial({ color: 0xff8a5c }));
-    marker.position.copy(top);
+    const [ox, oy, oz] = box.origin;
+    const [sx, sy, sz] = box.size;
+    const port =
+      m.face === 'PosY'
+        ? shift(ox + m.portU, oy + sy, oz + m.portV)
+        : m.face === 'PosX'
+          ? shift(ox + sx, m.portY, oz + m.portU)
+          : m.face === 'NegX'
+            ? shift(ox, m.portY, oz + m.portU)
+            : m.face === 'PosZ'
+              ? shift(ox + m.portU, m.portY, oz + sz)
+              : shift(ox + m.portU, m.portY, oz);
+    const out = shift(m.at[0], m.at[1], m.at[2]);
+    const col = MOUTH_COLOURS[m.kind] ?? 0xff8a5c;
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([port, out]), new THREE.LineBasicMaterial({ color: col })));
+    const marker = new THREE.Mesh(new THREE.OctahedronGeometry(3.2), new THREE.MeshBasicMaterial({ color: col }));
+    marker.position.copy(out);
     scene.add(marker);
   }
 

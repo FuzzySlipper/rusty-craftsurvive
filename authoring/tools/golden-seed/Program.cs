@@ -64,9 +64,25 @@ if (command == "underground")
     IReadOnlyList<UndergroundCoarseness> presets = options.TryGetValue("levels", out string? levelList)
         ? [.. levelList.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(UndergroundPlan.Preset)]
         : UndergroundPlan.Presets;
-    Console.WriteLine($"underground plan export: seed={ugConfiguration.Seed} size={ugConfiguration.Size} levels={string.Join(",", presets.Select(p => p.Name))}");
+    // The ground boxes are buried under and mouths open onto (#11209 round 3): the walked ground by default, the recipe's
+    // continuous height (region tiles built as the plan reaches them); --ground broad takes the continent's smooth ground,
+    // which stands about 18 m above the walked ground where erosion lowered it.
+    string groundName = options.GetValueOrDefault("ground", "walked");
+    Console.WriteLine($"underground plan export: seed={ugConfiguration.Seed} size={ugConfiguration.Size} levels={string.Join(",", presets.Select(p => p.Name))} ground={groundName}");
     WorldMap ugMap = WorldMapGenerator.Generate(ugConfiguration);
-    return UndergroundExport.Run(ugMap, ugPixels, output, presets, ugWorkers, Console.WriteLine);
+    Func<double, double, double>? ugGround = null;
+    if (groundName == "walked")
+    {
+        if (ugMap.Scale.Continental) MapRegions.For(ugMap).Capacity = RegionTilesKept;
+        TerrainRecipe ugRecipe = ugConfiguration.CreateRecipe(EngineTerrainDraws.Shared, ugMap);
+        ugGround = (x, z) => ugRecipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z));
+    }
+    else if (groundName != "broad")
+    {
+        throw new ArgumentException("--ground is walked or broad.");
+    }
+
+    return UndergroundExport.Run(ugMap, ugPixels, output, presets, ugWorkers, ugGround, groundName, Console.WriteLine);
 }
 
 if (command == "system")
@@ -490,10 +506,12 @@ int SystemCommand(string level, string id)
     string identity = manifest["world"]!["fingerprint"]!.GetValue<string>();
     string directory = Path.Combine(cacheRoot, identity, "systems-" + GoldenSeedSource.ToolStamp.ToString("x16", CultureInfo.InvariantCulture));
     Directory.CreateDirectory(directory);
-    string file = Path.Combine(directory, $"{level}__{id.Replace(':', '_')}.json.gz");
+    // --measure-step S measures the reach finer or coarser than KarstCave's own 0.5 m field (a diagnostic; memory grows with it).
+    float measureStep = float.Parse(options.GetValueOrDefault("measure-step", "0.5"), CultureInfo.InvariantCulture);
+    string file = Path.Combine(directory, $"{level}__{id.Replace(':', '_')}{(measureStep == 0.5f ? "" : FormattableString.Invariant($"__{measureStep:F2}"))}.json.gz");
     if (!File.Exists(file))
     {
-        WriteGzip(file, SystemView.Make(system, level));
+        WriteGzip(file, SystemView.Make(system, level, measureStep));
     }
 
     Console.WriteLine(file);

@@ -42,7 +42,7 @@ export function parseHash(hash: string): Route {
     case 'underground':
       return { page: 'underground' };
     case 'system': {
-      const level = decodeURIComponent(rest[0] ?? 'medium');
+      const level = decodeURIComponent(rest[0] ?? 'fine');
       const id = decodeURIComponent(rest.slice(1).join('/'));
       return { page: 'system', level, id };
     }
