@@ -209,11 +209,9 @@ internal static class SystemView
         bool[][] fineTight = fine.Flood(seed, KarstCave.CrawlRadius * 0.65f);
         bool[][] fineAny = fine.Flood(seed, -1f);
 
-        // Down to the 1 m output: a cell is open or reached where any of its fine samples is; its state the best of theirs.
+        // Down to the 1 m output, for display only (every measure reads the fine samples): a cell is open where any of its
+        // samples is, its state the best of theirs.
         bool[] open = new bool[cellCount];
-        bool[] reachedStand = new bool[cellCount], reachedCrawl = new bool[cellCount], reachedTight = new bool[cellCount];
-        short[] ownerBox = new short[cellCount];
-        Array.Fill(ownerBox, (short)-1);
         byte[] state = new byte[cellCount];
         double fineVolume = fine.Step * fine.Step * fine.Step;
         double openM3 = 0, standM3 = 0, crawlM3 = 0, tightM3 = 0, narrowM3 = 0, cutOffM3 = 0;
@@ -245,10 +243,6 @@ internal static class SystemView
                 if (wx >= gx || wy >= gy || wz >= gz) continue;
                 int w = (((wz * gy) + wy) * gx) + wx;
                 open[w] = true;
-                ownerBox[w] = (short)fb.Index;
-                reachedStand[w] |= fineStand[bi][i];
-                reachedCrawl[w] |= fineCrawl[bi][i];
-                reachedTight[w] |= fineTight[bi][i];
                 if (st > state[w]) state[w] = st;
             }
         }
@@ -305,7 +299,7 @@ internal static class SystemView
         JsonArray shafts = [];
         foreach (PlannedLink l in links)
         {
-            SeamMetrics seam = MeasureSeam(generated[l.From], generated[l.To], l, reachedStand, reachedCrawl, reachedTight, ownerBox, gx, gy, gz, minX, minY, minZ);
+            SeamMetrics seam = MeasureSeam(generated[l.From], generated[l.To], l, fine, fineStand, fineCrawl, fineTight, minX, minY, minZ);
             if (seam.Overlap >= 0.70 && seam.ConnectedBothSides) seamsMatched++;
             if (seam.ReachedStand) seamsStand++;
             if (seam.ReachedCrawl) seamsCrawl++;
@@ -353,7 +347,7 @@ internal static class SystemView
             Vector3 at = m.Port is KarstCave.BoundaryPort mp
                 ? Local(b, mp.AnchorPoint(b.SizeX, b.SizeY, b.SizeZ))
                 : m == entry ? startLocal : Local(b, new Vector3(wayInByBox[m.Box].X, b.SizeY - 4f, wayInByBox[m.Box].Y));
-            bool stand = Near(reachedStand, at, gx, gy, gz), crawl = Near(reachedCrawl, at, gx, gy, gz);
+            bool stand = fine.Near(fineStand, at, MouthReachMetres), crawl = fine.Near(fineCrawl, at, MouthReachMetres);
             if (stand) mouthsStand++;
             if (crawl) mouthsCrawl++;
             bool fired = m.Port is not null && Fired(m.Box, $"M{m.Index}");
@@ -494,18 +488,6 @@ internal static class SystemView
         return payload.ToJsonString();
     }
 
-    /// <summary>Whether any reached cell lies within <see cref="MouthReachMetres"/> of a point.</summary>
-    private static bool Near(bool[] reached, Vector3 at, int gx, int gy, int gz)
-    {
-        int r = (int)MathF.Ceiling(MouthReachMetres / CellMetres);
-        int cx = (int)(at.X / CellMetres), cy = (int)(at.Y / CellMetres), cz = (int)(at.Z / CellMetres);
-        for (int z = Math.Max(0, cz - r); z <= Math.Min(gz - 1, cz + r); z++)
-        for (int y = Math.Max(0, cy - r); y <= Math.Min(gy - 1, cy + r); y++)
-        for (int x = Math.Max(0, cx - r); x <= Math.Min(gx - 1, cx + r); x++)
-            if (reached[(((z * gy) + y) * gx) + x]) return true;
-        return false;
-    }
-
     /// <summary>The tallest unbroken open column through a shaft's port disk: the pitch a body climbs between the levels.</summary>
     private static float ShaftPitch(bool[] open, int gx, int gy, int gz, float x, float y, float z, float radius)
     {
@@ -529,13 +511,10 @@ internal static class SystemView
         GeneratedBox boxA,
         GeneratedBox boxB,
         PlannedLink link,
-        bool[] reachedStand,
-        bool[] reachedCrawl,
-        bool[] reachedTight,
-        short[] ownerBox,
-        int gx,
-        int gy,
-        int gz,
+        FineGrid fine,
+        bool[][] reachedStand,
+        bool[][] reachedCrawl,
+        bool[][] reachedTight,
         double minX,
         double minY,
         double minZ)
@@ -563,7 +542,9 @@ internal static class SystemView
         double shareB = samples > 0 ? (double)openB / samples : 0;
         double iou = either > 0 ? (double)both / either : 0;
         float localX = (float)(link.WorldX - minX), localY = (float)(link.WorldY - minY), localZ = (float)(link.WorldZ - minZ);
-        bool Crosses(bool[] reached) => HasCrossFaceConnection(reached, ownerBox, gx, gy, gz, link.From, link.To, link.FromFace, localX, localY, localZ, r);
+        // On the measuring grid itself: a reached display cell on each side does not mean a reached sample pair across the face (R11209-4).
+        Vector3 seamAt = new(localX, localY, localZ);
+        bool Crosses(bool[][] reached) => fine.Crosses(reached, link.From, link.To, link.FromFace, seamAt, r);
         bool stand = Crosses(reachedStand);
         bool crawl = stand || Crosses(reachedCrawl);
         bool tight = crawl || Crosses(reachedTight);
@@ -623,11 +604,12 @@ internal static class SystemView
         float localSeamX,
         float localSeamY,
         float localSeamZ,
-        float radius)
+        float radius,
+        float cell = CellMetres)
     {
-        float diskR = radius + CellMetres;
+        float diskR = radius + cell;
         float diskR2 = diskR * diskR;
-        int cellRadius = (int)MathF.Ceiling(diskR / CellMetres);
+        int cellRadius = (int)MathF.Ceiling(diskR / cell);
         // The face's axis (0 x, 1 y, 2 z) and the two in-face axes.
         int axis = fromFace switch
         {
@@ -638,16 +620,16 @@ internal static class SystemView
         float[] seam = [localSeamX, localSeamY, localSeamZ];
         int[] size = [gx, gy, gz];
         int a1 = axis == 0 ? 1 : 0, a2 = axis == 2 ? 1 : 2;
-        int facePlane = (int)Math.Round(seam[axis] / CellMetres);
+        int facePlane = (int)Math.Round(seam[axis] / cell);
         if (facePlane - 1 < 0 || facePlane >= size[axis]) return false;
-        int c1 = (int)Math.Floor(seam[a1] / CellMetres), c2 = (int)Math.Floor(seam[a2] / CellMetres);
+        int c1 = (int)Math.Floor(seam[a1] / cell), c2 = (int)Math.Floor(seam[a2] / cell);
         int[] p = new int[3];
         int Index() => (((p[2] * gy) + p[1]) * gx) + p[0];
         for (int i = Math.Max(0, c1 - cellRadius); i <= Math.Min(size[a1] - 1, c1 + cellRadius); i++)
         for (int j = Math.Max(0, c2 - cellRadius); j <= Math.Min(size[a2] - 1, c2 + cellRadius); j++)
         {
-            float d1 = ((i + 0.5f) * CellMetres) - seam[a1];
-            float d2 = ((j + 0.5f) * CellMetres) - seam[a2];
+            float d1 = ((i + 0.5f) * cell) - seam[a1];
+            float d2 = ((j + 0.5f) * cell) - seam[a2];
             if ((d1 * d1) + (d2 * d2) > diskR2) continue;
             p[a1] = i;
             p[a2] = j;
@@ -712,8 +694,35 @@ internal static class SystemView
         shaft[(((5 * gy) + faceY) * gx) + 6] = true;
         bool c6 = HasCrossFaceConnection(shaft, stacked, gx, gy, gz, 0, 1, KarstCave.BoxFace.PosY, 6.5f, faceY, 5.5f, 2f);
 
-        bool ok = c1 && c2 && c3 && c4 && c5 && c6;
-        report($"{(ok ? "ok" : "FAILED")}: seam traversal metrics (oneSidedRejected={c1}, crossFaceAccepted={c2}, offPortRejected={c3}, tightCrawlSeparated={c4}, shaftOneSidedRejected={c5}, shaftCrossAccepted={c6})");
+        // R11209-4: the crossing is measured on the 0.5 m measuring grid, not after it is reduced to 1 m display cells. Two
+        // one-chunk boxes meeting at x = 16 m; reached samples at x = 15.25 and 16.75 m (not adjacent across the face, the
+        // boundary samples at 15.75 and 16.25 m unreached) share 1 m cells 15 and 16, which reduction would call a crossing.
+        PlannedBox left = new(0, 0, 0, 0, 1, 1, 1, 16f, 16f, 16f, 0f, 0f, 0UL);
+        PlannedBox right = new(1, 16, 0, 0, 1, 1, 1, 16f, 16f, 16f, 0f, 0f, 0UL);
+        FineGrid grid = FineGrid.Build([(left, _ => 1f), (right, _ => 1f)], 0, 0, 0, FineGrid.DefaultStep);
+        bool[][] apart = grid.Empty();
+        void Mark(bool[][] reached, float x, float y, float z)
+        {
+            (int box, int cell) = grid.Sample(new Vector3(x, y, z));
+            reached[box][cell] = true;
+        }
+
+        Mark(apart, 15.25f, 5.25f, 5.25f);
+        Mark(apart, 16.75f, 5.75f, 5.75f);
+        Vector3 seamAt = new(16f, 5.5f, 5.5f);
+        bool c7 = !grid.Crosses(apart, 0, 1, KarstCave.BoxFace.PosX, seamAt, 2f);
+        bool[] reduced = new bool[32 * 16 * 16];
+        short[] reducedOwner = new short[reduced.Length];
+        for (int i = 0; i < reduced.Length; i++) reducedOwner[i] = (short)(i % 32 < 16 ? 0 : 1);
+        reduced[(((5 * 16) + 5) * 32) + 15] = reduced[(((5 * 16) + 5) * 32) + 16] = true;
+        bool reductionWouldCross = HasCrossFaceConnection(reduced, reducedOwner, 32, 16, 16, 0, 1, KarstCave.BoxFace.PosX, 16f, 5.5f, 5.5f, 2f);
+        Mark(apart, 15.75f, 5.25f, 5.25f);
+        Mark(apart, 16.25f, 5.25f, 5.25f);
+        bool c8 = grid.Crosses(apart, 0, 1, KarstCave.BoxFace.PosX, seamAt, 2f);
+        bool c9 = grid.Near(apart, new Vector3(18f, 5f, 5f), 3f) && !grid.Near(apart, new Vector3(24f, 12f, 12f), 3f);
+
+        bool ok = c1 && c2 && c3 && c4 && c5 && c6 && c7 && reductionWouldCross && c8 && c9;
+        report($"{(ok ? "ok" : "FAILED")}: seam traversal metrics (oneSidedRejected={c1}, crossFaceAccepted={c2}, offPortRejected={c3}, tightCrawlSeparated={c4}, shaftOneSidedRejected={c5}, shaftCrossAccepted={c6}, fineApartRejected={c7} (1 m reduction would accept: {reductionWouldCross}), fineAdjacentAccepted={c8}, fineNear={c9})");
         return ok;
     }
 
@@ -805,6 +814,65 @@ internal static class SystemView
         }
 
         private static int FloorDiv(int a, int b) => (int)Math.Floor(a / (double)b);
+
+        /// <summary>The box (its place in <see cref="Boxes"/>) and sample at a sample's coordinates across the system, or -1.</summary>
+        private (int Box, int Cell) At(int sx, int sy, int sz)
+        {
+            int nb = byLattice.GetValueOrDefault((FloorDiv(sx, cellsX), FloorDiv(sy, cellsY), FloorDiv(sz, cellsZ)), -1);
+            if (nb < 0) return (-1, -1);
+            Box b = Boxes[nb];
+            int x = sx - (int)Math.Round(b.MetreX / Step), y = sy - (int)Math.Round(b.MetreY / Step), z = sz - (int)Math.Round(b.MetreZ / Step);
+            return (nb, (((z * b.Y) + y) * b.X) + x);
+        }
+
+        /// <summary>
+        /// Whether a flood crossed a seam: a pair of reached samples, one in each box, adjacent across the face plane inside the
+        /// port's disk (system metres). Measured on the samples themselves: a slab of them about the seam goes to
+        /// <see cref="HasCrossFaceConnection"/> at this grid's step.
+        /// </summary>
+        internal bool Crosses(bool[][] reached, int fromBox, int toBox, KarstCave.BoxFace face, Vector3 seamAt, float radius)
+        {
+            float reach = radius + (2f * Step);
+            int x0 = (int)MathF.Floor((seamAt.X - reach) / Step), y0 = (int)MathF.Floor((seamAt.Y - reach) / Step), z0 = (int)MathF.Floor((seamAt.Z - reach) / Step);
+            int x1 = (int)MathF.Ceiling((seamAt.X + reach) / Step), y1 = (int)MathF.Ceiling((seamAt.Y + reach) / Step), z1 = (int)MathF.Ceiling((seamAt.Z + reach) / Step);
+            int sx = x1 - x0 + 1, sy = y1 - y0 + 1, sz = z1 - z0 + 1;
+            bool[] slab = new bool[sx * sy * sz];
+            short[] owner = new short[slab.Length];
+            for (int z = 0; z < sz; z++)
+            for (int y = 0; y < sy; y++)
+            for (int x = 0; x < sx; x++)
+            {
+                int i = (((z * sy) + y) * sx) + x;
+                (int box, int cell) = At(x0 + x, y0 + y, z0 + z);
+                owner[i] = box < 0 ? (short)-1 : (short)Boxes[box].Index;
+                slab[i] = box >= 0 && reached[box][cell];
+            }
+
+            return HasCrossFaceConnection(slab, owner, sx, sy, sz, fromBox, toBox, face,
+                seamAt.X - (x0 * Step), seamAt.Y - (y0 * Step), seamAt.Z - (z0 * Step), radius, Step);
+        }
+
+        /// <summary>Whether any reached sample lies within a distance of a point (system metres).</summary>
+        internal bool Near(bool[][] reached, Vector3 at, float metres)
+        {
+            int r = (int)MathF.Ceiling(metres / Step);
+            int cx = (int)MathF.Floor(at.X / Step), cy = (int)MathF.Floor(at.Y / Step), cz = (int)MathF.Floor(at.Z / Step);
+            for (int z = cz - r; z <= cz + r; z++)
+            for (int y = cy - r; y <= cy + r; y++)
+            for (int x = cx - r; x <= cx + r; x++)
+            {
+                (int box, int cell) = At(x, y, z);
+                if (box >= 0 && reached[box][cell]) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>A flood's reach with every sample unreached, for setting samples by hand (the regression check).</summary>
+        internal bool[][] Empty() => [.. Boxes.Select(b => new bool[b.Open.Length])];
+
+        /// <summary>The sample at a point (system metres), for setting samples by hand (the regression check).</summary>
+        internal (int Box, int Cell) Sample(Vector3 at) => At((int)MathF.Floor(at.X / Step), (int)MathF.Floor(at.Y / Step), (int)MathF.Floor(at.Z / Step));
 
         /// <summary>The roomiest open sample about a point in a box (its metres), as the cave view seeds its fill.</summary>
         internal (int Box, int Cell) Seed(int box, Vector3 inBox)
