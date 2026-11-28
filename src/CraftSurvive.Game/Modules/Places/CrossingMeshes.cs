@@ -199,18 +199,7 @@ internal sealed class CrossingMeshes : IDisposable
     /// </summary>
     private BuiltBridge BuildBridge(CrossingSite site)
     {
-        double dx = site.ToX - site.FromX;
-        double dz = site.ToZ - site.FromZ;
-        double span = Math.Max(1.0, double.Hypot(dx, dz));
-        double ux = dx / span, uz = dz / span;
-        double nearToeX = site.FromX + 0.5 - (ux * CrossingLayout.RampRun);
-        double nearToeZ = site.FromZ + 0.5 - (uz * CrossingLayout.RampRun);
-        double farToeX = site.ToX + 0.5 + (ux * CrossingLayout.RampRun);
-        double farToeZ = site.ToZ + 0.5 + (uz * CrossingLayout.RampRun);
-
-        double nearTop = groundTop(nearToeX, nearToeZ);
-        double farTop = groundTop(farToeX, farToeZ);
-        CrossingBridgeGeometry geometry = CrossingLayout.Build(site, nearTop, farTop);
+        CrossingBridgeGeometry geometry = CrossingLayout.Build(site, groundTop);
 
         List<Vector3> positions = [], normals = [];
         List<Vector2> uvs = [];

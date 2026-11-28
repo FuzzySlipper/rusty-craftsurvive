@@ -25,22 +25,26 @@ internal readonly record struct CrossingBox(
 
 /// <summary>
 /// Complete pure-geometry description of one river bridge (#11186), independent of Engine resources
-/// so unit checks can verify walkability, bounds, orientation, and ramp grades directly.
+/// so unit checks can verify walkability, bounds, orientation, and toe-to-ground continuity directly.
 /// </summary>
 internal sealed record CrossingBridgeGeometry(
     Vector3 WorldAnchor,
     Quaternion Rotation,
     double SpanMetres,
     double DeckWidth,
-    double RampRun,
+    double NearRampRun,
+    double FarRampRun,
     float NearRampPitch,
     float FarRampPitch,
+    Vector3 NearToeWorld,
+    Vector3 FarToeWorld,
     CrossingBox[] Boxes);
 
 /// <summary>
 /// Pure parametric bridge geometry (#11186): builds a textured, walkable timber footbridge or
-/// stone-and-timber bridge oriented perpendicularly across any river channel, with seamless sloped
-/// approach ramps to both banks, deep bank abutments, riverbed piers, and side rails/parapets.
+/// stone-and-timber bridge oriented perpendicularly across any river channel, with adaptive sloped
+/// approach ramps that always meet both banks' actual terrain at a walkable grade (whether below,
+/// level with, or rising above the deck), deep bank abutments, riverbed piers, and side rails/parapets.
 /// </summary>
 internal static class CrossingLayout
 {
@@ -52,14 +56,19 @@ internal static class CrossingLayout
     internal const float DeckThickness = 0.28f;
     internal const float DeckOverhang = 0.30f;
 
-    internal const float RampRun = 3.2f;
+    internal const float MinimumRampRun = 3.2f;
+    internal const float MaximumRampRun = 14.0f;
+    internal const float RampSearchStep = 0.5f;
+    /// <summary>Maximum target approach slope (rise/run ≈ 24.2°), comfortably walkable in both directions.</summary>
+    internal const float MaximumWalkableGrade = 0.45f;
     internal const float RampThickness = 0.32f;
-    internal const float RampMinimumDrop = 0.20f;
-    internal const float RampMaximumDrop = 1.50f;
+    /// <summary>Embeds the outer ramp toe slightly into the bank so walking onto the ramp has no lip.</summary>
     internal const float RampToeEmbed = 0.15f;
 
     internal const float AbutmentDepth = 3.5f;
     internal const float AbutmentLength = 1.4f;
+    internal const float MidRampSupportThreshold = 5.5f;
+    internal const float MidRampSupportLength = 0.9f;
 
     internal const float StringerWidth = 0.24f;
     internal const float StringerHeight = 0.30f;
@@ -81,7 +90,93 @@ internal static class CrossingLayout
     internal const float StoneBollardWidth = 0.42f;
     internal const float StoneBollardHeight = 0.86f;
 
+    /// <summary>Horizontal run needed to connect <paramref name="deckTopY"/> to <paramref name="bankTopY"/> at a walkable grade.</summary>
+    internal static double RampRunFor(double deckTopY, double bankTopY)
+    {
+        double targetDelta = (bankTopY - RampToeEmbed) - deckTopY;
+        return Math.Clamp(Math.Abs(targetDelta) / MaximumWalkableGrade, MinimumRampRun, MaximumRampRun);
+    }
+
+    /// <summary>
+    /// Builds bridge geometry from fixed near/far bank heights (used when no continuous terrain sampler is supplied).
+    /// </summary>
     internal static CrossingBridgeGeometry Build(CrossingSite site, double? nearBankTop = null, double? farBankTop = null)
+    {
+        double nearTop = nearBankTop ?? (site.EffectiveNearBankY + GroundTopOffset);
+        double farTop = farBankTop ?? (site.EffectiveFarBankY + GroundTopOffset);
+        double deckTopY = site.DeckY + GroundTopOffset;
+        double nearRun = RampRunFor(deckTopY, nearTop);
+        double farRun = RampRunFor(deckTopY, farTop);
+        return BuildWithRamps(site, nearRun, nearTop - RampToeEmbed - deckTopY, farRun, farTop - RampToeEmbed - deckTopY);
+    }
+
+    /// <summary>
+    /// Builds bridge geometry by solving each approach ramp's landing distance against the live continuous
+    /// <paramref name="groundTop"/> sampler so every ramp toe meets the actual terrain surface at a walkable
+    /// grade (handling unequal banks up to 4+ m, rising banks above the deck, and sloping valley walls).
+    /// </summary>
+    internal static CrossingBridgeGeometry Build(CrossingSite site, Func<double, double, double> groundTop)
+    {
+        ArgumentNullException.ThrowIfNull(groundTop);
+        double fromX = site.FromX + 0.5, fromZ = site.FromZ + 0.5;
+        double toX = site.ToX + 0.5, toZ = site.ToZ + 0.5;
+        double dx = toX - fromX, dz = toZ - fromZ;
+        double span = Math.Max(1.0, double.Hypot(dx, dz));
+        double ux = dx / span, uz = dz / span;
+        double deckTopY = site.DeckY + GroundTopOffset;
+
+        (double nearRun, double nearTargetY) = SolveApproach(fromX, fromZ, -ux, -uz, deckTopY, groundTop);
+        (double farRun, double farTargetY) = SolveApproach(toX, toZ, ux, uz, deckTopY, groundTop);
+        return BuildWithRamps(site, nearRun, nearTargetY, farRun, farTargetY);
+    }
+
+    private static (double Run, double TargetY) SolveApproach(
+        double bankX, double bankZ, double dirX, double dirZ, double deckTopY, Func<double, double, double> groundTop)
+    {
+        // Walk outward from MinimumRampRun to MaximumRampRun and take the shortest run where the sampled
+        // ground meets the deck within MaximumWalkableGrade. Unlike fixed-point iteration, a monotonic
+        // scan never oscillates on rising valley walls and guarantees exact toe-to-ground continuity.
+        double bestRun = MinimumRampRun;
+        double bestTargetY = (groundTop(bankX + (dirX * MinimumRampRun), bankZ + (dirZ * MinimumRampRun)) - RampToeEmbed) - deckTopY;
+        double bestGrade = Math.Abs(bestTargetY) / MinimumRampRun;
+        if (bestGrade <= MaximumWalkableGrade)
+        {
+            return (bestRun, bestTargetY);
+        }
+
+        for (double run = MinimumRampRun + RampSearchStep; run <= MaximumRampRun + 1e-6; run += RampSearchStep)
+        {
+            double clampedRun = Math.Min(run, MaximumRampRun);
+            double targetY = (groundTop(bankX + (dirX * clampedRun), bankZ + (dirZ * clampedRun)) - RampToeEmbed) - deckTopY;
+            double grade = Math.Abs(targetY) / clampedRun;
+            if (grade <= MaximumWalkableGrade)
+            {
+                // Tighten slightly toward exact MaximumWalkableGrade if level ground allows a shorter run.
+                double refinedRun = Math.Clamp(Math.Abs(targetY) / MaximumWalkableGrade, MinimumRampRun, clampedRun);
+                double refinedTargetY = (groundTop(bankX + (dirX * refinedRun), bankZ + (dirZ * refinedRun)) - RampToeEmbed) - deckTopY;
+                if (Math.Abs(refinedTargetY) / refinedRun <= MaximumWalkableGrade + 1e-3)
+                {
+                    return (refinedRun, refinedTargetY);
+                }
+
+                return (clampedRun, targetY);
+            }
+
+            if (grade < bestGrade)
+            {
+                bestGrade = grade;
+                bestRun = clampedRun;
+                bestTargetY = targetY;
+            }
+        }
+
+        // Extreme dropoff steeper than MaximumWalkableGrade over MaximumRampRun: still connect directly
+        // to the sampled ground rather than leaving a mid-air gap.
+        return (bestRun, bestTargetY);
+    }
+
+    private static CrossingBridgeGeometry BuildWithRamps(
+        CrossingSite site, double nearRunDouble, double nearTargetYDouble, double farRunDouble, double farTargetYDouble)
     {
         double fromX = site.FromX + 0.5;
         double fromZ = site.FromZ + 0.5;
@@ -91,11 +186,9 @@ internal static class CrossingLayout
         double dz = toZ - fromZ;
         double span = Math.Max(1.0, double.Hypot(dx, dz));
         float halfSpan = (float)(span * 0.5);
+        double ux = dx / span, uz = dz / span;
 
         double deckTopY = site.DeckY + GroundTopOffset;
-        double nearTop = nearBankTop ?? (site.EffectiveNearBankY + GroundTopOffset);
-        double farTop = farBankTop ?? (site.EffectiveFarBankY + GroundTopOffset);
-
         Vector3 anchor = new((float)((fromX + toX) * 0.5), (float)deckTopY, (float)((fromZ + toZ) * 0.5));
         float yaw = MathF.Atan2((float)dx, (float)dz);
         Quaternion rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw);
@@ -106,7 +199,7 @@ internal static class CrossingLayout
         CrossingMaterial deckMaterial = stone ? CrossingMaterial.Masonry : CrossingMaterial.Planks;
         CrossingMaterial pierMaterial = stone ? CrossingMaterial.Masonry : CrossingMaterial.Timber;
 
-        List<CrossingBox> boxes = new(24);
+        List<CrossingBox> boxes = new(28);
 
         // 1. Main level deck: top surface at local y = 0.
         float deckLength = (float)span + (DeckOverhang * 2f);
@@ -115,33 +208,37 @@ internal static class CrossingLayout
             new Vector3(0f, -DeckThickness * 0.5f, 0f),
             new Vector3(halfWidth, DeckThickness * 0.5f, deckLength * 0.5f)));
 
-        // 2. Seamless sloped approach ramps at both banks.
-        float nearDrop = (float)Math.Clamp(deckTopY - nearTop + RampToeEmbed, RampMinimumDrop, RampMaximumDrop);
-        float farDrop = (float)Math.Clamp(deckTopY - farTop + RampToeEmbed, RampMinimumDrop, RampMaximumDrop);
-        float nearAngle = MathF.Atan2(nearDrop, RampRun);
-        float farAngle = MathF.Atan2(farDrop, RampRun);
-        float nearLength = MathF.Sqrt((RampRun * RampRun) + (nearDrop * nearDrop));
-        float farLength = MathF.Sqrt((RampRun * RampRun) + (farDrop * farDrop));
+        // 2. Adaptive sloped approach ramps at both banks (exact deck-to-toe continuity for drops and rises).
+        float nearRun = (float)nearRunDouble;
+        float farRun = (float)farRunDouble;
+        float nearTargetY = (float)nearTargetYDouble;
+        float farTargetY = (float)farTargetYDouble;
 
-        // Near ramp (-Z): negative pitch tips the -Z outer toe downward while meeting y = 0 at z = -halfSpan.
-        Vector3 nearTopMid = new(0f, -nearDrop * 0.5f, -(halfSpan + (RampRun * 0.5f)));
-        Vector3 nearDown = new(0f, -MathF.Cos(nearAngle), MathF.Sin(nearAngle));
+        // Near ramp (-Z): inner top edge meets (0, 0, -halfSpan); outer toe meets (0, nearTargetY, -(halfSpan + nearRun)).
+        // Positive pitch tips +Z down and -Z up, so pitch = atan2(nearTargetY, nearRun) handles both drops (< 0) and rises (> 0).
+        float nearPitch = MathF.Atan2(nearTargetY, nearRun);
+        float nearLength = MathF.Sqrt((nearRun * nearRun) + (nearTargetY * nearTargetY));
+        Vector3 nearTopMid = new(0f, nearTargetY * 0.5f, -(halfSpan + (nearRun * 0.5f)));
+        Vector3 nearDown = new(0f, -MathF.Cos(nearPitch), -MathF.Sin(nearPitch));
         boxes.Add(new CrossingBox(
             deckMaterial,
             nearTopMid + (nearDown * (RampThickness * 0.5f)),
             new Vector3(halfWidth, RampThickness * 0.5f, nearLength * 0.5f),
-            Pitch: -nearAngle));
+            Pitch: nearPitch));
 
-        // Far ramp (+Z): positive pitch tips the +Z outer toe downward while meeting y = 0 at z = +halfSpan.
-        Vector3 farTopMid = new(0f, -farDrop * 0.5f, halfSpan + (RampRun * 0.5f));
-        Vector3 farDown = new(0f, -MathF.Cos(farAngle), -MathF.Sin(farAngle));
+        // Far ramp (+Z): inner top edge meets (0, 0, +halfSpan); outer toe meets (0, farTargetY, +(halfSpan + farRun)).
+        // Positive pitch tips +Z down, so pitch = atan2(-farTargetY, farRun) handles both drops (< 0) and rises (> 0).
+        float farPitch = MathF.Atan2(-farTargetY, farRun);
+        float farLength = MathF.Sqrt((farRun * farRun) + (farTargetY * farTargetY));
+        Vector3 farTopMid = new(0f, farTargetY * 0.5f, halfSpan + (farRun * 0.5f));
+        Vector3 farDown = new(0f, -MathF.Cos(farPitch), -MathF.Sin(farPitch));
         boxes.Add(new CrossingBox(
             deckMaterial,
             farTopMid + (farDown * (RampThickness * 0.5f)),
             new Vector3(halfWidth, RampThickness * 0.5f, farLength * 0.5f),
-            Pitch: farAngle));
+            Pitch: farPitch));
 
-        // 3. Solid abutments seated deep into both riverbanks.
+        // 3. Solid abutments seated deep into both riverbanks, plus mid-ramp support under long approaches.
         float abutmentY = -DeckThickness - (AbutmentDepth * 0.5f);
         float abutmentZ = halfSpan + (AbutmentLength * 0.4f);
         boxes.Add(new CrossingBox(
@@ -152,6 +249,26 @@ internal static class CrossingLayout
             CrossingMaterial.Masonry,
             new Vector3(0f, abutmentY, abutmentZ),
             new Vector3(halfWidth + 0.12f, AbutmentDepth * 0.5f, AbutmentLength * 0.5f)));
+
+        if (nearRun >= MidRampSupportThreshold)
+        {
+            float midZ = -(halfSpan + (nearRun * 0.55f));
+            float topY = (nearTargetY * 0.55f) - RampThickness;
+            boxes.Add(new CrossingBox(
+                CrossingMaterial.Masonry,
+                new Vector3(0f, topY - (AbutmentDepth * 0.5f), midZ),
+                new Vector3(halfWidth, AbutmentDepth * 0.5f, MidRampSupportLength * 0.5f)));
+        }
+
+        if (farRun >= MidRampSupportThreshold)
+        {
+            float midZ = halfSpan + (farRun * 0.55f);
+            float topY = (farTargetY * 0.55f) - RampThickness;
+            boxes.Add(new CrossingBox(
+                CrossingMaterial.Masonry,
+                new Vector3(0f, topY - (AbutmentDepth * 0.5f), midZ),
+                new Vector3(halfWidth, AbutmentDepth * 0.5f, MidRampSupportLength * 0.5f)));
+        }
 
         // 4. Longitudinal under-deck stringers.
         float stringerX = halfWidth - 0.36f;
@@ -234,6 +351,8 @@ internal static class CrossingLayout
             }
         }
 
-        return new CrossingBridgeGeometry(anchor, rotation, span, deckWidth, RampRun, -nearAngle, farAngle, [.. boxes]);
+        Vector3 nearToeWorld = new((float)(fromX - (ux * nearRunDouble)), (float)(deckTopY + nearTargetYDouble), (float)(fromZ - (uz * nearRunDouble)));
+        Vector3 farToeWorld = new((float)(toX + (ux * farRunDouble)), (float)(deckTopY + farTargetYDouble), (float)(toZ + (uz * farRunDouble)));
+        return new CrossingBridgeGeometry(anchor, rotation, span, deckWidth, nearRunDouble, farRunDouble, nearPitch, farPitch, nearToeWorld, farToeWorld, [.. boxes]);
     }
 }

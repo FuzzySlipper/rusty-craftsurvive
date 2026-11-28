@@ -88,7 +88,7 @@ internal sealed class CrossingPlacement
         }
 
         long cell = PoiConstants.CellSize;
-        long reach = (long)Math.Ceiling(radius) + (long)Math.Ceiling(CrossingDistribution.SettledMaximumSpanMetres + CrossingLayout.RampRun + 4);
+        long reach = (long)Math.Ceiling(radius) + (long)Math.Ceiling(CrossingDistribution.SettledMaximumSpanMetres + CrossingLayout.MaximumRampRun + 4);
         long firstX = GridMath.FloorDivide(x - reach, cell);
         long lastX = GridMath.FloorDivide(x + reach, cell);
         long firstZ = GridMath.FloorDivide(z - reach, cell);

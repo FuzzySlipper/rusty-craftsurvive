@@ -678,13 +678,17 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private bool OnCrossing(long x, long z)
     {
         long cell = PoiConstants.CellSize;
-        long pad = (long)Math.Ceiling(CrossingLayout.RampRun + CrossingLayout.StoneDeckWidth);
         long cellX = GridMath.FloorDivide(x, cell), cellZ = GridMath.FloorDivide(z, cell);
         for (long anchorX = cellX - 1; anchorX <= cellX + 1; anchorX++)
         {
             for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
             {
                 if (crossings.SiteAt(anchorX, anchorZ) is not CrossingSite site) continue;
+                double deckTop = site.DeckY + CrossingLayout.GroundTopOffset;
+                double maxRamp = Math.Max(
+                    CrossingLayout.RampRunFor(deckTop, site.EffectiveNearBankY + CrossingLayout.GroundTopOffset),
+                    CrossingLayout.RampRunFor(deckTop, site.EffectiveFarBankY + CrossingLayout.GroundTopOffset));
+                long pad = (long)Math.Ceiling(maxRamp + CrossingLayout.StoneDeckWidth);
                 if (x >= Math.Min(site.FromX, site.ToX) - pad && x <= Math.Max(site.FromX, site.ToX) + pad
                     && z >= Math.Min(site.FromZ, site.ToZ) - pad && z <= Math.Max(site.FromZ, site.ToZ) + pad)
                 {

@@ -668,6 +668,58 @@ Check.That(diagonalBridges == nearTownBridges && nearTownBridges > 0,
 Check.That(stoneBridges == nearTownBridges && timberBridges == wildernessBridges,
     $"settled crossings must use StoneBridge ({stoneBridges}/{nearTownBridges}) and wilderness creeks TimberFootbridge ({timberBridges}/{wildernessBridges})");
 
+// --- ramp toe-to-ground continuity for unequal banks, rising banks, and live terrain (#11186 R11186-1) ---
+{
+    static (float InnerTopY, float OuterTopY) RampTopEndpoints(CrossingBox ramp, bool isNear)
+    {
+        System.Numerics.Quaternion pitch = System.Numerics.Quaternion.CreateFromAxisAngle(System.Numerics.Vector3.UnitX, ramp.Pitch);
+        // Near ramp (-Z): +Half.Z meets the deck, -Half.Z is the outer toe; Far ramp (+Z): -Half.Z meets the deck, +Half.Z is the outer toe.
+        System.Numerics.Vector3 inner = ramp.Centre + System.Numerics.Vector3.Transform(new(0f, ramp.Half.Y, isNear ? ramp.Half.Z : -ramp.Half.Z), pitch);
+        System.Numerics.Vector3 outer = ramp.Centre + System.Numerics.Vector3.Transform(new(0f, ramp.Half.Y, isNear ? -ramp.Half.Z : ramp.Half.Z), pitch);
+        return (inner.Y, outer.Y);
+    }
+
+    // 1. Exact R11186-1 repro: water at 20, near bank 21, far bank 25 (4 m bank height difference), level terrain behind each bank.
+    CrossingSite unequal = new(0, 0, FromX: 0, FromZ: 0, ToX: 8, ToZ: 0, DeckY: 25, AlongX: true, CrossingStyle.StoneBridge, NearBankY: 21, FarBankY: 25);
+    double LevelUnequalGround(double x, double z) => x < 4 ? 22.0 : 26.0;
+    CrossingBridgeGeometry unequalBuilt = CrossingLayout.Build(unequal, LevelUnequalGround);
+    (float nearInnerY, float nearOuterY) = RampTopEndpoints(unequalBuilt.Boxes[1], isNear: true);
+    (float farInnerY, float farOuterY) = RampTopEndpoints(unequalBuilt.Boxes[2], isNear: false);
+    double nearGroundAtToe = LevelUnequalGround(unequalBuilt.NearToeWorld.X, unequalBuilt.NearToeWorld.Z);
+    double farGroundAtToe = LevelUnequalGround(unequalBuilt.FarToeWorld.X, unequalBuilt.FarToeWorld.Z);
+    Check.That(Math.Abs(nearInnerY) < 1e-3 && Math.Abs(farInnerY) < 1e-3,
+        $"both ramps must meet deck top seamlessly at y=0 (near={nearInnerY:F4}, far={farInnerY:F4})");
+    Check.That(Math.Abs((unequalBuilt.WorldAnchor.Y + nearOuterY) - (nearGroundAtToe - CrossingLayout.RampToeEmbed)) < 1e-3,
+        $"near ramp toe must meet the 4 m lower bank ({unequalBuilt.WorldAnchor.Y + nearOuterY:F2} vs {nearGroundAtToe - CrossingLayout.RampToeEmbed:F2})");
+    Check.That(Math.Abs((unequalBuilt.WorldAnchor.Y + farOuterY) - (farGroundAtToe - CrossingLayout.RampToeEmbed)) < 1e-3,
+        $"far ramp toe must meet the higher bank ({unequalBuilt.WorldAnchor.Y + farOuterY:F2} vs {farGroundAtToe - CrossingLayout.RampToeEmbed:F2})");
+    Check.That(MathF.Abs(MathF.Tan(unequalBuilt.NearRampPitch)) <= CrossingLayout.MaximumWalkableGrade + 1e-3f
+        && MathF.Abs(MathF.Tan(unequalBuilt.FarRampPitch)) <= CrossingLayout.MaximumWalkableGrade + 1e-3f,
+        $"both ramps must stay within walkable grade ({MathF.Abs(MathF.Tan(unequalBuilt.NearRampPitch)):F3}, {MathF.Abs(MathF.Tan(unequalBuilt.FarRampPitch)):F3})");
+
+    // 2. Terrain rising higher than the deck behind a bank: ramp must pitch upward to meet the higher ground.
+    double RisingGround(double x, double z) => x < 4 ? 27.5 : 26.0;
+    CrossingBridgeGeometry risingBuilt = CrossingLayout.Build(unequal, RisingGround);
+    (float riseInnerY, float riseOuterY) = RampTopEndpoints(risingBuilt.Boxes[1], isNear: true);
+    double riseGroundAtToe = RisingGround(risingBuilt.NearToeWorld.X, risingBuilt.NearToeWorld.Z);
+    Check.That(Math.Abs(riseInnerY) < 1e-3 && riseOuterY > 1.0f,
+        $"a bank higher than the deck must pitch the ramp upward (inner={riseInnerY:F3}, outer={riseOuterY:F3})");
+    Check.That(Math.Abs((risingBuilt.WorldAnchor.Y + riseOuterY) - (riseGroundAtToe - CrossingLayout.RampToeEmbed)) < 1e-3,
+        $"rising ramp toe must meet higher terrain ({risingBuilt.WorldAnchor.Y + riseOuterY:F2} vs {riseGroundAtToe - CrossingLayout.RampToeEmbed:F2})");
+
+    // 3. Sloping valley walls (both rising wall on near side and descending ground on far side): exact toe continuity.
+    double SlopingValley(double x, double z) => x < 4 ? 22.0 + (0.25 * Math.Max(0, 0.5 - x)) : 26.0 - (0.12 * Math.Max(0, x - 8.5));
+    CrossingBridgeGeometry valleyBuilt = CrossingLayout.Build(unequal, SlopingValley);
+    (_, float vNearOuterY) = RampTopEndpoints(valleyBuilt.Boxes[1], isNear: true);
+    (_, float vFarOuterY) = RampTopEndpoints(valleyBuilt.Boxes[2], isNear: false);
+    double vNearGround = SlopingValley(valleyBuilt.NearToeWorld.X, valleyBuilt.NearToeWorld.Z);
+    double vFarGround = SlopingValley(valleyBuilt.FarToeWorld.X, valleyBuilt.FarToeWorld.Z);
+    Check.That(Math.Abs((valleyBuilt.WorldAnchor.Y + vNearOuterY) - (vNearGround - CrossingLayout.RampToeEmbed)) < 1e-3,
+        $"near ramp toe must meet rising valley wall ({valleyBuilt.WorldAnchor.Y + vNearOuterY:F2} vs {vNearGround - CrossingLayout.RampToeEmbed:F2})");
+    Check.That(Math.Abs((valleyBuilt.WorldAnchor.Y + vFarOuterY) - (vFarGround - CrossingLayout.RampToeEmbed)) < 1e-3,
+        $"far ramp toe must meet descending far slope ({valleyBuilt.WorldAnchor.Y + vFarOuterY:F2} vs {vFarGround - CrossingLayout.RampToeEmbed:F2})");
+}
+
 // --- the codec refuses every blob it cannot interpret, and the journal keeps working full ---
 //
 // The reviewers named these as unasserted: the dangerous one is a kind flipped to another *valid*
