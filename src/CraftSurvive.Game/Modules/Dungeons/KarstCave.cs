@@ -184,6 +184,9 @@ internal static class KarstCave
 
         /// <summary>The planned ports' required routes and what was carved to make them walkable (#11209 round 3); empty without ports.</summary>
         internal IReadOnlyList<PortRoute> PortRoutes { get; init; } = [];
+
+        /// <summary>What the walker carve did on each required route, each way (#10908).</summary>
+        internal IReadOnlyList<WalkerLeg> WalkerLegs { get; init; } = [];
     }
 
     /// <summary>
@@ -4069,6 +4072,9 @@ private static int MostBarrensPieces => Area(400);
         internal IReadOnlyDictionary<string, (Vector3 From, Vector3 To, IReadOnlyList<Vector3> Path)> PortPaths { get; init; } =
             new Dictionary<string, (Vector3, Vector3, IReadOnlyList<Vector3>)>();
 
+        /// <summary>What the walker carve did on each required route, each way (#10908); empty where it did not run.</summary>
+        internal IReadOnlyList<WalkerLeg> WalkerLegs { get; init; } = [];
+
         /// <summary>How much daylight reaches a place (#10305), 0 to 1.</summary>
         internal float DaylightAt(Vector3 p) => GridTrilinear(Daylight, p, Box);
 
@@ -4477,6 +4483,7 @@ private static int MostBarrensPieces => Area(400);
         {
             Shape = Features.Of(cave),
             PortRoutes = cave.PortRoutes,
+            WalkerLegs = cave.WalkerLegs,
         };
         return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
             $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} ferns={ferns.Count} fungalPockets={cave.FungalPockets.Count} ruin={(ruin is null ? "none" : $"{ruin.Size}:{ruin.Modules.Count}m{(ruin.Vault is null ? "" : "+vault")}:overgrown{ruin.Overgrown.Count}:footings{ruin.Footings.Count}")} kit={kit.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume, report);
@@ -4826,6 +4833,21 @@ private static int MostBarrensPieces => Area(400);
             }
         }
 
+        // The routes made walkable for a body with weight (#10908): the walker carve, between every pair of required route ends,
+        // both ways. Planned boxes only for now (their ports need it; single caves follow with their comparison).
+        List<WalkerLeg> walkerLegs = [];
+        List<Vector3> walkerPoints = [];
+        if (run.BoundaryPorts is { Count: > 0 } carvePorts)
+        {
+            (walkerLegs, walkerPoints) = WalkerCarve(open, Finished(), routes, carvePorts);
+            if (walkerLegs.Count > 0)
+            {
+                clearance = Clearance(Finished());
+            }
+
+            Mark("walker-carve");
+        }
+
         Mark("passages-clearance");
         List<PortRoute> portReport = [];
         Dictionary<string, (Vector3 From, Vector3 To, IReadOnlyList<Vector3> Path)> portPaths = [];
@@ -4860,7 +4882,7 @@ private static int MostBarrensPieces => Area(400);
         // The dark's growth starts with the drip's formation pieces (#10305): the geological kit draws with the growth, those
         // whose rock the passages' widening cut away left out.
         // A standing piece is left off the routes: walked through, or its collider in the way.
-        Vector3[] routePoints = [.. routePaths.SelectMany(path => path.Where((_, i) => i % 2 == 0)).Select(FieldCentre)];
+        Vector3[] routePoints = [.. routePaths.SelectMany(path => path.Where((_, i) => i % 2 == 0)).Select(FieldCentre), .. walkerPoints];
         List<OvergrowthPlacement> darkGrowth = [.. formationPieces.Select(f => Settle(open, f)).OfType<OvergrowthPlacement>().Where(f => !InTheWay(f, routePoints))];
         // The geological kit's smaller pieces (#10305), from the water's marks.
         if (!run.CarvedFormations)
@@ -5093,6 +5115,7 @@ private static int MostBarrensPieces => Area(400);
             FungalPockets = pockets,
             PortRoutes = portReport,
             PortPaths = portPaths,
+            WalkerLegs = walkerLegs,
             Spring = spring,
             Chambers = [.. chambers],
             MainRoute = mainRoute,
@@ -6290,6 +6313,124 @@ private static int MostBarrensPieces => Area(400);
     /// over in-face coordinates (u, v) so two neighbouring boxes carve matching cross-sections on their shared boundary plane,
     /// then joins each port's interior anchor into the nearest open interior karst passage.
     /// </summary>
+    /// <summary>
+    /// One leg of the walker carve (#10908): a required route walked one way - from its start to its end, or back - how many
+    /// cells it took, its drops and climbs, and the cells dug and floored to make it (none where the cave already allowed it).
+    /// Found is false only where no way was found even with edits.
+    /// </summary>
+    internal sealed record WalkerLeg(string Route, bool Back, bool Found, int Cells, int Drops, int Climbs, int Dug, int Floored, int Expanded);
+
+    /// <summary>
+    /// The walker carve (#10908): on the cave's 1 m cells, between each required route's ends (the way in, the spring and the
+    /// ports), the cheapest way a body with weight takes each way, digging and flooring where it must; the edits go into the
+    /// field. A side port's end stands on its passage's floor; a floor port's on the box's floor beside its hole (to step in and
+    /// drop to the box below); a roof port's where a body dropped through it lands. Returns the legs and the cells walked.
+    /// </summary>
+    private static (List<WalkerLeg> Legs, List<Vector3> Points) WalkerCarve(float[] open, float[] finished, List<(string Name, Vector3 From, Vector3 To)> routes,
+        IReadOnlyList<BoundaryPort> ports)
+    {
+        int sx = (int)(FieldX * FieldStep), sy = (int)(FieldY * FieldStep), sz = (int)(FieldZ * FieldStep);
+        bool[] solid = new bool[sx * sy * sz];
+        Parallel.For(0, sz, z =>
+        {
+            for (int y = 0; y < sy; y++)
+            for (int x = 0; x < sx; x++)
+            {
+                solid[(((z * sy) + y) * sx) + x] = Trilinear(finished, new Vector3(x + 0.5f, y + 0.5f, z + 0.5f)) < 0f;
+            }
+        });
+
+        CaveWalker walker = new(sx, sy, sz, solid, editMargin: 1);
+        float sizeX = FieldX * FieldStep, sizeY = FieldY * FieldStep, sizeZ = FieldZ * FieldStep;
+
+        // Where a route's end stands: its port's own rule, or the floor under the point.
+        (int X, int Y, int Z) End(Vector3 at)
+        {
+            BoundaryPort? port = null;
+            foreach (BoundaryPort p in ports)
+            {
+                if (Vector3.Distance(p.AnchorPoint(sizeX, sizeY, sizeZ), at) < 0.01f) port = p;
+            }
+
+            int x = (int)MathF.Floor(at.X), y = (int)MathF.Floor(at.Y), z = (int)MathF.Floor(at.Z);
+            if (port is BoundaryPort { Face: BoxFace.NegY } floorPort)
+            {
+                // At the floor's hole's edge, on the floor: the next cell in is over the hole, so a body steps off into it.
+                int off = (int)MathF.Floor(MathF.Max(floorPort.Radius, PortMinRadius));
+                int fx = Math.Clamp((int)floorPort.U + off, 3, sx - 4), fz = Math.Clamp((int)floorPort.V, 3, sz - 4);
+                return walker.Settle(fx, 3, fz, across: 2, down: 2, up: 4) ?? (fx, 2, fz);
+            }
+
+            if (port is BoundaryPort { Face: BoxFace.PosY } roofPort)
+            {
+                // Where a body dropped through the roof's hole lands.
+                int hx = Math.Clamp((int)roofPort.U, 0, sx - 1), hz = Math.Clamp((int)roofPort.V, 0, sz - 1);
+                for (int ly = sy - 2; ly > 1; ly--)
+                {
+                    if (walker.Standing(hx, ly, hz)) return (hx, ly, hz);
+                }
+
+                return (hx, 2, hz);
+            }
+
+            if (port is BoundaryPort sidePort)
+            {
+                // On the port passage's own floor a few metres in from the face (its anchor may hang over a drop).
+                Vector3 inside = sidePort.FacePoint(sizeX, sizeY, sizeZ) + (sidePort.InwardNormal * SidePortStandIn);
+                int ix = (int)MathF.Floor(inside.X), iy = (int)MathF.Floor(inside.Y), iz = (int)MathF.Floor(inside.Z);
+                return walker.Settle(ix, iy, iz, across: 1, down: 4) ?? (ix, iy - 1, iz);
+            }
+
+            return walker.Settle(x, y, z, across: 3, down: 12) ?? (x, y, z);
+        }
+
+        List<WalkerLeg> legs = [];
+        HashSet<(int, int, int)> walked = [];
+        foreach ((string name, Vector3 from, Vector3 to) in routes)
+        {
+            if (name != "spring" && !name.StartsWith("port:", StringComparison.Ordinal)) continue;
+            (int, int, int) a = End(from), b = End(to);
+            foreach (bool back in (ReadOnlySpan<bool>)[false, true])
+            {
+                CaveWalker.Way? way = walker.Find(back ? b : a, back ? a : b, edits: true);
+                if (way is null)
+                {
+                    legs.Add(new WalkerLeg(name, back, false, 0, 0, 0, 0, 0, 0));
+                    continue;
+                }
+
+                walker.Apply(way);
+                foreach ((int x, int y, int z) in way.Dug) SetCell(open, x, y, z, WalkerEditMagnitude);
+                foreach ((int x, int y, int z) in way.Floored) SetCell(open, x, y, z, -WalkerEditMagnitude);
+                foreach ((int, int, int) cell in way.Cells) walked.Add(cell);
+                legs.Add(new WalkerLeg(name, back, true, way.Cells.Count, way.Drops, way.Climbs, way.Dug.Count, way.Floored.Count, way.Expanded));
+            }
+        }
+
+        return (legs, [.. walked.Select(c => new Vector3(c.Item1 + 0.5f, c.Item2 + 0.5f, c.Item3 + 0.5f))]);
+    }
+
+    /// <summary>How far in from its face a side port's route end stands, on its passage's floor (#10908).</summary>
+    private const float SidePortStandIn = 2.5f;
+
+    /// <summary>How open (or solid) a cell the walker carve dug (or floored) is made: past the fine forms' reach, so they leave it.</summary>
+    private const float WalkerEditMagnitude = 1.2f;
+
+    /// <summary>Sets the field's samples in one 1 m cell to at least (or, negative, at most) a value.</summary>
+    private static void SetCell(float[] open, int x, int y, int z, float value)
+    {
+        int per = (int)MathF.Round(1f / FieldStep);
+        for (int c = 0; c < per; c++)
+        for (int b = 0; b < per; b++)
+        for (int a = 0; a < per; a++)
+        {
+            int fx = (x * per) + a, fy = (y * per) + b, fz = (z * per) + c;
+            if (fx >= FieldX || fy >= FieldY || fz >= FieldZ) continue;
+            int index = FieldIndex(fx, fy, fz);
+            open[index] = value > 0f ? MathF.Max(open[index], value) : MathF.Min(open[index], value);
+        }
+    }
+
     private static Dictionary<string, float> CarveBoundaryPorts(float[] open, IReadOnlyList<BoundaryPort> ports)
     {
         Dictionary<string, float> anchorTubes = [];

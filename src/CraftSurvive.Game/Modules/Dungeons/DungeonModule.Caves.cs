@@ -681,6 +681,12 @@ internal sealed partial class DungeonModule
     /// <summary>How far ahead along the way the view is turned toward, in metres.</summary>
     private const float SteerAheadMetres = 4f;
 
+    /// <summary>A way ahead rising more than this is a climb: the view turns to the wall rather than up it (#10908).</summary>
+    private const float ClimbAheadMetres = 1.5f;
+
+    /// <summary>How far across the wall a climb's face is looked for along the way ahead.</summary>
+    private const float ClimbFaceMetres = 0.6f;
+
     /// <summary>
     /// Assisted, for a walk on the player's own input (#10889 R10889-1): each update turns the view toward the chosen cave's
     /// way a few metres on from where the player stands - in, down the tendril and along the main route, or back out to the
@@ -807,6 +813,19 @@ internal sealed partial class DungeonModule
         else
         {
             (target, _) = Along(walkWay!, Math.Clamp(along + (steer * SteerAheadMetres), 0f, Length(walkWay!)));
+            // Where the way ahead climbs (#10908), face the wall it climbs: the first point ahead a step off across.
+            if (target.Y - here.Y > ClimbAheadMetres)
+            {
+                for (float d = 0.25f; d <= SteerAheadMetres; d += 0.25f)
+                {
+                    (Vector3 next, _) = Along(walkWay!, Math.Clamp(along + (steer * d), 0f, Length(walkWay!)));
+                    if (new Vector2(next.X - here.X, next.Z - here.Z).Length() >= ClimbFaceMetres)
+                    {
+                        target = next with { Y = here.Y };
+                        break;
+                    }
+                }
+            }
         }
 
         Face(target - here, 0d);

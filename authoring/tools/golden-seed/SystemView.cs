@@ -312,6 +312,85 @@ internal static class SystemView
             });
         }
 
+        // The gravity-aware reach check (#10908): on 1 m cells sampled as the game samples them (each box's shape at its voxel
+        // centres), the way a body with weight takes - walking, stepping, dropping one way, climbing pitches onto ledges - from
+        // each side mouth to each other, with no edits.
+        JsonArray walkerLegs = [], walkerReach = [];
+        int walkerFound = 0, walkerPairs = 0;
+        {
+            bool[] cells = new bool[cellCount];
+            Array.Fill(cells, true);
+            foreach (GeneratedBox gb in generated)
+            {
+                PlannedBox b = gb.Box;
+                Func<Vector3, float> shape = gb.Layout.Shape!;
+                int ox = (int)Math.Round(b.OriginX - minX), oy = (int)Math.Round(b.OriginY - minY), oz = (int)Math.Round(b.OriginZ - minZ);
+                Parallel.For(0, (int)b.SizeZ, z =>
+                {
+                    for (int y = 0; y < (int)b.SizeY; y++)
+                    for (int x = 0; x < (int)b.SizeX; x++)
+                    {
+                        int wx = ox + x, wy = oy + y, wz = oz + z;
+                        if (wx >= gx || wy >= gy || wz >= gz) continue;
+                        cells[(((wz * gy) + wy) * gx) + wx] = shape(new Vector3(x + 0.5f, y + 0.5f, z + 0.5f)) < 0f;
+                    }
+                });
+            }
+
+            CaveWalker walker = new(gx, gy, gz, cells);
+            int ownerAt((int X, int Y, int Z) c)
+            {
+                foreach (PlannedBox b in boxes)
+                {
+                    double lx = c.X + 0.5 - (b.OriginX - minX), ly = c.Y + 0.5 - (b.OriginY - minY), lz = c.Z + 0.5 - (b.OriginZ - minZ);
+                    if (lx >= 0 && ly >= 0 && lz >= 0 && lx < b.SizeX && ly < b.SizeY && lz < b.SizeZ) return b.Index;
+                }
+
+                return -1;
+            }
+
+            List<(PlannedMouth Mouth, (int X, int Y, int Z)? At)> ends = [];
+            foreach (PlannedMouth m in mouths.Where(m => m.Port is not null))
+            {
+                PlannedBox b = boxes[m.Box];
+                Vector3 a = Local(b, m.Port!.Value.AnchorPoint(b.SizeX, b.SizeY, b.SizeZ));
+                ends.Add((m, walker.Settle((int)MathF.Floor(a.X), (int)MathF.Floor(a.Y), (int)MathF.Floor(a.Z), across: 3, down: 12)));
+            }
+
+            // What each mouth reaches: how many standing cells, and the lowest, per box (a diagnostic for failed pairs).
+            foreach (var from in ends)
+            {
+                if (from.At is not (int, int, int) f) { walkerReach.Add(new JsonObject { ["from"] = $"M{from.Mouth.Index}", ["settled"] = false }); continue; }
+                HashSet<(int X, int Y, int Z)> r = walker.Reach(f);
+                JsonObject perBox = [];
+                foreach (var group in r.GroupBy(c => ownerAt(c)).Where(g => g.Key >= 0).OrderBy(g => g.Key))
+                {
+                    perBox[group.Key.ToString(CultureInfo.InvariantCulture)] = group.Count();
+                }
+
+                walkerReach.Add(new JsonObject { ["from"] = $"M{from.Mouth.Index}", ["at"] = $"{f.Item1},{f.Item2},{f.Item3}", ["cells"] = r.Count, ["byBox"] = perBox });
+            }
+
+            foreach (var from in ends)
+            foreach (var to in ends)
+            {
+                if (from.Mouth == to.Mouth) continue;
+                walkerPairs++;
+                CaveWalker.Way? way = from.At is (int, int, int) f && to.At is (int, int, int) t ? walker.Find(f, t, edits: false) : null;
+                if (way is not null) walkerFound++;
+                walkerLegs.Add(new JsonObject
+                {
+                    ["from"] = $"M{from.Mouth.Index}",
+                    ["to"] = $"M{to.Mouth.Index}",
+                    ["found"] = way is not null,
+                    ["metres"] = way?.Cells.Count ?? 0,
+                    ["drops"] = way?.Drops ?? 0,
+                    ["climbs"] = way?.Climbs ?? 0,
+                    ["searched"] = way?.Expanded ?? 0,
+                });
+            }
+        }
+
         JsonArray bigMarkers = [];
         foreach (UndergroundBigSpace bs in system.BigSpaces)
         {
@@ -374,6 +453,12 @@ internal static class SystemView
             ["boxes"] = boxReports,
             ["seams"] = seamReports,
             ["shafts"] = shafts,
+            ["walker"] = new JsonObject { ["pairs"] = walkerPairs, ["found"] = walkerFound, ["legs"] = walkerLegs, ["reach"] = walkerReach,
+                ["carve"] = new JsonArray([.. generated.SelectMany(g => g.Report.WalkerLegs.Select(l => (JsonNode)new JsonObject
+                {
+                    ["box"] = g.Box.Index, ["route"] = l.Route, ["back"] = l.Back, ["found"] = l.Found, ["cells"] = l.Cells,
+                    ["drops"] = l.Drops, ["climbs"] = l.Climbs, ["dug"] = l.Dug, ["floored"] = l.Floored,
+                }))]) },
             ["routes"] = allRoutes,
             ["mouths"] = mouthMarkers,
             ["bigSpaces"] = bigMarkers,

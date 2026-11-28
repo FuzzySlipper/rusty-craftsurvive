@@ -362,7 +362,7 @@ internal sealed partial class DungeonModule
         }
         else
         {
-            gravity = $"no way a walker can take (dropping, and climbing up to {MostClimbCells} m): {summary}; the generator's route is laid instead";
+            gravity = $"no way a walker can take: {summary}; the generator's route is laid instead";
         }
 
         way.AddRange(outTendril.Path.Reverse());
@@ -436,149 +436,73 @@ internal sealed partial class DungeonModule
         return joined;
     }
 
-    /// <summary>The highest climb the walker's way takes in one go, in metres (cells): about a stamina bar's worth (#10908 decides).</summary>
-    private const int MostClimbCells = 12;
-
-    /// <summary>The walker's body: two cells high.</summary>
-    private const int BodyCells = 2;
-
     /// <summary>
-    /// The way a walker takes between two points inside a held system (#11219), on the voxels the terrain holds: walking with
-    /// a step of a cell up or down, dropping off any edge (a drop is one way), and climbing a face of climbable rock up to
-    /// <see cref="MostClimbCells"/>. Its points stand a walker's height over the floor. Null when there is none.
+    /// The way a walker takes between two points inside a held system (#11219, #10908's <see cref="CaveWalker"/>): on the voxels
+    /// the terrain holds (the admitted boxes' interiors and the tendrils' air, rock elsewhere), walking, stepping, dropping one
+    /// way and climbing pitches onto ledges, with no edits. Its points stand a walker's height over the floor.
     /// </summary>
     private (List<Vector3>? Way, string Summary) GravityWay(PlannedHeld held, Vector3 from, Vector3 to)
     {
         (CavePlacement Box, CaveInterior Interior)[] boxes = [.. held.Boxes
             .Select(b => underCaves.TryGetValue(b.Key, out UnderCave? c) && c.Ready is UndergroundCave r ? (b, r.Interior) : (b, null!))
             .Where(p => p.Interior is not null)];
-        Dictionary<(long, long, long), bool> solidKnown = [];
-        bool Solid(long x, long y, long z)
+        if (boxes.Length == 0)
         {
-            if (solidKnown.TryGetValue((x, y, z), out bool known)) return known;
-            bool solid = true;
-            foreach ((CavePlacement box, CaveInterior interior) in boxes)
-            {
-                if (box.InBox(x, y, z, out int i, out int j, out int k))
-                {
-                    solid = interior.Materials[interior.Index(i, j, k)] != CraftSurvive.Game.Modules.Terrain.TerrainConstants.EmptyMaterial;
-                    break;
-                }
-            }
-
-            if (solid)
-            {
-                Vector3 centre = new(x + 0.5f, y + 0.5f, z + 0.5f);
-                solid = !held.Boxes.Any(b => b.TendrilOpen(centre) > 0f);
-            }
-
-            solidKnown[(x, y, z)] = solid;
-            return solid;
+            return (null, "no box is ready");
         }
 
-        bool Clear(long x, long y, long z) => !Solid(x, y, z) && !Solid(x, y + 1, z);
-        bool Standing(long x, long y, long z) => Clear(x, y, z) && Solid(x, y - 1, z);
-
-        (long, long, long)? Settle(Vector3 p)
+        // The grid: every held box and both ends, a few cells round.
+        const int Margin = 4;
+        long x0 = Math.Min((long)Math.Floor(Math.Min(from.X, to.X)), boxes.Min(b => b.Box.BoxMinimum.X)) - Margin;
+        long y0 = Math.Min((long)Math.Floor(Math.Min(from.Y, to.Y)), boxes.Min(b => b.Box.BoxMinimum.Y)) - Margin;
+        long z0 = Math.Min((long)Math.Floor(Math.Min(from.Z, to.Z)), boxes.Min(b => b.Box.BoxMinimum.Z)) - Margin;
+        long x1 = Math.Max((long)Math.Ceiling(Math.Max(from.X, to.X)), boxes.Max(b => b.Box.BoxMaximum.X)) + Margin;
+        long y1 = Math.Max((long)Math.Ceiling(Math.Max(from.Y, to.Y)), boxes.Max(b => b.Box.BoxMaximum.Y)) + Margin;
+        long z1 = Math.Max((long)Math.Ceiling(Math.Max(from.Z, to.Z)), boxes.Max(b => b.Box.BoxMaximum.Z)) + Margin;
+        int sx = (int)(x1 - x0 + 1), sy = (int)(y1 - y0 + 1), sz = (int)(z1 - z0 + 1);
+        bool[] solid = new bool[sx * sy * sz];
+        Parallel.For(0, sz, k =>
         {
-            long x0 = (long)MathF.Floor(p.X), y0 = (long)MathF.Floor(p.Y), z0 = (long)MathF.Floor(p.Z);
-            for (int r = 0; r <= 3; r++)
-            for (long dy = 2; dy >= -6; dy--)
-            for (long dx = -r; dx <= r; dx++)
-            for (long dz = -r; dz <= r; dz++)
+            for (int j = 0; j < sy; j++)
+            for (int i = 0; i < sx; i++)
             {
-                if (Standing(x0 + dx, y0 + dy, z0 + dz)) return (x0 + dx, y0 + dy, z0 + dz);
-            }
-
-            return null;
-        }
-
-        (long, long, long)? settledStart = Settle(from), settledGoal = Settle(to);
-        if (settledStart is not (long, long, long) start || settledGoal is not (long, long, long) goal)
-        {
-            return (null, string.Create(CultureInfo.InvariantCulture, $"no floor to stand on near the {(settledStart is null ? "start" : "end")} ({(settledStart is null ? from : to)})"));
-        }
-
-        (long, long)[] steps = [(1, 0), (-1, 0), (0, 1), (0, -1)];
-        Dictionary<(long, long, long), (float Cost, (long, long, long)? From, int Kind)> best = new() { [start] = (0f, null, 0) };
-        PriorityQueue<(long, long, long), float> open = new();
-        float Guess((long X, long Y, long Z) c) => MathF.Abs(c.X - goal.Item1) + MathF.Abs(c.Y - goal.Item2) + MathF.Abs(c.Z - goal.Item3);
-        open.Enqueue(start, Guess(start));
-        int expanded = 0;
-        const int MostExpanded = 1_500_000;
-        (long X, long Y, long Z) nearest = start;
-        while (open.TryDequeue(out (long X, long Y, long Z) at, out _) && expanded++ < MostExpanded)
-        {
-            if (Math.Abs(at.X - goal.Item1) <= 1 && Math.Abs(at.Z - goal.Item3) <= 1 && Math.Abs(at.Y - goal.Item2) <= 1)
-            {
-                goal = at;
-                break;
-            }
-
-            if (Guess(at) < Guess(nearest)) nearest = at;
-            float cost = best[at].Cost;
-            void Try((long, long, long) next, float add, int kind)
-            {
-                float through = cost + add;
-                if (!best.TryGetValue(next, out var known) || through < known.Cost)
+                long x = x0 + i, y = y0 + j, z = z0 + k;
+                bool rock = true;
+                foreach ((CavePlacement box, CaveInterior interior) in boxes)
                 {
-                    best[next] = (through, at, kind);
-                    open.Enqueue(next, through + Guess(next));
-                }
-            }
-
-            foreach ((long dx, long dz) in steps)
-            {
-                long nx = at.X + dx, nz = at.Z + dz;
-                bool moved = false;
-                // Walk on, a cell up (with headroom over the walker) or a cell down.
-                if (Standing(nx, at.Y, nz)) { Try((nx, at.Y, nz), 1f, 0); moved = true; }
-                else if (Standing(nx, at.Y + 1, nz) && !Solid(at.X, at.Y + BodyCells, at.Z)) { Try((nx, at.Y + 1, nz), 1.5f, 0); moved = true; }
-                else if (Standing(nx, at.Y - 1, nz)) { Try((nx, at.Y - 1, nz), 1.2f, 0); moved = true; }
-
-                if (!moved && Clear(nx, at.Y, nz))
-                {
-                    // Off an edge: down to the first floor (one way).
-                    for (long y = at.Y - 1; y > at.Y - 200; y--)
+                    if (box.InBox(x, y, z, out int bi, out int bj, out int bk))
                     {
-                        if (Solid(nx, y, nz)) break;
-                        if (Standing(nx, y, nz)) { Try((nx, y, nz), 3f + ((at.Y - y) * 0.05f), 1); break; }
+                        rock = interior.Materials[interior.Index(bi, bj, bk)] != CraftSurvive.Game.Modules.Terrain.TerrainConstants.EmptyMaterial;
+                        break;
                     }
                 }
-                else if (!moved && Solid(nx, at.Y, nz))
+
+                if (rock)
                 {
-                    // A face ahead: climbed while the walker's own column stays clear, onto the first floor at its top.
-                    for (long h = 2; h <= MostClimbCells; h++)
-                    {
-                        if (Solid(at.X, at.Y + h + 1, at.Z)) break;
-                        if (Standing(nx, at.Y + h, nz)) { Try((nx, at.Y + h, nz), 4f * h, 2); break; }
-                    }
+                    Vector3 centre = new(x + 0.5f, y + 0.5f, z + 0.5f);
+                    rock = !held.Boxes.Any(b => b.TendrilOpen(centre) > 0f);
                 }
+
+                solid[(((k * sy) + j) * sx) + i] = rock;
             }
-        }
+        });
 
-        if (!best.ContainsKey(goal) || (best[goal].From is null && goal != start))
+        CaveWalker walker = new(sx, sy, sz, solid);
+        (int, int, int) Cell(Vector3 p) => ((int)(MathF.Floor(p.X) - x0), (int)(MathF.Floor(p.Y) - y0), (int)(MathF.Floor(p.Z) - z0));
+        (int fx, int fy, int fz) = Cell(from);
+        (int tx, int ty, int tz) = Cell(to);
+        if (walker.Settle(fx, fy, fz, across: 3, down: 6) is not (int, int, int) start || walker.Settle(tx, ty, tz, across: 3, down: 6) is not (int, int, int) goal)
         {
-            return (null, string.Create(CultureInfo.InvariantCulture,
-                $"searched {expanded} cells from {start} toward {goal}; the nearest reached {nearest}, {Guess(nearest):F0} cells off"));
+            return (null, "no floor to stand on near an end");
         }
 
-        List<Vector3> way = [];
-        int drops = 0, climbs = 0;
-        float dropped = 0f, climbed = 0f, mostDrop = 0f, mostClimb = 0f;
-        for ((long X, long Y, long Z)? at = goal; at is (long X, long Y, long Z) cell; at = best[cell].From)
+        if (walker.Find(start, goal, edits: false) is not CaveWalker.Way way)
         {
-            way.Insert(0, new Vector3(cell.X + 0.5f, cell.Y + WalkAboveFloor, cell.Z + 0.5f));
-            if (best[cell].From is (long, long PY, long) previous)
-            {
-                float rise = cell.Y - PY;
-                if (best[cell].Kind == 1) { drops++; dropped -= rise; mostDrop = MathF.Max(mostDrop, -rise); }
-                if (best[cell].Kind == 2) { climbs++; climbed += rise; mostClimb = MathF.Max(mostClimb, rise); }
-            }
+            return (null, string.Create(CultureInfo.InvariantCulture, $"no way from {start} to {goal} (reached {walker.Reach(start).Count} standing cells)"));
         }
 
-        return (way, string.Create(CultureInfo.InvariantCulture,
-            $"{Length(way):F0} m, {drops} drops ({dropped:F0} m, the most {mostDrop:F0} m), {climbs} climbs ({climbed:F0} m, the most {mostClimb:F0} m), {expanded} cells searched"));
+        List<Vector3> points = [.. way.Cells.Select(c => new Vector3(c.X + x0 + 0.5f, c.Y + y0 + WalkAboveFloor, c.Z + z0 + 0.5f))];
+        return (points, string.Create(CultureInfo.InvariantCulture,
+            $"{Length(points):F0} m, {way.Drops} drops, {way.Climbs} climbs (pitches of at most {CaveWalker.ClimbPitch} m), {way.Expanded} cells searched"));
     }
 }
-

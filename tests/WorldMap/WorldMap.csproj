@@ -58,7 +58,7 @@
     <Compile Include="$(ProductModules)Dungeons/MistWake.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Dungeons/SumpMistRegions.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Dungeons/CaveWaterShore.cs" LinkBase="Product" />
-    <Compile Include="$(ProductModules)Dungeons/KarstCave.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Dungeons/KarstCave.cs;$(ProductModules)Dungeons/CaveWalker.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Dungeons/NaturalCavern.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Dungeons/StudyField.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Dungeons/DungeonWalk.cs" LinkBase="Product" />
