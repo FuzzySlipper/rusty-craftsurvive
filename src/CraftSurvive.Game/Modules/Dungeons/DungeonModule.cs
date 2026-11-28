@@ -515,8 +515,8 @@ internal sealed partial class DungeonModule : IProductModule
     {
         retiring?.Dispose();
         retiring = null;
-        retiringDressing?.Dispose();
-        retiringDressing = null;
+        foreach (CaveDressing d in retiringDressings) d.Dispose();
+        retiringDressings.Clear();
     }
 
     /// <summary>Makes every dungeon entered use a chosen seed (the bank's seeds), or clears that with "entrance".</summary>

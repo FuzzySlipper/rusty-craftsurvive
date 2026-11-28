@@ -56,24 +56,34 @@ internal sealed class CavePlacement
     /// <summary>Two caves' boxes and tendrils keep at least this far apart.</summary>
     internal const int ApartMetres = 8;
 
-    private readonly Vector3[] path;
-
-    private CavePlacement(PoiSite site, int forwardX, int forwardZ, Vector3[] path, Vector3 corner)
+    private CavePlacement(PoiSite site, int forwardX, int forwardZ, IReadOnlyList<CaveTendril> tendrils, Vector3 corner, PlannedBox? planned = null)
     {
         Site = site;
         ForwardX = forwardX;
         ForwardZ = forwardZ;
-        this.path = path;
+        Tendrils = tendrils;
         Corner = corner;
+        Planned = planned;
         // The cave's +x runs along the mouth's facing, its +z a quarter turn from it (a rotation, not a mirror).
         (AcrossX, AcrossZ) = (-forwardZ, forwardX);
         Vector3[] corners = [Corner, ToWorld(new Vector3(SizeX, 0, 0)), ToWorld(new Vector3(0, 0, SizeZ)), ToWorld(new Vector3(SizeX, 0, SizeZ))];
         BoxMinimum = ((long)MathF.Floor(corners.Min(c => c.X)), (long)MathF.Floor(Corner.Y), (long)MathF.Floor(corners.Min(c => c.Z)));
         BoxMaximum = ((long)MathF.Ceiling(corners.Max(c => c.X)) - 1, (long)MathF.Floor(Corner.Y) + SizeY - 1, (long)MathF.Ceiling(corners.Max(c => c.Z)) - 1);
-        float reachX = TendrilHalfWidth + 1f, reachY = TendrilHalfHeight + 1f;
-        TendrilMinimum = ((long)MathF.Floor(path.Min(p => p.X) - reachX), (long)MathF.Floor(path.Min(p => p.Y) - reachY), (long)MathF.Floor(path.Min(p => p.Z) - reachX));
-        TendrilMaximum = ((long)MathF.Ceiling(path.Max(p => p.X) + reachX), (long)MathF.Ceiling(path.Max(p => p.Y) + reachY), (long)MathF.Ceiling(path.Max(p => p.Z) + reachX));
+        // A box with no tendril (a planned box inside its system, #11219) has bounds no point lies in.
+        TendrilMinimum = tendrils.Count == 0 ? (long.MaxValue / 4, long.MaxValue / 4, long.MaxValue / 4)
+            : (tendrils.Min(t => t.Minimum.X), tendrils.Min(t => t.Minimum.Y), tendrils.Min(t => t.Minimum.Z));
+        TendrilMaximum = tendrils.Count == 0 ? (long.MinValue / 4, long.MinValue / 4, long.MinValue / 4)
+            : (tendrils.Max(t => t.Maximum.X), tendrils.Max(t => t.Maximum.Y), tendrils.Max(t => t.Maximum.Z));
     }
+
+    /// <summary>The tendrils from the surface into this box: one for a landmark cave, one per mouth for a planned box, maybe none.</summary>
+    internal IReadOnlyList<CaveTendril> Tendrils { get; }
+
+    /// <summary>The planned system and box this placement holds (#11219), or null for a landmark cave.</summary>
+    internal PlannedBox? Planned { get; }
+
+    /// <summary>Whether the box is a planned system's (#11219) rather than a landmark cave mouth's.</summary>
+    internal bool IsPlanned => Planned is not null;
 
     internal PoiSite Site { get; }
 
@@ -96,13 +106,13 @@ internal sealed class CavePlacement
     internal (long X, long Y, long Z) TendrilMinimum { get; }
     internal (long X, long Y, long Z) TendrilMaximum { get; }
 
-    /// <summary>The tendril's centre line, from outside the mouth to below the way in, in world metres.</summary>
-    internal IReadOnlyList<Vector3> Path => path;
+    /// <summary>The (first) tendril's centre line, from outside the mouth to below the way in, in world metres; empty with none.</summary>
+    internal IReadOnlyList<Vector3> Path => Tendrils.Count > 0 ? Tendrils[0].Path : [];
 
     /// <summary>The cave's way in, in world metres: the tendril's end.</summary>
     internal Vector3 WayInWorld => ToWorld(new Vector3(WayIn.X, SinkHeight, WayIn.Y));
 
-    /// <summary>A stable key for the mouth: its site's anchor cell.</summary>
+    /// <summary>A stable key for the mouth: its site's anchor cell (for a planned box, a key of its system and index).</summary>
     internal (long X, long Z) Key => (Site.CellX, Site.CellZ);
 
     /// <summary>The cave's quarter turns about +y from its own frame to the world's (0: its +x is the world's +x).</summary>
@@ -171,82 +181,22 @@ internal sealed class CavePlacement
     }
 
     /// <summary>
-    /// How far inside the tendril a world point is, in metres (positive inside, empty; negative in the rock round it): its
-    /// section's half-height less its distance from the centre line, the section squashed to a circle.
+    /// How far inside a tendril a world point is, in metres (positive inside, empty; negative in the rock round it); the most
+    /// open of the box's tendrils.
     /// </summary>
     internal float TendrilOpen(Vector3 point)
     {
-        if (point.X < TendrilMinimum.X || point.X > TendrilMaximum.X + 1 || point.Y < TendrilMinimum.Y || point.Y > TendrilMaximum.Y + 1
-            || point.Z < TendrilMinimum.Z || point.Z > TendrilMaximum.Z + 1)
+        float open = float.NegativeInfinity;
+        foreach (CaveTendril tendril in Tendrils)
         {
-            return float.NegativeInfinity;
+            open = MathF.Max(open, tendril.Open(point));
         }
 
-        float squash = TendrilHalfHeight / TendrilHalfWidth;
-        Vector3 scale = new(squash, 1f, squash);
-        float nearest = float.PositiveInfinity;
-        Vector3 p = point * scale;
-        // The path runs straight along the mouth's facing a step apart, so only the segments near the point's own
-        // distance along it can be nearest (the bend aside is far smaller than a tendril's reach along).
-        float along = ((point.X - path[0].X) * ForwardX) + ((point.Z - path[0].Z) * ForwardZ);
-        int first = Math.Clamp((int)MathF.Floor(along / TendrilStep) - 2, 0, path.Length - 2);
-        int last = Math.Clamp((int)MathF.Floor(along / TendrilStep) + 2, 0, path.Length - 2);
-        float centreY = point.Y;
-        for (int s = first; s <= last; s++)
-        {
-            Vector3 a = path[s] * scale, b = path[s + 1] * scale;
-            Vector3 ab = b - a;
-            float t = Math.Clamp(Vector3.Dot(p - a, ab) / Math.Max(1e-6f, ab.LengthSquared()), 0f, 1f);
-            Vector3 on = a + (ab * t);
-            float d = Vector3.DistanceSquared(p, on);
-            if (d < nearest)
-            {
-                nearest = d;
-                centreY = on.Y;
-            }
-        }
-
-        // The wall is rock, not a bore: its distance wanders by a smooth noise a few metres across, worked out only near the
-        // wall (deeper in the rock the distance is all a chunk needs, and the noise is most of a tendril chunk's cost). The
-        // floor stays smooth, so the slope can be walked up as well as down (R10889-1): a lip in it is climbed only by a jump.
-        float open = TendrilHalfHeight - MathF.Sqrt(nearest);
-        if (open < -(TendrilRoughness + TendrilNoiseMargin))
-        {
-            return open;
-        }
-
-        float floorward = Math.Clamp((centreY - point.Y) / TendrilHalfHeight, 0f, 1f);
-        float walls = open + (TendrilRoughness * (1f - floorward) * Noise(point * TendrilRoughnessFrequency, Site));
-        // A level floor across the section, following the slope: a round section's lower curve is too steep to stand on
-        // where the walk climbs the inside of a bend (the controller's steep-slope solver gives up there, R10889-1).
-        return MathF.Min(walls, point.Y - (centreY - TendrilFloorBelowCentre));
+        return open;
     }
 
     /// <summary>How far under the tendril's centre line its level floor lies: about 2.8 m of floor across, 2.7 m of headroom.</summary>
     internal const float TendrilFloorBelowCentre = 1.1f;
-
-    /// <summary>How far the tendril's wall wanders in and out, in metres, and how often (per metre).</summary>
-    private const float TendrilRoughness = 0.45f, TendrilRoughnessFrequency = 0.3f;
-
-    /// <summary>Past this far into the rock beyond the wall's wander, the noise cannot bring the wall nearer than the chunk cares.</summary>
-    private const float TendrilNoiseMargin = 2f;
-
-    /// <summary>A smooth value noise in -1..1, a pure function of the point and the mouth.</summary>
-    private static float Noise(Vector3 p, PoiSite site)
-    {
-        int x0 = (int)MathF.Floor(p.X), y0 = (int)MathF.Floor(p.Y), z0 = (int)MathF.Floor(p.Z);
-        float fx = p.X - x0, fy = p.Y - y0, fz = p.Z - z0;
-        fx = fx * fx * (3f - (2f * fx));
-        fy = fy * fy * (3f - (2f * fy));
-        fz = fz * fz * (3f - (2f * fz));
-        ulong salt = ((ulong)site.CellX * 0x9E37_79B9UL) ^ ((ulong)site.CellZ * 0x85EB_CA6BUL);
-        float Corner(int dx, int dy, int dz) =>
-            (Mix(salt ^ ((ulong)(x0 + dx) * 0x27D4_EB2F_1656_67C5UL) ^ ((ulong)(y0 + dy) * 0x1656_67B1_9E37_79F9UL) ^ ((ulong)(z0 + dz) * 0xC2B2_AE3D_27D4_EB4FUL)) & 0xFFFF) / 32767.5f - 1f;
-        float Lerp(float a, float b, float t) => a + ((b - a) * t);
-        float x00 = Lerp(Corner(0, 0, 0), Corner(1, 0, 0), fx), x10 = Lerp(Corner(0, 1, 0), Corner(1, 1, 0), fx);
-        float x01 = Lerp(Corner(0, 0, 1), Corner(1, 0, 1), fx), x11 = Lerp(Corner(0, 1, 1), Corner(1, 1, 1), fx);
-        return Lerp(Lerp(x00, x10, fy), Lerp(x01, x11, fy), fz);
-    }
 
     /// <summary>
     /// The way underground behind a cave mouth, or null where none fits: the mouth's facing, the tendril's path down into
@@ -284,7 +234,7 @@ internal sealed class CavePlacement
             MathF.Round(end.Y - SinkHeight),
             end.Z - (fz * WayIn.X) - (az * WayIn.Y));
         corner = new Vector3(MathF.Round(corner.X), corner.Y, MathF.Round(corner.Z));
-        CavePlacement placement = new(site, fx, fz, [.. points], corner);
+        CavePlacement placement = new(site, fx, fz, [new CaveTendril([.. points], fx, fz, CaveTendril.SaltFor(site))], corner);
         // The finite world's bounds: the box and tendril stay inside the border wall and above the bedrock floor (#11187).
         long inner = radius - (GenerationConstants.WorldWallThickness + ApartMetres);
         long floorTop = -GenerationConstants.TerrainDepth + GenerationConstants.WorldFloorThickness;
@@ -306,7 +256,7 @@ internal sealed class CavePlacement
         return other.BoxTouches(min.X, max.X, min.Z, max.Z) || other.TendrilTouches(min.X, max.X, min.Z, max.Z);
     }
 
-    private static ulong Mix(ulong value)
+    internal static ulong Mix(ulong value)
     {
         value ^= value >> 33;
         value *= 0xFF51_AFD7_ED55_8CCDUL;
@@ -314,6 +264,145 @@ internal sealed class CavePlacement
         value *= 0xC4CE_B9FE_1A85_EC53UL;
         return value ^ (value >> 33);
     }
+
+    /// <summary>
+    /// A planned system's box as a placement (#11219): axis-aligned (its own frame the world's), its corner the plan's origin,
+    /// with a tendril for each of its mouths that has one. The site stands for the box: its anchor cell is the box's key, its
+    /// place the box's centre on the ground.
+    /// </summary>
+    internal static CavePlacement ForPlanned(PlannedBox planned, IReadOnlyList<CaveTendril> tendrils)
+    {
+        UndergroundBox box = planned.Box;
+        PoiSite site = new(planned.KeyX, planned.KeyZ, PoiKind.CaveMouth, (long)Math.Floor(box.OriginX + (SizeX * 0.5)), (long)Math.Floor(box.OriginZ + (SizeZ * 0.5)),
+            (long)Math.Floor(box.GroundElevation), 0, 0, 0);
+        return new CavePlacement(site, 1, 0, tendrils, new Vector3((float)box.OriginX, (float)box.OriginY, (float)box.OriginZ), planned);
+    }
+}
+
+/// <summary>
+/// A tendril from the surface down to a cave (#10889; #11219 lifts it out of its placement, so a planned box can hold one per
+/// mouth, or none): its centre line, a level-floored section wider than tall, and a wall wandering by a smooth noise.
+/// </summary>
+internal sealed class CaveTendril
+{
+    private readonly Vector3[] path;
+    private readonly int forwardX, forwardZ;
+    private readonly ulong salt;
+
+    /// <param name="path">The centre line, a <see cref="CavePlacement"/>'s tendril step apart.</param>
+    /// <param name="forwardX">The run's horizontal heading (a cardinal), or 0, 0 for a shaft, whose every segment is searched.</param>
+    /// <param name="salt">The wall noise's salt (a landmark mouth's comes from its site, <see cref="SaltFor"/>).</param>
+    internal CaveTendril(Vector3[] path, int forwardX, int forwardZ, ulong salt)
+    {
+        this.path = path;
+        this.forwardX = forwardX;
+        this.forwardZ = forwardZ;
+        this.salt = salt;
+        float reachX = CavePlacement.TendrilHalfWidth + 1f, reachY = CavePlacement.TendrilHalfHeight + 1f;
+        Minimum = ((long)MathF.Floor(path.Min(p => p.X) - reachX), (long)MathF.Floor(path.Min(p => p.Y) - reachY), (long)MathF.Floor(path.Min(p => p.Z) - reachX));
+        Maximum = ((long)MathF.Ceiling(path.Max(p => p.X) + reachX), (long)MathF.Ceiling(path.Max(p => p.Y) + reachY), (long)MathF.Ceiling(path.Max(p => p.Z) + reachX));
+    }
+
+    internal IReadOnlyList<Vector3> Path => path;
+    internal (long X, long Y, long Z) Minimum { get; }
+    internal (long X, long Y, long Z) Maximum { get; }
+
+    /// <summary>A landmark mouth's wall-noise salt, from its anchor cell.</summary>
+    internal static ulong SaltFor(PoiSite site) => ((ulong)site.CellX * 0x9E37_79B9UL) ^ ((ulong)site.CellZ * 0x85EB_CA6BUL);
+
+    /// <summary>
+    /// How far inside the tendril a world point is, in metres (positive inside, empty; negative in the rock round it): its
+    /// section's half-height less its distance from the centre line, the section squashed to a circle.
+    /// </summary>
+    internal float Open(Vector3 point)
+    {
+        if (point.X < Minimum.X || point.X > Maximum.X + 1 || point.Y < Minimum.Y || point.Y > Maximum.Y + 1
+            || point.Z < Minimum.Z || point.Z > Maximum.Z + 1)
+        {
+            return float.NegativeInfinity;
+        }
+
+        const float halfWidth = CavePlacement.TendrilHalfWidth, halfHeight = CavePlacement.TendrilHalfHeight;
+        float squash = halfHeight / halfWidth;
+        Vector3 scale = new(squash, 1f, squash);
+        float nearest = float.PositiveInfinity;
+        Vector3 p = point * scale;
+        // A run goes straight along its heading a step apart, so only the segments near the point's own distance along it can
+        // be nearest (the bend aside is far smaller than a tendril's reach along). A shaft's segments are all searched.
+        int first = 0, last = path.Length - 2;
+        if (forwardX != 0 || forwardZ != 0)
+        {
+            float along = ((point.X - path[0].X) * forwardX) + ((point.Z - path[0].Z) * forwardZ);
+            first = Math.Clamp((int)MathF.Floor(along / Step) - 2, 0, path.Length - 2);
+            last = Math.Clamp((int)MathF.Floor(along / Step) + 2, 0, path.Length - 2);
+        }
+
+        float centreY = point.Y;
+        for (int s = first; s <= last; s++)
+        {
+            Vector3 a = path[s] * scale, b = path[s + 1] * scale;
+            Vector3 ab = b - a;
+            float t = Math.Clamp(Vector3.Dot(p - a, ab) / Math.Max(1e-6f, ab.LengthSquared()), 0f, 1f);
+            Vector3 on = a + (ab * t);
+            float d = Vector3.DistanceSquared(p, on);
+            if (d < nearest)
+            {
+                nearest = d;
+                centreY = on.Y;
+            }
+        }
+
+        // The wall is rock, not a bore: its distance wanders by a smooth noise a few metres across, worked out only near the
+        // wall (deeper in the rock the distance is all a chunk needs, and the noise is most of a tendril chunk's cost). The
+        // floor stays smooth, so the slope can be walked up as well as down (R10889-1): a lip in it is climbed only by a jump.
+        float open = halfHeight - MathF.Sqrt(nearest);
+        if (open < -(Roughness + NoiseMargin))
+        {
+            return open;
+        }
+
+        float floorward = Math.Clamp((centreY - point.Y) / halfHeight, 0f, 1f);
+        float walls = open + (Roughness * (1f - floorward) * Noise(point * RoughnessFrequency));
+        // A level floor across the section, following the slope: a round section's lower curve is too steep to stand on
+        // where the walk climbs the inside of a bend (the controller's steep-slope solver gives up there, R10889-1).
+        return MathF.Min(walls, point.Y - (centreY - CavePlacement.TendrilFloorBelowCentre));
+    }
+
+    /// <summary>How far apart a run's path points are, in metres (the placement's tendril step).</summary>
+    private const float Step = 2f;
+
+    /// <summary>How far the tendril's wall wanders in and out, in metres, and how often (per metre).</summary>
+    private const float Roughness = 0.45f, RoughnessFrequency = 0.3f;
+
+    /// <summary>Past this far into the rock beyond the wall's wander, the noise cannot bring the wall nearer than the chunk cares.</summary>
+    private const float NoiseMargin = 2f;
+
+    /// <summary>A smooth value noise in -1..1, a pure function of the point and the tendril's salt.</summary>
+    private float Noise(Vector3 p)
+    {
+        int x0 = (int)MathF.Floor(p.X), y0 = (int)MathF.Floor(p.Y), z0 = (int)MathF.Floor(p.Z);
+        float fx = p.X - x0, fy = p.Y - y0, fz = p.Z - z0;
+        fx = fx * fx * (3f - (2f * fx));
+        fy = fy * fy * (3f - (2f * fy));
+        fz = fz * fz * (3f - (2f * fz));
+        ulong s = salt;
+        float Corner(int dx, int dy, int dz) =>
+            (CavePlacement.Mix(s ^ ((ulong)(x0 + dx) * 0x27D4_EB2F_1656_67C5UL) ^ ((ulong)(y0 + dy) * 0x1656_67B1_9E37_79F9UL) ^ ((ulong)(z0 + dz) * 0xC2B2_AE3D_27D4_EB4FUL)) & 0xFFFF) / 32767.5f - 1f;
+        float Lerp(float a, float b, float t) => a + ((b - a) * t);
+        float x00 = Lerp(Corner(0, 0, 0), Corner(1, 0, 0), fx), x10 = Lerp(Corner(0, 1, 0), Corner(1, 1, 0), fx);
+        float x01 = Lerp(Corner(0, 0, 1), Corner(1, 0, 1), fx), x11 = Lerp(Corner(0, 1, 1), Corner(1, 1, 1), fx);
+        return Lerp(Lerp(x00, x10, fy), Lerp(x01, x11, fy), fz);
+    }
+}
+
+/// <summary>A planned system's box at runtime (#11219): the system, the box, and the key its placement goes by.</summary>
+internal sealed record PlannedBox(UndergroundSystem System, UndergroundBox Box)
+{
+    /// <summary>A placement key no landmark cell reaches (they lie within a few thousand cells of the origin).</summary>
+    internal long KeyX => PlannedKeyBase + (long)(System.Seed & 0xFFFF_FFFFUL);
+    internal long KeyZ => Box.Index;
+
+    private const long PlannedKeyBase = 1L << 40;
 }
 
 /// <summary>
@@ -336,6 +425,32 @@ internal sealed class CaveUnderground
 
     // The caves admitted so far, swapped whole so a reader on any thread sees one consistent set.
     private volatile IReadOnlyDictionary<(long X, long Z), CaveInterior> admitted = new Dictionary<(long X, long Z), CaveInterior>();
+
+    // The planned systems' boxes the walking session holds (#11219), swapped whole likewise.
+    private volatile IReadOnlyList<CavePlacement> planned = [];
+
+    /// <summary>The planned systems' boxes held so far (#11219).</summary>
+    internal IReadOnlyList<CavePlacement> Planned => planned;
+
+    /// <summary>
+    /// Holds a planned system's boxes from now on (#11219): their tendrils carve the overworld, and a landmark cave mouth
+    /// whose way would crowd one of them has none (the plan's system takes its place). Returns the chunks this changes: the
+    /// new tendrils', and the tendrils and boxes of the landmark caves that gave way.
+    /// </summary>
+    internal (Func<TerrainChunkAddress, bool> Changed, IReadOnlyList<CavePlacement> GaveWay) Hold(IReadOnlyList<CavePlacement> boxes)
+    {
+        if (boxes.Count == 0 || boxes.Any(b => !b.IsPlanned))
+        {
+            throw new ArgumentException("Only planned boxes are held this way.", nameof(boxes));
+        }
+
+        CavePlacement[] gaveWay = [.. placed.Values.OfType<CavePlacement>().Where(landmark => boxes.Any(landmark.Crowds))];
+        planned = [.. planned, .. boxes];
+        placed.Clear();
+        nearChunk.Clear();
+        Revision++;
+        return (chunk => boxes.Any(b => b.ChunkTouchesTendril(chunk)) || gaveWay.Any(g => g.ChunkTouchesTendril(chunk) || g.ChunkTouchesBox(chunk)), gaveWay);
+    }
 
     internal CaveUnderground(PoiPlacement pois, long radius)
     {
@@ -364,6 +479,12 @@ internal sealed class CaveUnderground
                 return null;
             }
 
+            // A mouth whose way would crowd a planned box (#11219) has none: the plan's system takes its place.
+            if (planned.Any(candidate.Crowds))
+            {
+                return null;
+            }
+
             // A mouth whose way would crowd an earlier mouth's (by anchor cell) has none: the earlier keeps its cave.
             foreach (PoiSite other in SitesNear(candidate.Site.X, candidate.Site.Z, Reach * 2))
             {
@@ -387,6 +508,14 @@ internal sealed class CaveUnderground
             if (For(site) is CavePlacement cave && (cave.BoxTouches(xMin, xMax, zMin, zMax) || cave.TendrilTouches(xMin, xMax, zMin, zMax)))
             {
                 found.Add(cave);
+            }
+        }
+
+        foreach (CavePlacement box in planned)
+        {
+            if (box.BoxTouches(xMin, xMax, zMin, zMax) || box.TendrilTouches(xMin, xMax, zMin, zMax))
+            {
+                found.Add(box);
             }
         }
 

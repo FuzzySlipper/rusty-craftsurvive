@@ -263,6 +263,9 @@ internal sealed record UndergroundSystem(
     /// <summary>The ground along the system's main axis, for its side-on section.</summary>
     internal UndergroundSection? Section { get; init; }
 
+    /// <summary>Whether boxes were cut because they came too near a higher-ranked neighbour's (#11219).</summary>
+    internal bool CutForOverlap { get; init; }
+
     /// <summary>Lowest box floor (world Y).</summary>
     internal double FloorY => Boxes.Min(b => b.OriginY);
 
@@ -286,8 +289,11 @@ internal sealed record UndergroundTilePlan(
     IReadOnlyList<UndergroundSystem> Systems,
     UndergroundTileGrid? FieldGrid)
 {
-    /// <summary>Systems a box overlap with an earlier system kept out (round 3 census).</summary>
+    /// <summary>Sites whose system went entirely, its head box overlapping a higher-ranked neighbour's (#11219).</summary>
     internal int RejectedForOverlap { get; init; }
+
+    /// <summary>Systems that lost boxes to a higher-ranked neighbour's (#11219).</summary>
+    internal int CutForOverlap { get; init; }
 }
 
 /// <summary>
@@ -489,7 +495,7 @@ internal static class UndergroundPlan
         return Math.Max(0.0, here - Math.Max(GenerationConstants.WaterLevel, lowest));
     }
 
-    private readonly record struct Candidate(
+    internal readonly record struct Candidate(
         long CellX,
         long CellZ,
         double Priority,
@@ -505,12 +511,19 @@ internal static class UndergroundPlan
     /// <summary>
     /// Builds the deterministic underground plan for one 16 km region tile (<paramref name="tileX"/>, <paramref name="tileZ"/>).
     /// Pure function of its arguments. <paramref name="groundAt"/> gives the ground boxes are buried under and mouths open
-    /// onto; null takes the continent's smooth ground.
+    /// onto; null takes the continent's smooth ground. A caller building many tiles shares one <see cref="UndergroundPlanner"/>.
     /// </summary>
     internal static UndergroundTilePlan BuildTile(WorldMap continent, int tileX, int tileZ, UndergroundCoarseness coarseness,
-        Func<double, double, double>? groundAt = null)
+        Func<double, double, double>? groundAt = null) =>
+        new UndergroundPlanner(continent, coarseness, groundAt).BuildTile(tileX, tileZ);
+
+    /// <summary>
+    /// A region tile's skeleton (#11219): which candidate sites become systems, their ids and ranks, decided on the continent's
+    /// smooth ground alone (no walked ground, no region tiles), so it is cheap enough to compute where the player is.
+    /// The systems' geometry is built from it, one at a time, by <see cref="UndergroundPlanner"/>.
+    /// </summary>
+    internal static UndergroundSkeleton Skeleton(WorldMap continent, int tileX, int tileZ, UndergroundCoarseness coarseness)
     {
-        Func<double, double, double> ground = groundAt ?? ((x, z) => continent.Broad(x, z).Elevation);
         double half = MapRegions.TileSpacing * 0.5;
         (double centreX, double centreZ) = MapRegions.Centre((tileX, tileZ));
         double minX = centreX - half;
@@ -596,42 +609,26 @@ internal static class UndergroundPlan
             }
         }
 
-        static int ByRank(Candidate a, Candidate b)
-        {
-            int cmp = b.Priority.CompareTo(a.Priority);
-            if (cmp != 0) return cmp;
-            cmp = a.CellX.CompareTo(b.CellX);
-            return cmp != 0 ? cmp : a.CellZ.CompareTo(b.CellZ);
-        }
-
         candidates.Sort(ByRank);
         double minSepSq = (double)coarseness.MinSystemSeparationMetres * coarseness.MinSystemSeparationMetres;
         List<(double X, double Z)> accepted = [];
-        List<UndergroundBox> claimed = [];
-        List<UndergroundSystem> systems = [];
-        int rejectedOverlap = 0;
-
-        bool TooClose(Candidate c) => accepted.Any(a => ((a.X - c.X) * (a.X - c.X)) + ((a.Z - c.Z) * (a.Z - c.Z)) < minSepSq);
+        List<UndergroundSite> sites = [];
 
         bool TryPlace(Candidate c, bool fromFloor)
         {
-            if (TooClose(c)) return false;
-            ulong systemSeed = TerrainRecipe.CoordinateHash(baseSeed ^ GrowthSalt ^ presetSalt, c.CellX, c.CellZ);
-            string id = $"ug:{coarseness.Name}:{tileX}:{tileZ}:{systems.Count}";
-            UndergroundSystem system = BuildSystem(id, tileX, tileZ, systemSeed, c, continent, bound, ground, coarseness) with { FromRegionalFloor = fromFloor };
-            if (system.Boxes.Any(b => claimed.Any(o => Overlaps(b, o))))
+            if (accepted.Any(a => ((a.X - c.X) * (a.X - c.X)) + ((a.Z - c.Z) * (a.Z - c.Z)) < minSepSq)) return false;
+            accepted.Add((c.X, c.Z));
+            if (c.InTile)
             {
-                if (c.InTile) rejectedOverlap++;
-                return false;
+                ulong systemSeed = TerrainRecipe.CoordinateHash(baseSeed ^ GrowthSalt ^ presetSalt, c.CellX, c.CellZ);
+                sites.Add(new UndergroundSite($"ug:{coarseness.Name}:{tileX}:{tileZ}:{sites.Count}", tileX, tileZ, systemSeed, c, fromFloor));
             }
 
-            accepted.Add((c.X, c.Z));
-            claimed.AddRange(system.Boxes);
-            if (c.InTile) systems.Add(system);
             return true;
         }
 
-        // The roll first, in rank order across the tile and its ring.
+        // The roll first, in rank order across the tile and its ring; separation alone decides (#11219: a box overlapping a
+        // higher-ranked neighbour's is cut when the system is built, so no walked ground is needed here).
         foreach (Candidate c in candidates)
         {
             if (c.Rolled) TryPlace(c, fromFloor: false);
@@ -642,7 +639,7 @@ internal static class UndergroundPlan
         foreach ((MapBiome biome, double area) in karstAreaKm2.OrderBy(p => p.Key))
         {
             int floor = Math.Min(FloorAtMostPerBiome, (int)Math.Floor(area / FloorKarstAreaPerSystemKm2));
-            int have = systems.Count(s => s.Biome == biome);
+            int have = sites.Count(s => s.Candidate.Biome == biome);
             foreach (Candidate c in candidates)
             {
                 if (have >= floor) break;
@@ -655,10 +652,75 @@ internal static class UndergroundPlan
             ? new UndergroundTileGrid(cells, spacing, gridSolubility!, gridWaterTable!, gridDepthBand!)
             : null;
 
-        return new UndergroundTilePlan(tileX, tileZ, coarseness.Name, systems, fieldGrid) { RejectedForOverlap = rejectedOverlap };
+        return new UndergroundSkeleton(tileX, tileZ, coarseness.Name, sites, fieldGrid);
     }
 
-    private static bool Overlaps(UndergroundBox a, UndergroundBox b) =>
+    /// <summary>Whether one candidate ranks before another: more limestone and relief first, then by cell.</summary>
+    internal static int ByRank(Candidate a, Candidate b)
+    {
+        int cmp = b.Priority.CompareTo(a.Priority);
+        if (cmp != 0) return cmp;
+        cmp = a.CellX.CompareTo(b.CellX);
+        return cmp != 0 ? cmp : a.CellZ.CompareTo(b.CellZ);
+    }
+
+    /// <summary>
+    /// A system's geometry cut back against higher-ranked neighbours (#11219): the boxes that come within
+    /// <see cref="BoxApartMetres"/> of a neighbour's (uncut) boxes go, then any box no longer joined to the top level's first
+    /// box. Null when that box itself goes. Links, mouths and big spaces of a box that went go with it.
+    /// </summary>
+    internal static UndergroundSystem? CutBack(UndergroundSystem system, IEnumerable<UndergroundBox> taken, out bool cut)
+    {
+        UndergroundBox[] others = [.. taken];
+        HashSet<int> gone = [.. system.Boxes.Where(b => others.Any(o => Overlaps(b, o))).Select(b => b.Index)];
+        cut = gone.Count > 0;
+        if (!cut) return system;
+        int topLevel = system.Boxes.Max(b => b.GridY);
+        UndergroundBox head = system.Boxes.Where(b => b.GridY == topLevel).OrderBy(b => Math.Abs(b.GridX) + Math.Abs(b.GridZ)).First();
+        if (gone.Contains(head.Index)) return null;
+
+        // What stays joined to the head through links between boxes that stay.
+        HashSet<int> joined = [head.Index];
+        Queue<int> frontier = new([head.Index]);
+        while (frontier.TryDequeue(out int at))
+        {
+            foreach (UndergroundLink l in system.Links)
+            {
+                int other = l.FromBox == at ? l.ToBox : l.ToBox == at ? l.FromBox : -1;
+                if (other >= 0 && !gone.Contains(other) && joined.Add(other)) frontier.Enqueue(other);
+            }
+        }
+
+        int[] map = new int[system.Boxes.Count];
+        List<UndergroundBox> boxes = [];
+        foreach (UndergroundBox b in system.Boxes)
+        {
+            map[b.Index] = joined.Contains(b.Index) ? boxes.Count : -1;
+            if (map[b.Index] >= 0) boxes.Add(b with { Index = boxes.Count });
+        }
+
+        return system with
+        {
+            Boxes = boxes,
+            Links = [.. system.Links.Where(l => map[l.FromBox] >= 0 && map[l.ToBox] >= 0).Select(l => l with { FromBox = map[l.FromBox], ToBox = map[l.ToBox] })],
+            Mouths = [.. system.Mouths.Where(m => map[m.BoxIndex] >= 0).Select(m => m with { BoxIndex = map[m.BoxIndex] })],
+            BigSpaces = [.. system.BigSpaces.Where(b => map[b.BoxIndex] >= 0).Select(b => b with { BoxIndex = map[b.BoxIndex] })],
+            MaxDepthMetres = boxes.Max(b => b.GroundElevation - (float)b.OriginY),
+            Levels = boxes.Select(b => b.GridY).Distinct().Count(),
+            ReachesBaseLevel = system.ReachesBaseLevel && boxes.Any(b => b.GridY == 0),
+            CutForOverlap = true,
+        };
+    }
+
+    /// <summary>The farthest a system's boxes can lie from its anchor: its whole box budget in a line, plus the gap kept.</summary>
+    internal static double ReachMetres(UndergroundCoarseness coarseness) =>
+        (coarseness.MaxBoxesPerSystem + 1) * Math.Max(coarseness.BoxMetresX, coarseness.BoxMetresZ) + BoxApartMetres;
+
+    /// <summary>Builds one site's system, uncut (the planner caches it and cuts it back).</summary>
+    internal static UndergroundSystem BuildSite(UndergroundSite site, WorldMap continent, FrontierBound? bound, Func<double, double, double> ground, UndergroundCoarseness coarseness) =>
+        BuildSystem(site.Id, site.TileX, site.TileZ, site.Seed, site.Candidate, continent, bound, ground, coarseness) with { FromRegionalFloor = site.FromFloor };
+
+    internal static bool Overlaps(UndergroundBox a, UndergroundBox b) =>
         a.OriginX < b.OriginX + (b.ChunksX * 16) + BoxApartMetres && b.OriginX < a.OriginX + (a.ChunksX * 16) + BoxApartMetres
         && a.OriginZ < b.OriginZ + (b.ChunksZ * 16) + BoxApartMetres && b.OriginZ < a.OriginZ + (a.ChunksZ * 16) + BoxApartMetres
         && a.OriginY < b.TopY + BoxApartMetres && b.OriginY < a.TopY + BoxApartMetres;
@@ -779,7 +841,8 @@ internal static class UndergroundPlan
             levels = Math.Clamp((int)Math.Floor((g0 - BoxCoverMetres - level0Y) / by), 1, coarseness.MaxLevels);
         }
 
-        level0Y = MathF.Round(level0Y, 1);
+        // Whole metres, so stacked boxes meet on a voxel boundary: a fractional seam leaves a voxel layer in neither box (#11219).
+        level0Y = MathF.Round(level0Y);
         float LevelY(int k) => level0Y + (k * by);
 
         // Whether a box at column c of level k is buried: its cover over the footprint, and a little over the face toward the valley.
@@ -1265,3 +1328,109 @@ internal static class UndergroundPlan
         return h;
     }
 }
+
+/// <summary>A site chosen to hold a system (#11219): its id, tile, seed and rank, from a tile's skeleton.</summary>
+internal sealed record UndergroundSite(string Id, int TileX, int TileZ, ulong Seed, UndergroundPlan.Candidate Candidate, bool FromFloor)
+{
+    internal double X => Candidate.X;
+    internal double Z => Candidate.Z;
+}
+
+/// <summary>A region tile's sites, decided on the continent's smooth ground (#11219), and its optional field grid.</summary>
+internal sealed record UndergroundSkeleton(int TileX, int TileZ, string CoarsenessName, IReadOnlyList<UndergroundSite> Sites, UndergroundTileGrid? FieldGrid);
+
+/// <summary>
+/// The underground plan built on demand (#11219), as the region tiles are: a tile's skeleton is cheap (the continent's smooth
+/// ground) and kept; a system's geometry is built only when asked for, on the caller's ground, and cut back against its
+/// higher-ranked neighbours' uncut geometry, so building one system needs only the ground about it and its neighbours, never
+/// a whole tile and its ring. Deterministic: the same system whatever is asked first. Safe to share across threads.
+/// </summary>
+internal sealed class UndergroundPlanner
+{
+    private readonly WorldMap continent;
+    private readonly FrontierBound? bound;
+    private readonly Func<double, double, double> ground;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(int X, int Z), Lazy<UndergroundSkeleton>> skeletons = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<UndergroundSystem>> uncut = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<(UndergroundSystem? System, bool Cut)>> built = new();
+
+    internal UndergroundPlanner(WorldMap continent, UndergroundCoarseness coarseness, Func<double, double, double>? groundAt = null)
+    {
+        this.continent = continent ?? throw new ArgumentNullException(nameof(continent));
+        Coarseness = coarseness ?? throw new ArgumentNullException(nameof(coarseness));
+        ground = groundAt ?? ((x, z) => continent.Broad(x, z).Elevation);
+        bound = FrontierBound.For(continent);
+    }
+
+    internal UndergroundCoarseness Coarseness { get; }
+
+    /// <summary>Skeletons and systems built so far (the cost readout).</summary>
+    internal (int Skeletons, int Uncut, int Built) Counts => (skeletons.Count, uncut.Count, built.Count);
+
+    internal UndergroundSkeleton Skeleton(int tileX, int tileZ) =>
+        skeletons.GetOrAdd((tileX, tileZ), key => new Lazy<UndergroundSkeleton>(() => UndergroundPlan.Skeleton(continent, key.X, key.Z, Coarseness))).Value;
+
+    /// <summary>The sites whose anchors lie within a reach of a point, over every tile the reach touches.</summary>
+    internal IEnumerable<UndergroundSite> SitesNear(double x, double z, double reach)
+    {
+        (int x0, int z0) = MapRegions.TileAt(x - reach, z - reach);
+        (int x1, int z1) = MapRegions.TileAt(x + reach, z + reach);
+        for (int tz = z0; tz <= z1; tz++)
+        for (int tx = x0; tx <= x1; tx++)
+        {
+            foreach (UndergroundSite site in Skeleton(tx, tz).Sites)
+            {
+                if (((site.X - x) * (site.X - x)) + ((site.Z - z) * (site.Z - z)) <= reach * reach) yield return site;
+            }
+        }
+    }
+
+    /// <summary>A site by its system's id (ug:level:tx:tz:index), or null.</summary>
+    internal UndergroundSite? Site(string id)
+    {
+        string[] parts = id.Split(':');
+        if (parts.Length != 5 || parts[0] != "ug" || parts[1] != Coarseness.Name
+            || !int.TryParse(parts[2], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int tx)
+            || !int.TryParse(parts[3], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int tz))
+        {
+            return null;
+        }
+
+        return Skeleton(tx, tz).Sites.FirstOrDefault(s => s.Id == id);
+    }
+
+    private UndergroundSystem Uncut(UndergroundSite site) =>
+        uncut.GetOrAdd(site.Id, _ => new Lazy<UndergroundSystem>(() => UndergroundPlan.BuildSite(site, continent, bound, ground, Coarseness))).Value;
+
+    /// <summary>A site's system, cut back against its higher-ranked neighbours; null when its head box would overlap one.</summary>
+    internal UndergroundSystem? SystemAt(UndergroundSite site) => Build(site).System;
+
+    private (UndergroundSystem? System, bool Cut) Build(UndergroundSite site) =>
+        built.GetOrAdd(site.Id, _ => new Lazy<(UndergroundSystem?, bool)>(() =>
+        {
+            double reach = UndergroundPlan.ReachMetres(Coarseness) * 2;
+            IEnumerable<UndergroundBox> taken = SitesNear(site.X, site.Z, reach)
+                .Where(n => n.Id != site.Id && UndergroundPlan.ByRank(n.Candidate, site.Candidate) < 0)
+                .SelectMany(n => Uncut(n).Boxes);
+            UndergroundSystem? system = UndergroundPlan.CutBack(Uncut(site), taken, out bool cut);
+            return (system, cut);
+        })).Value;
+
+    /// <summary>A tile's plan: every site's system, cut back, in id order.</summary>
+    internal UndergroundTilePlan BuildTile(int tileX, int tileZ)
+    {
+        UndergroundSkeleton skeleton = Skeleton(tileX, tileZ);
+        List<UndergroundSystem> systems = [];
+        int dropped = 0, cut = 0;
+        foreach (UndergroundSite site in skeleton.Sites)
+        {
+            (UndergroundSystem? system, bool wasCut) = Build(site);
+            if (system is null) { dropped++; continue; }
+            if (wasCut) cut++;
+            systems.Add(system);
+        }
+
+        return new UndergroundTilePlan(tileX, tileZ, Coarseness.Name, systems, skeleton.FieldGrid) { RejectedForOverlap = dropped, CutForOverlap = cut };
+    }
+}
+

@@ -39,7 +39,7 @@ internal sealed partial class DungeonModule
         }
 
         CavePlacement cave = old.Cave;
-        if (old == dressedCave) Undress();
+        Undress(old);
         if (old.Ready is not null)
         {
             terrain.ReleaseCave(cave);

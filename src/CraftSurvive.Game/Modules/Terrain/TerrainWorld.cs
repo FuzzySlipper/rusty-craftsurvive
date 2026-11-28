@@ -110,6 +110,19 @@ internal sealed class TerrainWorld : IDisposable
         streamer.MarkStale(changed);
     }
 
+    /// <summary>
+    /// Holds a planned system's boxes from now on (#11219): their mouths' tendrils carve the overworld, and the landmark caves
+    /// whose ways would crowd them give way; the chunks that changes are generated again. Returns the landmark caves that gave
+    /// way, so whoever admitted one lets it go.
+    /// </summary>
+    internal IReadOnlyList<WorldGen.CavePlacement> HoldPlanned(IReadOnlyList<WorldGen.CavePlacement> boxes)
+    {
+        (Func<TerrainChunkAddress, bool> changed, IReadOnlyList<WorldGen.CavePlacement> gaveWay) = recipe.Caves.Hold(boxes);
+        policy.Forget(changed);
+        streamer.MarkStale(changed);
+        return gaveWay;
+    }
+
     /// <summary>Lets a cave go (#10889): its box is rock again.</summary>
     internal void ReleaseCave(WorldGen.CavePlacement cave)
     {

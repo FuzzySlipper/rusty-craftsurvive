@@ -88,8 +88,9 @@ internal static class UnderCaves
 
         // The way down from the tendril's end past the cave's first sink (R10889-3): a ramp the player walks back up, and the
         // route starting with it.
-        Vector3[] lead = [.. cave.Path.Select(cave.ToCanonical).Where(p => p.X >= 0f && p.X < volume.SizeX && p.Z >= 0f && p.Z < volume.SizeZ && p.Y >= 0f && p.Y < volume.SizeY)];
-        CaveWayDown.Carved? down = CaveWayDown.Carve(volume.SizeX, volume.SizeY, volume.SizeZ, materials, densities, lead.Length > 0 ? lead : [cave.ToCanonical(cave.Path[^1])],
+        // A planned box (#11219) is entered through its ports and its sinkhole's way in, which the generator made walkable.
+        Vector3[] lead = cave.IsPlanned ? [] : [.. cave.Path.Select(cave.ToCanonical).Where(p => p.X >= 0f && p.X < volume.SizeX && p.Z >= 0f && p.Z < volume.SizeZ && p.Y >= 0f && p.Y < volume.SizeY)];
+        CaveWayDown.Carved? down = cave.IsPlanned ? null : CaveWayDown.Carve(volume.SizeX, volume.SizeY, volume.SizeZ, materials, densities, lead.Length > 0 ? lead : [cave.ToCanonical(cave.Path[^1])],
             candidate.Layout.MainRoute, CavePlacement.TendrilHalfWidth, CavePlacement.TendrilHalfHeight, CavePlacement.TendrilFloorBelowCentre,
             TerrainConstants.EmptyMaterial, (ushort)BlockId.CaveLimestone);
         foreach (int at in down?.Opened ?? [])

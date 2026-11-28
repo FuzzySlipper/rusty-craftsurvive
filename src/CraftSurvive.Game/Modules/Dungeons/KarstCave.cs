@@ -4065,6 +4065,10 @@ private static int MostBarrensPieces => Area(400);
         /// <summary>The planned ports' required routes and what was carved for them (#11209 round 3); empty without ports.</summary>
         internal IReadOnlyList<PortRoute> PortRoutes { get; init; } = [];
 
+        /// <summary>The planned ports' required routes' ways (#11219): start, end and path, by route name; empty without ports.</summary>
+        internal IReadOnlyDictionary<string, (Vector3 From, Vector3 To, IReadOnlyList<Vector3> Path)> PortPaths { get; init; } =
+            new Dictionary<string, (Vector3, Vector3, IReadOnlyList<Vector3>)>();
+
         /// <summary>How much daylight reaches a place (#10305), 0 to 1.</summary>
         internal float DaylightAt(Vector3 p) => GridTrilinear(Daylight, p, Box);
 
@@ -4460,6 +4464,7 @@ private static int MostBarrensPieces => Area(400);
             Drips = drips,
             Communities = cave.Communities,
             MainRoute = cave.MainRoute,
+            PortRoutes = cave.PortPaths,
             FungalPockets = cave.FungalPockets,
             RuinMouth = ruin?.Mouth,
             RuinSize = ruin?.Size,
@@ -4733,16 +4738,19 @@ private static int MostBarrensPieces => Area(400);
         if (run.BoundaryPorts is { Count: > 0 } portRoutes)
         {
             float sizeX = FieldX * FieldStep, sizeY = FieldY * FieldStep, sizeZ = FieldZ * FieldStep;
-            // Join ports only to start/spring and already-joined ports (never to an unreachable sink).
-            List<Vector3> portJoined = [start, spring];
+            // The ports join each other (#11219): the one nearest the way in or the spring joins it, then each other port the
+            // nearest port already joined (never a sink that may be out of reach). A way between two ports then runs between
+            // them, not down to the spring at the water table and back up (round 3 joined every port to the way in or spring).
+            List<Vector3> portJoined = [];
             List<BoundaryPort> pendingPorts = [.. portRoutes];
             while (pendingPorts.Count > 0)
             {
+                Vector3[] joinable = portJoined.Count == 0 ? [start, spring] : [.. portJoined];
                 (BoundaryPort port, Vector3 at, Vector3 from) = pendingPorts
                     .SelectMany(p =>
                     {
                         Vector3 anchor = p.AnchorPoint(sizeX, sizeY, sizeZ);
-                        return portJoined.Select(j => (Port: p, At: anchor, From: j));
+                        return joinable.Select(j => (Port: p, At: anchor, From: j));
                     })
                     .MinBy(e => Vector3.DistanceSquared(e.At, e.From));
                 routes.Add(($"port:{port.Label}", from, at));
@@ -4820,6 +4828,7 @@ private static int MostBarrensPieces => Area(400);
 
         Mark("passages-clearance");
         List<PortRoute> portReport = [];
+        Dictionary<string, (Vector3 From, Vector3 To, IReadOnlyList<Vector3> Path)> portPaths = [];
         for (int r = 0; r < routes.Count; r++)
         {
             (string name, Vector3 from, Vector3 to) = routes[r];
@@ -4829,6 +4838,7 @@ private static int MostBarrensPieces => Area(400);
             {
                 string label = name.StartsWith("port:", StringComparison.Ordinal) ? name["port:".Length..] : name;
                 portReport.Add(new PortRoute(name, widened[r].Before, widened[r].Widened, anchorTubes.GetValueOrDefault(label), pocketConnector[r], standFallback[r], passage.After));
+                portPaths[name] = (from, to, [.. path.Where((_, i) => i % 2 == 0).Select(FieldCentre)]);
             }
             routePaths.Add(path);
             if (name == "spring")
@@ -5082,6 +5092,7 @@ private static int MostBarrensPieces => Area(400);
             Daylight = daylight,
             FungalPockets = pockets,
             PortRoutes = portReport,
+            PortPaths = portPaths,
             Spring = spring,
             Chambers = [.. chambers],
             MainRoute = mainRoute,

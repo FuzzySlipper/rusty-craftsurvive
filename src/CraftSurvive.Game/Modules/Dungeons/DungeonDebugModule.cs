@@ -25,6 +25,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.cave.walk", Description = "Assisted, for captures (#10889): moves the player this many metres on along the chosen cave's way in - down its tendril, then its main route once the cave is ready - facing the way on; negative walks back out.")]
     public string CaveWalk(float metres) => dungeons.CaveWalk(metres);
 
+    [DebugCommand("craft.cave.plan", Description = "Assisted, for the planned-system walk (#11219): status; goto:<mouth> stands the player outside that mouth of the planned system (first moving to its region so it is built); way:<entry>:<exit> lays the way between two side mouths through its boxes, which craft.cave.steer then follows on held input.")]
+    public string CavePlan(string command) => dungeons.Plan(command);
+
     [DebugCommand("craft.cave.steer", Description = "Assisted, for a walk on the player's own input (#10889): in turns the view each update toward the chosen cave's way a few metres on (down the tendril, then the main route), out back toward the mouth, off stops; held keys do the walking through the ordinary controller.")]
     public string CaveSteer(string mode) => dungeons.CaveSteer(mode);
 

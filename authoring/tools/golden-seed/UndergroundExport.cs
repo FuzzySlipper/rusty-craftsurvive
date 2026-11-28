@@ -145,12 +145,14 @@ internal static class UndergroundExport
         // A row of tiles at a time, so the region tiles the walked ground needs stay built (each reaches into its neighbours).
         Stopwatch generateWall = Stopwatch.StartNew();
         int side = (tileHalf * 2) + 1;
+        // One planner for the level: tiles share their neighbours' skeletons and uncut systems (#11219).
+        UndergroundPlanner planner = new(map, preset, groundAt);
         for (int row = 0; row < side; row++)
         {
             Parallel.For(row * side, (row + 1) * side, new ParallelOptions { MaxDegreeOfParallelism = workers }, i =>
             {
                 long t0 = Stopwatch.GetTimestamp();
-                built[i] = UndergroundPlan.BuildTile(map, tiles[i].X, tiles[i].Z, preset, groundAt);
+                built[i] = planner.BuildTile(tiles[i].X, tiles[i].Z);
                 tileMs[i] = Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
             });
         }
@@ -179,6 +181,7 @@ internal static class UndergroundExport
             double ms = tileMs[i];
             if (ms > maxTileMs) maxTileMs = ms;
             census.RejectedForOverlap += tile.RejectedForOverlap;
+            census.CutForOverlap += tile.CutForOverlap;
             bool hasData = tile.Systems.Count > 0;
             if (hasData)
             {
@@ -777,6 +780,7 @@ internal static class UndergroundExport
         internal int FromFloor;
         internal int ReachesBase;
         internal int RejectedForOverlap;
+        internal int CutForOverlap;
         internal int OverlapPairs;
         internal int FloorClamped;
         internal int MaxBoxes;
@@ -941,6 +945,7 @@ internal static class UndergroundExport
                 ["reachesBaseLevel"] = ReachesBase,
                 ["floorClampedAtWorldFloor"] = FloorClamped,
                 ["rejectedForOverlap"] = RejectedForOverlap,
+                ["cutForOverlap"] = CutForOverlap,
                 ["overlapPairs"] = OverlapPairs,
                 ["boxesHistogram"] = Dict(boxesHistogram),
                 ["levelsHistogram"] = Dict(levelsHistogram),

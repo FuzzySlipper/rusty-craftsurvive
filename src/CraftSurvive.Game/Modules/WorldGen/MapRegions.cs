@@ -199,6 +199,9 @@ internal sealed class MapRegions
     /// <summary>Tiles a consumer had to build on its own thread because no prefetch had built them yet.</summary>
     internal int SynchronousBuilds { get { lock (statsLock) return synchronousBuilds; } }
 
+    /// <summary>How many tiles have been built so far (#11219: what building a planned system cost in region tiles).</summary>
+    internal int Built { get { lock (statsLock) return built; } }
+
     /// <summary>Tiles queued but not yet built.</summary>
     internal int Pending => requested.Count(pair => !IsReady(pair.Key));
 

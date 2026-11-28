@@ -90,6 +90,14 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>A natural cave's main route, from its arrival to its spring (layout metres, along the passages' middles); empty for built dungeons.</summary>
     internal IReadOnlyList<System.Numerics.Vector3> MainRoute { get; init; } = [];
 
+    /// <summary>
+    /// A planned box's required routes (#11219), by name ("spring", "port:L3:2->5", "port:M1"), each from its start to its end
+    /// in the box's metres: the ways the generator made walkable between its way in, its spring and its ports. Empty for a cave
+    /// without ports, and not kept by the cave store.
+    /// </summary>
+    internal IReadOnlyDictionary<string, (System.Numerics.Vector3 From, System.Numerics.Vector3 To, IReadOnlyList<System.Numerics.Vector3> Path)> PortRoutes { get; init; } =
+        new Dictionary<string, (System.Numerics.Vector3, System.Numerics.Vector3, IReadOnlyList<System.Numerics.Vector3>)>();
+
     /// <summary>The stranger communities a natural cave grew (#10304); empty for built dungeons.</summary>
     internal IReadOnlyList<CaveCommunity> Communities { get; init; } = [];
 

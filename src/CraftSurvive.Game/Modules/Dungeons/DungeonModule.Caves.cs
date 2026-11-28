@@ -24,6 +24,12 @@ internal sealed partial class DungeonModule
     /// <summary>How near a cave's box the player comes before it is dressed (its growth, water, ruin kit) and lit.</summary>
     internal const double CaveDressMetres = 96d;
 
+    /// <summary>
+    /// How many boxes are dressed at once (#11219): the one the player is in or nearest and its neighbours, so crossing into a
+    /// planned system's next box finds it dressed. The lights follow the nearest only (their slots are few).
+    /// </summary>
+    internal const int MostDressedCaves = 4;
+
     /// <summary>How far down the player is (0 at the surface, 1 deep) before the lantern is lit.</summary>
     private const double CaveLanternBelow = 0.05d;
 
@@ -46,8 +52,24 @@ internal sealed partial class DungeonModule
 
     private readonly Dictionary<(long X, long Z), UnderCave> underCaves = [];
     private readonly List<PoiSite> caveMouths = [];
+
+    /// <summary>A dressed box (#11219: several at once) and the facts it last gave the snapshot.</summary>
+    private sealed class DressedCave
+    {
+        internal required UnderCave Cave { get; init; }
+        internal required CaveDressing Dressing { get; init; }
+        internal AppearanceFact[] Facts { get; set; } = [];
+        internal int FactsRevision { get; set; } = -1;
+        internal Transform FactsPlace { get; set; }
+        internal Vector3 FactsEye { get; set; } = new(float.NaN);
+    }
+
+    private readonly Dictionary<(long X, long Z), DressedCave> dressings = [];
+
+    // The dressed box the lights follow: the one nearest the player.
     private UnderCave? dressedCave;
-    private CaveDressing? caveDressing;
+
+    private CaveDressing? caveDressing => dressedCave is UnderCave lit && dressings.TryGetValue(lit.Cave.Key, out DressedCave? d) ? d.Dressing : null;
     private Transform caveLitAt = new(new Vector3(float.NaN), Quaternion.Identity, Vector3.One);
     private Vector3? caveProbeCentre;
     private long nextCaveSearchStep;
@@ -70,6 +92,8 @@ internal sealed partial class DungeonModule
 
         if (step.Step >= nextCaveSearchStep)
         {
+            FollowPlannedSystems();
+            AskForPlannedBoxes();
             AskForCaves();
             ReleaseFarCaves();
             nextCaveSearchStep = step.Step + EntranceSearchIntervalSteps;
@@ -123,11 +147,18 @@ internal sealed partial class DungeonModule
         ulong seed = seedOverride ?? DungeonSeed(terrain.SaveIdentity.Seed, cave.Site);
         CaveSetting setting = studySetting ?? terrain.CaveSettingUnder(cave.Site.X, cave.Site.Z);
         KarstCave.Settings settings = UndergroundSettings();
-        string key = string.Create(CultureInfo.InvariantCulture, $"under-{seed:x}-{settings.Key}-{setting.Key}{(afresh ? $"-afresh{++afreshAsks}" : "")}");
+        if (cave.IsPlanned)
+        {
+            // A planned box (#11219): the plan's seed, setting and ports, the same the authoring tools generate it with.
+            (seed, setting, settings) = PlannedGeneration(cave);
+        }
+
+        string key = string.Create(CultureInfo.InvariantCulture, $"{(cave.IsPlanned ? "planned" : "under")}-{seed:x}-{settings.Key}-{setting.Key}{(afresh ? $"-afresh{++afreshAsks}" : "")}");
         ProductContent content = terrain.Content;
         // A cave this world generated before is read from the store (#10888 R10888-2) and decoded off the update; one it
         // never did is generated, prepared and encoded there, and stored once admitted.
-        byte[]? stored = afresh || Generator.Asked(key) ? null : CaveStore.Read(key);
+        // A planned box is generated each session for now (#11219): the store does not keep its port routes.
+        byte[]? stored = afresh || cave.IsPlanned || Generator.Asked(key) ? null : CaveStore.Read(key);
         bool fromStore = stored is not null;
         Generator.Request(key, () =>
         {
@@ -142,9 +173,9 @@ internal sealed partial class DungeonModule
             CaveDressing.Preload(content, ready.Layout);
             return ready with { Encoded = CaveCodec.Encode(ready) };
         });
-        UnderCave asked = new() { Cave = cave, Key = key, Seed = seed, FromStore = fromStore, Afresh = afresh };
+        UnderCave asked = new() { Cave = cave, Key = key, Seed = seed, FromStore = fromStore, Afresh = afresh || cave.IsPlanned };
         underCaves[cave.Key] = asked;
-        lastCave = string.Create(CultureInfo.InvariantCulture, $"asked for the cave under the mouth at {cave.Site.X},{cave.Site.Z}");
+        lastCave = string.Create(CultureInfo.InvariantCulture, $"asked for the cave {CaveName(cave)}");
         return asked;
     }
 
@@ -227,11 +258,7 @@ internal sealed partial class DungeonModule
                 continue;
             }
 
-            if (cave == dressedCave)
-            {
-                Undress();
-            }
-
+            Undress(cave);
             if (cave.Ready is not null)
             {
                 terrain.ReleaseCave(cave.Cave);
@@ -251,75 +278,134 @@ internal sealed partial class DungeonModule
         return Math.Min(box, tendril);
     }
 
-    /// <summary>Dresses the admitted cave nearest the player once they come near it; undresses one they left.</summary>
+    /// <summary>
+    /// Dresses the admitted caves nearest the player once they come near (#11219: up to <see cref="MostDressedCaves"/>, so a
+    /// planned system's next box is dressed before the player crosses into it), undresses those they left, and lights the
+    /// nearest.
+    /// </summary>
     private void DressNearestCave()
     {
         Vector3 feet = player.WorldFeetPosition;
-        UnderCave? nearest = underCaves.Values.Where(c => c.Ready is not null && Distance(c.Cave, feet) <= CaveDressMetres)
-            .OrderBy(c => Distance(c.Cave, feet)).FirstOrDefault();
-        if (nearest == dressedCave)
+        UnderCave[] near = [.. underCaves.Values.Where(c => c.Ready is not null && Distance(c.Cave, feet) <= CaveDressMetres)
+            .OrderBy(c => DistanceIn(c.Cave, feet)).Take(MostDressedCaves)];
+        bool changed = false;
+        foreach ((long, long) key in dressings.Keys.Where(k => near.All(c => c.Cave.Key != k)).ToArray())
         {
-            return;
+            Undress(dressings[key].Cave);
+            changed = true;
         }
 
-        Undress();
-        if (nearest?.Ready is not UndergroundCave ready)
+        foreach (UnderCave cave in near)
         {
-            return;
+            if (dressings.ContainsKey(cave.Cave.Key) || cave.Ready is not UndergroundCave ready)
+            {
+                continue;
+            }
+
+            // Built a part an update (DressingAdvance), so dressing a cave never takes one update's whole frame.
+            dressings[cave.Cave.Key] = new DressedCave { Cave = cave, Dressing = new CaveDressing(engine, terrain, ready.Layout, kitDrawn: true, kitLook, kitPaint, StoneShader) };
+            changed = true;
         }
 
-        DungeonLayout layout = ready.Layout;
-        // Built a part an update (DressingAdvance), so dressing a cave never takes one update's whole frame.
-        caveDressing = new CaveDressing(engine, terrain, layout, kitDrawn: true, kitLook, kitPaint, StoneShader);
-        dressedCave = nearest;
-        caveLitAt = new Transform(new Vector3(float.NaN), Quaternion.Identity, Vector3.One);
-        player.CaveWater = StillWater(layout.WaterZones, nearest.Cave, terrain.Frame);
+        UnderCave? lit = near.FirstOrDefault();
+        if (lit != dressedCave)
+        {
+            GrowthLights([]);
+            RelicLights([]);
+            dressedCave = lit;
+            caveLitAt = new Transform(new Vector3(float.NaN), Quaternion.Identity, Vector3.One);
+        }
+
+        if (changed)
+        {
+            // The swim probe's still water: any dressed cave's lake or pool the player stands in.
+            Func<Vector3, (float Surface, float Bed)?>[] waters = [.. dressings.Values
+                .Select(d => d.Cave.Ready is UndergroundCave r ? StillWater(r.Layout.WaterZones, d.Cave.Cave, terrain.Frame) : null)
+                .OfType<Func<Vector3, (float Surface, float Bed)?>>()];
+            player.CaveWater = waters.Length == 0 ? null : local => waters.Select(w => w(local)).FirstOrDefault(found => found is not null);
+            ComposeCaveCollision();
+        }
     }
 
-    /// <summary>Builds the next part of the dressed cave's dressing; once its kit is built, it joins the walking session's collision.</summary>
+    /// <summary>How far a point is from a cave's box in all three axes (0 inside): which dressed box the player is in.</summary>
+    private static double DistanceIn(CavePlacement cave, Vector3 at)
+    {
+        double Outside(double value, long minimum, long maximum) => value < minimum ? minimum - value : value > maximum + 1 ? value - maximum - 1 : 0d;
+        return Math.Max(Math.Max(Outside(at.X, cave.BoxMinimum.X, cave.BoxMaximum.X), Outside(at.Z, cave.BoxMinimum.Z, cave.BoxMaximum.Z)),
+            Outside(at.Y, cave.BoxMinimum.Y, cave.BoxMaximum.Y)) + (Distance(cave, at) * 0.001d);
+    }
+
+    /// <summary>Builds the next part of the nearest dressed cave still building; a finished kit joins the walking session's collision.</summary>
     private void AdvanceDressing()
     {
         // A step waits for a light update (#10907): it may make a mesh, a material or open a shader.
-        if (caveDressing is not CaveDressing dressing || dressedCave is not UnderCave dressed || dressing.Built || !dressingDeferral.Runs())
+        Vector3 feet = player.WorldFeetPosition;
+        DressedCave? building = dressings.Values.Where(d => !d.Dressing.Built).OrderBy(d => DistanceIn(d.Cave.Cave, feet)).FirstOrDefault();
+        if (building is null || !dressingDeferral.Runs())
         {
             return;
         }
 
-        bool done = dressing.Advance();
-        if (!done)
+        if (!building.Dressing.Advance())
         {
             return;
         }
 
-        CavePlacement cave = dressed.Cave;
-        // The ruin's kit collides with the walking session's other pieces, placed in world metres.
-        terrain.CaveCollision = dressing.KitCount > 0
-            ? (assets, vertices, triangles, instances) => caveDressing?.AddCollision(assets, vertices, triangles, instances, WorldPlace(cave))
-            : null;
-        caveLitAt = new Transform(new Vector3(float.NaN), Quaternion.Identity, Vector3.One);
+        ComposeCaveCollision();
+        if (building.Cave == dressedCave)
+        {
+            caveLitAt = new Transform(new Vector3(float.NaN), Quaternion.Identity, Vector3.One);
+        }
+
+        CavePlacement cave = building.Cave.Cave;
         lastCave = string.Create(CultureInfo.InvariantCulture,
-            $"dressed the cave under the mouth at {cave.Site.X},{cave.Site.Z} in {dressing.BuildMilliseconds:F0} ms (slowest update {dressing.SlowestStageMilliseconds:F0} ms): {dressing.BuiltReadout}");
+            $"dressed the cave {CaveName(cave)} in {building.Dressing.BuildMilliseconds:F0} ms (slowest update {building.Dressing.SlowestStageMilliseconds:F0} ms): {building.Dressing.BuiltReadout}");
     }
 
-    private void Undress()
+    /// <summary>The ruins' kits of every built dressing collide with the walking session's other pieces, placed in world metres.</summary>
+    private void ComposeCaveCollision()
     {
-        if (caveDressing is null)
+        DressedCave[] colliding = [.. dressings.Values.Where(d => d.Dressing.Built && d.Dressing.KitCount > 0)];
+        terrain.CaveCollision = colliding.Length == 0 ? null : (assets, vertices, triangles, instances) =>
         {
-            return;
+            foreach (DressedCave d in colliding)
+            {
+                d.Dressing.AddCollision(assets, vertices, triangles, instances, WorldPlace(d.Cave.Cave));
+            }
+        };
+    }
+
+    /// <summary>Undresses one cave (null: every one).</summary>
+    private void Undress(UnderCave? cave = null)
+    {
+        foreach (DressedCave d in dressings.Values.Where(d => cave is null || d.Cave == cave).ToArray())
+        {
+            dressings.Remove(d.Cave.Cave.Key);
+            // Released after the next snapshot, which no longer names its appearances.
+            retiringDressings.Add(d.Dressing);
+            if (d.Cave == dressedCave)
+            {
+                dressedCave = null;
+                GrowthLights([]);
+                RelicLights([]);
+            }
         }
 
-        terrain.CaveCollision = null;
-        player.CaveWater = null;
-        // Released after the next snapshot, which no longer names its appearances.
-        retiringDressing?.Dispose();
-        retiringDressing = caveDressing;
-        caveDressing = null;
-        dressedCave = null;
-        GrowthLights([]);
-        RelicLights([]);
+        if (dressings.Count == 0)
+        {
+            player.CaveWater = null;
+        }
+
+        ComposeCaveCollision();
     }
 
-    private CaveDressing? retiringDressing;
+    // Dressings let go, released after the next snapshot (AfterAppearanceSnapshot), which no longer names their appearances.
+    private readonly List<CaveDressing> retiringDressings = [];
+
+    /// <summary>A cave's name in readouts: its mouth for a landmark cave, its system and box for a planned one.</summary>
+    private static string CaveName(CavePlacement cave) => cave.Planned is PlannedBox p
+        ? string.Create(CultureInfo.InvariantCulture, $"{p.System.Id} box {p.Box.Index}")
+        : string.Create(CultureInfo.InvariantCulture, $"under the mouth at {cave.Site.X},{cave.Site.Z}");
 
     private Deferral dressingDeferral;
 
@@ -408,45 +494,43 @@ internal sealed partial class DungeonModule
         };
     }
 
-    /// <summary>What the dressed cave adds to the snapshot, in the walking session; nothing while the player is in a separate space.</summary>
+    /// <summary>What the dressed caves add to the snapshot, in the walking session; nothing while the player is in a separate space.</summary>
     private IEnumerable<AppearanceFact> CaveFacts()
     {
-        if (player.InSeparateSpace || dressedCave is not UnderCave cave || caveDressing is not CaveDressing dressing)
+        if (player.InSeparateSpace || dressings.Count == 0)
         {
             return [];
         }
 
-        Transform place = LocalPlace(cave.Cave);
-        // The eye in the separate space's frame, for the overgrowth's distance thinning.
-        Vector3 eye = Vector3.Transform(terrain.Frame.ToLocal(player.WorldEyePosition.X, player.WorldEyePosition.Y, player.WorldEyePosition.Z) - place.Translation,
-            Quaternion.Inverse(place.Rotation));
-        // Gathered again only when the dressing built more, the cave's placement moved (a rebase) or the eye moved on (#10907):
-        // some 700 facts placed afresh every update were a few milliseconds of every update near a cave.
-        if (!ReferenceEquals(dressing, factsDressing) || dressing.Revision != factsRevision || !place.Equals(factsPlace)
-            || Vector3.Distance(eye, factsEye) >= CaveFactsEyeStepMetres)
+        List<AppearanceFact> facts = [];
+        foreach (DressedCave d in dressings.Values)
         {
-            caveFacts = [.. dressing.Facts(eye, place)];
-            factsDressing = dressing;
-            factsRevision = dressing.Revision;
-            factsPlace = place;
-            factsEye = eye;
+            Transform place = LocalPlace(d.Cave.Cave);
+            // The eye in the separate space's frame, for the overgrowth's distance thinning.
+            Vector3 eye = Vector3.Transform(terrain.Frame.ToLocal(player.WorldEyePosition.X, player.WorldEyePosition.Y, player.WorldEyePosition.Z) - place.Translation,
+                Quaternion.Inverse(place.Rotation));
+            // Gathered again only when the dressing built more, the cave's placement moved (a rebase) or the eye moved on (#10907):
+            // some 700 facts placed afresh every update were a few milliseconds of every update near a cave.
+            if (d.Dressing.Revision != d.FactsRevision || !place.Equals(d.FactsPlace) || !(Vector3.Distance(eye, d.FactsEye) < CaveFactsEyeStepMetres))
+            {
+                d.Facts = [.. d.Dressing.Facts(eye, place)];
+                d.FactsRevision = d.Dressing.Revision;
+                d.FactsPlace = place;
+                d.FactsEye = eye;
+            }
+
+            facts.AddRange(d.Facts);
         }
 
-        return caveFacts;
+        return facts;
     }
 
     /// <summary>The cave's facts are gathered again once the eye has moved this far (the overgrowth thins with distance).</summary>
     private const float CaveFactsEyeStepMetres = 1f;
 
-    private AppearanceFact[] caveFacts = [];
-    private CaveDressing? factsDressing;
-    private int factsRevision;
-    private Transform factsPlace;
-    private Vector3 factsEye;
-
     /// <summary>The caves under the world: those asked for and admitted, the one dressed, and how deep the player is.</summary>
     internal string CavesReadout() => string.Create(CultureInfo.InvariantCulture,
-        $"caves asked={underCaves.Count} ready={underCaves.Values.Count(c => c.Ready is not null)} admitted={cavesAdmitted} (generated {cavesGenerated}, from the store {cavesRead}) released={cavesReleased} {CaveStore.Readout()} dressed={(dressedCave is UnderCave d ? $"{d.Cave.Site.X},{d.Cave.Site.Z}" : "none")} skyShare={sky.CaveShare:F2} lantern={lanternLit} {terrain.CavesReadout()} {Generator.Readout()} way=[{SteerReadout()}] {ChosenCaveCommunities()} last={lastCave}");
+        $"caves asked={underCaves.Count} ready={underCaves.Values.Count(c => c.Ready is not null)} admitted={cavesAdmitted} (generated {cavesGenerated}, from the store {cavesRead}) released={cavesReleased} {CaveStore.Readout()} {PlannedReadout()} dressed={dressings.Count}({dressings.Values.Count(d => d.Dressing.Built)} built) lit={(dressedCave is UnderCave d ? CaveName(d.Cave) : "none")} skyShare={sky.CaveShare:F2} lantern={lanternLit} {terrain.CavesReadout()} {Generator.Readout()} way=[{SteerReadout()}] {ChosenCaveCommunities()} last={lastCave}");
 
     /// <summary>
     /// For captures and checks: the nearest cave mouth with a cave under it (within a search reach), its tendril's path and
@@ -532,6 +616,7 @@ internal sealed partial class DungeonModule
         walkCave = cave.Key;
         walkWay = null;
         walked = 0f;
+        plannedWay = false;
         return string.Create(CultureInfo.InvariantCulture,
             $"outside the cave mouth at {cave.Site.X},{cave.Site.Z} facing {cave.ForwardX},{cave.ForwardZ}; tendril {cave.TendrilMinimum}..{cave.TendrilMaximum}, box {cave.BoxMinimum}..{cave.BoxMaximum}; {CavesReadout()}");
     }
@@ -569,6 +654,12 @@ internal sealed partial class DungeonModule
     /// <summary>The way into the chosen cave: down its tendril, then along its main route once the cave is ready.</summary>
     private void EnsureWay(UnderCave cave)
     {
+        if (plannedWay)
+        {
+            // A planned system's way (#11219) is laid whole by craft.cave.plan way.
+            return;
+        }
+
         if (walkWay is not null && (walkWay.Count > cave.Cave.Path.Count || cave.Ready is null))
         {
             return;
@@ -875,8 +966,8 @@ internal sealed partial class DungeonModule
     private void DisposeCaves()
     {
         Undress();
-        retiringDressing?.Dispose();
-        retiringDressing = null;
+        foreach (CaveDressing d in retiringDressings) d.Dispose();
+        retiringDressings.Clear();
         underCaves.Clear();
         caveStore?.Dispose();
         caveStore = null;
