@@ -1,10 +1,22 @@
 import { useEffect, useRef } from 'preact/hooks';
-import type { GoldenCaveRow, GoldenCrossing, GoldenPlace, GoldenPlaces, GoldenReach, GoldenTile, GoldenTileCave, GoldenWindow, GoldenWindowSummary, GoldenWorld } from '../types';
+import type {
+  GoldenCaveRow,
+  GoldenCrossing,
+  GoldenPlace,
+  GoldenPlaces,
+  GoldenReach,
+  GoldenTile,
+  GoldenTileCave,
+  GoldenWindow,
+  GoldenWindowSummary,
+  GoldenWorld,
+  UndergroundSystemSummary,
+} from '../types';
 
 /** One thing on the atlas a click can select, and how to refer to it in a design task. */
 export interface Pick {
   ref: string;
-  kind: 'town' | 'lake' | 'site' | 'reach' | 'place' | 'crossing' | 'window' | 'map-river';
+  kind: 'town' | 'lake' | 'site' | 'reach' | 'place' | 'crossing' | 'window' | 'map-river' | 'underground';
   label: string;
   x: number;
   z: number;
@@ -31,6 +43,9 @@ export interface AtlasToggles {
   walkedRivers: boolean;
   labels: boolean;
   allCaves: boolean;
+  underground: boolean;
+  undergroundMultiOnly: boolean;
+  undergroundMouths: boolean;
 }
 
 export const PLACE_COLOURS: Record<string, string> = {
@@ -47,6 +62,9 @@ const NAVIGABILITY_WIDTH = [0.6, 1.4, 2.4, 3.6];
 const NAVIGABILITY_COLOUR = ['#4f8fa0', '#6fb6c9', '#8fd3ea', '#b5ecff'];
 const TOWN_COLOUR = '#ffd166';
 const SELECT_COLOUR = '#ffffff';
+const DEPTH_BAND_COLOURS = ['#4de0c9', '#f2b84b', '#d96be6'];
+const LINK_KIND_COLOURS = ['#7ef0e6', '#56b4ff', '#3a6fe6', '#ff9e64'];
+const MOUTH_KIND_COLOURS = ['#ff8a5c', '#ffd166', '#4de0c9'];
 const PICK_PIXELS = 9;
 /** Places, caves and crossings show once a pixel is this many metres or fewer: closer than that they would be a smear. */
 export const DETAIL_METRES_PER_PIXEL = 40;
@@ -64,6 +82,8 @@ export function AtlasView({
   detailImages,
   tiles,
   caveList,
+  undergroundSystems,
+  undergroundLevel,
   failedTiles,
   tileSpacing,
   toggles,
@@ -83,6 +103,8 @@ export function AtlasView({
   detailImages: Record<string, HTMLCanvasElement>;
   tiles: GoldenTile[];
   caveList: GoldenCaveRow[] | null;
+  undergroundSystems: UndergroundSystemSummary[] | null;
+  undergroundLevel: string;
   failedTiles: Array<[number, number]>;
   tileSpacing: number;
   toggles: AtlasToggles;
@@ -209,6 +231,72 @@ export function AtlasView({
         context.fillRect(p.sx - 0.75, p.sy - 0.75, 1.5, 1.5);
       }
     }
+    // Underground cave-system plan overlay (#11209): systems, box footprints, inter-box links and mouths.
+    if (toggles.underground && undergroundSystems) {
+      const showBoxes = c.metresPerPixel <= 85;
+      for (const sys of undergroundSystems) {
+        if (toggles.undergroundMultiOnly && !sys.m) continue;
+        const anchor = toScreen(sys.x, sys.z);
+        if (anchor.sx < -80 || anchor.sy < -80 || anchor.sx > width + 80 || anchor.sy > height + 80) continue;
+        if (showBoxes) {
+          for (const [ox, oz, sx, sz, band] of sys.boxes) {
+            const p = toScreen(ox, oz);
+            const bw = Math.max(2, sx / c.metresPerPixel);
+            const bh = Math.max(2, sz / c.metresPerPixel);
+            const col = DEPTH_BAND_COLOURS[band] ?? DEPTH_BAND_COLOURS[0];
+            context.fillStyle = sys.m ? `${col}38` : `${col}22`;
+            context.strokeStyle = col;
+            context.lineWidth = sys.m ? 1.5 : 1;
+            context.fillRect(p.sx, p.sy, bw, bh);
+            context.strokeRect(p.sx, p.sy, bw, bh);
+          }
+          for (const [x0, z0, x1, z1, kind] of sys.links) {
+            const a = toScreen(x0, z0);
+            const b = toScreen(x1, z1);
+            context.strokeStyle = LINK_KIND_COLOURS[kind] ?? '#7ef0e6';
+            context.lineWidth = 2;
+            if (kind === 2) context.setLineDash([4, 3]);
+            context.beginPath();
+            context.moveTo(a.sx, a.sy);
+            context.lineTo(b.sx, b.sy);
+            context.stroke();
+            context.setLineDash([]);
+          }
+          if (toggles.undergroundMouths) {
+            for (const [mx, mz, kind] of sys.mouths) {
+              const p = toScreen(mx, mz);
+              context.fillStyle = MOUTH_KIND_COLOURS[kind] ?? '#ff8a5c';
+              context.strokeStyle = '#101412';
+              context.lineWidth = 1;
+              context.beginPath();
+              context.moveTo(p.sx, p.sy - 4);
+              context.lineTo(p.sx + 4, p.sy);
+              context.lineTo(p.sx, p.sy + 4);
+              context.lineTo(p.sx - 4, p.sy);
+              context.closePath();
+              context.fill();
+              context.stroke();
+            }
+          }
+        } else {
+          // Continent zoom: multi-box systems stand out as bright rings, single-box as small depth-tinted dots.
+          const band = sys.d >= 60 ? 2 : sys.d >= 30 ? 1 : 0;
+          const col = DEPTH_BAND_COLOURS[band];
+          if (sys.m) {
+            context.strokeStyle = col;
+            context.fillStyle = `${col}66`;
+            context.lineWidth = 1.2;
+            context.beginPath();
+            context.arc(anchor.sx, anchor.sy, Math.min(5, 2 + sys.boxes.length * 0.45), 0, Math.PI * 2);
+            context.fill();
+            context.stroke();
+          } else {
+            context.fillStyle = `${col}88`;
+            context.fillRect(anchor.sx - 1, anchor.sy - 1, 2, 2);
+          }
+        }
+      }
+    }
     // Tiles the generator could not make: the export recorded their error.
     context.strokeStyle = '#ff5c5c';
     context.lineWidth = 2;
@@ -327,6 +415,33 @@ export function AtlasView({
       }
     } else if (toggles.allCaves && caveList) {
       for (const cave of caveList) candidates.push({ ref: cave.id, kind: 'place', label: `CaveMouth ${cave.id}`, x: cave.x, z: cave.z, data: cave });
+    }
+    if (toggles.underground && undergroundSystems) {
+      for (const sys of undergroundSystems) {
+        if (toggles.undergroundMultiOnly && !sys.m) continue;
+        const p = toScreen(sys.x, sys.z);
+        if (Math.abs(p.sx - sx) > 60 || Math.abs(p.sy - sy) > 60) continue;
+        candidates.push({
+          ref: sys.id,
+          kind: 'underground',
+          label: `Underground ${sys.m ? `${sys.boxes.length}-box system` : 'single cave'} (${undergroundLevel})`,
+          x: sys.x,
+          z: sys.z,
+          data: {
+            level: undergroundLevel,
+            id: sys.id,
+            boxes: sys.boxes.length,
+            links: sys.links.length,
+            mouths: sys.mouths.length,
+            bigSpaces: sys.big.length,
+            maxDepthMetres: sys.d,
+            solubility: sys.s,
+            hardness: sys.h,
+            biome: sys.b,
+            tile: sys.tile.join(', '),
+          },
+        });
+      }
     }
     let best: Pick | null = null;
     let bestDistance = PICK_PIXELS;

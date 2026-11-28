@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { apiRequest } from '../api';
-import { atlasUrl, caveUrl } from '../router';
-import type { GoldenCaveRow, GoldenOverview, GoldenPlaces, GoldenReach, GoldenTile, GoldenTileSummary, GoldenWindow } from '../types';
+import { atlasUrl, caveUrl, systemUrl, undergroundUrl } from '../router';
+import type {
+  GoldenCaveRow,
+  GoldenOverview,
+  GoldenPlaces,
+  GoldenReach,
+  GoldenTile,
+  GoldenTileSummary,
+  GoldenWindow,
+  UndergroundOverview,
+  UndergroundSystemSummary,
+} from '../types';
 import { AtlasView, DETAIL_METRES_PER_PIXEL, PLACE_COLOURS, crossingOf, placeOf, tileAt, type AtlasToggles, type Camera, type Pick } from '../atlas/AtlasView';
 import { BASE_MODES, loadContinent, paintContinent, paintWindow, sampleAt, type BaseMode, type ContinentRaster, type Legend } from '../atlas/layers';
 import { Empty, FactList, JsonView } from '../components/ui';
@@ -18,7 +28,7 @@ const NAVIGABILITY_OPTIONS = [
   { value: 3, label: 'Great rivers' },
 ];
 /** How close a deep link flies: a place to read its surroundings, a town to see its whole window, anything else the region. */
-const FLY_ZOOM: Record<string, number> = { place: 3, crossing: 3, town: 10, reach: 60, lake: 120, site: 120 };
+const FLY_ZOOM: Record<string, number> = { place: 3, crossing: 3, town: 10, reach: 60, lake: 120, site: 120, underground: 6 };
 
 const DEFAULT_TOGGLES: AtlasToggles = {
   drainage: 0,
@@ -34,6 +44,9 @@ const DEFAULT_TOGGLES: AtlasToggles = {
   walkedRivers: true,
   labels: true,
   allCaves: false,
+  underground: true,
+  undergroundMultiOnly: false,
+  undergroundMouths: true,
 };
 
 /** Region tiles kept loaded at once: a view at the detail zoom shows a few; panning keeps the nearest. */
@@ -94,6 +107,13 @@ function Inspector({ pick, citation }: { pick: Pick; citation: string }) {
           </a>
         </p>
       ) : null}
+      {pick.kind === 'underground' && typeof data.level === 'string' && typeof data.id === 'string' ? (
+        <p>
+          <a class="button primary" href={systemUrl(data.level, data.id)}>
+            Open system view (3D / Karst detail)
+          </a>
+        </p>
+      ) : null}
       <FactList facts={facts} />
       {Object.values(data).some(value => typeof value === 'object' && value !== null) ? (
         <details>
@@ -119,6 +139,9 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
   const [tileIndex, setTileIndex] = useState<GoldenTileSummary[]>([]);
   const [tiles, setTiles] = useState<Map<string, GoldenTile>>(() => new Map());
   const [caveList, setCaveList] = useState<GoldenCaveRow[] | null>(null);
+  const [ugOverview, setUgOverview] = useState<UndergroundOverview | null>(null);
+  const [ugLevel, setUgLevel] = useSessionState<string>('atlas:ugLevel', 'medium');
+  const [ugSystems, setUgSystems] = useState<UndergroundSystemSummary[] | null>(null);
   const [mode, setMode] = useSessionState<BaseMode>('atlas:mode', 'relief');
   const [storedToggles, setToggles] = useSessionState<AtlasToggles>('atlas:toggles', DEFAULT_TOGGLES);
   const toggles: AtlasToggles = { ...DEFAULT_TOGGLES, ...storedToggles, places: { ...DEFAULT_TOGGLES.places, ...storedToggles.places } };
@@ -148,9 +171,27 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
           setTileIndex(index);
           setCaveList(caves.caves);
         }
+        apiRequest<UndergroundOverview>('/api/golden/underground')
+          .then(setUgOverview)
+          .catch(() => setUgOverview(null));
       })
       .catch(err => setError(err instanceof Error ? err.message : String(err)));
   }, []);
+
+  useEffect(() => {
+    if (!ugOverview?.available || !toggles.underground) return;
+    let cancelled = false;
+    apiRequest<{ level: string; systems: UndergroundSystemSummary[] }>(`/api/golden/underground/${encodeURIComponent(ugLevel)}/summary`)
+      .then(data => {
+        if (!cancelled) setUgSystems(data.systems);
+      })
+      .catch(() => {
+        if (!cancelled) setUgSystems(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ugOverview, ugLevel, toggles.underground]);
 
   useEffect(() => {
     if (!overview?.available) return;
@@ -247,10 +288,42 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
       setSelected(pick);
       setCamera({ x: pick.x, z: pick.z, metresPerPixel: FLY_ZOOM[pick.kind] ?? 60 });
     });
-  }, [initialRef, places, world, tileIndex, drainage]);
+  }, [initialRef, places, world, tileIndex, drainage, ugSystems]);
 
   async function resolve(ref: string): Promise<Pick | null> {
     if (!places) return null;
+    if (ref.startsWith('ug:')) {
+      const parts = ref.split(':');
+      const level = parts[1] ?? ugLevel;
+      if (level !== ugLevel) setUgLevel(level);
+      const found = ugSystems?.find(s => s.id === ref);
+      if (found) {
+        return {
+          ref,
+          kind: 'underground',
+          label: `Underground ${found.m ? `${found.boxes.length}-box system` : 'single cave'} (${level})`,
+          x: found.x,
+          z: found.z,
+          data: { level, id: found.id, boxes: found.boxes.length, links: found.links.length, mouths: found.mouths.length, maxDepthMetres: found.d, solubility: found.s, hardness: found.h, biome: found.b },
+        };
+      }
+      try {
+        const res = await apiRequest<{ level: string; system: { id: string; x: number; z: number; boxes: unknown[]; links: unknown[]; mouths: unknown[]; maxDepth: number; solubility: number; hardness: number; biome: string } }>(
+          `/api/golden/underground/${encodeURIComponent(level)}/systems/${encodeURIComponent(ref)}`,
+        );
+        const s = res.system;
+        return {
+          ref,
+          kind: 'underground',
+          label: `Underground ${s.boxes.length > 1 ? `${s.boxes.length}-box system` : 'single cave'} (${level})`,
+          x: s.x,
+          z: s.z,
+          data: { level, id: s.id, boxes: s.boxes.length, links: s.links.length, mouths: s.mouths.length, maxDepthMetres: s.maxDepth, solubility: s.solubility, hardness: s.hardness, biome: s.biome },
+        };
+      } catch {
+        return null;
+      }
+    }
     const town = places.towns.find(item => item.key === ref);
     if (town) return { ref, kind: 'town', label: town.name, x: town.x, z: town.z, data: town };
     if (ref.startsWith('lake:')) {
@@ -372,6 +445,48 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
           <Toggle label="Towns" value={toggles.towns} onChange={value => setToggle('towns', value)} />
           <Toggle label="Representative sites" value={toggles.sites} onChange={value => setToggle('sites', value)} />
           <Toggle label="Labels" value={toggles.labels} onChange={value => setToggle('labels', value)} />
+          <h3>Underground plan (#11209)</h3>
+          {ugOverview?.available && ugOverview.manifest ? (
+            <>
+              <Toggle label="Show planned cave systems" value={toggles.underground} onChange={value => setToggle('underground', value)} />
+              <label>
+                Coarseness level
+                <select value={ugLevel} onChange={event => setUgLevel((event.currentTarget as HTMLSelectElement).value)}>
+                  {ugOverview.manifest.levels.map(lvl => (
+                    <option key={lvl.name} value={lvl.name}>
+                      {lvl.name} ({lvl.settings.siteSpacingMetres} m · {lvl.census.systems} sys)
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Toggle label="Multi-box systems only" value={toggles.undergroundMultiOnly} onChange={value => setToggle('undergroundMultiOnly', value)} />
+              <Toggle label="Planned mouths (diamonds)" value={toggles.undergroundMouths} onChange={value => setToggle('undergroundMouths', value)} />
+              <ul class="legend">
+                <li>
+                  <i style={{ background: '#4de0c9' }} /> Shallow (&lt;30 m)
+                </li>
+                <li>
+                  <i style={{ background: '#f2b84b' }} /> Mid (30–60 m)
+                </li>
+                <li>
+                  <i style={{ background: '#d96be6' }} /> Deep (60+ m)
+                </li>
+              </ul>
+              {(() => {
+                const active = ugOverview.manifest.levels.find(l => l.name === ugLevel);
+                return active ? (
+                  <small class="muted">
+                    {active.census.systems} systems ({(active.census.multiBoxShare * 100).toFixed(1)}% multi), {active.census.totalBoxes} boxes ·{' '}
+                    {active.metrics.wallMs} ms · {active.metrics.retainedInMemoryMB} MB RAM · <a href={undergroundUrl()}>full comparison</a>
+                  </small>
+                ) : null;
+              })()}
+            </>
+          ) : (
+            <small class="muted">
+              No underground plan exported yet. Run <code>{ugOverview?.command ?? 'golden-seed underground'}</code>.
+            </small>
+          )}
           <h3>Walking detail</h3>
           <small class="muted">
             Every place, cave way and crossing on the continent, drawn once a pixel is {DETAIL_METRES_PER_PIXEL} m or less (about a town's width
@@ -450,6 +565,8 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
               detailImages={detailImages}
               tiles={[...tiles.values()]}
               caveList={caveList}
+              undergroundSystems={ugSystems}
+              undergroundLevel={ugLevel}
               failedTiles={tileIndex.filter(tile => tile.failed).map(tile => tile.tile)}
               tileSpacing={spacing}
               toggles={toggles}
@@ -473,6 +590,7 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
                   <span>
                     {world.water[sample.water]} · {world.biomes[sample.biome]} · {sample.elevation.toFixed(0)} m · temperature {sample.temperature.toFixed(2)} ·
                     moisture {sample.moisture.toFixed(2)} · rock {sample.rock.toFixed(2)}
+                    {sample.solubility !== undefined ? ` · karst ${sample.solubility.toFixed(2)}` : ''}
                   </span>
                 ) : null}
               </>

@@ -13,11 +13,15 @@ from library import GOLDEN_CONFIG, GOLDEN_MOUNT
 from router import ApiError, NotFoundError, Response
 
 EXPORT_COMMAND = "dotnet run --project authoring/tools/golden-seed -c Release"
+UNDERGROUND_COMMAND = "dotnet run --project authoring/tools/golden-seed -c Release -- underground"
 BUILD_COMMAND = "dotnet build authoring/tools/golden-seed -c Release"
 EXPORTER = "authoring/tools/golden-seed/bin/Release/net10.0/GoldenSeed.dll"
 # A cave is generated on its first view (a couple of seconds); later views read the exporter's cache.
 CAVE_TIMEOUT_S = 180
+SYSTEM_TIMEOUT_S = 300
 CAVE_ID = re.compile(r"^poi:-?\d+:-?\d+$")
+UNDERGROUND_LEVEL = re.compile(r"^[a-z0-9_-]+$")
+UNDERGROUND_SYSTEM_ID = re.compile(r"^ug:([a-z0-9_-]+):(-?\d+):(-?\d+):(\d+)$")
 # What a change to can move the export: the product's code and content, and the Engine pair (its keyed draws).
 GENERATOR_PATHS = ("src/CraftSurvive.Game", "content/game", "Directory.Build.props")
 GIT_TIMEOUT_S = 5
@@ -129,6 +133,74 @@ class GoldenStore:
         with gzip.open(path, "rb") as file:
             return Response(file.read(), content_type="application/json; charset=utf-8")
 
+    def underground_manifest(self):
+        """Underground plan manifest across coarseness levels (#11209), if exported."""
+        manifest = self.cache.json(self.file("underground/manifest.json"))
+        if not manifest:
+            return {"available": False, "command": UNDERGROUND_COMMAND}
+        solubility = manifest.get("solubilityRaster") or {}
+        return {
+            "available": True,
+            "command": UNDERGROUND_COMMAND,
+            "manifest": manifest,
+            "solubilityUrl": f"{GOLDEN_MOUNT}{solubility['file']}" if solubility.get("file") else None,
+            "exporterBuilt": (self.exporter or (self.library.repo / EXPORTER)).is_file(),
+        }
+
+    def underground_summary(self, level):
+        if not UNDERGROUND_LEVEL.match(level):
+            raise NotFoundError("Unknown underground coarseness level.")
+        path = self.file(f"underground/{level}/summary.json.gz")
+        if not path.is_file():
+            raise NotFoundError(f"No underground summary for level '{level}'; run {UNDERGROUND_COMMAND}.")
+        return Response(path.read_bytes(), content_type="application/json; charset=utf-8", headers={"Content-Encoding": "gzip"})
+
+    def underground_tile(self, level, x, z):
+        if not UNDERGROUND_LEVEL.match(level):
+            raise NotFoundError("Unknown underground coarseness level.")
+        path = self.file(f"underground/{level}/tiles/{int(x)}_{int(z)}.json.gz")
+        if not path.is_file():
+            raise NotFoundError("No underground plan for that tile.")
+        return Response(path.read_bytes(), content_type="application/json; charset=utf-8", headers={"Content-Encoding": "gzip"})
+
+    def underground_system(self, level, system_id):
+        match = UNDERGROUND_SYSTEM_ID.match(system_id)
+        if not UNDERGROUND_LEVEL.match(level) or not match or match.group(1) != level:
+            raise NotFoundError("An underground system is named ug:<level>:<tx>:<tz>:<index>.")
+        tx, tz = int(match.group(2)), int(match.group(3))
+        path = self.file(f"underground/{level}/tiles/{tx}_{tz}.json.gz")
+        if not path.is_file():
+            raise NotFoundError("No underground tile plan for that system.")
+        with gzip.open(path, "rt", encoding="utf-8") as file:
+            tile = json.load(file)
+        for sys in tile.get("systems", []):
+            if sys.get("id") == system_id:
+                return {"level": level, "system": sys}
+        raise NotFoundError(f"Underground system {system_id} was not found.")
+
+    def underground_detail(self, level, system_id):
+        """Multi-box KarstCave detail generated from the plan's boundary ports (#11209, CMS-only)."""
+        match = UNDERGROUND_SYSTEM_ID.match(system_id)
+        if not UNDERGROUND_LEVEL.match(level) or not match or match.group(1) != level:
+            raise NotFoundError("An underground system is named ug:<level>:<tx>:<tz>:<index>.")
+        exporter = self.exporter or (self.library.repo / EXPORTER)
+        if not exporter.is_file():
+            raise ApiError(503, f"The exporter is not built: run {BUILD_COMMAND}.")
+        with self.cave_lock:
+            try:
+                process = subprocess.run(
+                    ["dotnet", str(exporter), "system", level, system_id, "--out", str(self.root)],
+                    cwd=self.library.repo, capture_output=True, text=True, timeout=SYSTEM_TIMEOUT_S,
+                )
+            except subprocess.TimeoutExpired as error:
+                raise ApiError(504, f"Generating multi-box detail for {system_id} took longer than {SYSTEM_TIMEOUT_S} s.") from error
+        if process.returncode:
+            message = (process.stderr or process.stdout).strip().splitlines()
+            raise ApiError(500, f"The exporter could not build system detail for {system_id}: {message[-1] if message else 'no output'}")
+        path = process.stdout.strip().splitlines()[-1]
+        with gzip.open(path, "rb") as file:
+            return Response(file.read(), content_type="application/json; charset=utf-8")
+
 
 def register_routes(router, workspace):
     golden = workspace.golden
@@ -148,4 +220,9 @@ def register_routes(router, workspace):
     router.get("/api/golden/tiles/{x}/{z}", lambda req: golden.tile(req.params["x"], req.params["z"]))
     router.get("/api/golden/caves", lambda _req: golden.json_file("caves.json"))
     router.get("/api/golden/caves/{id}", lambda req: golden.cave(req.params["id"]))
+    router.get("/api/golden/underground", lambda _req: golden.underground_manifest())
+    router.get("/api/golden/underground/{level}/summary", lambda req: golden.underground_summary(req.params["level"]))
+    router.get("/api/golden/underground/{level}/tiles/{x}/{z}", lambda req: golden.underground_tile(req.params["level"], req.params["x"], req.params["z"]))
+    router.get("/api/golden/underground/{level}/systems/{id}", lambda req: golden.underground_system(req.params["level"], req.params["id"]))
+    router.get("/api/golden/underground/{level}/detail/{id}", lambda req: golden.underground_detail(req.params["level"], req.params["id"]))
 

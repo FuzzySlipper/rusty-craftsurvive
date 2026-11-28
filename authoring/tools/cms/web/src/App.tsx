@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { apiRequest } from './api';
-import { activeSection, atlasUrl, listingUrl, parseHash, searchUrl, type Route } from './router';
+import { activeSection, atlasUrl, listingUrl, parseHash, searchUrl, undergroundUrl, type Route } from './router';
 import { useApp } from './state';
 import { Empty } from './components/ui';
 import { OverviewPage } from './pages/OverviewPage';
@@ -10,6 +10,7 @@ import { ProvenancePage } from './pages/ProvenancePage';
 import { SearchPage } from './pages/SearchPage';
 import { AtlasPage } from './pages/AtlasPage';
 import { CavePage, CavesPage } from './pages/CavesPage';
+import { SystemPage, UndergroundPage } from './pages/UndergroundPage';
 
 interface GitStatus {
   gitAvailable: boolean;
@@ -34,6 +35,10 @@ function renderRoute(route: Route) {
       return <CavesPage />;
     case 'cave':
       return <CavePage id={route.id} />;
+    case 'underground':
+      return <UndergroundPage />;
+    case 'system':
+      return <SystemPage level={route.level} id={route.id} />;
   }
 }
 
@@ -57,7 +62,7 @@ export function App() {
   }, [route.page]);
 
   const section = activeSection(route);
-  const atlas = route.page === 'atlas' || route.page === 'cave';
+  const atlas = route.page === 'atlas' || route.page === 'cave' || route.page === 'underground' || route.page === 'system';
   return (
     <div class={`shell${atlas ? ' wide' : ''}`}>
       <aside class="sidebar">
@@ -77,6 +82,9 @@ export function App() {
           </a>
           <a href="#caves" aria-current={section === 'caves' ? 'page' : undefined}>
             Caves
+          </a>
+          <a href={undergroundUrl()} aria-current={section === 'underground' ? 'page' : undefined}>
+            Underground plan
           </a>
           {(catalog?.categories ?? []).map(category => (
             <a key={category.id} href={listingUrl(category.id)} aria-current={section === category.id ? 'page' : undefined}>

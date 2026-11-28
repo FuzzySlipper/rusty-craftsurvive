@@ -367,3 +367,252 @@ export interface CaveView {
   cells: { size: [number, number, number]; metres: number; state: string };
   stats: CaveViewStats;
 }
+
+// ---- underground plan (#11209, CMS-only exploratory)
+
+export interface UndergroundCensusBucket {
+  systems: number;
+  singleBox: number;
+  multiBox: number;
+  multiShare: number;
+  boxes: number;
+  mouths: number;
+  avgDepth: number;
+  avgSolubility: number;
+}
+
+export interface UndergroundSampleSystem {
+  id: string;
+  tile: [number, number];
+  x: number;
+  z: number;
+  boxes: number;
+  links: number;
+  mouths: number;
+  bigSpaces: string[];
+  biome: string;
+  maxDepth: number;
+  solubility: number;
+  nearestTown: string;
+  nearestTownKm: number;
+}
+
+export interface UndergroundLevelReport {
+  name: string;
+  description: string;
+  settings: {
+    siteSpacingMetres: number;
+    boxSize: [number, number, number];
+    boxChunks: [number, number, number];
+    minSystemSeparationMetres: number;
+    maxBoxesPerSystem: number;
+    targetMultiBoxShare: number;
+    subChambersPerBox: number;
+    includeFieldGrid: boolean;
+  };
+  metrics: {
+    wallMs: number;
+    avgLandTileMs: number;
+    maxTileMs: number;
+    landTiles: number;
+    totalTiles: number;
+    allocatedMB: number;
+    retainedInMemoryMB: number;
+    retainedPerLandTileKB: number;
+    rawJsonMB: number;
+    gzipTilesMB: number;
+    rawGridMB: number;
+    gzipGridMB: number;
+    totalGzipMB: number;
+    summaryGzipMB: number;
+  };
+  census: {
+    systems: number;
+    singleBoxSystems: number;
+    multiBoxSystems: number;
+    multiBoxShare: number;
+    totalBoxes: number;
+    avgBoxesPerSystem: number;
+    avgBoxesPerMultiSystem: number;
+    maxBoxesInSystem: number;
+    links: number;
+    mouths: number;
+    rooms: number;
+    conduits: number;
+    boxesHistogram: Record<string, number>;
+    byDepthBand: Record<string, number>;
+    byBigSpace: Record<string, number>;
+    byBiome: Record<string, UndergroundCensusBucket>;
+    byHardness: Record<string, UndergroundCensusBucket>;
+  };
+  sampleMultiSystems: UndergroundSampleSystem[];
+}
+
+export interface UndergroundManifest {
+  format: number;
+  provisional: boolean;
+  note: string;
+  world: { seed: number; size: number; radius: number; fingerprint: string; tileSpacing: number; totalTiles: number };
+  solubilityRaster: { file: string; pixels: number; metresPerPixel: number };
+  levels: UndergroundLevelReport[];
+}
+
+export interface UndergroundOverview {
+  available: boolean;
+  command: string;
+  manifest?: UndergroundManifest;
+  solubilityUrl?: string | null;
+  exporterBuilt?: boolean;
+}
+
+export interface UndergroundSystemSummary {
+  id: string;
+  tile: [number, number];
+  x: number;
+  z: number;
+  d: number; // max depth
+  s: number; // solubility
+  h: number; // hardness
+  b: string; // biome
+  m: number; // 1 if multi-box
+  boxes: Array<[number, number, number, number, number]>; // originX, originZ, sizeX, sizeZ, depthBand
+  links: Array<[number, number, number, number, number]>; // x0, z0, x1, z1, kind
+  mouths: Array<[number, number, number]>; // x, z, kind
+  big: Array<[number, number, number]>; // x, z, kind
+}
+
+export interface UndergroundRoom {
+  id: number;
+  kind: string;
+  at: [number, number, number];
+  radii: [number, number, number];
+  water: number;
+}
+
+export interface UndergroundConduit {
+  from: number;
+  to: number;
+  radius: number;
+  water: number;
+  loop: boolean;
+}
+
+export interface UndergroundBox {
+  index: number;
+  grid: [number, number];
+  origin: [number, number, number];
+  chunks: [number, number, number];
+  size: [number, number, number];
+  ground: number;
+  depth: number;
+  waterLocalY: number;
+  depthBand: string;
+  seed: string;
+  rooms: UndergroundRoom[];
+  conduits: UndergroundConduit[];
+}
+
+export interface UndergroundLink {
+  from: number;
+  to: number;
+  fromFace: string;
+  toFace: string;
+  faceU: number;
+  faceV: number;
+  at: [number, number, number];
+  radius: number;
+  waterY: number;
+  kind: string;
+  seamSeed: string;
+}
+
+export interface UndergroundMouth {
+  box: number;
+  at: [number, number, number];
+  local: [number, number];
+  kind: string;
+}
+
+export interface UndergroundBigSpace {
+  box: number;
+  kind: string;
+  local: [number, number, number];
+  radius: number;
+}
+
+export interface UndergroundSystemDetail {
+  id: string;
+  tile: [number, number];
+  seed: string;
+  x: number;
+  z: number;
+  ground: number;
+  biome: string;
+  hardness: number;
+  solubility: number;
+  discharge: number;
+  temperature: number;
+  moisture: number;
+  maxDepth: number;
+  multi: boolean;
+  boxes: UndergroundBox[];
+  links: UndergroundLink[];
+  mouths: UndergroundMouth[];
+  bigSpaces: UndergroundBigSpace[];
+}
+
+export interface SystemKarstSeam {
+  index: number;
+  from: number;
+  to: number;
+  kind: string;
+  radius: number;
+  at: [number, number, number];
+  openShareA: number;
+  openShareB: number;
+  overlapIoU: number;
+  connectedBothSides: boolean;
+  seamReachedCrawl: boolean;
+}
+
+export interface SystemKarstView {
+  id: string;
+  level: string;
+  origin: [number, number, number];
+  size: [number, number, number];
+  step: number;
+  start: [number, number, number];
+  generateMs: number;
+  totalMs: number;
+  stats: {
+    boxes: number;
+    boxesReachedCrawl: number;
+    links: number;
+    seamsMatched: number;
+    avgSeamOverlapIoU: number;
+    openCubicMetres: number;
+    standCubicMetres: number;
+    crawlCubicMetres: number;
+    tightCubicMetres: number;
+    narrowCubicMetres: number;
+    cutOffCubicMetres: number;
+  };
+  boxes: Array<{
+    index: number;
+    offset: [number, number, number];
+    size: [number, number, number];
+    depth: number;
+    waterLocalY: number;
+    generateMs: number;
+    reachedCrawl: boolean;
+    verdict: string;
+  }>;
+  seams: SystemKarstSeam[];
+  routes: number[][][];
+  mouths: Array<{ box: number; kind: string; at: [number, number, number] }>;
+  bigSpaces: Array<{ box: number; kind: string; radius: number; at: [number, number, number] }>;
+  plan: { state: string; top: string };
+  sideX: string;
+  sideZ: string;
+  cells: { metres: number; size: [number, number, number]; state: string };
+}

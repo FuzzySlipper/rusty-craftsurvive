@@ -6,7 +6,9 @@ export type Route =
   | { page: 'search'; term: string }
   | { page: 'atlas'; ref?: string }
   | { page: 'caves' }
-  | { page: 'cave'; id: string };
+  | { page: 'cave'; id: string }
+  | { page: 'underground' }
+  | { page: 'system'; level: string; id: string };
 
 const encode = (value: string): string => encodeURIComponent(value);
 
@@ -15,6 +17,8 @@ export const recordUrl = (id: string): string => `#record/${encode(id)}`;
 export const searchUrl = (term: string): string => `#search/${encode(term)}`;
 export const caveUrl = (id: string): string => `#cave/${encode(id)}`;
 export const atlasUrl = (ref?: string): string => (ref ? `#atlas/${encode(ref)}` : '#atlas');
+export const undergroundUrl = (): string => '#underground';
+export const systemUrl = (level: string, id: string): string => `#system/${encode(level)}/${encode(id)}`;
 
 export function parseHash(hash: string): Route {
   const [head, ...rest] = hash.replace(/^#/, '').split('/');
@@ -35,6 +39,13 @@ export function parseHash(hash: string): Route {
       return { page: 'caves' };
     case 'cave':
       return { page: 'cave', id: tail };
+    case 'underground':
+      return { page: 'underground' };
+    case 'system': {
+      const level = decodeURIComponent(rest[0] ?? 'medium');
+      const id = decodeURIComponent(rest.slice(1).join('/'));
+      return { page: 'system', level, id };
+    }
     default:
       return { page: 'listing', category: decodeURIComponent(head) };
   }
@@ -49,6 +60,8 @@ export function activeSection(route: Route): string {
       return route.id.split('-')[0];
     case 'cave':
       return 'caves';
+    case 'system':
+      return 'underground';
     default:
       return route.page;
   }

@@ -61,6 +61,10 @@ def golden_export(root: Path) -> Path:
     import gzip
     write(folder / "tiles/0_0.json.gz", gzip.compress(json.dumps(tile).encode()))
     write(folder / "caves.json", {"caves": [{"id": "poi:-3:4", "x": -700, "z": 1100, "ground": 40, "seed": "00", "setting": [0.5, 0.5, 30], "tile": [0, 0]}]})
+    ug_sys = {"id": "ug:medium:0:0:0", "tile": [0, 0], "x": -500, "z": 600, "boxes": [], "links": [], "mouths": [], "bigSpaces": []}
+    write(folder / "underground/manifest.json", {"format": 1, "provisional": True, "solubilityRaster": {"file": "underground/solubility.f32", "pixels": 2, "metresPerPixel": 2048}, "levels": [{"name": "medium"}]})
+    write(folder / "underground/medium/summary.json.gz", gzip.compress(json.dumps({"level": "medium", "systems": [{"id": "ug:medium:0:0:0"}]}).encode()))
+    write(folder / "underground/medium/tiles/0_0.json.gz", gzip.compress(json.dumps({"tile": [0, 0], "level": "medium", "systems": [ug_sys]}).encode()))
     return folder
 
 
@@ -197,6 +201,23 @@ class ServerTests(unittest.TestCase):
         self.assertEqual((saved["note"], saved["marked"]), ("check the quay", True))
         drainage = json.loads(self.get("/api/golden/drainage?minFlow=5")[1])
         self.assertEqual(len(drainage["reaches"]), 1)
+
+    def test_underground_plan_endpoints(self):
+        manifest = json.loads(self.get("/api/golden/underground")[1])
+        self.assertTrue(manifest["available"])
+        self.assertEqual(manifest["manifest"]["levels"][0]["name"], "medium")
+        req = urllib.request.Request(self.base + "/api/golden/underground/medium/summary", headers={"Accept-Encoding": "gzip"})
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.headers["Content-Encoding"], "gzip")
+            import gzip
+            self.assertEqual(json.loads(gzip.decompress(resp.read()))["systems"][0]["id"], "ug:medium:0:0:0")
+        sys_resp = json.loads(self.get("/api/golden/underground/medium/systems/ug:medium:0:0:0")[1])
+        self.assertEqual(sys_resp["system"]["id"], "ug:medium:0:0:0")
+        for path, code in (("/api/golden/underground/medium/systems/bad-id", 404), ("/api/golden/underground/medium/detail/ug:medium:0:0:0", 503)):
+            with self.assertRaises(urllib.error.HTTPError) as raised:
+                self.get(path)
+            self.assertEqual(raised.exception.code, code, path)
+            raised.exception.close()
 
 
 if __name__ == "__main__":

@@ -55,6 +55,26 @@ if (command == "cave")
     return CaveCommand(id);
 }
 
+if (command == "underground")
+{
+    JsonObject ugConfig = JsonNode.Parse(File.ReadAllText(options.GetValueOrDefault("config", Path.Combine(repo, "authoring/tools/golden-seed/golden-seed.json"))))!.AsObject();
+    TerrainConfiguration ugConfiguration = new(ugConfig["seed"]!.GetValue<ulong>(), ugConfig["size"]!.GetValue<int>());
+    int ugPixels = ugConfig["pixels"]!.GetValue<int>();
+    int ugWorkers = int.Parse(options.GetValueOrDefault("workers", Math.Max(1, Environment.ProcessorCount - 2).ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
+    IReadOnlyList<UndergroundCoarseness> presets = options.TryGetValue("levels", out string? levelList)
+        ? [.. levelList.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(UndergroundPlan.Preset)]
+        : UndergroundPlan.Presets;
+    Console.WriteLine($"underground plan export: seed={ugConfiguration.Seed} size={ugConfiguration.Size} levels={string.Join(",", presets.Select(p => p.Name))}");
+    WorldMap ugMap = WorldMapGenerator.Generate(ugConfiguration);
+    return UndergroundExport.Run(ugMap, ugPixels, output, presets, ugWorkers, Console.WriteLine);
+}
+
+if (command == "system")
+{
+    if (args.Length < 3) throw new ArgumentException("system needs <level> <systemId>, e.g. system medium ug:medium:0:0:0");
+    return SystemCommand(args[1], args[2]);
+}
+
 if (command == "pinch")
 {
     // Diagnostic: where a cave's route goes out of reach, stage by stage (see Pinch).
@@ -71,7 +91,8 @@ if (command == "check")
     // And the golden seed's caves each generator fault left mostly out of reach (#11170), plus region prefetch failure recovery (#11184 R11184-1).
     bool throats = CaveView.CheckThroats(Console.WriteLine);
     bool prefetch = CheckPrefetchRecovery(Console.WriteLine);
-    return Pinch.CheckRegressions(Console.WriteLine) && throats && prefetch ? 0 : 1;
+    bool underground = UndergroundExport.CheckPlan(Console.WriteLine);
+    return Pinch.CheckRegressions(Console.WriteLine) && throats && prefetch && underground ? 0 : 1;
 }
 
 if (command == "column")
@@ -444,6 +465,34 @@ int CaveCommand(string id)
     {
         (ulong seed, CaveSetting setting, CavePlacement placement) = Locate(id);
         WriteGzip(file, CaveView.Make(id, seed, setting, placement));
+    }
+
+    Console.WriteLine(file);
+    return 0;
+}
+
+int SystemCommand(string level, string id)
+{
+    // Parse system id ug:<level>:<tx>:<tz>:<idx> to locate its tile plan directly.
+    string[] parts = id.Split(':');
+    if (parts.Length != 5 || parts[0] != "ug") throw new ArgumentException($"Invalid underground system id '{id}'.");
+    int tx = int.Parse(parts[2], CultureInfo.InvariantCulture);
+    int tz = int.Parse(parts[3], CultureInfo.InvariantCulture);
+    string tileFile = Path.Combine(output, "underground", level, "tiles", $"{tx}_{tz}.json.gz");
+    if (!File.Exists(tileFile)) throw new FileNotFoundException($"No underground tile plan at {tileFile}. Run `underground` first.");
+
+    JsonObject tile = JsonNode.Parse(ReadGzip(tileFile))!.AsObject();
+    JsonObject system = tile["systems"]!.AsArray().Select(n => n!.AsObject()).FirstOrDefault(s => s["id"]!.GetValue<string>() == id)
+        ?? throw new ArgumentException($"System '{id}' was not found in tile ({tx},{tz}) at level '{level}'.");
+
+    JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(output, "underground", "manifest.json")))!.AsObject();
+    string identity = manifest["world"]!["fingerprint"]!.GetValue<string>();
+    string directory = Path.Combine(cacheRoot, identity, "systems-" + GoldenSeedSource.ToolStamp.ToString("x16", CultureInfo.InvariantCulture));
+    Directory.CreateDirectory(directory);
+    string file = Path.Combine(directory, $"{level}__{id.Replace(':', '_')}.json.gz");
+    if (!File.Exists(file))
+    {
+        WriteGzip(file, SystemView.Make(system, level));
     }
 
     Console.WriteLine(file);

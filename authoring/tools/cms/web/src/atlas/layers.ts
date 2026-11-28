@@ -9,11 +9,12 @@ export interface ContinentRaster {
   temperature: Float32Array;
   moisture: Float32Array;
   rock: Float32Array;
+  solubility?: Float32Array;
   biome: Uint8Array;
   water: Uint8Array;
 }
 
-export type BaseMode = 'relief' | 'elevation' | 'biome' | 'temperature' | 'moisture' | 'rock' | 'water';
+export type BaseMode = 'relief' | 'elevation' | 'biome' | 'temperature' | 'moisture' | 'rock' | 'water' | 'solubility';
 
 export const BASE_MODES: Array<{ id: BaseMode; label: string; about: string }> = [
   { id: 'relief', label: 'Relief', about: 'Biome colours greyed toward stone where rock is exposed, sea and fresh water, under a north-west hillshade.' },
@@ -23,6 +24,7 @@ export const BASE_MODES: Array<{ id: BaseMode; label: string; about: string }> =
   { id: 'moisture', label: 'Moisture', about: 'The map\'s moisture field (relative).' },
   { id: 'rock', label: 'Exposed rock', about: 'How much rock the ground exposes, 0 to 1.' },
   { id: 'water', label: 'Water', about: 'Sea, lake and river pixels as the map samples them.' },
+  { id: 'solubility', label: 'Karst solubility (plan)', about: 'Plan-only limestone/carbonate solubility field (#11209), 0 to 1.' },
 ];
 
 const FALLBACK_BIOME = '#6f6a62';
@@ -65,19 +67,30 @@ export const RAMPS = {
   temperature: ramp(['#3b4cc0', '#8db0fe', '#dddddd', '#f49a7b', '#b40426']),
   moisture: ramp(['#c9a66b', '#d9d59c', '#6fae7a', '#2c7f8a', '#1d3f6e']),
   rock: ramp(['#2b332c', '#6f6a62', '#d8d2c4']),
+  solubility: ramp(['#1d2420', '#314f4e', '#49a89a', '#f2cf66', '#ff825c']),
 };
 
 export async function loadContinent(manifest: GoldenManifest, mediaBase: string): Promise<ContinentRaster> {
   const { pixels } = manifest.continent;
   const read = async (name: string) => (await fetch(`${mediaBase}continent/${name}`)).arrayBuffer();
-  const [elevation, temperature, moisture, rock, biome, water] = await Promise.all([
+  const readOptional = async (path: string) => {
+    try {
+      const resp = await fetch(`${mediaBase}${path}`);
+      return resp.ok ? await resp.arrayBuffer() : null;
+    } catch {
+      return null;
+    }
+  };
+  const [elevation, temperature, moisture, rock, biome, water, solubilityBuf] = await Promise.all([
     read('elevation.f32'),
     read('temperature.f32'),
     read('moisture.f32'),
     read('rock.f32'),
     read('biome.u8'),
     read('water.u8'),
+    readOptional('underground/solubility.f32'),
   ]);
+  const solubility = solubilityBuf && solubilityBuf.byteLength === pixels * pixels * 4 ? new Float32Array(solubilityBuf) : undefined;
   return {
     pixels,
     radius: manifest.world.radius,
@@ -86,6 +99,7 @@ export async function loadContinent(manifest: GoldenManifest, mediaBase: string)
     temperature: new Float32Array(temperature),
     moisture: new Float32Array(moisture),
     rock: new Float32Array(rock),
+    solubility,
     biome: new Uint8Array(biome),
     water: new Uint8Array(water),
   };
@@ -171,6 +185,11 @@ export function paintContinent(raster: ContinentRaster, world: GoldenWorld, mode
         case 'water':
           colour = water === 1 ? sea : water === 2 ? lake : water === 3 ? [120, 200, 230] : [43, 51, 44];
           break;
+        case 'solubility': {
+          const val = raster.solubility ? raster.solubility[i] : 0;
+          colour = water === 1 ? [20, 32, 36] : RAMPS.solubility(val);
+          break;
+        }
         default: {
           const t = (raster[mode][i] - scalar[0]) / Math.max(1e-9, scalar[1] - scalar[0]);
           colour = water === 1 ? [30, 38, 34] : RAMPS[mode](t);
@@ -202,6 +221,9 @@ export function paintContinent(raster: ContinentRaster, world: GoldenWorld, mode
       break;
     case 'elevation':
       legend = { kind: 'ramp', stops: ['#3f6b3c', '#8a9a55', '#c9b77a', '#9c7b5b', '#e8e4dc'], low: `${world.waterLevel} m`, high: `${Math.round(highest)} m` };
+      break;
+    case 'solubility':
+      legend = { kind: 'ramp', stops: ['#1d2420', '#314f4e', '#49a89a', '#f2cf66', '#ff825c'], low: '0.00 (insoluble)', high: '1.00 (karst belt)' };
       break;
     default:
       legend = {
@@ -252,6 +274,7 @@ export function sampleAt(raster: ContinentRaster, x: number, z: number) {
     temperature: raster.temperature[i],
     moisture: raster.moisture[i],
     rock: raster.rock[i],
+    solubility: raster.solubility ? raster.solubility[i] : undefined,
     biome: raster.biome[i],
     water: raster.water[i],
   };
