@@ -4750,6 +4750,29 @@ private static int MostBarrensPieces => Area(400);
             pending = again;
         }
 
+        // For port-stitched systems (#11209 Round 2): guarantee standing-width interior continuity between start, spring,
+        // and every boundary port so no linked box is cut off by an interior pinch or disconnected pocket.
+        if (run.BoundaryPorts is { Count: > 0 })
+        {
+            bool carvedFallback = false;
+            for (int r = 0; r < routes.Count; r++)
+            {
+                bool required = r == 0 || routes[r].Name.StartsWith("port:", StringComparison.Ordinal);
+                if (!required) continue;
+                (float narrowest, List<int> checkPath) = WayAtLeast(clearance, routes[r].From, routes[r].To);
+                if (checkPath.Count == 0 || narrowest < StandRadius)
+                {
+                    CarvePortConnector(open, routes[r].From, routes[r].To, StandRadius + 0.70f, seed ^ (ulong)(r + 0x900));
+                    carvedFallback = true;
+                }
+            }
+
+            if (carvedFallback)
+            {
+                clearance = Clearance(Finished());
+            }
+        }
+
         Mark("passages-clearance");
         for (int r = 0; r < routes.Count; r++)
         {

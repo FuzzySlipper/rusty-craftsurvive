@@ -176,12 +176,12 @@ internal static class SystemView
             });
         }
 
-        // Compute openness, approximate clearance, and unified cross-box BFS reachability from box 0 arrival/mouth.
+        // Compute openness, exact 3D EDT clearance (matching CaveView.Clearance), and unified cross-box BFS reachability from box 0's way in.
         bool[] open = new bool[cellCount];
         for (int i = 0; i < cellCount; i++) open[i] = values[i] >= 0f;
-        float[] clearance = ApproxClearance(values, open, gx, gy, gz);
+        float[] clearance = CaveView.Clearance(values, open, gx, gy, gz, CellMetres);
 
-        // Seed flood fill at box 0's main-route start (shifted into system-local coordinates).
+        // Seed flood fill at box 0's main-route start (the real way in, shifted into system-local coordinates).
         PlannedBox firstBox = boxes[0];
         Vector3 boxStart = generated[0].Layout.MainRoute.Count > 0
             ? generated[0].Layout.MainRoute[0]
@@ -190,7 +190,8 @@ internal static class SystemView
             (float)(firstBox.OriginX - minX),
             (float)(firstBox.OriginY - minY),
             (float)(firstBox.OriginZ - minZ));
-        int seedCell = FindSeed(startLocal, open, clearance, gx, gy, gz);
+        int seedCell = CaveView.Seed(startLocal, open, clearance, gx, gy, gz, CellMetres);
+        if (seedCell < 0) seedCell = FindSeed(startLocal, open, clearance, gx, gy, gz);
 
         bool[] reachedCrawl = Flood(seedCell, clearance, KarstCave.CrawlRadius, gx, gy, gz);
         bool[] reachedTight = Flood(seedCell, clearance, KarstCave.CrawlRadius * 0.65f, gx, gy, gz);
@@ -581,28 +582,6 @@ internal static class SystemView
         bool ok = c1 && c2 && c3 && c4;
         report($"{(ok ? "ok" : "FAILED")}: seam traversal metrics (oneSidedRejected={c1}, crossFaceAccepted={c2}, offPortRejected={c3}, tightCrawlSeparated={c4})");
         return ok;
-    }
-
-    private static float[] ApproxClearance(float[] values, bool[] open, int gx, int gy, int gz)
-    {
-        // Fast signed-field + 6-neighbour clearance estimate (in metres) at 1 m resolution.
-        // Values inside KarstCave.Shape represent signed distance (clamped at 2 m), so open interior cells already carry metres to rock.
-        float[] clear = new float[values.Length];
-        Parallel.For(0, gz, z =>
-        {
-            for (int y = 0; y < gy; y++)
-            for (int x = 0; x < gx; x++)
-            {
-                int i = (((z * gy) + y) * gx) + x;
-                if (!open[i]) continue;
-                float v = MathF.Max(0.15f, values[i]);
-                // Check if all 6 neighbours are open; if not, cap clearance at 0.55..0.95 depending on field value.
-                bool touchesWall = x == 0 || y == 0 || z == 0 || x == gx - 1 || y == gy - 1 || z == gz - 1
-                    || !open[i - 1] || !open[i + 1] || !open[i - gx] || !open[i + gx] || !open[i - (gx * gy)] || !open[i + (gx * gy)];
-                clear[i] = touchesWall ? MathF.Min(v, 0.8f) : MathF.Max(v, KarstCave.StandRadius);
-            }
-        });
-        return clear;
     }
 
     private static int FindSeed(Vector3 start, bool[] open, float[] clearance, int gx, int gy, int gz)

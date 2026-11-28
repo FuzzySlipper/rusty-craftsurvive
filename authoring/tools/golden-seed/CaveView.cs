@@ -391,7 +391,7 @@ internal static class CaveView
     /// placed where the field crosses zero on that rock sample's edge to its open neighbour, by linear interpolation of the
     /// field, so a throat's width is resolved finer than the sampling.
     /// </summary>
-    private static float[] Clearance(float[] values, bool[] open, int sx, int sy, int sz, float step)
+    internal static float[] Clearance(float[] values, bool[] open, int sx, int sy, int sz, float step)
     {
         const int Wall = -2;
         // Farther than any sample can be from rock (the box's squared diagonal, in samples), and small enough that the squared

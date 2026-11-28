@@ -245,13 +245,12 @@ internal static class UndergroundPlan
     private const float BoxCoverMetres = 10f;
     private const float MinimumBoxFloorY = -GenerationConstants.TerrainDepth + 6f;
 
-    // Candidate density calibration (calibrated around the 256 m reference cell so system density stays realistic).
+    // Candidate density calibration (area-normalised around 256 m so cave count holds steady as coarseness varies).
     private const double ReferenceSpacingMetres = 256.0;
     private const double BaseSiteProbabilityAt256m = 0.011;
     private const double SolubilityDensityBoost = 2.6;
     private const double DischargeDensityBoost = 0.55;
     private const double SlopeDensityBoost = 0.45;
-    private const double FineDetailDiscoveryPower = 0.35;
 
     // Box geometry & port margins (so ports never collide with KarstCave's outer rind or box corners).
     private const float PortHorizontalMarginMetres = 14f;
@@ -278,25 +277,28 @@ internal static class UndergroundPlan
     ];
 
     /// <summary>
-    /// Four coarseness levels spanning macro system skeletons through a mildly detailed upfront underground layer (#11209).
+    /// Controlled coarseness presets (#11209 Round 2):
+    /// <c>coarse</c> / <c>medium</c> / <c>fine</c> / <c>detailed</c> hold box size (96x64x96 m), minimum separation (560 m),
+    /// and multi-box share steady while varying lattice resolution (512 -> 64 m) and upfront interior detail (0 -> 6 rooms + 2D grid).
+    /// <c>fine-64m</c> varies only box size (64x48x64 m) at the same 128 m lattice to isolate box-size effects separately.
     /// </summary>
     internal static IReadOnlyList<UndergroundCoarseness> Presets { get; } =
     [
         new(
             Name: "coarse",
-            Description: "Macro skeleton: 512 m scan lattice, 96x64x96 m boxes, 1-4 boxes/system, boxes + links + mouths only.",
+            Description: "Macro skeleton: 512 m lattice, 96x64x96 m boxes, 1-5 boxes/system, boxes + links + mouths only.",
             SiteSpacingMetres: 512,
             BoxChunksX: 6,
             BoxChunksY: 4,
             BoxChunksZ: 6,
-            MinSystemSeparationMetres: 900,
-            MaxBoxesPerSystem: 4,
-            TargetMultiBoxShare: 0.25,
+            MinSystemSeparationMetres: 560,
+            MaxBoxesPerSystem: 5,
+            TargetMultiBoxShare: 0.30,
             SubChambersPerBox: 0,
             IncludeFieldGrid: false),
         new(
             Name: "medium",
-            Description: "Consensus baseline: 256 m lattice, 96x64x96 m boxes, 1-5 boxes/system (~70/30 split), primary waypoints & water table.",
+            Description: "Baseline: 256 m lattice, 96x64x96 m boxes, 1-5 boxes/system (~70/30 split), primary waypoints & water table.",
             SiteSpacingMetres: 256,
             BoxChunksX: 6,
             BoxChunksY: 4,
@@ -308,26 +310,38 @@ internal static class UndergroundPlan
             IncludeFieldGrid: false),
         new(
             Name: "fine",
-            Description: "Finer fit: 128 m lattice, 64x48x64 m modular boxes, 1-6 boxes/system, multi-chamber & branch graph per box.",
+            Description: "Finer fit (96 m boxes): 128 m lattice, 96x64x96 m boxes, 1-5 boxes/system, 4 rooms + branch loops per box.",
+            SiteSpacingMetres: 128,
+            BoxChunksX: 6,
+            BoxChunksY: 4,
+            BoxChunksZ: 6,
+            MinSystemSeparationMetres: 560,
+            MaxBoxesPerSystem: 5,
+            TargetMultiBoxShare: 0.30,
+            SubChambersPerBox: 4,
+            IncludeFieldGrid: false),
+        new(
+            Name: "fine-64m",
+            Description: "Box-size control: 128 m lattice, smaller 64x48x64 m boxes (1/3 volume), 1-6 boxes/system, 4 rooms + loops per box.",
             SiteSpacingMetres: 128,
             BoxChunksX: 4,
             BoxChunksY: 3,
             BoxChunksZ: 4,
-            MinSystemSeparationMetres: 360,
+            MinSystemSeparationMetres: 560,
             MaxBoxesPerSystem: 6,
-            TargetMultiBoxShare: 0.35,
+            TargetMultiBoxShare: 0.30,
             SubChambersPerBox: 4,
             IncludeFieldGrid: false),
         new(
             Name: "detailed",
-            Description: "Mildly detailed upfront layer: 64 m lattice, 64x48x64 m boxes, 1-8 boxes/system, full room/conduit/loop graph + per-tile 2D karst field.",
+            Description: "Mildly detailed upfront layer: 64 m lattice, 96x64x96 m boxes, 1-5 boxes/system, 6 rooms/loops per box + per-tile 2D karst grid.",
             SiteSpacingMetres: 64,
-            BoxChunksX: 4,
-            BoxChunksY: 3,
-            BoxChunksZ: 4,
-            MinSystemSeparationMetres: 260,
-            MaxBoxesPerSystem: 8,
-            TargetMultiBoxShare: 0.40,
+            BoxChunksX: 6,
+            BoxChunksY: 4,
+            BoxChunksZ: 6,
+            MinSystemSeparationMetres: 560,
+            MaxBoxesPerSystem: 5,
+            TargetMultiBoxShare: 0.30,
             SubChambersPerBox: 6,
             IncludeFieldGrid: true),
     ];
@@ -380,12 +394,10 @@ internal static class UndergroundPlan
         short[]? gridWaterTable = coarseness.IncludeFieldGrid ? new short[cells * cells] : null;
         byte[]? gridDepthBand = coarseness.IncludeFieldGrid ? new byte[cells * cells] : null;
 
-        // Area-normalised candidate rate with a mild fine-scale discovery bonus so finer lattices resolve smaller pockets
-        // without exploding system density linearly with cell count.
+        // Pure area-normalised Poisson rate so total cave counts stay steady as lattice spacing refines (#11209 Round 2).
         double spacingRatio = spacing / ReferenceSpacingMetres;
         double areaScale = spacingRatio * spacingRatio;
-        double discoveryFactor = Math.Pow(ReferenceSpacingMetres / spacing, FineDetailDiscoveryPower);
-        double baseChance = BaseSiteProbabilityAt256m * areaScale * discoveryFactor;
+        double baseChance = BaseSiteProbabilityAt256m * areaScale;
 
         List<(long CellX, long CellZ, double Priority, double X, double Z, MapSample Sample, MapBiome Biome, double Hardness, double Solubility, double Discharge, double Slope, bool NearLake)> candidates = [];
 
