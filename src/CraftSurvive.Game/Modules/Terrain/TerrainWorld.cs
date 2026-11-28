@@ -107,7 +107,7 @@ internal sealed class TerrainWorld : IDisposable
     {
         Func<TerrainChunkAddress, bool> changed = caves.Admit(cave, interior, shell);
         policy.Forget(changed);
-        streamer.MarkStale(streamer.Resident.Where(changed));
+        streamer.MarkStale(changed);
     }
 
     /// <summary>Lets a cave go (#10889): its box is rock again.</summary>
@@ -115,7 +115,7 @@ internal sealed class TerrainWorld : IDisposable
     {
         Func<TerrainChunkAddress, bool> changed = caves.Release(cave);
         policy.Forget(changed);
-        streamer.MarkStale(streamer.Resident.Where(changed));
+        streamer.MarkStale(changed);
     }
 
     /// <summary>The caves' readout: how deep the player is, what is kept, and the resident chunks split cave and overworld.</summary>

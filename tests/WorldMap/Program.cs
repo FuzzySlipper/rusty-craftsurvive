@@ -183,6 +183,7 @@ Check.Section("boats", BoatChecks.Rules);
 Check.Section("lake rules", LakeChecks.Rules);
 Check.Section("horizon landmarks", HorizonChecks.LandmarksStandInTheirBand);
 Check.Section("horizon landmarks on visible ground", HorizonChecks.LandmarksStandOnVisibleGround);
+Check.Section("cave cache provenance across release and eviction", CaveCacheChecks.Run);
 return Check.Finish("WorldMap");
 
 partial class Program

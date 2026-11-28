@@ -20,10 +20,11 @@ internal sealed class TerrainResidencyStreamer(
     private readonly Dictionary<TerrainChunkAddress, VoxelChunkReadout> resident = [];
     private readonly Queue<TerrainChunkAddress> pendingCacheWrites = new();
 
-    // The materials each resident chunk was admitted with, and an evicted one's until its cache write: what the generator
-    // produced (an edited chunk is never cached), so the write needs no second generation (#10889: going down a cave lets
-    // hundreds of overworld chunks go at once).
-    private readonly Dictionary<TerrainChunkAddress, ReadOnlyMemory<ushort>> admittedMaterials = [];
+    // The materials each resident chunk was admitted with (plus whether it was cacheable pure overworld terrain
+    // when generated, #11187 R11187-1), and an evicted cacheable chunk's materials until its cache write: what the
+    // generator produced (an edited or cave-affected chunk is never cached), so the write needs no second generation
+    // (#10889: going down a cave lets hundreds of overworld chunks go at once).
+    private readonly Dictionary<TerrainChunkAddress, (ReadOnlyMemory<ushort> Materials, bool Cacheable)> admittedMaterials = [];
     private readonly Dictionary<TerrainChunkAddress, ReadOnlyMemory<ushort>> evictedMaterials = [];
 
     /// <summary>Resident chunks whose generation changed without an edit (a cave admitted, #10889), replaced a few an update.</summary>
@@ -114,7 +115,7 @@ internal sealed class TerrainResidencyStreamer(
         !Workers || Round(address, center) || generateHere.Contains(address) || plan.Produced(address);
     private long replacements;
 
-    /// <summary>Keeps a chunk's admitted materials for its cache write, only while they are the generator's alone (no edit in it).</summary>
+    /// <summary>Keeps a chunk's admitted materials and whether they are pure cacheable overworld terrain (#11187 R11187-1).</summary>
     private void Keep(TerrainChunkAddress address, ReadOnlyMemory<ushort> materials)
     {
         if (overlay.TouchesChunk(address))
@@ -123,7 +124,7 @@ internal sealed class TerrainResidencyStreamer(
         }
         else
         {
-            admittedMaterials[address] = materials;
+            admittedMaterials[address] = (materials, generator.Cacheable(address));
         }
     }
 
@@ -182,22 +183,35 @@ internal sealed class TerrainResidencyStreamer(
     /// </summary>
     internal bool TryAdmittedMaterials(TerrainChunkAddress address, Span<ushort> materials)
     {
-        if (!resident.ContainsKey(address) || overlay.TouchesChunk(address) || !admittedMaterials.TryGetValue(address, out ReadOnlyMemory<ushort> kept))
+        if (!resident.ContainsKey(address) || overlay.TouchesChunk(address) || !admittedMaterials.TryGetValue(address, out (ReadOnlyMemory<ushort> Materials, bool Cacheable) kept))
         {
             return false;
         }
 
-        kept.Span.CopyTo(materials);
+        kept.Materials.Span.CopyTo(materials);
         return true;
     }
 
-    /// <summary>Marks resident chunks to be generated again and replaced in the Engine (the rest come in with the plan).</summary>
+    /// <summary>Marks resident chunks to be generated again and invalidates any kept cache payloads for them (#11187 R11187-1).</summary>
     internal void MarkStale(IEnumerable<TerrainChunkAddress> addresses)
     {
         foreach (TerrainChunkAddress address in addresses)
         {
+            admittedMaterials.Remove(address);
+            evictedMaterials.Remove(address);
             if (resident.ContainsKey(address)) stale.Add(address);
         }
+    }
+
+    /// <summary>Marks every resident chunk and queued cache payload matching <paramref name="predicate"/> stale (#11187 R11187-1).</summary>
+    internal void MarkStale(Func<TerrainChunkAddress, bool> predicate)
+    {
+        foreach (TerrainChunkAddress address in evictedMaterials.Keys.Where(predicate).ToArray())
+        {
+            evictedMaterials.Remove(address);
+        }
+
+        MarkStale(resident.Keys.Where(predicate).ToArray());
     }
 
     /// <summary>How many resident chunks wait to be replaced.</summary>
@@ -464,9 +478,9 @@ internal sealed class TerrainResidencyStreamer(
                 }
 
                 pendingCacheWrites.Enqueue(address);
-                if (admittedMaterials.TryGetValue(address, out ReadOnlyMemory<ushort> kept))
+                if (admittedMaterials.TryGetValue(address, out (ReadOnlyMemory<ushort> Materials, bool Cacheable) kept) && kept.Cacheable)
                 {
-                    evictedMaterials[address] = kept;
+                    evictedMaterials[address] = kept.Materials;
                 }
             }
 
@@ -553,14 +567,15 @@ internal sealed class TerrainResidencyStreamer(
         }
 
         bool kept = evictedMaterials.Remove(address, out ReadOnlyMemory<ushort> materials);
-        if (resident.ContainsKey(address))
+        if (resident.ContainsKey(address) || overlay.TouchesChunk(address) || !generator.Cacheable(address))
         {
             return;
         }
 
-        // The materials it was admitted with are what the generator produced; a chunk admitted before they were kept is generated again.
-        lastCacheWrite = kept && !overlay.TouchesChunk(address) ? "kept" : "regenerated";
-        cache.Write(address, kept && !overlay.TouchesChunk(address) ? materials.Span : generator.Generate(address, new TerrainOverlaySnapshot(seed, [])).Materials.Span);
+        // Kept materials are guaranteed to be pure un-admitted overworld terrain (#11187 R11187-1);
+        // otherwise regenerate fresh un-admitted overworld materials before writing to the disk cache.
+        lastCacheWrite = kept ? "kept" : "regenerated";
+        cache.Write(address, kept ? materials.Span : generator.GenerateUncached(address, new TerrainOverlaySnapshot(seed, [])).Materials.Span);
     }
 
     private static void AddAdmission(TerrainChunk chunk, Batch batch, VoxelResidencyOperationKind kind = VoxelResidencyOperationKind.Admit)

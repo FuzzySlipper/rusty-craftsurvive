@@ -9,6 +9,10 @@
     <Compile Include="$(ProductModules)Terrain/TerrainConfiguration.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Terrain/TerrainChunk.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Terrain/TerrainChunkCache.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainChunkPreparer.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainResidencyPolicy.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainResidencyStreamer.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/UpdateBudget.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Terrain/TreeFelling.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Terrain/TerrainOverlayState.cs" LinkBase="Product" />
