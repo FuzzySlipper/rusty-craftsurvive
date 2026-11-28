@@ -152,6 +152,24 @@ internal sealed class CavePlacement
     internal bool TendrilTouches(long xMin, long xMax, long zMin, long zMax) =>
         xMax >= TendrilMinimum.X && xMin <= TendrilMaximum.X && zMax >= TendrilMinimum.Z && zMin <= TendrilMaximum.Z;
 
+    internal bool ChunkTouchesBox(TerrainChunkAddress chunk)
+    {
+        long edge = TerrainConstants.ChunkEdgeLength;
+        long x0 = chunk.X * edge, y0 = chunk.Y * edge, z0 = chunk.Z * edge;
+        return x0 + edge - 1 >= BoxMinimum.X && x0 <= BoxMaximum.X
+            && y0 + edge - 1 >= BoxMinimum.Y && y0 <= BoxMaximum.Y
+            && z0 + edge - 1 >= BoxMinimum.Z && z0 <= BoxMaximum.Z;
+    }
+
+    internal bool ChunkTouchesTendril(TerrainChunkAddress chunk)
+    {
+        long edge = TerrainConstants.ChunkEdgeLength;
+        long x0 = chunk.X * edge, y0 = chunk.Y * edge, z0 = chunk.Z * edge;
+        return x0 + edge - 1 >= TendrilMinimum.X && x0 <= TendrilMaximum.X
+            && y0 + edge - 1 >= TendrilMinimum.Y && y0 <= TendrilMaximum.Y
+            && z0 + edge - 1 >= TendrilMinimum.Z && z0 <= TendrilMaximum.Z;
+    }
+
     /// <summary>
     /// How far inside the tendril a world point is, in metres (positive inside, empty; negative in the rock round it): its
     /// section's half-height less its distance from the centre line, the section squashed to a circle.
@@ -267,10 +285,12 @@ internal sealed class CavePlacement
             end.Z - (fz * WayIn.X) - (az * WayIn.Y));
         corner = new Vector3(MathF.Round(corner.X), corner.Y, MathF.Round(corner.Z));
         CavePlacement placement = new(site, fx, fz, [.. points], corner);
-        // The finite world's edge: the box and the tendril keep inside it, clear of the border wall.
+        // The finite world's bounds: the box and tendril stay inside the border wall and above the bedrock floor (#11187).
         long inner = radius - (GenerationConstants.WorldWallThickness + ApartMetres);
+        long floorTop = -GenerationConstants.TerrainDepth + GenerationConstants.WorldFloorThickness;
         if (Math.Min(placement.BoxMinimum.X, placement.TendrilMinimum.X) < -inner || Math.Max(placement.BoxMaximum.X, placement.TendrilMaximum.X) > inner
-            || Math.Min(placement.BoxMinimum.Z, placement.TendrilMinimum.Z) < -inner || Math.Max(placement.BoxMaximum.Z, placement.TendrilMaximum.Z) > inner)
+            || Math.Min(placement.BoxMinimum.Z, placement.TendrilMinimum.Z) < -inner || Math.Max(placement.BoxMaximum.Z, placement.TendrilMaximum.Z) > inner
+            || Math.Min(placement.BoxMinimum.Y, placement.TendrilMinimum.Y) < floorTop)
         {
             return null;
         }
@@ -387,14 +407,41 @@ internal sealed class CaveUnderground
         return found;
     }
 
-    /// <summary>Whether anything underground (a tendril, or a cave's box) reaches into a chunk: its chunk is never cached.</summary>
+    /// <summary>
+    /// Whether any cave's tendril or box overlaps <paramref name="chunk"/> in 3D (admitted or not): used to
+    /// drop stale worker chunks when <see cref="Revision"/> changes due to cave admission or release.
+    /// </summary>
     internal bool Touches(TerrainChunkAddress chunk)
     {
-        long edge = TerrainConstants.ChunkEdgeLength;
-        long y0 = chunk.Y * edge, y1 = y0 + edge - 1;
         foreach (CavePlacement cave in NearChunkColumn(chunk.X, chunk.Z))
         {
-            if ((y1 >= cave.BoxMinimum.Y && y0 <= cave.BoxMaximum.Y) || (y1 >= cave.TendrilMinimum.Y && y0 <= cave.TendrilMaximum.Y))
+            if (cave.ChunkTouchesBox(chunk) || cave.ChunkTouchesTendril(chunk))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="cave"/> currently alters voxels or densities inside <paramref name="chunk"/> (#11187):
+    /// true for chunks overlapped in 3D by its tendril, or by its box once admitted. Un-admitted boxes leave
+    /// overworld chunks untouched and safely cacheable.
+    /// </summary>
+    internal bool AffectsChunk(CavePlacement cave, TerrainChunkAddress chunk) =>
+        cave.ChunkTouchesTendril(chunk) || (admitted.ContainsKey(cave.Key) && cave.ChunkTouchesBox(chunk));
+
+    /// <summary>
+    /// Whether any tendril or currently-admitted cave box affects <paramref name="chunk"/> (#11187):
+    /// chunks outside tendrils and admitted boxes hold pure overworld terrain and may use the disk chunk cache.
+    /// </summary>
+    internal bool AffectsChunk(TerrainChunkAddress chunk)
+    {
+        IReadOnlyDictionary<(long X, long Z), CaveInterior> caves = admitted;
+        foreach (CavePlacement cave in NearChunkColumn(chunk.X, chunk.Z))
+        {
+            if (cave.ChunkTouchesTendril(chunk) || (caves.ContainsKey(cave.Key) && cave.ChunkTouchesBox(chunk)))
             {
                 return true;
             }
@@ -444,7 +491,7 @@ internal sealed class CaveUnderground
     /// <summary>Underground lookup against a pre-gathered set of chunk-overlapping caves (#11179).</summary>
     internal (ushort Material, float Magnitude)? At(VoxelAddress voxel, long surface, double height, ushort generated, CavePlacement[] near)
     {
-        if (near.Length == 0)
+        if (near.Length == 0 || generated == (ushort)BlockId.Bedrock)
         {
             return null;
         }
@@ -506,8 +553,8 @@ internal sealed class CaveUnderground
             return (TerrainConstants.EmptyMaterial, Math.Max(combined, MinimumMagnitude));
         }
 
-        // Rock round a tendril is the overworld's ground: bedrock the world's floor puts there is stone, so it is reconstructed.
-        if (material == TerrainConstants.EmptyMaterial || material == (ushort)BlockId.Bedrock)
+        // Rock round a tendril or sealed cave roof is stone so empty voxels inside rock stay solid (#11187: bedrock sits below every cave).
+        if (material == TerrainConstants.EmptyMaterial)
         {
             material = TerrainConstants.StoneMaterial;
         }

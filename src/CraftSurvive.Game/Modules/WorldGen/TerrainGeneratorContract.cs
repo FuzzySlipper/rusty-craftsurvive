@@ -85,9 +85,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// fixes do not scramble unrelated placements, refuses POIs on submerged columns or town pads, and scales continental vantage height (#11179);
     /// version 46 decouples WorldMap.ComputeFingerprint from feature GeneratorVersion (mixing GeographySeedVersion instead, #11184);
     /// version 47 drives continental POI density and kind weights from biome, karst rock, frontier/neck bounds, and settlement distance (#11185);
-    /// version 48 replaces blind axis-aligned continental crossing scans and voxel bridges with hydrology-driven river crossings and parametric textured bridge meshes (#11186).
+    /// version 48 replaces blind axis-aligned continental crossing scans and voxel bridges with hydrology-driven river crossings and parametric textured bridge meshes (#11186);
+    /// version 49 deepens the world bedrock floor to y = -80 below every lowland cave box, removes tendril bedrock-to-stone rewrites, and keeps un-admitted cave box chunks cacheable (#11187).
     /// </summary>
-    internal const uint CurrentVersion = 48;
+    internal const uint CurrentVersion = 49;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

@@ -181,8 +181,12 @@ internal sealed class TerrainChunkGenerator
         return (low, high);
     }
 
-    /// <summary>Whether a chunk may be read from and written to the chunk cache: not one a tendril or a cave reaches (#10889).</summary>
-    internal bool Cacheable(TerrainChunkAddress address) => !recipe.Caves.Touches(address);
+    /// <summary>
+    /// Whether a chunk may be read from and written to the chunk cache (#10889, #11187):
+    /// chunks touched only by an un-admitted cave box hold pure overworld terrain and stay cacheable
+    /// until the cave is admitted; tendril chunks and admitted cave box chunks are never cached.
+    /// </summary>
+    internal bool Cacheable(TerrainChunkAddress address) => !recipe.Caves.AffectsChunk(address);
 
     /// <summary>
     /// A voxel's density: underground (#10889), the cave's or the tendril's own distance, signed by the material placed

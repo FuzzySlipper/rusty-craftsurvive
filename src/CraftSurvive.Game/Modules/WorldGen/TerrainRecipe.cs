@@ -389,8 +389,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
             List<CavePlacement>? filtered = null;
             foreach (CavePlacement cave in columnCaves)
             {
-                if ((y1 >= cave.BoxMinimum.Y && y0 <= cave.BoxMaximum.Y)
-                    || (y1 >= cave.TendrilMinimum.Y - 2 && y0 <= cave.TendrilMaximum.Y + 2))
+                if (caves.AffectsChunk(cave, address))
                 {
                     (filtered ??= []).Add(cave);
                 }

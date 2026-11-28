@@ -54,7 +54,12 @@ internal static class GenerationConstants
     /// depth of a real descent belongs to the slice that owns the load transition.
     /// </summary>
     internal const long MaximumStructureStepBelowGround = 1;
-    internal const int TerrainDepth = 9;
+    /// <summary>
+    /// World bedrock floor depth below sea level (#11187): deepest possible lowland cave mouth
+    /// (<see cref="PoiConstants.MinimumGroundHeight"/> = 3) places its 64 m box down to y = -73, so
+    /// 80 m (chunk boundary Y = -5) keeps a solid rock cushion and an intact bedrock seal underneath every cave.
+    /// </summary>
+    internal const int TerrainDepth = 80;
     internal const int TerrainHeadroom = 16;
     internal const int MinimumTerrainHeight = -2;
     internal const int TopsoilSlopeMaximum = 2;

@@ -206,7 +206,24 @@ internal static class GenerationChecks
             // Water is a surface over the ground, not voxels (#9877): the basin is under it, and no water cell is generated.
             Check.That(mapped.ColumnAt(basinX, basinZ).Submerged, "the map basin stands under water");
             Check.That(!basinChunk.Materials.Span.Contains((ushort)BlockId.Water), "generation makes no water voxels");
-            Check.That(bedrockVoxels > 0, "the world has no authored bedrock floor");
+            // The bedrock floor stands at MinimumMaterialY below every cave box (#11187), with solid stone immediately above it.
+            long floorChunkY = GridMath.FloorDivide(mapped.MinimumMaterialY, TerrainConstants.ChunkEdgeLength);
+            TerrainChunk floorChunk = generator.Generate(new TerrainChunkAddress(0, floorChunkY, 0), overlay.Snapshot());
+            int floorLocalY = (int)(mapped.MinimumMaterialY - floorChunk.Address.Origin.Y);
+            long floorBedrock = 0;
+            for (int z = 0; z < TerrainConstants.ChunkEdgeLength; z++)
+            for (int x = 0; x < TerrainConstants.ChunkEdgeLength; x++)
+            {
+                int floorIndex = (z * TerrainConstants.ChunkEdgeLength * TerrainConstants.ChunkEdgeLength)
+                    + (floorLocalY * TerrainConstants.ChunkEdgeLength) + x;
+                if (floorChunk.Materials.Span[floorIndex] == (ushort)BlockId.Bedrock) floorBedrock++;
+            }
+            Check.That(floorBedrock == TerrainConstants.ChunkEdgeLength * TerrainConstants.ChunkEdgeLength,
+                $"the world's bedrock floor at y={mapped.MinimumMaterialY} must be intact across the chunk ({floorBedrock}/256)");
+            Check.That(mapped.MaterialAt(new VoxelAddress(0, mapped.MinimumMaterialY + GenerationConstants.WorldFloorThickness, 0)) == TerrainConstants.StoneMaterial,
+                "solid stone must stand directly above the bedrock floor");
+            Check.That(bedrockVoxels == 0,
+                $"the surface window y=-16..31 must no longer hit bedrock now that the floor lies at y={mapped.MinimumMaterialY}, found {bedrockVoxels}");
         }
 
         // The chunk content predicate against generation itself: the predicate must never claim

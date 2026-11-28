@@ -112,5 +112,105 @@ internal static class CaveChecks
         policy.SetUnderground(new TerrainResidencyPolicy.UndergroundResidency(2, int.MaxValue, true, shell));
         TerrainResidencyPlan above = policy.PlanFor(inside.Chunk, state);
         Check.That(above.Retained.Count > shell.Count * 10 && shell.All(above.Retained.Contains), "near the surface the overworld must be kept again, and the cave's chunks with it");
+
+        // --- lowland cave depth vs. bedrock floor and un-admitted cave chunk caching (#11187) ---
+        {
+            // Lowest possible cave mouth (Ground = MinimumGroundHeight = 3) places its entire 64 m box above bedrock.
+            PoiSite lowlandMouth = new(0, 0, PoiKind.CaveMouth, 0, 0, PoiConstants.MinimumGroundHeight, 5, 0, 0);
+            CavePlacement? lowland = CavePlacement.Place(lowlandMouth, recipe.Radius);
+            Check.That(lowland is not null, "a lowland cave mouth at MinimumGroundHeight must still fit above bedrock");
+            if (lowland is not null)
+            {
+                long floorTop = recipe.MinimumMaterialY + GenerationConstants.WorldFloorThickness;
+                Check.That(lowland.BoxMinimum.Y >= floorTop && lowland.TendrilMinimum.Y >= floorTop,
+                    $"a lowland cave box ({lowland.BoxMinimum.Y}) and tendril ({lowland.TendrilMinimum.Y}) must sit above the bedrock floor ({floorTop})");
+                Check.That(recipe.MaterialAt(new VoxelAddress((long)lowland.Corner.X, recipe.MinimumMaterialY, (long)lowland.Corner.Z)) == (ushort)BlockId.Bedrock,
+                    "the bedrock floor directly under a lowland cave box must remain intact bedrock");
+                Check.That(recipe.MaterialAt(new VoxelAddress((long)lowland.Corner.X, floorTop, (long)lowland.Corner.Z)) == TerrainConstants.StoneMaterial,
+                    "solid stone must sit between the bedrock floor and a lowland cave box");
+            }
+
+            // A hypothetical mouth below sea floor that would breach bedrock is refused by CavePlacement.Place.
+            PoiSite subFloorMouth = new(0, 0, PoiKind.CaveMouth, 0, 0, -10, 5, 0, 0);
+            Check.That(CavePlacement.Place(subFloorMouth, recipe.Radius) is null,
+                "a cave placement that would breach the world bedrock floor must be refused");
+
+            // CaveUnderground.At must never rewrite or carve bedrock.
+            Check.That(recipe.Caves.At(inside, recipe.SurfaceAt(inside.X, inside.Z), recipe.ContinuousHeightAt(inside.X, inside.Z), (ushort)BlockId.Bedrock) is null,
+                "CaveUnderground.At must preserve bedrock rather than rewriting it to stone or air");
+
+            // Un-admitted cave box chunks (outside the tendril) stay cacheable; admitting invalidates cacheability and swaps to cave interior; releasing restores both.
+            long edge = TerrainConstants.ChunkEdgeLength;
+            TerrainChunkAddress? boxOnly = null;
+            TerrainChunkAddress? surfaceOverBox = null;
+            for (long cx = GridMath.FloorDivide(cave.BoxMinimum.X, edge) + 1; cx < GridMath.FloorDivide(cave.BoxMaximum.X, edge) && (boxOnly is null || surfaceOverBox is null); cx++)
+            for (long cz = GridMath.FloorDivide(cave.BoxMinimum.Z, edge) + 1; cz < GridMath.FloorDivide(cave.BoxMaximum.Z, edge) && (boxOnly is null || surfaceOverBox is null); cz++)
+            {
+                long minCy = GridMath.FloorDivide(cave.BoxMinimum.Y, edge);
+                long maxCy = GridMath.FloorDivide(cave.BoxMaximum.Y, edge);
+                TerrainChunkAddress deepCandidate = new(cx, minCy + 1, cz);
+                if (boxOnly is null && cave.ChunkTouchesBox(deepCandidate) && !cave.ChunkTouchesTendril(deepCandidate))
+                {
+                    boxOnly = deepCandidate;
+                }
+
+                TerrainChunkAddress surfaceCandidate = new(cx, maxCy + 2, cz);
+                if (surfaceOverBox is null && !cave.ChunkTouchesBox(surfaceCandidate) && !cave.ChunkTouchesTendril(surfaceCandidate))
+                {
+                    surfaceOverBox = surfaceCandidate;
+                }
+            }
+
+            Check.That(boxOnly is not null && surfaceOverBox is not null, "a cave must have both a box-only chunk and a surface chunk over its box outside the tendril");
+            if (boxOnly is TerrainChunkAddress boxChunk && surfaceOverBox is TerrainChunkAddress overChunk)
+            {
+                Check.That(recipe.Caves.Touches(boxChunk), "Touches must still report a box chunk for worker staleness checks");
+                Check.That(!recipe.Caves.Touches(overChunk), "Touches must not falsely flag a 3D-disjoint surface chunk above the box");
+                Check.That(generator.Cacheable(boxChunk), "an un-admitted cave box chunk outside the tendril must stay cacheable");
+                Check.That(generator.Cacheable(overChunk), "a surface chunk over a cave box outside the tendril must stay cacheable");
+
+                TerrainChunk beforeAdmit = generator.Generate(boxChunk, overlay);
+                int volume = CavePlacement.SizeX * CavePlacement.SizeY * CavePlacement.SizeZ;
+                ushort[] mats = new ushort[volume];
+                float[] dens = new float[volume];
+                Array.Fill(mats, (ushort)BlockId.CaveLimestone);
+                Array.Fill(dens, 1.5f);
+                // Carve an air chamber strictly inside boxChunk's canonical voxels.
+                int carvedInBox = 0;
+                VoxelAddress boxOrigin = boxChunk.Origin;
+                for (int z = 2; z < 14; z++)
+                for (int y = 2; y < 14; y++)
+                for (int x = 2; x < 14; x++)
+                {
+                    if (cave.InBox(boxOrigin.X + x, boxOrigin.Y + y, boxOrigin.Z + z, out int ci, out int cj, out int ck))
+                    {
+                        int idx = (((ck * CavePlacement.SizeY) + cj) * CavePlacement.SizeX) + ci;
+                        mats[idx] = TerrainConstants.EmptyMaterial;
+                        dens[idx] = 0.25f;
+                        carvedInBox++;
+                    }
+                }
+
+                Check.That(carvedInBox > 0, "synthetic cave interior must overlap boxChunk");
+                CaveInterior interior = new(CavePlacement.SizeX, CavePlacement.SizeY, CavePlacement.SizeZ, mats, dens);
+                recipe.Caves.Admit(cave, interior);
+                Check.That(!generator.Cacheable(boxChunk), "admitting a cave must immediately make its box chunks uncacheable");
+                Check.That(generator.Cacheable(overChunk), "admitting a cave must leave disjoint surface chunks above it cacheable");
+
+                TerrainChunk whileAdmitted = generator.Generate(boxChunk, overlay);
+                int emptyAfterAdmit = 0;
+                foreach (ushort m in whileAdmitted.Materials.Span)
+                {
+                    if (m == TerrainConstants.EmptyMaterial) emptyAfterAdmit++;
+                }
+
+                Check.That(emptyAfterAdmit > 0, "admitting a cave must replace box rock with the cave interior");
+                recipe.Caves.Release(cave);
+                Check.That(generator.Cacheable(boxChunk), "releasing a cave must restore cacheability of its box chunks");
+                TerrainChunk afterRelease = generator.Generate(boxChunk, overlay);
+                Check.That(afterRelease.Materials.Span.SequenceEqual(beforeAdmit.Materials.Span),
+                    "releasing a cave must restore the exact pre-admission overworld chunk");
+            }
+        }
     }
 }
