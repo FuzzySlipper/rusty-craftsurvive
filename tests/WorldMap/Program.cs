@@ -48,7 +48,7 @@ try
         Check.That(catalog.StoredBytes > 0, "map samples are written through Engine persistence");
         Console.WriteLine($"catalog construction on an empty store: {constructionMs:F1} ms");
         WorldMap initial = catalog.Current.Map;
-        var draws = new EngineTerrainDraws(engine.Random);
+        var draws = EngineTerrainDraws.Shared;
         ulong live = TerrainGenerationFingerprint.Compute(initial.Configuration.CreateRecipe(draws, initial), TerrainGenerationFingerprint.Startup);
         Console.WriteLine($"Engine generator {initial.Configuration.GeneratorVersion}: {live:x16}; map {initial.Fingerprint:x16}; nodes={initial.Grid.Count}; bytes={catalog.StoredBytes}; generateMs={catalog.GenerationMilliseconds:F3}");
 
@@ -93,11 +93,11 @@ try
         Check.That(restored.Current.Map.Fingerprint == expectedFingerprint && restored.Current.Generation == expectedGeneration,
             "host restart preserves the same map and gameplay namespace");
         WorldMap map = restored.Current.Map;
-        Check.That(TerrainGenerationFingerprint.Compute(map.Configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), map),
+        Check.That(TerrainGenerationFingerprint.Compute(map.Configuration.CreateRecipe(EngineTerrainDraws.Shared, map),
             TerrainGenerationFingerprint.Startup) == expectedTerrain, "restored map and Engine draws reproduce local density and materials across hosts");
         Check.That(restored.Current.Map.Configuration.Seed == 12345 && restored.Current.Map.Configuration.Size == 4096,
             "host restart restores selected seed and extent rather than defaults");
-        WorldExportChecks.Regional(map, new EngineTerrainDraws(engine.Random));
+        WorldExportChecks.Regional(map, EngineTerrainDraws.Shared);
     });
 
     // A continent (#9549): generated, saved and restored through the same catalog, with its own golden.
@@ -121,14 +121,14 @@ try
         DesignTopologyReport topology = DesignTopology.Check(continent.Map.Grid, i => continent.Map.Fields.Elevation[i] >= GenerationConstants.WaterLevel, ContinentDesign.For(continent.Map.Configuration.Size)!);
         Check.That(topology.Holds(ContinentDesign.For(continent.Map.Configuration.Size)!), $"the published continent keeps the frontier's rules: {topology}");
         RegionChecks(continent.Map);
-        WorldExportChecks.Continent(continent.Map, new EngineTerrainDraws(engine.Random));
+        WorldExportChecks.Continent(continent.Map, EngineTerrainDraws.Shared);
         Check.Section("weather on the continent", () => WeatherChecks.Continent(continent.Map));
         Check.Section("the continent's bounds", () => FrontierChecks.Continent(continent.Map));
         Check.Section("the horizon's heightfield ground", () => HorizonGroundChecks.Run(continent.Map));
         Check.Section("the water network and its settlements", () => NetworkChecks.Run(continent.Map));
         Check.Section("lakes", () => LakeChecks.Run(continent.Map));
         Check.Section("small rivers in the land", () => RiverSeatChecks.Run(continent.Map));
-        TerrainRecipe continentRecipe = continent.Map.Configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), continent.Map);
+        TerrainRecipe continentRecipe = continent.Map.Configuration.CreateRecipe(EngineTerrainDraws.Shared, continent.Map);
         Check.Section("the river stage", () => StageChecks.Run(continent.Map, continentRecipe));
         Check.Section("floods", () => FloodChecks.Run(continent.Map, continentRecipe));
         Check.Section("narrow streams as ribbons", () => RibbonChecks.Run(continent.Map, continentRecipe));
@@ -185,8 +185,8 @@ return Check.Finish("WorldMap");
 
 partial class Program
 {
-    /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 45 (#11179); a deliberate generation change updates it.</summary>
-    private const ulong RegionTileGolden = 0x1198ea9e7c130327UL;
+    /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent (geography version 17, #11184); only geography changes update it.</summary>
+    private const ulong RegionTileGolden = 0x01fc7024188cd503UL;
     /// <summary>
     /// A tile builds in about 1.5 s in Release on an idle machine; this wall-clock bound leaves room for a
     /// heavily shared runner (5.6 s was seen at a load average of 40) while still catching a regression.
@@ -278,6 +278,6 @@ partial class Program
     }
 
     private const ulong ContinentSeed = 12345;
-    /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 45 (#11179); a deliberate generation change updates it.</summary>
-    private const ulong ContinentGolden = 0x5e48f93386e67d33UL;
+    /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> (geography version 17, #11184); only geography changes update it.</summary>
+    private const ulong ContinentGolden = 0x5f62034bb6e2a98fUL;
 }

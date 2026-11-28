@@ -82,9 +82,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// fades the walking ground's local relief out under the sea, so the open sea raises no island the map does not have; version
     /// 44 lets rising relief lift no ground the map has under water, coming in over the shore's first metres instead (#11148); version
     /// 45 adopts worker-callable managed KeyedRng (rusty-engine #11177), decouples per-subsystem feature seed versions so future targeted
-    /// fixes do not scramble unrelated placements, refuses POIs on submerged columns or town pads, and scales continental vantage height (#11179).
+    /// fixes do not scramble unrelated placements, refuses POIs on submerged columns or town pads, and scales continental vantage height (#11179);
+    /// version 46 decouples WorldMap.ComputeFingerprint from feature GeneratorVersion (mixing GeographySeedVersion instead, #11184).
     /// </summary>
-    internal const uint CurrentVersion = 45;
+    internal const uint CurrentVersion = 46;
 
     private const string GenerationScope = "craftsurvive.terrain";
 
@@ -174,7 +175,7 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     // Independent seed versions per subsystem (#11179): geography and each feature family bump their
     // own seed version only when their own distribution changes, while CurrentVersion still owns
     // save/cache identity and explicit version overrides (e.g. CurrentVersion + 1) move every draw.
-    private const uint GeographySeedVersion = 17;
+    internal const uint GeographySeedVersion = 17;
     internal const uint TreeSeedVersion = 44;
     internal const uint PoiSeedVersion = 44;
     internal const uint CrossingSeedVersion = 44;
@@ -212,9 +213,7 @@ internal sealed class EngineTerrainDraws : ITerrainDraws
 {
     internal static EngineTerrainDraws Shared { get; } = new();
 
-    internal EngineTerrainDraws() { }
-
-    internal EngineTerrainDraws(IRandomService _) { }
+    private EngineTerrainDraws() { }
 
     public long Draw(string scope, string key, ulong seed, long minimum, long maximum) =>
         KeyedRng.Draw(seed, scope, key, minimum, maximum);

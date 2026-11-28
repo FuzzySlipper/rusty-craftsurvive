@@ -44,63 +44,134 @@ internal sealed class MapFlow
         return outlet;
     }
 
-    /// <summary>Fill <paramref name="height"/> in place, then route and accumulate <paramref name="rain"/>.</summary>
-    internal static MapFlow Route(MapGrid grid, double[] height, bool[] outlet, double[] rain, double fillStep)
+    /// <summary>Reusable scratch buffers for repeated fill/route passes in landscape evolution (#11184).</summary>
+    internal sealed class Workspace(MapGrid grid)
     {
-        Fill(grid, height, outlet, fillStep);
+        internal readonly double[] Keys = new double[grid.Count];
+        internal readonly bool[] Closed = new bool[grid.Count];
+        internal readonly PriorityQueue<int, double> Open = new(grid.Side * 4);
+        internal readonly Queue<int> Pit = new();
+    }
+
+    private const int ParallelThreshold = 65_536;
+
+    /// <summary>Fill <paramref name="height"/> in place, then route and accumulate <paramref name="rain"/>.</summary>
+    internal static MapFlow Route(MapGrid grid, double[] height, bool[] outlet, double[] rain, double fillStep, Workspace? workspace = null)
+    {
         MapFlow flow = new(grid);
-        double[] keys = new double[grid.Count];
-        int[] offsets = grid.Offsets();
-        double[] lengths = MapGrid.StepLengths;
-        for (int i = 0; i < grid.Count; i++)
-        {
-            flow.Order[i] = i;
-            keys[i] = height[i];
-            flow.Receiver[i] = Base;
-            if (outlet[i]) continue;
-            double steepest = 0;
-            bool interior = grid.IsInterior(i);
-            for (int k = 0; k < 8; k++)
-            {
-                int n = interior ? i + offsets[k] : grid.Neighbour(i, k);
-                if (n < 0) continue;
-                double slope = (height[i] - height[n]) / lengths[k];
-                if (slope > steepest) { steepest = slope; flow.Receiver[i] = n; flow.Distance[i] = lengths[k]; }
-            }
-            if (flow.Receiver[i] == Base) throw new InvalidOperationException("A filled land node has no lower neighbour.");
-        }
-        // Receivers are strictly lower, so ascending height is a valid downstream-first order.
-        Array.Sort(keys, flow.Order);
-        for (int i = 0; i < grid.Count; i++) flow.Discharge[i] = rain[i];
-        for (int n = grid.Count - 1; n >= 0; n--)
-        {
-            int i = flow.Order[n], r = flow.Receiver[i];
-            if (r != Base) flow.Discharge[r] += flow.Discharge[i];
-        }
+        RouteInto(flow, height, outlet, rain, fillStep, workspace ?? new Workspace(grid));
         return flow;
     }
 
-    internal static void Fill(MapGrid grid, double[] height, bool[] outlet, double step)
+    /// <summary>Fill <paramref name="height"/> in place, then route and accumulate <paramref name="rain"/> into an existing <see cref="MapFlow"/> (#11184).</summary>
+    internal static void RouteInto(MapFlow flow, double[] height, bool[] outlet, double[] rain, double fillStep, Workspace workspace)
     {
-        PriorityQueue<int, double> open = new(grid.Side * 4);
-        Queue<int> pit = new();
-        bool[] closed = new bool[grid.Count];
+        MapGrid grid = flow.Grid;
+        Fill(grid, height, outlet, fillStep, workspace);
+        double[] keys = workspace.Keys;
         int[] offsets = grid.Offsets();
         double[] lengths = MapGrid.StepLengths;
+        int side = grid.Side, segments = grid.Segments;
+        int[] order = flow.Order;
+        int[] receiver = flow.Receiver;
+        double[] distance = flow.Distance;
+        int noLower = 0;
+
+        void RouteRow(int z)
+        {
+            int rowStart = z * side;
+            bool interiorZ = z > 0 && z < segments;
+            for (int x = 0; x < side; x++)
+            {
+                int i = rowStart + x;
+                order[i] = i;
+                double hi = height[i];
+                keys[i] = hi;
+                receiver[i] = Base;
+                if (outlet[i]) continue;
+                double steepest = 0;
+                int best = Base;
+                double bestDist = 0;
+                if (interiorZ && x > 0 && x < segments)
+                {
+                    for (int k = 0; k < 8; k++)
+                    {
+                        int n = i + offsets[k];
+                        double slope = (hi - height[n]) / lengths[k];
+                        if (slope > steepest) { steepest = slope; best = n; bestDist = lengths[k]; }
+                    }
+                }
+                else
+                {
+                    for (int k = 0; k < 8; k++)
+                    {
+                        int n = grid.Neighbour(i, k);
+                        if (n < 0) continue;
+                        double slope = (hi - height[n]) / lengths[k];
+                        if (slope > steepest) { steepest = slope; best = n; bestDist = lengths[k]; }
+                    }
+                }
+
+                if (best == Base) Interlocked.Exchange(ref noLower, 1);
+                receiver[i] = best;
+                distance[i] = bestDist;
+            }
+        }
+
+        if (grid.Count >= ParallelThreshold) Parallel.For(0, side, RouteRow);
+        else for (int z = 0; z < side; z++) RouteRow(z);
+        if (noLower != 0) throw new InvalidOperationException("A filled land node has no lower neighbour.");
+
+        // Receivers are strictly lower, so ascending height is a valid downstream-first order.
+        Array.Sort(keys, order);
+        Array.Copy(rain, flow.Discharge, grid.Count);
+        for (int n = grid.Count - 1; n >= 0; n--)
+        {
+            int i = order[n], r = receiver[i];
+            if (r != Base) flow.Discharge[r] += flow.Discharge[i];
+        }
+    }
+
+    internal static void Fill(MapGrid grid, double[] height, bool[] outlet, double step, Workspace? workspace = null)
+    {
+        PriorityQueue<int, double> open;
+        Queue<int> pit;
+        bool[] closed;
+        if (workspace is not null)
+        {
+            open = workspace.Open;
+            pit = workspace.Pit;
+            closed = workspace.Closed;
+            open.Clear();
+            pit.Clear();
+            Array.Clear(closed);
+        }
+        else
+        {
+            open = new(grid.Side * 4);
+            pit = new();
+            closed = new bool[grid.Count];
+        }
+
+        int[] offsets = grid.Offsets();
+        double[] lengths = MapGrid.StepLengths;
+        int side = grid.Side, segments = grid.Segments;
         for (int i = 0; i < grid.Count; i++)
             if (outlet[i]) { closed[i] = true; open.Enqueue(i, height[i]); }
         if (open.Count == 0) throw new InvalidOperationException("A map needs at least one outlet.");
         while (open.Count > 0 || pit.Count > 0)
         {
             int c = pit.Count > 0 ? pit.Dequeue() : open.Dequeue();
-            bool interior = grid.IsInterior(c);
+            int cz = Math.DivRem(c, side, out int cx);
+            bool interior = cx > 0 && cz > 0 && cx < segments && cz < segments;
+            double hc = height[c];
             for (int k = 0; k < 8; k++)
             {
                 int n = interior ? c + offsets[k] : grid.Neighbour(c, k);
                 if (n < 0 || closed[n]) continue;
                 closed[n] = true;
                 // A jittered rise lets paths across filled flats wander instead of running straight.
-                double floor = height[c] + step * lengths[k] * (1 + FillJitter * MapNoise.Unit(FillSalt, c, n));
+                double floor = hc + step * lengths[k] * (1 + FillJitter * MapNoise.Unit(FillSalt, c, n));
                 if (height[n] <= floor) { height[n] = floor; pit.Enqueue(n); }
                 else open.Enqueue(n, height[n]);
             }
@@ -121,29 +192,39 @@ internal static class MapErosion
     private const double HardRockResistance = 0.8;
     private const double Creep = 0.04;
     private const double SimulationFill = 1e-4;
+    private const int ParallelThreshold = 65_536;
 
-    internal static MapFlow Evolve(MapRelief relief, Func<double[], double[]> rainfall, int steps, int climateInterval)
+    internal static MapFlow Evolve(MapRelief relief, Func<double[], double[]> rainfall, int steps, int climateInterval, MapFlow.Workspace? workspace = null)
     {
         MapGrid grid = relief.Grid;
         double[] h = relief.Height;
         double[] rain = rainfall(h);
         double[] next = new double[grid.Count];
-        MapFlow flow = MapFlow.Route(grid, h, relief.Outlet, rain, SimulationFill);
+        MapFlow.Workspace scratch = workspace ?? new MapFlow.Workspace(grid);
+        MapFlow flow = MapFlow.Route(grid, h, relief.Outlet, rain, SimulationFill, scratch);
         for (int step = 0; step < steps; step++)
         {
             if (step > 0 && step % climateInterval == 0) rain = rainfall(h);
             // Downstream first: each receiver already holds its new height (implicit in space).
-            foreach (int i in flow.Order)
+            int[] order = flow.Order;
+            int[] receiver = flow.Receiver;
+            double[] discharge = flow.Discharge;
+            double[] distance = flow.Distance;
+            bool[] outlet = relief.Outlet;
+            double[] hardness = relief.Hardness;
+            double[] uplift = relief.Uplift;
+            for (int n = 0; n < order.Length; n++)
             {
-                if (relief.Outlet[i]) continue;
-                int r = flow.Receiver[i];
-                double k = BaseErodibility * (1 - HardRockResistance * relief.Hardness[i]);
-                double f = k * Math.Sqrt(flow.Discharge[i]) / flow.Distance[i];
+                int i = order[n];
+                if (outlet[i]) continue;
+                int r = receiver[i];
+                double k = BaseErodibility * (1 - HardRockResistance * hardness[i]);
+                double f = k * Math.Sqrt(discharge[i]) / distance[i];
                 // A weighted mean of the uplifted node and its receiver: never below the receiver.
-                h[i] = (h[i] + relief.Uplift[i] + f * h[r]) / (1 + f);
+                h[i] = (h[i] + uplift[i] + f * h[r]) / (1 + f);
             }
             Diffuse(grid, h, relief.Outlet, next, Creep);
-            flow = MapFlow.Route(grid, h, relief.Outlet, rain, SimulationFill);
+            MapFlow.RouteInto(flow, h, relief.Outlet, rain, SimulationFill, scratch);
         }
         return flow;
     }
@@ -153,21 +234,48 @@ internal static class MapErosion
     {
         int[] offsets = grid.Offsets();
         double[] lengths = MapGrid.StepLengths;
-        for (int i = 0; i < grid.Count; i++)
+        int side = grid.Side, segments = grid.Segments;
+        double[] invLengths = new double[8];
+        double interiorWeight = 0;
+        for (int k = 0; k < 8; k++)
         {
-            if (fixedNode[i]) { scratch[i] = h[i]; continue; }
-            double sum = 0, weight = 0;
-            bool interior = grid.IsInterior(i);
-            for (int k = 0; k < 8; k++)
-            {
-                int n = interior ? i + offsets[k] : grid.Neighbour(i, k);
-                if (n < 0) continue;
-                double w = 1 / lengths[k];
-                sum += w * (h[n] - h[i]);
-                weight += w;
-            }
-            scratch[i] = h[i] + rate * sum / weight * 4;
+            invLengths[k] = 1 / lengths[k];
+            interiorWeight += invLengths[k];
         }
+
+        void DiffuseRow(int z)
+        {
+            int rowStart = z * side;
+            bool interiorZ = z > 0 && z < segments;
+            for (int x = 0; x < side; x++)
+            {
+                int i = rowStart + x;
+                if (fixedNode[i]) { scratch[i] = h[i]; continue; }
+                double hi = h[i];
+                double sum = 0;
+                if (interiorZ && x > 0 && x < segments)
+                {
+                    for (int k = 0; k < 8; k++) sum += invLengths[k] * (h[i + offsets[k]] - hi);
+                    scratch[i] = hi + rate * sum / interiorWeight * 4;
+                }
+                else
+                {
+                    double weight = 0;
+                    for (int k = 0; k < 8; k++)
+                    {
+                        int n = grid.Neighbour(i, k);
+                        if (n < 0) continue;
+                        double w = invLengths[k];
+                        sum += w * (h[n] - hi);
+                        weight += w;
+                    }
+                    scratch[i] = hi + rate * sum / weight * 4;
+                }
+            }
+        }
+
+        if (grid.Count >= ParallelThreshold) Parallel.For(0, side, DiffuseRow);
+        else for (int z = 0; z < side; z++) DiffuseRow(z);
         Array.Copy(scratch, h, h.Length);
     }
 
@@ -178,23 +286,34 @@ internal static class MapErosion
     internal static void Relax(MapGrid grid, double[] h, bool[] fixedNode, double maximumSlope, int iterations)
     {
         const double Transfer = 0.25;
+        int[] offsets = grid.Offsets();
+        double[] lengths = MapGrid.StepLengths;
+        double[] limits = new double[8];
+        for (int k = 0; k < 8; k++) limits[k] = maximumSlope * grid.Spacing * lengths[k];
+        int side = grid.Side, segments = grid.Segments;
         for (int pass = 0; pass < iterations; pass++)
         {
             bool moved = false;
-            for (int i = 0; i < grid.Count; i++)
+            for (int z = 0; z < side; z++)
             {
-                if (fixedNode[i]) continue;
-                for (int k = 0; k < 8; k++)
+                int rowStart = z * side;
+                bool interiorZ = z > 0 && z < segments;
+                for (int x = 0; x < side; x++)
                 {
-                    int n = grid.Neighbour(i, k);
-                    if (n < 0) continue;
-                    double limit = maximumSlope * grid.Spacing * MapGrid.NeighbourLength(k);
-                    double excess = h[i] - h[n] - limit;
-                    if (excess <= 0) continue;
-                    double amount = excess * Transfer;
-                    h[i] -= amount;
-                    if (!fixedNode[n]) h[n] += amount;
-                    moved = true;
+                    int i = rowStart + x;
+                    if (fixedNode[i]) continue;
+                    bool interior = interiorZ && x > 0 && x < segments;
+                    for (int k = 0; k < 8; k++)
+                    {
+                        int n = interior ? i + offsets[k] : grid.Neighbour(i, k);
+                        if (n < 0) continue;
+                        double excess = h[i] - h[n] - limits[k];
+                        if (excess <= 0) continue;
+                        double amount = excess * Transfer;
+                        h[i] -= amount;
+                        if (!fixedNode[n]) h[n] += amount;
+                        moved = true;
+                    }
                 }
             }
             if (!moved) break;

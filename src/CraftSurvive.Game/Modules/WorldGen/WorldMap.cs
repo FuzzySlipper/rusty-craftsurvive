@@ -69,8 +69,13 @@ internal sealed class WorldMap
     private const double SiteWaterClearance = 2;
     private const int MaximumSites = 8;
 
-    private readonly double[] elevation, temperature, moisture, rock, detail, protection, hardness;
+    // Derived fields; raw elevation/temperature/moisture/hardness are read directly from fields.* (#11184)
+    // to avoid duplicating four float[] arrays as double[] on every 16 km region tile (~12 MB saved per tile).
+    // arrivalMoisture is allocated only on regional worlds where arrival wetting modifies moisture.
+    private readonly double[] rock, detail, protection;
+    private readonly double[]? arrivalMoisture;
     private readonly MapFields fields;
+    private const int ParallelThreshold = 65_536;
 
     /// <summary>How the world's size sets its simulation: regional, or continental (#9549).</summary>
     internal MapScale Scale { get; }
@@ -97,29 +102,42 @@ internal sealed class WorldMap
                 || !float.IsFinite(fields.Discharge[i]) || fields.Discharge[i] < 0)
                 throw new ArgumentException("Map contains an invalid geographic sample.");
         }
-        elevation = fields.Elevation.Select(v => (double)v).ToArray();
-        temperature = fields.Temperature.Select(v => (double)v).ToArray();
-        moisture = fields.Moisture.Select(v => (double)v).ToArray();
-        hardness = fields.Hardness.Select(v => (double)v).ToArray();
+        double regionX = region?.X ?? 0, regionZ = region?.Z ?? 0;
+        // Arrival wetting reaches only within ArrivalWetRadius + ArrivalWetFade of the world origin;
+        // region tiles far from the origin leave moisture unmodified and avoid allocating arrivalMoisture (#11184).
+        double wetReach = ArrivalWetRadius + ArrivalWetFade + (Grid.Radius * Math.Sqrt(2));
+        bool wetArrival = !Scale.Continental && !MapScale.IsContinental(Configuration.Size)
+            && (region is null || (regionX * regionX) + (regionZ * regionZ) <= wetReach * wetReach);
+        if (wetArrival) arrivalMoisture = new double[count];
         rock = new double[count];
         detail = new double[count];
         protection = new double[count];
-        for (int i = 0; i < count; i++)
+
+        void DeriveNode(int i)
         {
+            double elev = fields.Elevation[i];
             double slope = Slope(i);
             double bare = Ease(BareSlopeStart, BareSlopeFull, slope);
             double outcrop = HardOutcropWeight * fields.Hardness[i] * Ease(0, HardOutcropSlope, slope);
-            rock[i] = elevation[i] < GenerationConstants.WaterLevel ? 0 : Math.Clamp(Math.Max(bare, outcrop), 0, 1);
+            rock[i] = elev < GenerationConstants.WaterLevel ? 0 : Math.Clamp(Math.Max(bare, outcrop), 0, 1);
             double floodPlain = Ease(FloodPlainStart, FloodPlainFull, MapRivers.CatchmentSquareKilometres(Grid, fields.Discharge[i]));
             detail[i] = (MinimumDetail + (1 - MinimumDetail) * Ease(PlainSlope, RuggedSlope, slope)) * (1 - floodPlain);
-            double worldX = Grid.X(i) + (region?.X ?? 0), worldZ = Grid.Z(i) + (region?.Z ?? 0);
+            double worldX = Grid.X(i) + regionX, worldZ = Grid.Z(i) + regionZ;
             double centre = Math.Sqrt(worldX * worldX + worldZ * worldZ);
             protection[i] = 1 - Ease(ReserveRadius, ReserveRadius + ReserveFade, centre);
             // A continent designs its own arrival (the start's sea port, its great river) and its rain, so only a
             // regional world is wetted here.
-            double wet = Scale.Continental || MapScale.IsContinental(Configuration.Size) ? 0 : 1 - Ease(ArrivalWetRadius, ArrivalWetRadius + ArrivalWetFade, centre);
-            if (elevation[i] >= GenerationConstants.WaterLevel && moisture[i] < ArrivalMoisture) moisture[i] += (ArrivalMoisture - moisture[i]) * wet;
+            if (arrivalMoisture is not null)
+            {
+                double m = fields.Moisture[i];
+                double wet = 1 - Ease(ArrivalWetRadius, ArrivalWetRadius + ArrivalWetFade, centre);
+                if (elev >= GenerationConstants.WaterLevel && m < ArrivalMoisture) m += (ArrivalMoisture - m) * wet;
+                arrivalMoisture[i] = m;
+            }
         }
+
+        if (count >= ParallelThreshold) Parallel.For(0, count, DeriveNode);
+        else for (int i = 0; i < count; i++) DeriveNode(i);
 
         if (region is null)
         {
@@ -127,13 +145,16 @@ internal sealed class WorldMap
             // sinks generation routed its discharge into, which drain nowhere here either.
             HashSet<int> sinks = fields.SinkNodes();
             Lakes = MapLakes.Find(Grid, fields.Elevation, fields.Discharge, fields.Temperature, ContinentDesign.For(configuration.Size), sinks);
-            bool[] outlet = MapLakes.Outlets(Grid, elevation, sinks);
+            double[] filled = new double[count];
+            for (int i = 0; i < count; i++) filled[i] = fields.Elevation[i];
+            bool[] outlet = MapLakes.Outlets(Grid, filled, sinks);
             if (!outlet.Any(o => o)) throw new ArgumentException("Map has nowhere to drain.");
-            double[] filled = (double[])elevation.Clone();
             double[] ones = new double[count];
             Array.Fill(ones, 1);
             MapFlow flow = MapFlow.Route(Grid, filled, outlet, ones, MapFlow.FillGradient);
-            Rivers = MapRivers.Extract(Grid, flow, filled.Select(v => (float)v).ToArray(), fields.Discharge, configuration.Contract.GeographyNoiseSeed);
+            float[] filledFloat = new float[count];
+            for (int i = 0; i < count; i++) filledFloat[i] = (float)filled[i];
+            Rivers = MapRivers.Extract(Grid, flow, filledFloat, fields.Discharge, configuration.Contract.GeographyNoiseSeed);
         }
         // A region tile's rivers are its continent's drainage, which the regions draw over every tile alike.
         else Rivers = MapRivers.Empty;
@@ -169,7 +190,13 @@ internal sealed class WorldMap
     internal bool Contains(double x, double z) => double.IsFinite(x) && double.IsFinite(z) && Math.Abs(x) <= Radius && Math.Abs(z) <= Radius;
 
     /// <summary>A lattice node without river resolution, for overview presentation.</summary>
-    internal MapSample Node(int index) => new(elevation[index], temperature[index], moisture[index], rock[index], detail[index], protection[index]);
+    internal MapSample Node(int index) => new(
+        fields.Elevation[index],
+        fields.Temperature[index],
+        arrivalMoisture is not null ? arrivalMoisture[index] : fields.Moisture[index],
+        rock[index],
+        detail[index],
+        protection[index]);
 
     /// <summary>
     /// Smooth geography at any point (clamped to the border for neighbour and normal sampling),
@@ -242,20 +269,21 @@ internal sealed class WorldMap
             nx[k] = Math.Clamp(ix - 1 + k, 0, Segments);
             nz[k] = Math.Clamp(iz - 1 + k, 0, Segments) * Side;
         }
+        float[] elevation = fields.Elevation, temperature = fields.Temperature, rawMoisture = fields.Moisture;
         double h = 0, t = 0, m = 0, r = 0, d = 0, p = 0;
         for (int b = 0; b < 4; b++)
         for (int a = 0; a < 4; a++)
         {
             double w = wx[a] * wz[b];
             int i = nz[b] + nx[a];
-            h += w * elevation[i]; t += w * temperature[i]; m += w * moisture[i];
+            h += w * elevation[i]; t += w * temperature[i]; m += w * (arrivalMoisture is not null ? arrivalMoisture[i] : rawMoisture[i]);
             r += w * rock[i]; d += w * detail[i]; p += w * protection[i];
         }
         return new(h, t, m, r, d, p);
     }
 
     /// <summary>Rock resistance at a point (bilinear), for a region tile's erosion.</summary>
-    internal double HardnessAt(double x, double z) => Grid.Bilinear(hardness, x, z);
+    internal double HardnessAt(double x, double z) => Grid.Bilinear(fields.Hardness, x, z);
 
     /// <summary>A parabolic channel below the water surface, low soil banks, and quiet ground beyond.</summary>
     /// <summary>A parabolic channel's current at its centre over its mean (the mean of 1 - x² across is two thirds).</summary>
@@ -331,7 +359,7 @@ internal sealed class WorldMap
         {
             int i = z * Side + x;
             MapBiome biome = biomes[i];
-            if (biome == MapBiome.Sea || elevation[i] < GenerationConstants.WaterLevel + SiteWaterClearance) continue;
+            if (biome == MapBiome.Sea || fields.Elevation[i] < GenerationConstants.WaterLevel + SiteWaterClearance) continue;
             if (design?.BeyondFrontier(Grid.X(i) / Radius, Grid.Z(i) / Radius) == true) continue;
             int score = 0;
             for (int dz = -SiteNeighbourhood; dz <= SiteNeighbourhood; dz++)
@@ -358,7 +386,9 @@ internal sealed class WorldMap
     {
         ulong hash = FingerprintBasis;
         void Mix(ulong v) => hash = unchecked((hash ^ v) * FingerprintPrime);
-        Mix(Configuration.Seed); Mix(Configuration.GeneratorVersion); Mix((ulong)Configuration.Size);
+        // Keyed on GeographySeedVersion rather than feature GeneratorVersion (#11184), so POI/tree/crossing
+        // bumps do not churn continent or region-tile map fingerprints when geography is unchanged.
+        Mix(Configuration.Seed); Mix(TerrainGeneratorContract.GeographySeedVersion); Mix((ulong)Configuration.Size);
         foreach (float[] field in (float[][])[fields.Elevation, fields.Temperature, fields.Moisture, fields.Hardness, fields.Discharge])
             foreach (float value in field) Mix(BitConverter.SingleToUInt32Bits(value));
         foreach (bool sink in fields.Sinks) Mix(sink ? 1UL : 0UL);

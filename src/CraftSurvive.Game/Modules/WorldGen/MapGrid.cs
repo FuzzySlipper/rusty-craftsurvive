@@ -66,6 +66,18 @@ internal readonly record struct MapGrid(int Segments, double Spacing, double Rad
         return near + (far - near) * tz;
     }
 
+    /// <summary>Bilinear sample of a single-precision node field at a world position, clamped to the border (#11184).</summary>
+    internal double Bilinear(float[] field, double x, double z)
+    {
+        double gx = Math.Clamp((x + Radius) / Spacing, 0, Segments), gz = Math.Clamp((z + Radius) / Spacing, 0, Segments);
+        int ix = Math.Min((int)gx, Segments - 1), iz = Math.Min((int)gz, Segments - 1);
+        double tx = gx - ix, tz = gz - iz;
+        int i = iz * Side + ix;
+        double near = field[i] + ((double)field[i + 1] - field[i]) * tx;
+        double far = field[i + Side] + ((double)field[i + Side + 1] - field[i + Side]) * tx;
+        return near + (far - near) * tz;
+    }
+
     /// <summary>The neighbour index in direction k, or -1 beyond the lattice.</summary>
     internal int Neighbour(int index, int k)
     {

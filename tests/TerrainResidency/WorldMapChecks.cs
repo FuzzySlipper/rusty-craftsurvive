@@ -23,6 +23,8 @@ internal static class WorldMapChecks
             Check.That(size < target * MapGrid.MinimumSegments || size > target * MapGrid.MaximumSegments
                 || Math.Abs(map.Spacing - target) < target / 64, $"geography is resolved at its scale's fixed metre spacing, not stretched with extent ({size} m: {map.Spacing:F1} m)");
             Check.That(map.Fingerprint == WorldMapGenerator.Generate(config).Fingerprint, "map generation is seeded and repeatable");
+            Check.That(map.Fingerprint == new WorldMap(config with { GeneratorVersion = config.GeneratorVersion + 1 }, map.Fields).Fingerprint,
+                "feature generator version bumps do not churn the geography map fingerprint");
             Check.That(map.Fingerprint != WorldMapGenerator.Generate(config with { Seed = config.Seed + 1 }).Fingerprint, "seed changes the map");
             Check.That(map.Sample(-map.Radius - 1, 0) == map.Sample(-map.Radius, 0), "outside geographic sampling clamps to the finite edge");
             Check.That(!map.Contains(map.Radius + 1, 0), "clamped sampling does not extend the playable map");

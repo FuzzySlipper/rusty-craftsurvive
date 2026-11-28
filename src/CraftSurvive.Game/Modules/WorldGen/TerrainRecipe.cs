@@ -1056,9 +1056,16 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// tree's core or footing; such a tree is read back through the final materials and left out
     /// if it does not stand. Only those few trees touch the materials, so the sweep stays bounded.
     /// </summary>
-    internal TerrainTree? TreeInCell(long anchorX, long anchorZ)
+    internal TerrainTree? TreeInCell(long anchorX, long anchorZ) =>
+        TreeInCellWithGround(anchorX, anchorZ)?.Tree;
+
+    /// <summary>
+    /// The standing tree one anchor cell owns and its continuous ground height (#11184), so
+    /// <see cref="TreeTiles"/> does not re-sample geography and relief a second time per tree.
+    /// </summary>
+    internal (TerrainTree Tree, double Ground)? TreeInCellWithGround(long anchorX, long anchorZ)
     {
-        if (DecideTree(anchorX, anchorZ) is not TreeShape shape)
+        if (DecideTree(anchorX, anchorZ, TreeCellDraw(anchorX, anchorZ), out double continuousGround) is not TreeShape shape)
         {
             return null;
         }
@@ -1068,7 +1075,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         TerrainTree tree = new(x, shape.GroundY, z, shape.Species, shape.Variant, shape.Scale, shape.Yaw);
         bool structured = TreeFelling.Core(tree).Append(TreeFelling.Support(tree))
             .Any(cell => !PoiAt(cell.X, cell.Y, cell.Z).IsNone || CrossingAt(cell.X, cell.Y, cell.Z) is not null);
-        return !structured || TreeFelling.Stands(tree, MaterialAt) ? tree : null;
+        return !structured || TreeFelling.Stands(tree, MaterialAt) ? (tree, continuousGround) : null;
     }
 
     /// <summary>
@@ -1095,10 +1102,11 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private ulong TreeCellDraw(long anchorX, long anchorZ) =>
         (ulong)Contract.DrawLong(draws, "tree.cell", anchorX, anchorZ, 0, GenerationConstants.TreeCellDrawMaximum, TerrainGeneratorContract.TreeSeedVersion);
 
-    private TreeShape? DecideTree(long anchorX, long anchorZ) => DecideTree(anchorX, anchorZ, TreeCellDraw(anchorX, anchorZ));
+    private TreeShape? DecideTree(long anchorX, long anchorZ) => DecideTree(anchorX, anchorZ, TreeCellDraw(anchorX, anchorZ), out _);
 
-    private TreeShape? DecideTree(long anchorX, long anchorZ, ulong cell)
+    private TreeShape? DecideTree(long anchorX, long anchorZ, ulong cell, out double continuousGround)
     {
+        continuousGround = 0;
         // One keyed draw per cell; every choice about its tree is hashed from it. The vegetation tiles
         // decide a 128 m tile's thousand cells at once, where a keyed draw per choice cost tens of
         // milliseconds a tile (#10032); the draws are made on the update's thread and the choices on a worker (#10907).
@@ -1138,8 +1146,16 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return null;
         }
 
-        TerrainColumn column = ColumnAt(trunkX, trunkZ);
-        long ground = column.Surface;
+        // Reuse geography sampled above and reject submerged columns before sampling cardinal slope (#11184).
+        continuousGround = ContinuousHeight(geography, trunkX, trunkZ);
+        long ground = (long)Math.Round(continuousGround, MidpointRounding.AwayFromZero);
+        double waterSurface = WaterRules.Surface(geography);
+        if (ground <= CellUnder(waterSurface))
+        {
+            return null;
+        }
+
+        TerrainColumn column = new(ground, CardinalSlope(trunkX, trunkZ, ground), waterSurface, geography);
         if (!TreeGround(new VoxelAddress(trunkX, ground, trunkZ), column))
         {
             // Water, a steep bank or a built surface is no place for a tree.

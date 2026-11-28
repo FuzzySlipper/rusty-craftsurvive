@@ -14,14 +14,12 @@ public sealed class WorldExportDebugModule : IDebugCommandModule
 {
     private readonly Func<WorldCatalog> catalog;
     private readonly Func<IReadOnlyList<TownSite>> towns;
-    private readonly IRandomService random;
     private WorldExport? export;
 
-    internal WorldExportDebugModule(Func<WorldCatalog> catalog, Func<IReadOnlyList<TownSite>> towns, IRandomService random)
+    internal WorldExportDebugModule(Func<WorldCatalog> catalog, Func<IReadOnlyList<TownSite>> towns)
     {
         this.catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         this.towns = towns ?? throw new ArgumentNullException(nameof(towns));
-        this.random = random ?? throw new ArgumentNullException(nameof(random));
     }
 
     [DebugCommand("craft.export.header", Description = "Export (#11125): the active world's identity (seed, size, generator version, fingerprint, design) and the names the other export pages use.")]
@@ -59,7 +57,7 @@ public sealed class WorldExportDebugModule : IDebugCommandModule
         if (!worlds.HasWorld) return "refused: no world yet";
         if (export is null || !ReferenceEquals(export.Map, worlds.Current.Map))
         {
-            export = new WorldExport(worlds.Current.Map, () => [.. towns().Select(Exported)], new EngineTerrainDraws(random));
+            export = new WorldExport(worlds.Current.Map, () => [.. towns().Select(Exported)], EngineTerrainDraws.Shared);
         }
 
         try

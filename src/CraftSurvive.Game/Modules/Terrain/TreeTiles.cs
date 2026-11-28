@@ -253,12 +253,12 @@ internal sealed class TreeTiles : IDisposable
                 for (long anchorX = firstX; anchorX <= lastX; anchorX++)
                 for (long anchorZ = firstZ; anchorZ <= lastZ; anchorZ++)
                 {
-                    if (recipe.TreeInCell(anchorX, anchorZ) is not TerrainTree tree)
+                    if (recipe.TreeInCellWithGround(anchorX, anchorZ) is not (TerrainTree tree, double ground))
                     {
                         continue;
                     }
 
-                    trees.Add(new Decided(tree, recipe.ContinuousHeightAt(tree.X, tree.Z)));
+                    trees.Add(new Decided(tree, ground));
                 }
 
                 finished.Enqueue((origin, size, [.. trees]));
@@ -304,11 +304,11 @@ internal sealed class TreeTiles : IDisposable
         for (long anchorX = firstX; anchorX <= lastX; anchorX++)
         for (long anchorZ = firstZ; anchorZ <= lastZ; anchorZ++)
         {
-            if (recipe.TreeInCell(anchorX, anchorZ) is not TerrainTree tree) continue;
+            if (recipe.TreeInCellWithGround(anchorX, anchorZ) is not (TerrainTree tree, double ground)) continue;
             bool touched = TreeFelling.Core(tree).Append(TreeFelling.Support(tree)).Any(edited);
             if (touched && !TreeFelling.Stands(tree, materialAt)) continue;
 
-            AddRecord(samples, tile, tree, recipe.ContinuousHeightAt(tree.X, tree.Z));
+            AddRecord(samples, tile, tree, ground);
         }
     }
 }

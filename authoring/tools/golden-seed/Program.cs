@@ -12,7 +12,6 @@ using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 using GoldenSeed;
 using Rusty.Engine;
-using Rusty.Engine.Testing;
 
 // The golden-seed exporter (#11125). Run from the repository root:
 //
@@ -79,24 +78,20 @@ if (command == "column")
     // What each layer of the generator says at a point: the continent map, the region tiles' blend, the walking column.
     double columnX = double.Parse(args[1], CultureInfo.InvariantCulture), columnZ = double.Parse(args[2], CultureInfo.InvariantCulture);
     JsonObject columnConfig = JsonNode.Parse(File.ReadAllText(options.GetValueOrDefault("config", Path.Combine(repo, "authoring/tools/golden-seed/golden-seed.json"))))!.AsObject();
-    using EngineTestHost columnHost = EngineTestHost.Create(new() { PersistenceRoot = Path.Combine(Path.GetTempPath(), "golden-seed-" + Guid.NewGuid().ToString("N")) });
-    columnHost.Call(engine =>
+    TerrainConfiguration columnConfiguration = new(columnConfig["seed"]!.GetValue<ulong>(), columnConfig["size"]!.GetValue<int>());
+    WorldMap columnMap = WorldMapGenerator.Generate(columnConfiguration);
+    TerrainRecipe columnRecipe = columnConfiguration.CreateRecipe(EngineTerrainDraws.Shared, columnMap);
+    Console.WriteLine($"map sample {columnMap.Sample(columnX, columnZ)}");
+    Console.WriteLine($"map broad {columnMap.Broad(columnX, columnZ)}");
+    if (columnRecipe.Regions is MapRegions regions)
     {
-        TerrainConfiguration columnConfiguration = new(columnConfig["seed"]!.GetValue<ulong>(), columnConfig["size"]!.GetValue<int>());
-        WorldMap columnMap = WorldMapGenerator.Generate(columnConfiguration);
-        TerrainRecipe columnRecipe = columnConfiguration.CreateRecipe(new EngineTerrainDraws(engine.Random), columnMap);
-        Console.WriteLine($"map sample {columnMap.Sample(columnX, columnZ)}");
-        Console.WriteLine($"map broad {columnMap.Broad(columnX, columnZ)}");
-        if (columnRecipe.Regions is MapRegions regions)
-        {
-            (int tx, int tz) = MapRegions.TileAt(columnX, columnZ);
-            Console.WriteLine($"region tile ({tx},{tz}) blended {regions.Blended(columnX, columnZ)}");
-            Console.WriteLine($"region tile own broad {regions.Tile((tx, tz)).Map.Broad(columnX - (tx * MapRegions.TileSpacing), columnZ - (tz * MapRegions.TileSpacing))}");
-        }
+        (int tx, int tz) = MapRegions.TileAt(columnX, columnZ);
+        Console.WriteLine($"region tile ({tx},{tz}) blended {regions.Blended(columnX, columnZ)}");
+        Console.WriteLine($"region tile own broad {regions.Tile((tx, tz)).Map.Broad(columnX - (tx * MapRegions.TileSpacing), columnZ - (tz * MapRegions.TileSpacing))}");
+    }
 
-        Console.WriteLine($"geography {columnRecipe.Geography(columnX, columnZ)}");
-        Console.WriteLine($"column {columnRecipe.ColumnAt((long)Math.Floor(columnX), (long)Math.Floor(columnZ))}");
-    });
+    Console.WriteLine($"geography {columnRecipe.Geography(columnX, columnZ)}");
+    Console.WriteLine($"column {columnRecipe.ColumnAt((long)Math.Floor(columnX), (long)Math.Floor(columnZ))}");
     return 0;
 }
 
@@ -108,21 +103,23 @@ if (command == "tile")
     for (int k = 1; k + 1 < args.Length && !args[k].StartsWith("--", StringComparison.Ordinal); k += 2)
         wantedTiles.Add((int.Parse(args[k], CultureInfo.InvariantCulture), int.Parse(args[k + 1], CultureInfo.InvariantCulture)));
     JsonObject tileConfig = JsonNode.Parse(File.ReadAllText(options.GetValueOrDefault("config", Path.Combine(repo, "authoring/tools/golden-seed/golden-seed.json"))))!.AsObject();
-    using EngineTestHost tileHost = EngineTestHost.Create(new() { PersistenceRoot = Path.Combine(Path.GetTempPath(), "golden-seed-" + Guid.NewGuid().ToString("N")) });
-    tileHost.Call(engine =>
+    TerrainConfiguration tileConfiguration = new(tileConfig["seed"]!.GetValue<ulong>(), tileConfig["size"]!.GetValue<int>());
+    WorldMap tileMap = WorldMapGenerator.Generate(tileConfiguration);
+    int tileWorkers = int.Parse(options.GetValueOrDefault("workers", Math.Max(1, Environment.ProcessorCount - 2).ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
+    // --regions N keeps N region tiles built instead (the game keeps MapRegions.CacheLimit), to time a stage as the game pays it.
+    if (tileMap.Scale.Continental)
     {
-        TerrainConfiguration tileConfiguration = new(tileConfig["seed"]!.GetValue<ulong>(), tileConfig["size"]!.GetValue<int>());
-        WorldMap tileMap = WorldMapGenerator.Generate(tileConfiguration);
-        // --regions N keeps N region tiles built instead (the game keeps MapRegions.CacheLimit), to time a stage as the game pays it.
-        if (tileMap.Scale.Continental) MapRegions.For(tileMap).Capacity = int.Parse(options.GetValueOrDefault("regions", RegionTilesKept.ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
-        WorldExport tileExport = new(tileMap, () => [], new EngineTerrainDraws(engine.Random));
-        int tileWorkers = int.Parse(options.GetValueOrDefault("workers", Math.Max(1, Environment.ProcessorCount - 2).ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
-        foreach ((int tileX, int tileZ) in wantedTiles)
-        {
-            Console.WriteLine(tileExport.Tile(tileX, tileZ, tileWorkers,
-                (name, seconds) => Console.Error.WriteLine(FormattableString.Invariant($"tile {tileX} {tileZ} {name} {seconds:F2} s"))));
-        }
-    });
+        MapRegions tileRegions = MapRegions.For(tileMap);
+        tileRegions.Capacity = int.Parse(options.GetValueOrDefault("regions", RegionTilesKept.ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
+    }
+
+    WorldExport tileExport = new(tileMap, () => [], EngineTerrainDraws.Shared);
+    foreach ((int tileX, int tileZ) in wantedTiles)
+    {
+        Console.WriteLine(tileExport.Tile(tileX, tileZ, tileWorkers,
+            (name, seconds) => Console.Error.WriteLine(FormattableString.Invariant($"tile {tileX} {tileZ} {name} {seconds:F2} s"))));
+    }
+
     return 0;
 }
 
@@ -140,10 +137,6 @@ int workers = int.Parse(options.GetValueOrDefault("workers", Math.Max(1, Environ
 int limit = int.Parse(options.GetValueOrDefault("limit", int.MaxValue.ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
 string pair = EnginePair(repo);
 
-string scratch = Path.Combine(Path.GetTempPath(), "golden-seed-" + Guid.NewGuid().ToString("N"));
-using EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = scratch });
-int exit = 0;
-host.Call(engine =>
 {
     Stopwatch total = Stopwatch.StartNew(), clock = Stopwatch.StartNew();
     Dictionary<string, double> timings = [];
@@ -163,9 +156,9 @@ host.Call(engine =>
     _ = regions?.Drainage;
     Log($"generated seed {seed} at {size} m in {Lap("generate"):F1} s (fingerprint {map.Fingerprint:x16})");
 
-    EngineTerrainDraws draws = new(engine.Random);
+    EngineTerrainDraws draws = EngineTerrainDraws.Shared;
     TerrainRecipe recipe = configuration.CreateRecipe(draws, map);
-    ulong terrainFingerprint = TerrainGenerationFingerprint.Compute(configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), map), TerrainGenerationFingerprint.Startup);
+    ulong terrainFingerprint = TerrainGenerationFingerprint.Compute(configuration.CreateRecipe(draws, map), TerrainGenerationFingerprint.Startup);
     string identity = Hash($"{seed}|{size}|{map.Fingerprint:x16}|{terrainFingerprint:x16}|{GoldenSeedSource.Stamp:x16}|{pair}");
     string tileCache = Path.Combine(cacheRoot, identity, "tiles");
     Directory.CreateDirectory(tileCache);
@@ -232,82 +225,114 @@ host.Call(engine =>
     List<(int X, int Z, string Json)> carriedTiles = [];
     Stopwatch tiling = Stopwatch.StartNew();
     for (int tz = lowZ; tz <= highZ; tz++)
-    for (int tx = lowX; tx <= highX; tx++)
     {
-        string name = $"{tx}_{tz}";
-        if (AllSea(map, tx, tz, radius))
+        // Prefetch the cold region tiles needed for this row in parallel across a bounded worker group (#11184),
+        // keeping RegionTilesKept warm so Tile() does not stall building neighbour region tiles one at a time.
+        if (regions is not null && built < limit)
         {
-            sea++;
-            index.Add(new JsonObject { ["tile"] = new JsonArray(tx, tz), ["sea"] = true });
-            continue;
+            HashSet<(int X, int Z)> needed = [];
+            int projected = built;
+            for (int tx = lowX; tx <= highX && projected < limit; tx++)
+            {
+                if (AllSea(map, tx, tz, radius)) continue;
+                string tileName = $"{tx}_{tz}";
+                if (File.Exists(Path.Combine(tileCache, tileName + ".json.gz"))) continue;
+                if (carryFrom is not null && File.Exists(Path.Combine(cacheRoot, carryFrom, "tiles", tileName + ".json.gz")) && Dry(map, tx, tz)) continue;
+                projected++;
+                for (int dz = -1; dz <= 1; dz++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    (int X, int Z) key = (tx + dx, tz + dz);
+                    if (!regions.IsReady(key)) needed.Add(key);
+                }
+            }
+
+            if (needed.Count > 0)
+            {
+                Stopwatch warmClock = Stopwatch.StartNew();
+                int regionWorkers = Math.Clamp(workers / 4, 1, 4);
+                Parallel.ForEach(needed, new ParallelOptions { MaxDegreeOfParallelism = regionWorkers }, key => _ = regions.Tile(key));
+                stageSeconds["regions"] = stageSeconds.GetValueOrDefault("regions") + warmClock.Elapsed.TotalSeconds;
+            }
         }
 
-        string cached = Path.Combine(tileCache, name + ".json.gz");
-        Stopwatch one = Stopwatch.StartNew();
-        string json;
-        string? earlier = carryFrom is null ? null : Path.Combine(cacheRoot, carryFrom, "tiles", name + ".json.gz");
-        // Where this tile's page is copied from into the export: the cache, or for a carried tile the earlier cache.
-        string source = cached;
-        if (File.Exists(cached))
+        for (int tx = lowX; tx <= highX; tx++)
         {
-            json = ReadGzip(cached);
-            reused++;
-        }
-        else if (earlier is not null && File.Exists(earlier) && Dry(map, tx, tz))
-        {
-            // A change that reaches only ground near the water leaves a dry tile as it was (checked below). It enters this
-            // identity's cache only once the check holds (R11148-1): a carry that fails leaves the cache as it found it, so a
-            // retry makes the tile afresh rather than reusing it.
-            json = ReadGzip(earlier);
-            source = earlier;
-            carried++;
-            carriedTiles.Add((tx, tz, json));
-        }
-        else
-        {
-            if (built >= limit) continue;
-            try
+            string name = $"{tx}_{tz}";
+            if (AllSea(map, tx, tz, radius))
             {
-                json = export.Tile(tx, tz, workers, (name, seconds) => stageSeconds[name] = stageSeconds.GetValueOrDefault(name) + seconds);
-            }
-            catch (Exception failure) when (failure is not OutOfMemoryException)
-            {
-                // A tile the generator cannot make is a finding, not the end of the export: the atlas marks it.
-                failed++;
-                index.Add(new JsonObject { ["tile"] = new JsonArray(tx, tz), ["failed"] = failure.Message });
-                Log($"tile {name} FAILED: {failure.Message}");
+                sea++;
+                index.Add(new JsonObject { ["tile"] = new JsonArray(tx, tz), ["sea"] = true });
                 continue;
             }
 
-            WriteGzip(cached, json);
-            built++;
-        }
-
-        File.Copy(source, Path.Combine(work, "tiles", name + ".json.gz"));
-        JsonObject tile = JsonNode.Parse(json)!.AsObject();
-        JsonObject kinds = [];
-        foreach (JsonNode? place in tile["places"]!.AsArray())
-        {
-            string kind = ((PoiKind)place![2]!.GetValue<long>()).ToString();
-            kinds[kind] = (kinds[kind]?.GetValue<int>() ?? 0) + 1;
-        }
-
-        foreach (JsonNode? cave in tile["caves"]!.AsArray())
-        {
-            JsonObject row = cave!.AsObject();
-            caves.Add(new JsonObject
+            string cached = Path.Combine(tileCache, name + ".json.gz");
+            Stopwatch one = Stopwatch.StartNew();
+            string json;
+            string? earlier = carryFrom is null ? null : Path.Combine(cacheRoot, carryFrom, "tiles", name + ".json.gz");
+            // Where this tile's page is copied from into the export: the cache, or for a carried tile the earlier cache.
+            string source = cached;
+            if (File.Exists(cached))
             {
-                ["id"] = row["id"]!.GetValue<string>(), ["x"] = row["x"]!.GetValue<long>(), ["z"] = row["z"]!.GetValue<long>(),
-                ["ground"] = row["ground"]!.GetValue<long>(), ["seed"] = row["seed"]!.GetValue<string>(), ["setting"] = row["setting"]!.DeepClone(),
-                ["tile"] = new JsonArray(tx, tz),
-            });
-        }
+                json = ReadGzip(cached);
+                reused++;
+            }
+            else if (earlier is not null && File.Exists(earlier) && Dry(map, tx, tz))
+            {
+                // A change that reaches only ground near the water leaves a dry tile as it was (checked below). It enters this
+                // identity's cache only once the check holds (R11148-1): a carry that fails leaves the cache as it found it, so a
+                // retry makes the tile afresh rather than reusing it.
+                json = ReadGzip(earlier);
+                source = earlier;
+                carried++;
+                carriedTiles.Add((tx, tz, json));
+            }
+            else
+            {
+                if (built >= limit) continue;
+                try
+                {
+                    json = export.Tile(tx, tz, workers, (name, seconds) => stageSeconds[name] = stageSeconds.GetValueOrDefault(name) + seconds);
+                }
+                catch (Exception failure) when (failure is not OutOfMemoryException)
+                {
+                    // A tile the generator cannot make is a finding, not the end of the export: the atlas marks it.
+                    failed++;
+                    index.Add(new JsonObject { ["tile"] = new JsonArray(tx, tz), ["failed"] = failure.Message });
+                    Log($"tile {name} FAILED: {failure.Message}");
+                    continue;
+                }
 
-        index.Add(new JsonObject
-        {
-            ["tile"] = new JsonArray(tx, tz), ["places"] = kinds, ["caves"] = tile["caves"]!.AsArray().Count, ["crossings"] = tile["crossings"]!.AsArray().Count,
-        });
-        Log(FormattableString.Invariant($"tile {name}: {tile["places"]!.AsArray().Count} places, {tile["caves"]!.AsArray().Count} caves, {tile["crossings"]!.AsArray().Count} crossings in {one.Elapsed.TotalSeconds:F1} s ({built} built, {reused} cached, {carried} carried, {tiling.Elapsed.TotalMinutes:F1} min)"));
+                WriteGzip(cached, json);
+                built++;
+            }
+
+            File.Copy(source, Path.Combine(work, "tiles", name + ".json.gz"));
+            JsonObject tile = JsonNode.Parse(json)!.AsObject();
+            JsonObject kinds = [];
+            foreach (JsonNode? place in tile["places"]!.AsArray())
+            {
+                string kind = ((PoiKind)place![2]!.GetValue<long>()).ToString();
+                kinds[kind] = (kinds[kind]?.GetValue<int>() ?? 0) + 1;
+            }
+
+            foreach (JsonNode? cave in tile["caves"]!.AsArray())
+            {
+                JsonObject row = cave!.AsObject();
+                caves.Add(new JsonObject
+                {
+                    ["id"] = row["id"]!.GetValue<string>(), ["x"] = row["x"]!.GetValue<long>(), ["z"] = row["z"]!.GetValue<long>(),
+                    ["ground"] = row["ground"]!.GetValue<long>(), ["seed"] = row["seed"]!.GetValue<string>(), ["setting"] = row["setting"]!.DeepClone(),
+                    ["tile"] = new JsonArray(tx, tz),
+                });
+            }
+
+            index.Add(new JsonObject
+            {
+                ["tile"] = new JsonArray(tx, tz), ["places"] = kinds, ["caves"] = tile["caves"]!.AsArray().Count, ["crossings"] = tile["crossings"]!.AsArray().Count,
+            });
+            Log(FormattableString.Invariant($"tile {name}: {tile["places"]!.AsArray().Count} places, {tile["caves"]!.AsArray().Count} caves, {tile["crossings"]!.AsArray().Count} crossings in {one.Elapsed.TotalSeconds:F1} s ({built} built, {reused} cached, {carried} carried, {tiling.Elapsed.TotalMinutes:F1} min)"));
+        }
     }
 
     // The carried tiles were made by the earlier generator: a spread of them is made again by this one and must match.
@@ -319,8 +344,7 @@ host.Call(engine =>
         {
             Log($"tile {vx}_{vz} carried from {carryFrom} differs when made again: the change reaches dry ground, so carrying is wrong; nothing carried entered the cache or the export; rerun without --carry-from");
             Directory.Delete(work, true);
-            exit = 1;
-            return;
+            return 1;
         }
 
         verified++;
@@ -404,9 +428,8 @@ host.Call(engine =>
     Directory.Move(work, output);
     if (Directory.Exists(previous)) Directory.Delete(previous, true);
     Log(FormattableString.Invariant($"exported seed {seed} at {size} m to {output} in {total.Elapsed.TotalMinutes:F1} min: {built} tiles built, {reused} cached, {carried} carried ({verified} verified), {sea} sea, {failed} failed, {caves.Count} caves"));
-});
-if (Directory.Exists(scratch)) Directory.Delete(scratch, true);
-return exit;
+}
+return 0;
 
 int CaveCommand(string id)
 {

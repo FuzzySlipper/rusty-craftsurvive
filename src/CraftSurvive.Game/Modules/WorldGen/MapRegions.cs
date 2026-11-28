@@ -410,7 +410,8 @@ internal sealed record RegionTile(WorldMap Map, MapRivers Rivers)
         });
 
         MapRelief relief = MapRelief.FromHeights(grid, height, hardness, sea, outlet);
-        MapErosion.Evolve(relief, _ => rain, ErosionSteps, ErosionSteps);
+        MapFlow.Workspace flowWorkspace = new(grid);
+        MapFlow flow = MapErosion.Evolve(relief, _ => rain, ErosionSteps, ErosionSteps, flowWorkspace);
         double[] h = relief.Height;
         for (int i = 0; i < count; i++)
         {
@@ -423,14 +424,25 @@ internal sealed record RegionTile(WorldMap Map, MapRivers Rivers)
         }
         MapErosion.Relax(grid, h, outlet, TalusSlope, TalusIterations);
 
-        MapFlow.Fill(grid, h, outlet, MapFlow.FillGradient);
+        MapFlow.Fill(grid, h, outlet, MapFlow.FillGradient, flowWorkspace);
         // Every node within the map's bounds (#11125): the outlets above keep their own height, and a sea node's refined relief
         // can dip just under the lowest terrain, which a tile then refuses (seed 19's tile (0,-10) did, at -2.06 m).
-        float[] elevation = h.Select(v => (float)Math.Clamp(v, GenerationConstants.MinimumTerrainHeight, scale.MaximumElevation - 1)).ToArray();
-        double[] routed = elevation.Select(v => (double)v).ToArray();
-        MapFlow flow = MapFlow.Route(grid, routed, outlet, rain, MapFlow.FillGradient);
-        MapFields fields = new(grid, elevation, temperature, moisture, hardness.Select(v => (float)v).ToArray(),
-            flow.Discharge.Select(v => (float)v).ToArray(), new bool[grid.Count]);
+        float[] elevation = new float[count];
+        float[] hardnessFloat = new float[count];
+        double minHeight = GenerationConstants.MinimumTerrainHeight, maxHeight = scale.MaximumElevation - 1;
+        for (int i = 0; i < count; i++)
+        {
+            float clamped = (float)Math.Clamp(h[i], minHeight, maxHeight);
+            elevation[i] = clamped;
+            h[i] = clamped;
+            hardnessFloat[i] = (float)hardness[i];
+        }
+
+        MapFlow.RouteInto(flow, h, outlet, rain, MapFlow.FillGradient, flowWorkspace);
+        float[] dischargeFloat = new float[count];
+        double[] discharge = flow.Discharge;
+        for (int i = 0; i < count; i++) dischargeFloat[i] = (float)discharge[i];
+        MapFields fields = new(grid, elevation, temperature, moisture, hardnessFloat, dischargeFloat, new bool[count]);
         return new(new WorldMap(configuration, fields, new MapRegionFrame(centre.X, centre.Z, scale, grid)), rivers);
     }
 }
