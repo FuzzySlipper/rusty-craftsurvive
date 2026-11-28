@@ -68,9 +68,10 @@ if (command == "check")
 {
     // The cave view's reach on synthetic caves (#11125 R11125-2): two round chambers joined by a throat, which a body passes
     // only when the throat is wider than a crawl. Run by scripts/check-product.sh --managed.
-    // And the golden seed's caves each generator fault left mostly out of reach (#11170).
+    // And the golden seed's caves each generator fault left mostly out of reach (#11170), plus region prefetch failure recovery (#11184 R11184-1).
     bool throats = CaveView.CheckThroats(Console.WriteLine);
-    return Pinch.CheckRegressions(Console.WriteLine) && throats ? 0 : 1;
+    bool prefetch = CheckPrefetchRecovery(Console.WriteLine);
+    return Pinch.CheckRegressions(Console.WriteLine) && throats && prefetch ? 0 : 1;
 }
 
 if (command == "column")
@@ -251,7 +252,7 @@ string pair = EnginePair(repo);
             {
                 Stopwatch warmClock = Stopwatch.StartNew();
                 int regionWorkers = Math.Clamp(workers / 4, 1, 4);
-                Parallel.ForEach(needed, new ParallelOptions { MaxDegreeOfParallelism = regionWorkers }, key => _ = regions.Tile(key));
+                PrefetchRegionTiles(needed, key => _ = regions.Tile(key), regionWorkers);
                 stageSeconds["regions"] = stageSeconds.GetValueOrDefault("regions") + warmClock.Elapsed.TotalSeconds;
             }
         }
@@ -569,6 +570,66 @@ static Dictionary<string, string> Options(string[] values)
     }
 
     return found;
+}
+
+static void PrefetchRegionTiles(IEnumerable<(int X, int Z)> keys, Action<(int X, int Z)> build, int regionWorkers)
+{
+    Parallel.ForEach(keys, new ParallelOptions { MaxDegreeOfParallelism = regionWorkers }, key =>
+    {
+        try
+        {
+            build(key);
+        }
+        catch (Exception failure) when (failure is not OutOfMemoryException)
+        {
+            // Keep per-tile failure recovery intact (#11184 R11184-1): a failing region build must not abort
+            // the export during speculative prefetch; any tile that actually reads it hits the per-tile try/catch.
+        }
+    });
+}
+
+static bool CheckPrefetchRecovery(Action<string> log)
+{
+    // Verify with one failing region build (#11184 R11184-1): prefetch does not abort, unrelated tiles export,
+    // and tiles that actually read the failing region are caught and marked failed.
+    (int X, int Z) broken = (1, 0);
+    System.Collections.Concurrent.ConcurrentDictionary<(int X, int Z), Lazy<string>> cache = new();
+    string ReadRegion((int X, int Z) key) => cache.GetOrAdd(key, k => new Lazy<string>(() =>
+        k == broken ? throw new InvalidOperationException($"simulated region failure at {k.X},{k.Z}") : $"region:{k.X},{k.Z}",
+        LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+
+    (int X, int Z)[] prefetched = [(0, 0), (1, 0), (2, 0), (3, 0)];
+    PrefetchRegionTiles(prefetched, key => _ = ReadRegion(key), regionWorkers: 2);
+
+    // Tile (0,0) reads only (0,0); tile (1,0) reads broken (1,0); tile (2,0) reads broken (1,0) & (2,0); tile (3,0) reads only (3,0).
+    (string Name, (int X, int Z)[] Regions)[] tiles =
+    [
+        ("0_0", [(0, 0)]),
+        ("1_0", [(1, 0)]),
+        ("2_0", [(1, 0), (2, 0)]),
+        ("3_0", [(3, 0)]),
+    ];
+    List<string> exported = [];
+    Dictionary<string, string> failed = [];
+    foreach ((string name, (int X, int Z)[] required) in tiles)
+    {
+        try
+        {
+            foreach ((int X, int Z) region in required) _ = ReadRegion(region);
+            exported.Add(name);
+        }
+        catch (Exception failure) when (failure is not OutOfMemoryException)
+        {
+            failed[name] = failure.Message;
+        }
+    }
+
+    bool ok = exported.SequenceEqual(["0_0", "3_0"])
+        && failed.Count == 2 && failed.ContainsKey("1_0") && failed.ContainsKey("2_0")
+        && failed["1_0"].Contains("simulated region failure", StringComparison.Ordinal)
+        && cache[(0, 0)].IsValueCreated && cache[(3, 0)].IsValueCreated;
+    log($"prefetch recovery check: {(ok ? "PASS" : "FAIL")} (exported=[{string.Join(",", exported)}] failed=[{string.Join(",", failed.Keys)}])");
+    return ok;
 }
 
 static void Log(string text) => Console.WriteLine(text);
