@@ -476,8 +476,9 @@ export function AtlasPage({ initialRef }: { initialRef?: string }) {
                 const active = ugOverview.manifest.levels.find(l => l.name === ugLevel);
                 return active ? (
                   <small class="muted">
-                    {active.census.systems} systems ({(active.census.multiBoxShare * 100).toFixed(1)}% multi), {active.census.totalBoxes} boxes ·{' '}
-                    {active.metrics.wallMs} ms · {active.metrics.retainedInMemoryMB} MB RAM · <a href={undergroundUrl()}>full comparison</a>
+                    {active.census.systems} systems ({(active.census.multiBoxShare * 100).toFixed(1)}% multi), {active.census.totalBoxes} boxes · export{' '}
+                    {(active.metrics.exportMs ?? active.metrics.wallMs).toFixed(0)} ms · {active.metrics.retainedInMemoryMB} MB RAM ·{' '}
+                    <a href={undergroundUrl()}>full comparison</a>
                   </small>
                 ) : null;
               })()}

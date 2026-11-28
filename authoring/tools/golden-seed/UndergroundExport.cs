@@ -111,14 +111,14 @@ internal static class UndergroundExport
         UndergroundTilePlan[] built = new UndergroundTilePlan[tiles.Count];
         double[] tileMs = new double[tiles.Count];
 
-        Stopwatch wall = Stopwatch.StartNew();
+        Stopwatch generateWall = Stopwatch.StartNew();
         Parallel.For(0, tiles.Count, new ParallelOptions { MaxDegreeOfParallelism = workers }, i =>
         {
             long t0 = Stopwatch.GetTimestamp();
             built[i] = UndergroundPlan.BuildTile(map, tiles[i].X, tiles[i].Z, preset);
             tileMs[i] = Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
         });
-        wall.Stop();
+        generateWall.Stop();
 
         long allocAfter = GC.GetTotalAllocatedBytes(true);
         // Measure retained memory while the entire continent's underground plan sits live in RAM.
@@ -129,7 +129,8 @@ internal static class UndergroundExport
         long retainedBytes = Math.Max(0, heapWithAllTiles - heapBefore);
         long allocatedBytes = Math.Max(0, allocAfter - allocBefore);
 
-        // Serialize per-tile plans, optional 2D field grids, and continent summary while collecting census metrics.
+        // Serialize per-tile plans, optional 2D field grids, and continent summary while collecting census metrics (#11209 R11209-1).
+        Stopwatch serializeWall = Stopwatch.StartNew();
         long rawJsonBytes = 0;
         long gzipTileBytes = 0;
         long rawGridBytes = 0;
@@ -206,6 +207,7 @@ internal static class UndergroundExport
 
             foreach (UndergroundSystem sys in tile.Systems)
             {
+                VerifySystemGeometry(sys);
                 totalSystems++;
                 if (sys.IsMultiBox) multiBox++; else singleBox++;
                 int bCount = sys.Boxes.Count;
@@ -262,6 +264,11 @@ internal static class UndergroundExport
         };
         byte[] summaryUtf8 = Encoding.UTF8.GetBytes(summaryPayload.ToJsonString());
         long summaryGzipBytes = WriteGzipBytes(Path.Combine(levelDir, "summary.json.gz"), summaryUtf8);
+        serializeWall.Stop();
+
+        double generateMs = generateWall.Elapsed.TotalMilliseconds;
+        double serializeMs = serializeWall.Elapsed.TotalMilliseconds;
+        double exportMs = generateMs + serializeMs;
 
         JsonArray sampleArray = [];
         foreach (var item in notableMulti.OrderByDescending(x => x.Score).Take(16))
@@ -315,7 +322,7 @@ internal static class UndergroundExport
         foreach (var kv in byBigSpace) bigSpaceJson[kv.Key.ToString()] = kv.Value;
 
         log(string.Create(CultureInfo.InvariantCulture,
-            $"  level {preset.Name,-8} | {wall.ElapsedMilliseconds,5} ms | retained {retainedBytes / (1024.0 * 1024.0),5:F1} MB | alloc {allocatedBytes / (1024.0 * 1024.0),6:F1} MB | disk {(gzipTileBytes + gzipGridBytes) / (1024.0 * 1024.0),5:F2} MB gz | {totalSystems,6} systems ({multiShare * 100,4:F1}% multi, {totalBoxes,6} boxes, {totalMouths,6} mouths)"));
+            $"  level {preset.Name,-8} | export {exportMs,6:F0} ms (gen {generateMs,5:F0} + io {serializeMs,5:F0}) | retained {retainedBytes / (1024.0 * 1024.0),5:F1} MB | alloc {allocatedBytes / (1024.0 * 1024.0),6:F1} MB | disk {(gzipTileBytes + gzipGridBytes) / (1024.0 * 1024.0),5:F2} MB gz | {totalSystems,6} systems ({multiShare * 100,4:F1}% multi, {totalBoxes,6} boxes, {totalMouths,6} mouths)"));
 
         return new JsonObject
         {
@@ -334,7 +341,10 @@ internal static class UndergroundExport
             },
             ["metrics"] = new JsonObject
             {
-                ["wallMs"] = Math.Round(wall.Elapsed.TotalMilliseconds, 1),
+                ["wallMs"] = Math.Round(exportMs, 1),
+                ["exportMs"] = Math.Round(exportMs, 1),
+                ["generateMs"] = Math.Round(generateMs, 1),
+                ["serializeMs"] = Math.Round(serializeMs, 1),
                 ["avgLandTileMs"] = landTiles > 0 ? Math.Round(sumLandTileMs / landTiles, 2) : 0.0,
                 ["maxTileMs"] = Math.Round(maxTileMs, 2),
                 ["landTiles"] = landTiles,
@@ -643,7 +653,7 @@ internal static class UndergroundExport
     {
         log("");
         log("Underground Plan Coarseness Comparison (provisional, CMS-only):");
-        log("| Level | Lattice | Box | Wall ms | Retained RAM | Gzip Disk | Systems | Multi % | Boxes | Mouths | Links | Rooms |");
+        log("| Level | Lattice | Box | Export ms (Gen + IO) | Retained RAM | Gzip Disk | Systems | Multi % | Boxes | Mouths | Links | Rooms |");
         log("|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
         foreach (JsonNode? node in levels)
         {
@@ -653,34 +663,85 @@ internal static class UndergroundExport
             var c = o["census"]!.AsObject();
             var bs = st["boxSize"]!.AsArray();
             log(string.Create(CultureInfo.InvariantCulture,
-                $"| {o["name"]} | {st["siteSpacingMetres"]} m | {bs[0]}x{bs[1]}x{bs[2]} | {m["wallMs"]} | {m["retainedInMemoryMB"]} MB | {m["totalGzipMB"]} MB | {c["systems"]} | {c["multiBoxShare"]!.GetValue<double>() * 100:F1}% | {c["totalBoxes"]} | {c["mouths"]} | {c["links"]} | {c["rooms"]} |"));
+                $"| {o["name"]} | {st["siteSpacingMetres"]} m | {bs[0]}x{bs[1]}x{bs[2]} | {m["exportMs"]} ({m["generateMs"]}+{m["serializeMs"]}) | {m["retainedInMemoryMB"]} MB | {m["totalGzipMB"]} MB | {c["systems"]} | {c["multiBoxShare"]!.GetValue<double>() * 100:F1}% | {c["totalBoxes"]} | {c["mouths"]} | {c["links"]} | {c["rooms"]} |"));
         }
     }
 
-    /// <summary>Deterministic sanity check for <see cref="UndergroundPlan"/> run by <c>golden-seed check</c>.</summary>
+    /// <summary>Verifies every link lies strictly inside both boxes' vertical interiors (#11209 R11209-2).</summary>
+    internal static bool LinksVerticallyValid(UndergroundSystem sys, out string? error)
+    {
+        foreach (UndergroundLink l in sys.Links)
+        {
+            if (l.FromBox < 0 || l.FromBox >= sys.Boxes.Count || l.ToBox < 0 || l.ToBox >= sys.Boxes.Count || l.FromBox == l.ToBox)
+            {
+                error = $"{sys.Id}: invalid box index in link {l.FromBox}->{l.ToBox}";
+                return false;
+            }
+            UndergroundBox a = sys.Boxes[l.FromBox], b = sys.Boxes[l.ToBox];
+            double aTop = a.OriginY + (a.ChunksY * 16.0);
+            double bTop = b.OriginY + (b.ChunksY * 16.0);
+            double localA = l.WorldY - a.OriginY;
+            double localB = l.WorldY - b.OriginY;
+            if (l.WorldY < a.OriginY + 5.0 || l.WorldY > aTop - 5.0 || l.WorldY < b.OriginY + 5.0 || l.WorldY > bTop - 5.0)
+            {
+                error = $"{sys.Id}: link {l.FromBox}->{l.ToBox} Y={l.WorldY:F1} outside box A [{a.OriginY:F1}..{aTop:F1}] or B [{b.OriginY:F1}..{bTop:F1}] (local {localA:F1}/{localB:F1})";
+                return false;
+            }
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static void VerifySystemGeometry(UndergroundSystem sys)
+    {
+        if (!LinksVerticallyValid(sys, out string? error))
+        {
+            throw new InvalidOperationException($"Underground plan geometry invariant violated: {error}");
+        }
+    }
+
+    /// <summary>Deterministic &amp; geometric sanity check for <see cref="UndergroundPlan"/> run by <c>golden-seed check</c>.</summary>
     internal static bool CheckPlan(Action<string> report)
     {
         TerrainConfiguration cfg = new(19UL, 390_000);
         WorldMap map = WorldMapGenerator.Generate(cfg);
         bool ok = true;
+        // Include steep alpine tile (-5, -1) alongside (0, 0) to stress vertical box-link overlap (#11209 R11209-2).
+        (int X, int Z)[] sampleTiles = [(0, 0), (-5, -1), (-6, 1)];
         foreach (UndergroundCoarseness preset in UndergroundPlan.Presets)
         {
-            UndergroundTilePlan a = UndergroundPlan.BuildTile(map, 0, 0, preset);
-            UndergroundTilePlan b = UndergroundPlan.BuildTile(map, 0, 0, preset);
-            bool sameCount = a.Systems.Count == b.Systems.Count;
-            bool sameIds = sameCount && a.Systems.Zip(b.Systems).All(pair =>
-                pair.First.Id == pair.Second.Id
-                && pair.First.Boxes.Count == pair.Second.Boxes.Count
-                && pair.First.Links.Count == pair.Second.Links.Count);
-            bool bounded = a.Systems.All(s =>
-                s.Boxes.Count >= 1
-                && s.Boxes.Count <= preset.MaxBoxesPerSystem
-                && s.Mouths.Count >= 1
-                && s.Links.All(l => l.FromBox >= 0 && l.ToBox < s.Boxes.Count && l.FromBox != l.ToBox));
-            bool held = sameIds && bounded;
+            int totalSys = 0, totalBoxes = 0, totalLinks = 0;
+            bool sameAll = true, boundedAll = true, verticalAll = true;
+            string? firstError = null;
+            foreach ((int tx, int tz) in sampleTiles)
+            {
+                UndergroundTilePlan a = UndergroundPlan.BuildTile(map, tx, tz, preset);
+                UndergroundTilePlan b = UndergroundPlan.BuildTile(map, tx, tz, preset);
+                totalSys += a.Systems.Count;
+                totalBoxes += a.Systems.Sum(s => s.Boxes.Count);
+                totalLinks += a.Systems.Sum(s => s.Links.Count);
+                sameAll &= a.Systems.Count == b.Systems.Count && a.Systems.Zip(b.Systems).All(pair =>
+                    pair.First.Id == pair.Second.Id
+                    && pair.First.Boxes.Count == pair.Second.Boxes.Count
+                    && pair.First.Links.Count == pair.Second.Links.Count);
+                boundedAll &= a.Systems.All(s =>
+                    s.Boxes.Count >= 1
+                    && s.Boxes.Count <= preset.MaxBoxesPerSystem
+                    && s.Mouths.Count >= 1);
+                foreach (UndergroundSystem s in a.Systems)
+                {
+                    if (!LinksVerticallyValid(s, out string? err))
+                    {
+                        verticalAll = false;
+                        firstError ??= err;
+                    }
+                }
+            }
+            bool held = sameAll && boundedAll && verticalAll;
             ok &= held;
             report(FormattableString.Invariant(
-                $"{(held ? "ok" : "FAILED")}: underground plan {preset.Name} tile (0,0) -> {a.Systems.Count} systems, {a.Systems.Sum(s => s.Boxes.Count)} boxes, {a.Systems.Sum(s => s.Links.Count)} links, deterministic={sameIds}, bounded={bounded}"));
+                $"{(held ? "ok" : "FAILED")}: underground plan {preset.Name} (3 tiles incl. steep -5,-1) -> {totalSys} systems, {totalBoxes} boxes, {totalLinks} links, deterministic={sameAll}, bounded={boundedAll}, verticalOverlap={verticalAll}{(firstError is not null ? $" ({firstError})" : "")}"));
         }
 
         return ok;

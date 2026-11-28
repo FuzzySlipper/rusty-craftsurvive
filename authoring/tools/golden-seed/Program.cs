@@ -92,7 +92,8 @@ if (command == "check")
     bool throats = CaveView.CheckThroats(Console.WriteLine);
     bool prefetch = CheckPrefetchRecovery(Console.WriteLine);
     bool underground = UndergroundExport.CheckPlan(Console.WriteLine);
-    return Pinch.CheckRegressions(Console.WriteLine) && throats && prefetch && underground ? 0 : 1;
+    bool seams = SystemView.CheckSeamMetrics(Console.WriteLine);
+    return Pinch.CheckRegressions(Console.WriteLine) && throats && prefetch && underground && seams ? 0 : 1;
 }
 
 if (command == "column")

@@ -558,21 +558,41 @@ internal static class UndergroundPlan
         double origin0X = Math.Round(anchorX - (bxMetres * 0.5));
         double origin0Z = Math.Round(anchorZ - (bzMetres * 0.5));
 
+        // Compute consistent vertical placement as boxes grow so every shared-face link has a valid common port band (#11209 R11209-2).
+        double anchorDepth = EstimateDepthMetres(anchorSample.Elevation, peak, anchorSample.Rock);
+        float baseOriginY = ComputeBoxOriginY((float)anchorSample.Elevation, (float)anchorDepth, byMetres);
+
+        float OriginYFor(int gx, int gz, double groundElevation)
+        {
+            float dipOffset = (gx * 2.5f) + (gz * 1.5f);
+            float candidateY = baseOriginY + dipOffset;
+            float maxUnderGround = (float)groundElevation - BoxCoverMetres - byMetres;
+            float clamped = Math.Clamp(MathF.Min(candidateY, maxUnderGround), MinimumBoxFloorY, MathF.Max(MinimumBoxFloorY, maxUnderGround));
+            return MathF.Round(clamped, 1);
+        }
+
+        bool HasCommonPortBand(float yA, float yB) =>
+            MathF.Min(yA + byMetres, yB + byMetres) - PortVerticalMarginMetres >= MathF.Max(yA, yB) + PortVerticalMarginMetres;
+
+        float origin0Y = OriginYFor(0, 0, anchorSample.Elevation);
         List<(int GX, int GZ)> gridCells = [(0, 0)];
+        List<float> gridOriginY = [origin0Y];
         HashSet<(int GX, int GZ)> occupied = [(0, 0)];
         List<(int From, int To, UndergroundFace OutFace, UndergroundFace InFace)> rawEdges = [];
 
-        // Grow a bounded branching tree of contiguous boxes along karst-favorable directions.
+        // Grow a bounded branching tree of contiguous boxes along karst-favorable contours with guaranteed vertical overlap.
         for (int step = 1; step < targetBoxes; step++)
         {
             int bestFrom = -1;
             int bestGx = 0, bestGz = 0;
+            float bestY = origin0Y;
             UndergroundFace bestOut = UndergroundFace.PosX, bestIn = UndergroundFace.NegX;
             double bestScore = double.NegativeInfinity;
 
             for (int b = 0; b < gridCells.Count; b++)
             {
                 (int gx, int gz) = gridCells[b];
+                float parentY = gridOriginY[b];
                 for (int d = 0; d < Neighbours.Length; d++)
                 {
                     var n = Neighbours[d];
@@ -588,6 +608,9 @@ internal static class UndergroundPlan
                     MapSample ns = continent.Broad(cx, cz);
                     if (ns.Elevation < GenerationConstants.WaterLevel + 3.0) continue;
 
+                    float ny = OriginYFor(nx, nz, ns.Elevation);
+                    if (!HasCommonPortBand(parentY, ny)) continue;
+
                     double nSol = SolubilityAt(continent, cx, cz);
                     double nDis = Math.Max(0.0, continent.Grid.Bilinear(continent.Fields.Discharge, cx, cz));
                     double jitter = Unit(Mix(systemSeed, (ulong)(step * 31 + b * 7 + d)), 12);
@@ -601,6 +624,7 @@ internal static class UndergroundPlan
                         bestFrom = b;
                         bestGx = nx;
                         bestGz = nz;
+                        bestY = ny;
                         bestOut = n.OutFace;
                         bestIn = n.InFace;
                     }
@@ -611,11 +635,12 @@ internal static class UndergroundPlan
 
             int newIdx = gridCells.Count;
             gridCells.Add((bestGx, bestGz));
+            gridOriginY.Add(bestY);
             occupied.Add((bestGx, bestGz));
             rawEdges.Add((bestFrom, newIdx, bestOut, bestIn));
         }
 
-        // Occasionally add a loop edge when two already-placed boxes happen to touch (natural karst anastomosing loop).
+        // Occasionally add a loop edge when two already-placed boxes touch horizontally AND share a valid vertical port band.
         if (gridCells.Count >= 4 && Unit(systemSeed, 19) < 0.35)
         {
             for (int a = 0; a < gridCells.Count; a++)
@@ -625,19 +650,16 @@ internal static class UndergroundPlan
                 int dx = gridCells[b].GX - gridCells[a].GX;
                 int dz = gridCells[b].GZ - gridCells[a].GZ;
                 if (Math.Abs(dx) + Math.Abs(dz) != 1) continue;
+                if (!HasCommonPortBand(gridOriginY[a], gridOriginY[b])) continue;
                 var dir = Neighbours.First(n => n.Dx == dx && n.Dz == dz);
                 rawEdges.Add((a, b, dir.OutFace, dir.InFace));
                 break;
             }
         }
 
-        // Compute consistent vertical placement for every box so shared-face links have generous vertical overlap.
-        double anchorDepth = EstimateDepthMetres(anchorSample.Elevation, peak, anchorSample.Rock);
-        float baseOriginY = ComputeBoxOriginY((float)anchorSample.Elevation, (float)anchorDepth, byMetres);
-
         // Compute per-box metadata first, then build links, mouths, big spaces, and (for medium/fine/detailed) interior rooms.
         double[] boxGround = new double[gridCells.Count];
-        float[] boxOriginY = new float[gridCells.Count];
+        float[] boxOriginY = [.. gridOriginY];
         float[] boxDepth = new float[gridCells.Count];
         float[] boxWaterLocalY = new float[gridCells.Count];
         ulong[] boxSeeds = new ulong[gridCells.Count];
@@ -651,23 +673,21 @@ internal static class UndergroundPlan
             double d = EstimateDepthMetres(s.Elevation, peak, s.Rock);
             boxDepth[i] = (float)d;
 
-            // Keep linked boxes near a shared stratigraphic elevation (gentle dip, clamped safely below local ground).
-            float dipOffset = ((gridCells[i].GX * 2.5f) + (gridCells[i].GZ * 1.5f));
-            float candidateY = baseOriginY + dipOffset;
-            float maxUnderGround = (float)s.Elevation - BoxCoverMetres - byMetres;
-            boxOriginY[i] = Math.Clamp(MathF.Min(candidateY, maxUnderGround), MinimumBoxFloorY, MathF.Max(MinimumBoxFloorY, maxUnderGround));
-
             float worldWaterY = (float)EstimateWorldWaterTable(s.Elevation, s.Moisture, d);
             float localWaterY = Math.Clamp(worldWaterY - boxOriginY[i], byMetres * WaterTableMinRatio, byMetres * WaterTableMaxRatio);
             boxWaterLocalY[i] = MathF.Round(localWaterY, 1);
             boxSeeds[i] = Mix(systemSeed, (ulong)(0x100 + i));
         }
 
-        // Build inter-box links with exact matching world coordinates on shared faces.
+        // Build inter-box links with exact matching world coordinates strictly inside both boxes' vertical interiors.
         List<UndergroundLink> links = new(rawEdges.Count);
         for (int e = 0; e < rawEdges.Count; e++)
         {
             var edge = rawEdges[e];
+            float lowWorldY = MathF.Max(boxOriginY[edge.From], boxOriginY[edge.To]) + PortVerticalMarginMetres;
+            float highWorldY = MathF.Min(boxOriginY[edge.From] + byMetres, boxOriginY[edge.To] + byMetres) - PortVerticalMarginMetres;
+            if (highWorldY < lowWorldY) continue;
+
             ulong edgeSeed = Mix(systemSeed ^ LinkSalt, (ulong)(edge.From * 64 + edge.To));
 
             bool xFace = edge.OutFace is UndergroundFace.PosX or UndergroundFace.NegX;
@@ -675,14 +695,9 @@ internal static class UndergroundPlan
             float u = PortHorizontalMarginMetres + ((float)Unit(edgeSeed, 1) * MathF.Max(4f, faceSpan - (2f * PortHorizontalMarginMetres)));
             u = MathF.Round(u, 1);
 
-            // Compute shared world Y range overlapping both boxes' vertical interiors.
-            float lowWorldY = MathF.Max(boxOriginY[edge.From], boxOriginY[edge.To]) + PortVerticalMarginMetres;
-            float highWorldY = MathF.Min(boxOriginY[edge.From] + byMetres, boxOriginY[edge.To] + byMetres) - PortVerticalMarginMetres;
-            float worldY = highWorldY > lowWorldY
-                ? lowWorldY + ((float)Unit(edgeSeed, 2) * (highWorldY - lowWorldY))
-                : (boxOriginY[edge.From] + boxOriginY[edge.To] + byMetres) * 0.5f;
-            worldY = MathF.Round(worldY, 1);
-            float faceV = MathF.Round(Math.Clamp(worldY - boxOriginY[edge.From], PortVerticalMarginMetres * 0.6f, byMetres - (PortVerticalMarginMetres * 0.6f)), 1);
+            float worldY = MathF.Round(lowWorldY + ((float)Unit(edgeSeed, 2) * (highWorldY - lowWorldY)), 1);
+            worldY = Math.Clamp(worldY, lowWorldY, highWorldY);
+            float faceV = MathF.Round(worldY - boxOriginY[edge.From], 1);
 
             double fromOriginX = origin0X + (gridCells[edge.From].GX * bxMetres);
             double fromOriginZ = origin0Z + (gridCells[edge.From].GZ * bzMetres);

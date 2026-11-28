@@ -248,7 +248,7 @@ export function mountSystemDetail(container: HTMLElement, view: SystemKarstView)
     boxGroup.add(edges);
   }
   for (const seam of view.seams) {
-    const col = seam.connectedBothSides && seam.seamReachedCrawl ? 0x60f098 : 0xff5c5c;
+    const col = seam.seamReachedCrawl ? 0x60f098 : seam.seamReachedTight ? 0xf2b84b : 0xff5c5c;
     const ring = new THREE.Mesh(
       new THREE.SphereGeometry(Math.max(1.5, seam.radius), 12, 8),
       new THREE.MeshBasicMaterial({ color: col, wireframe: true, depthTest: false, transparent: true }),

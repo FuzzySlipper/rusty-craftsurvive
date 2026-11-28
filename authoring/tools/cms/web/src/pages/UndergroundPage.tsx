@@ -76,7 +76,7 @@ export function UndergroundPage() {
                 <th>Level</th>
                 <th>Lattice</th>
                 <th>Box (m)</th>
-                <th>Wall time</th>
+                <th>Export time (gen + io)</th>
                 <th>Avg / max tile</th>
                 <th>Retained RAM (all tiles)</th>
                 <th>Per land tile</th>
@@ -104,7 +104,15 @@ export function UndergroundPage() {
                     </td>
                     <td>{st.siteSpacingMetres} m</td>
                     <td>{st.boxSize.join('×')}</td>
-                    <td>{m.wallMs.toFixed(0)} ms</td>
+                    <td>
+                      <strong>{(m.exportMs ?? m.wallMs).toFixed(0)} ms</strong>
+                      {m.generateMs !== undefined && m.serializeMs !== undefined ? (
+                        <small class="muted">
+                          {' '}
+                          ({m.generateMs.toFixed(0)} + {m.serializeMs.toFixed(0)})
+                        </small>
+                      ) : null}
+                    </td>
                     <td>
                       {m.avgLandTileMs.toFixed(2)} / {m.maxTileMs.toFixed(1)} ms
                     </td>
@@ -336,7 +344,7 @@ function DetailProjectionCanvas({ view, projection }: { view: SystemKarstView; p
     for (const s of view.seams) {
       const px = projection === 'sideZ' ? s.at[2] * scale : s.at[0] * scale;
       const py = projection === 'plan' ? s.at[2] * scale : (gy - s.at[1]) * scale;
-      ctx.strokeStyle = s.connectedBothSides && s.seamReachedCrawl ? '#60f098' : '#ff5c5c';
+      ctx.strokeStyle = s.seamReachedCrawl ? '#60f098' : s.seamReachedTight ? '#f2b84b' : '#ff5c5c';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(px, py, Math.max(4, s.radius * scale), 0, Math.PI * 2);
@@ -500,10 +508,14 @@ export function SystemPage({ level, id }: { level: string; id: string }) {
           <>
             <FactList
               facts={{
-                'Boxes reached across seams': `${detail.stats.boxesReachedCrawl} / ${detail.stats.boxes}`,
-                'Seams matched': `${detail.stats.seamsMatched} / ${detail.stats.links} (avg IoU ${detail.stats.avgSeamOverlapIoU.toFixed(2)})`,
+                'Boxes reached (crawl)': `${detail.stats.boxesReachedCrawl} / ${detail.stats.boxes}`,
+                ...(detail.stats.boxesReachedTight !== undefined
+                  ? { 'Boxes reached (incl. tight)': `${detail.stats.boxesReachedTight} / ${detail.stats.boxes}` }
+                  : {}),
+                'Seams shape-matched': `${detail.stats.seamsMatched} / ${detail.stats.links} (avg IoU ${detail.stats.avgSeamOverlapIoU.toFixed(2)})`,
+                'Seams traversed (crawl)': `${detail.stats.seamsTraversedCrawl ?? detail.seams.filter(s => s.seamReachedCrawl).length} / ${detail.stats.links}`,
                 'Combined volume': `${detail.size.join(' × ')} m`,
-                'Open space': `${detail.stats.openCubicMetres.toLocaleString()} m³ (${detail.stats.standCubicMetres.toLocaleString()} stand, ${detail.stats.crawlCubicMetres.toLocaleString()} crawl)`,
+                'Open space': `${detail.stats.openCubicMetres.toLocaleString()} m³ (${detail.stats.standCubicMetres.toLocaleString()} stand, ${detail.stats.crawlCubicMetres.toLocaleString()} crawl, ${detail.stats.tightCubicMetres.toLocaleString()} tight)`,
                 'Generation time': `${detail.generateMs.toFixed(0)} ms KarstCave · ${detail.totalMs.toFixed(0)} ms total`,
               }}
             />
@@ -536,7 +548,7 @@ export function SystemPage({ level, id }: { level: string; id: string }) {
                         <td>
                           <strong>{(s.overlapIoU * 100).toFixed(0)}%</strong>
                         </td>
-                        <td>{s.connectedBothSides && s.seamReachedCrawl ? 'yes' : 'no'}</td>
+                        <td>{s.seamReachedCrawl ? 'yes (crawl)' : s.seamReachedTight ? 'tight only' : 'no'}</td>
                       </tr>
                     ))}
                   </tbody>

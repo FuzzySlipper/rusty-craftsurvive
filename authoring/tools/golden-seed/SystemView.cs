@@ -79,8 +79,13 @@ internal static class SystemView
             ulong seamSeed = ulong.Parse(l["seamSeed"]!.GetValue<string>(), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 
             PlannedBox boxA = boxes[from], boxB = boxes[to];
-            float localVA = Math.Clamp(wy - (float)boxA.OriginY, 5f, boxA.SizeY - 5f);
-            float localVB = Math.Clamp(wy - (float)boxB.OriginY, 5f, boxB.SizeY - 5f);
+            float localVA = wy - (float)boxA.OriginY;
+            float localVB = wy - (float)boxB.OriginY;
+            if (localVA < 4f || localVA > boxA.SizeY - 4f || localVB < 4f || localVB > boxB.SizeY - 4f)
+            {
+                throw new InvalidOperationException(
+                    $"Link L{i} ({from}<->{to}) at world Y={wy:F1} lies outside box A [{boxA.OriginY:F1}..{boxA.OriginY + boxA.SizeY:F1}] or box B [{boxB.OriginY:F1}..{boxB.OriginY + boxB.SizeY:F1}].");
+            }
             float localWaterA = waterWorldY - (float)boxA.OriginY;
             float localWaterB = waterWorldY - (float)boxB.OriginY;
 
@@ -193,27 +198,24 @@ internal static class SystemView
 
         byte[] state = new byte[cellCount];
         int openCells = 0, standCells = 0, crawlCells = 0, tightCells = 0, narrowCells = 0, cutOffCells = 0;
-        HashSet<int> boxesReachedCrawl = [];
-        HashSet<int> boxesReachedAny = [];
+        // Keep strict crawl-reached boxes separate from tight-only reached boxes (#11209 R11209-3).
+        (HashSet<int> boxesReachedCrawl, HashSet<int> boxesReachedTight) = ClassifyReachedBoxes(open, reachedCrawl, reachedTight, ownerBox);
         for (int i = 0; i < cellCount; i++)
         {
             if (!open[i]) continue;
             openCells++;
             if (reachedCrawl[i])
             {
-                if (ownerBox[i] >= 0) boxesReachedCrawl.Add(ownerBox[i]);
                 if (clearance[i] >= KarstCave.StandRadius) { state[i] = Stand; standCells++; }
                 else { state[i] = Crawl; crawlCells++; }
             }
             else if (reachedTight[i])
             {
-                if (ownerBox[i] >= 0) boxesReachedCrawl.Add(ownerBox[i]);
                 state[i] = Tight;
                 tightCells++;
             }
             else if (reachedAny[i])
             {
-                if (ownerBox[i] >= 0) boxesReachedAny.Add(ownerBox[i]);
                 state[i] = Narrow;
                 narrowCells++;
             }
@@ -245,14 +247,18 @@ internal static class SystemView
             if (st > sideZ[zi]) sideZ[zi] = st;
         }
 
-        // Measure exact seam alignment across every shared-face link.
+        // Measure exact seam alignment and true cross-face traversal across every shared-face link (#11209 R11209-3).
         JsonArray seamReports = [];
         int seamsMatched = 0;
+        int seamsTraversedCrawl = 0;
+        int seamsTraversedTight = 0;
         double sumOverlap = 0;
         foreach (PlannedLink l in links)
         {
-            SeamMetrics seam = MeasureSeam(generated[l.From], generated[l.To], l, reachedCrawl, gx, gy, gz, minX, minY, minZ);
+            SeamMetrics seam = MeasureSeam(generated[l.From], generated[l.To], l, reachedCrawl, reachedTight, ownerBox, gx, gy, gz, minX, minY, minZ);
             if (seam.Overlap >= 0.70 && seam.ConnectedBothSides) seamsMatched++;
+            if (seam.ReachedCrawl) seamsTraversedCrawl++;
+            if (seam.ReachedTight) seamsTraversedTight++;
             sumOverlap += seam.Overlap;
             seamReports.Add(new JsonObject
             {
@@ -267,6 +273,7 @@ internal static class SystemView
                 ["overlapIoU"] = Math.Round(seam.Overlap, 3),
                 ["connectedBothSides"] = seam.ConnectedBothSides,
                 ["seamReachedCrawl"] = seam.ReachedCrawl,
+                ["seamReachedTight"] = seam.ReachedTight,
             });
         }
 
@@ -292,6 +299,7 @@ internal static class SystemView
                 ["waterLocalY"] = b.WaterLocalY,
                 ["generateMs"] = Math.Round(gb.GenerateMs, 1),
                 ["reachedCrawl"] = boxesReachedCrawl.Contains(b.Index),
+                ["reachedTight"] = boxesReachedTight.Contains(b.Index),
                 ["verdict"] = gb.Verdict,
             });
         }
@@ -344,8 +352,11 @@ internal static class SystemView
             {
                 ["boxes"] = boxes.Count,
                 ["boxesReachedCrawl"] = boxesReachedCrawl.Count,
+                ["boxesReachedTight"] = boxesReachedTight.Count,
                 ["links"] = links.Count,
                 ["seamsMatched"] = seamsMatched,
+                ["seamsTraversedCrawl"] = seamsTraversedCrawl,
+                ["seamsTraversedTight"] = seamsTraversedTight,
                 ["avgSeamOverlapIoU"] = links.Count > 0 ? Math.Round(sumOverlap / links.Count, 3) : 1.0,
                 ["openCubicMetres"] = openCells,
                 ["standCubicMetres"] = standCells,
@@ -382,6 +393,8 @@ internal static class SystemView
         GeneratedBox boxB,
         PlannedLink link,
         bool[] reachedCrawl,
+        bool[] reachedTight,
+        short[] ownerBox,
         int gx,
         int gy,
         int gz,
@@ -419,21 +432,155 @@ internal static class SystemView
         double shareB = samples > 0 ? (double)openB / samples : 0;
         double iou = either > 0 ? (double)both / either : 0;
 
-        // Check whether the stitched crawl flood-fill passed through the seam cell neighbourhood.
-        int sx = Math.Clamp((int)Math.Round((link.WorldX - minX) / CellMetres), 0, gx - 1);
-        int sy = Math.Clamp((int)Math.Round((link.WorldY - minY) / CellMetres), 0, gy - 1);
-        int sz = Math.Clamp((int)Math.Round((link.WorldZ - minZ) / CellMetres), 0, gz - 1);
-        bool seamReached = false;
-        for (int dz = -2; dz <= 2 && !seamReached; dz++)
-        for (int dy = -2; dy <= 2 && !seamReached; dy++)
-        for (int dx = -2; dx <= 2 && !seamReached; dx++)
+        float localX = (float)(link.WorldX - minX);
+        float localY = (float)(link.WorldY - minY);
+        float localZ = (float)(link.WorldZ - minZ);
+        bool seamCrawl = HasCrossFaceConnection(reachedCrawl, ownerBox, gx, gy, gz, link.From, link.To, link.FromFace, localX, localY, localZ, r);
+        bool seamTight = seamCrawl || HasCrossFaceConnection(reachedTight, ownerBox, gx, gy, gz, link.From, link.To, link.FromFace, localX, localY, localZ, r);
+
+        return new SeamMetrics(shareA, shareB, iou, openA > 0 && openB > 0 && both > 0, seamCrawl, seamTight);
+    }
+
+    /// <summary>
+    /// Classifies reached box indices strictly: <c>Crawl</c> includes only boxes with at least one cell reached at full crawl
+    /// clearance, while <c>Tight</c> includes boxes reached at tight or crawl clearance (#11209 R11209-3).
+    /// </summary>
+    internal static (HashSet<int> Crawl, HashSet<int> Tight) ClassifyReachedBoxes(
+        bool[] open,
+        bool[] reachedCrawl,
+        bool[] reachedTight,
+        short[] ownerBox)
+    {
+        HashSet<int> crawl = [];
+        HashSet<int> tight = [];
+        for (int i = 0; i < open.Length; i++)
         {
-            int nx = sx + dx, ny = sy + dy, nz = sz + dz;
-            if (nx < 0 || ny < 0 || nz < 0 || nx >= gx || ny >= gy || nz >= gz) continue;
-            if (reachedCrawl[(((nz * gy) + ny) * gx) + nx]) seamReached = true;
+            if (!open[i] || ownerBox[i] < 0) continue;
+            if (reachedCrawl[i])
+            {
+                crawl.Add(ownerBox[i]);
+                tight.Add(ownerBox[i]);
+            }
+            else if (reachedTight[i])
+            {
+                tight.Add(ownerBox[i]);
+            }
+        }
+        return (crawl, tight);
+    }
+
+    /// <summary>
+    /// Returns true only when <paramref name="reached"/> contains an adjacent pair of cells straddling the shared face plane
+    /// between <paramref name="fromBox"/> and <paramref name="toBox"/> inside the port disk (#11209 R11209-3).
+    /// A one-sided reach (stopping on one side of the face) returns false.
+    /// </summary>
+    internal static bool HasCrossFaceConnection(
+        bool[] reached,
+        short[] ownerBox,
+        int gx,
+        int gy,
+        int gz,
+        int fromBox,
+        int toBox,
+        KarstCave.BoxFace fromFace,
+        float localSeamX,
+        float localSeamY,
+        float localSeamZ,
+        float radius)
+    {
+        bool xFace = fromFace is KarstCave.BoxFace.PosX or KarstCave.BoxFace.NegX;
+        float diskR = radius + CellMetres;
+        float diskR2 = diskR * diskR;
+        int cellRadius = (int)MathF.Ceiling(diskR / CellMetres);
+        int sy = (int)Math.Floor(localSeamY / CellMetres);
+
+        if (xFace)
+        {
+            int faceX = (int)Math.Round(localSeamX / CellMetres);
+            int negX = faceX - 1;
+            int posX = faceX;
+            if (negX < 0 || posX >= gx) return false;
+            int sz = (int)Math.Floor(localSeamZ / CellMetres);
+            for (int z = Math.Max(0, sz - cellRadius); z <= Math.Min(gz - 1, sz + cellRadius); z++)
+            for (int y = Math.Max(0, sy - cellRadius); y <= Math.Min(gy - 1, sy + cellRadius); y++)
+            {
+                float du = ((z + 0.5f) * CellMetres) - localSeamZ;
+                float dv = ((y + 0.5f) * CellMetres) - localSeamY;
+                if ((du * du) + (dv * dv) > diskR2) continue;
+                int iNeg = (((z * gy) + y) * gx) + negX;
+                int iPos = (((z * gy) + y) * gx) + posX;
+                if (!reached[iNeg] || !reached[iPos]) continue;
+                short oNeg = ownerBox[iNeg], oPos = ownerBox[iPos];
+                if ((oNeg == fromBox && oPos == toBox) || (oNeg == toBox && oPos == fromBox)) return true;
+            }
+        }
+        else
+        {
+            int faceZ = (int)Math.Round(localSeamZ / CellMetres);
+            int negZ = faceZ - 1;
+            int posZ = faceZ;
+            if (negZ < 0 || posZ >= gz) return false;
+            int sx = (int)Math.Floor(localSeamX / CellMetres);
+            for (int x = Math.Max(0, sx - cellRadius); x <= Math.Min(gx - 1, sx + cellRadius); x++)
+            for (int y = Math.Max(0, sy - cellRadius); y <= Math.Min(gy - 1, sy + cellRadius); y++)
+            {
+                float du = ((x + 0.5f) * CellMetres) - localSeamX;
+                float dv = ((y + 0.5f) * CellMetres) - localSeamY;
+                if ((du * du) + (dv * dv) > diskR2) continue;
+                int iNeg = (((negZ * gy) + y) * gx) + x;
+                int iPos = (((posZ * gy) + y) * gx) + x;
+                if (!reached[iNeg] || !reached[iPos]) continue;
+                short oNeg = ownerBox[iNeg], oPos = ownerBox[iPos];
+                if ((oNeg == fromBox && oPos == toBox) || (oNeg == toBox && oPos == fromBox)) return true;
+            }
         }
 
-        return new SeamMetrics(shareA, shareB, iou, openA > 0 && openB > 0 && both > 0, seamReached);
+        return false;
+    }
+
+    /// <summary>Focused regression check for cross-face seam traversal and tight/crawl separation (#11209 R11209-3).</summary>
+    internal static bool CheckSeamMetrics(Action<string> report)
+    {
+        const int gx = 16, gy = 10, gz = 10;
+        const int faceX = 8;
+        int n = gx * gy * gz;
+        short[] owner = new short[n];
+        for (int z = 0; z < gz; z++)
+        for (int y = 0; y < gy; y++)
+        for (int x = 0; x < gx; x++)
+            owner[(((z * gy) + y) * gx) + x] = (short)(x < faceX ? 0 : 1);
+
+        // Case 1: One-sided reach stopping at (faceX - 1, 5, 5); Side B completely unreached -> MUST be false.
+        bool[] oneSided = new bool[n];
+        oneSided[(((5 * gy) + 5) * gx) + (faceX - 1)] = true;
+        bool c1 = !HasCrossFaceConnection(oneSided, owner, gx, gy, gz, 0, 1, KarstCave.BoxFace.PosX, faceX, 5.5f, 5.5f, 2f);
+
+        // Case 2: Adjacent pair straddling face inside port disk -> MUST be true.
+        bool[] crossed = (bool[])oneSided.Clone();
+        crossed[(((5 * gy) + 5) * gx) + faceX] = true;
+        bool c2 = HasCrossFaceConnection(crossed, owner, gx, gy, gz, 0, 1, KarstCave.BoxFace.PosX, faceX, 5.5f, 5.5f, 2f);
+
+        // Case 3: Cross-face pair far outside the port disk (at y=0, z=0) -> MUST be false.
+        bool[] offPort = new bool[n];
+        offPort[(((0 * gy) + 0) * gx) + (faceX - 1)] = true;
+        offPort[(((0 * gy) + 0) * gx) + faceX] = true;
+        bool c3 = !HasCrossFaceConnection(offPort, owner, gx, gy, gz, 0, 1, KarstCave.BoxFace.PosX, faceX, 5.5f, 5.5f, 2f);
+
+        // Case 4: Box 1 reached only by tight flood (not crawl) -> crawl={0}, tight={0,1}.
+        bool[] open = new bool[n];
+        bool[] crawl = new bool[n];
+        bool[] tight = new bool[n];
+        int cellA = (((5 * gy) + 5) * gx) + (faceX - 1);
+        int cellB = (((5 * gy) + 5) * gx) + faceX;
+        open[cellA] = open[cellB] = true;
+        crawl[cellA] = true;
+        tight[cellA] = tight[cellB] = true;
+        (HashSet<int> rCrawl, HashSet<int> rTight) = ClassifyReachedBoxes(open, crawl, tight, owner);
+        bool c4 = rCrawl.SetEquals([0]) && rTight.SetEquals([0, 1]);
+
+        bool ok = c1 && c2 && c3 && c4;
+        report($"{(ok ? "ok" : "FAILED")}: seam traversal metrics (oneSidedRejected={c1}, crossFaceAccepted={c2}, offPortRejected={c3}, tightCrawlSeparated={c4})");
+        return ok;
     }
 
     private static float[] ApproxClearance(float[] values, bool[] open, int gx, int gy, int gz)
@@ -535,5 +682,5 @@ internal static class SystemView
     private sealed record PlannedBox(int Index, double OriginX, double OriginY, double OriginZ, int ChunksX, int ChunksY, int ChunksZ, float SizeX, float SizeY, float SizeZ, float Depth, float WaterLocalY, ulong Seed);
     private sealed record PlannedLink(int Index, int From, int To, KarstCave.BoxFace FromFace, KarstCave.BoxFace ToFace, float FaceU, float LocalVA, float LocalVB, float WorldX, float WorldY, float WorldZ, float Radius, float WaterWorldY, string Kind);
     private sealed record GeneratedBox(PlannedBox Box, DungeonLayout Layout, string Verdict, KarstCave.Report Report, double GenerateMs);
-    private sealed record SeamMetrics(double OpenShareA, double OpenShareB, double Overlap, bool ConnectedBothSides, bool ReachedCrawl);
+    private sealed record SeamMetrics(double OpenShareA, double OpenShareB, double Overlap, bool ConnectedBothSides, bool ReachedCrawl, bool ReachedTight);
 }

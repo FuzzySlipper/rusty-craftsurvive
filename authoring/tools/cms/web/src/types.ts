@@ -412,6 +412,9 @@ export interface UndergroundLevelReport {
   };
   metrics: {
     wallMs: number;
+    exportMs?: number;
+    generateMs?: number;
+    serializeMs?: number;
     avgLandTileMs: number;
     maxTileMs: number;
     landTiles: number;
@@ -573,6 +576,7 @@ export interface SystemKarstSeam {
   overlapIoU: number;
   connectedBothSides: boolean;
   seamReachedCrawl: boolean;
+  seamReachedTight?: boolean;
 }
 
 export interface SystemKarstView {
@@ -587,8 +591,11 @@ export interface SystemKarstView {
   stats: {
     boxes: number;
     boxesReachedCrawl: number;
+    boxesReachedTight?: number;
     links: number;
     seamsMatched: number;
+    seamsTraversedCrawl?: number;
+    seamsTraversedTight?: number;
     avgSeamOverlapIoU: number;
     openCubicMetres: number;
     standCubicMetres: number;
@@ -605,6 +612,7 @@ export interface SystemKarstView {
     waterLocalY: number;
     generateMs: number;
     reachedCrawl: boolean;
+    reachedTight?: boolean;
     verdict: string;
   }>;
   seams: SystemKarstSeam[];
