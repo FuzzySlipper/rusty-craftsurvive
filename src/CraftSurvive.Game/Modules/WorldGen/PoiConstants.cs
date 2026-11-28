@@ -20,8 +20,11 @@ internal static class PoiConstants
     /// </summary>
     internal const long CellSize = 256;
 
-    /// <summary>One in N candidate cells holds a site at all. One places in every cell.</summary>
+    /// <summary>One in N candidate cells holds a site on regional worlds. One places in every cell.</summary>
     internal const long OneIn = 1;
+
+    /// <summary>Resolution of continuous probability draws for continental POI density and weighted kind selection (#11185).</summary>
+    internal const long DistributionDrawScale = 1_000_000;
 
     /// <summary>
     /// The furthest any structure reaches from its site origin, in blocks. It bounds

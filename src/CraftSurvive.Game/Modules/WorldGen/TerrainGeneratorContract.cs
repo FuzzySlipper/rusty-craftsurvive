@@ -83,9 +83,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// 44 lets rising relief lift no ground the map has under water, coming in over the shore's first metres instead (#11148); version
     /// 45 adopts worker-callable managed KeyedRng (rusty-engine #11177), decouples per-subsystem feature seed versions so future targeted
     /// fixes do not scramble unrelated placements, refuses POIs on submerged columns or town pads, and scales continental vantage height (#11179);
-    /// version 46 decouples WorldMap.ComputeFingerprint from feature GeneratorVersion (mixing GeographySeedVersion instead, #11184).
+    /// version 46 decouples WorldMap.ComputeFingerprint from feature GeneratorVersion (mixing GeographySeedVersion instead, #11184);
+    /// version 47 drives continental POI density and kind weights from biome, karst rock, frontier/neck bounds, and settlement distance (#11185).
     /// </summary>
-    internal const uint CurrentVersion = 46;
+    internal const uint CurrentVersion = 47;
 
     private const string GenerationScope = "craftsurvive.terrain";
 
@@ -177,7 +178,7 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     // save/cache identity and explicit version overrides (e.g. CurrentVersion + 1) move every draw.
     internal const uint GeographySeedVersion = 17;
     internal const uint TreeSeedVersion = 44;
-    internal const uint PoiSeedVersion = 44;
+    internal const uint PoiSeedVersion = 47;
     internal const uint CrossingSeedVersion = 44;
 
     internal ulong GeographyNoiseSeed => Seed ^ unchecked(GeographySeedVersion * VersionSpread);

@@ -24,6 +24,9 @@ internal interface ITerrainColumns
 
     /// <summary>Whether a column lies on a town's pad or edge, where wild sites should not stand (#11179).</summary>
     bool InTown(long x, long z) => false;
+
+    /// <summary>Macro biome, region, and settlement-distance context for continental POI distribution (#11185).</summary>
+    PoiContext PoiContextAt(long x, long z) => new(MapBiome.Grassland, 0, double.PositiveInfinity, BeyondFrontier: false, InNeck: false);
 }
 
 /// <summary>
@@ -153,7 +156,8 @@ internal sealed class PoiPlacement
     private PoiSite? DecideSite(long cellX, long cellZ)
     {
         const uint seedVersion = TerrainGeneratorContract.PoiSeedVersion;
-        if (!contract.DrawUnit(draws, "poi.present", cellX, cellZ, PoiConstants.OneIn, seedVersion))
+        bool continental = MapScale.IsContinental(contract.Extent);
+        if (!continental && !contract.DrawUnit(draws, "poi.present", cellX, cellZ, PoiConstants.OneIn, seedVersion))
         {
             return null;
         }
@@ -173,6 +177,26 @@ internal sealed class PoiPlacement
             return null;
         }
 
+        PoiContext context = default;
+        if (continental)
+        {
+            // Continental density gates before full column/slope sampling (#11185): refuses forbidden
+            // mainland, sea, and most empty wilderness cells with a single context lookup.
+            context = columns.PoiContextAt(x, z);
+            double density = PoiDistribution.Density(in context);
+            if (density <= 0)
+            {
+                return null;
+            }
+
+            double presentDraw = contract.DrawLong(draws, "poi.present", cellX, cellZ, 0, PoiConstants.DistributionDrawScale - 1, seedVersion)
+                / (double)PoiConstants.DistributionDrawScale;
+            if (presentDraw >= density)
+            {
+                return null;
+            }
+        }
+
         TerrainColumn column = columns.ColumnAt(x, z);
         // Refuse sites below the sea floor threshold or submerged under an elevated river or lake (#11179).
         if (column.Surface < PoiConstants.MinimumGroundHeight || column.Submerged)
@@ -180,13 +204,21 @@ internal sealed class PoiPlacement
             return null;
         }
 
-        PoiKind preferred = (PoiKind)contract.DrawLong(draws, "poi.kind", cellX, cellZ,
-            PoiConstants.FirstKind, PoiConstants.LastKind, seedVersion);
         long aspect = AspectAt(x, z, out long relief);
-        long vantageMinimum = MapScale.IsContinental(contract.Extent)
-            ? PoiConstants.ContinentalVantageMinimumHeight
-            : PoiConstants.VantageMinimumHeight;
-        PoiKind kind = Reconcile(preferred, column, relief, vantageMinimum);
+        PoiKind kind;
+        if (continental)
+        {
+            double kindDraw = contract.DrawLong(draws, "poi.kind", cellX, cellZ, 0, PoiConstants.DistributionDrawScale - 1, seedVersion)
+                / (double)PoiConstants.DistributionDrawScale;
+            kind = PoiDistribution.PickKind(in context, column, relief, kindDraw);
+        }
+        else
+        {
+            PoiKind preferred = (PoiKind)contract.DrawLong(draws, "poi.kind", cellX, cellZ,
+                PoiConstants.FirstKind, PoiConstants.LastKind, seedVersion);
+            kind = Reconcile(preferred, column, relief, PoiConstants.VantageMinimumHeight);
+        }
+
         (long minimum, long range) = HeightRangeFor(kind);
         long height = contract.DrawLong(draws, "poi.height", cellX, cellZ, minimum, minimum + range - 1, seedVersion);
         long variant = contract.DrawLong(draws, "poi.variant", cellX, cellZ, 0, PoiConstants.LastVariant, seedVersion);

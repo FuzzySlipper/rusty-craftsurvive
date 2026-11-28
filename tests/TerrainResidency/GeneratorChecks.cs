@@ -75,6 +75,8 @@ internal static class GeneratorChecks
                 [(45, 12345UL)] = 0x2f439c9bd00e1b3fUL,
                 [(46, TerrainConstants.DefaultSeed)] = 0x63355913fb7401b3UL,
                 [(46, 12345UL)] = 0x017b4cded6aa8518UL,
+                [(47, TerrainConstants.DefaultSeed)] = 0xd338ebc4acd6e6b2UL,
+                [(47, 12345UL)] = 0xd2a575e52dfa6913UL,
                 [(19, TerrainConstants.DefaultSeed)] = 0xe808453fe4c8386cUL,
                 [(19, 12345UL)] = 0xf439dc53c78a57d1UL,
                 [(18, TerrainConstants.DefaultSeed)] = 0x8780952811978cd6UL,

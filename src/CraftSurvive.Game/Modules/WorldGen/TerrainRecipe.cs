@@ -42,7 +42,19 @@ internal sealed class TerrainRecipe : ITerrainColumns
         if (Map.Configuration != configuration) throw new ArgumentException("Terrain and map must share an identity.", nameof(map));
         radius = configuration.Size / 2;
         regions = Map.Scale.Continental ? MapRegions.For(Map) : null;
+        design = ContinentDesign.For(configuration.Size);
         towns = new(() => [.. Settlements.For(Map).Select(settlement => settlement.Ground)], LazyThreadSafetyMode.ExecutionAndPublication);
+        settlementSeats = new(() =>
+        {
+            List<(double X, double Z)> seats = [];
+            foreach (Settlement settlement in Settlements.For(Map)) seats.Add((settlement.X, settlement.Z));
+            if (FrontierBound.For(Map) is FrontierBound bound)
+            {
+                foreach (PlacedSite site in bound.Sites) seats.Add((site.X, site.Z));
+            }
+
+            return [.. seats];
+        }, LazyThreadSafetyMode.ExecutionAndPublication);
         pois = new PoiPlacement(configuration.Contract, draws, this, radius);
         crossings = new CrossingPlacement(configuration.Contract, draws, this, radius);
         caves = new CaveUnderground(pois, radius);
@@ -123,6 +135,28 @@ internal sealed class TerrainRecipe : ITerrainColumns
     }
 
     bool ITerrainColumns.InTown(long x, long z) => InTown(x, z);
+
+    PoiContext ITerrainColumns.PoiContextAt(long x, long z)
+    {
+        double normX = x / (double)radius, normZ = z / (double)radius;
+        if (design is not null && design.BeyondFrontier(normX, normZ))
+        {
+            return new PoiContext(MapBiome.Sea, 0, double.PositiveInfinity, BeyondFrontier: true, InNeck: false);
+        }
+
+        bool inNeck = design is not null && design.InNeck(normX, normZ);
+        MapSample geography = Geography(x, z);
+        double nearestSq = double.PositiveInfinity;
+        foreach ((double sx, double sz) in settlementSeats.Value)
+        {
+            double dx = x - sx, dz = z - sz;
+            double d2 = (dx * dx) + (dz * dz);
+            if (d2 < nearestSq) nearestSq = d2;
+        }
+
+        double settlementDistance = double.IsPositiveInfinity(nearestSq) ? double.PositiveInfinity : Math.Sqrt(nearestSq);
+        return new PoiContext(WorldMap.Biome(geography), geography.Rock, settlementDistance, BeyondFrontier: false, InNeck: inNeck);
+    }
 
     /// <summary>
     /// Samples every column and continuous height of a chunk in one pass (#11179): evaluates ground once per
@@ -932,7 +966,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// </summary>
     private TownGround[] Towns => towns.Value;
 
+    private readonly ContinentDesign? design;
     private readonly Lazy<TownGround[]> towns;
+    private readonly Lazy<(double X, double Z)[]> settlementSeats;
 
     /// <summary>Whether a point lies on a town's pad or near enough its edge that nothing natural grows there.</summary>
     private bool InTown(long x, long z) => Towns.Any(town => town.Weight(x, z) > 0);

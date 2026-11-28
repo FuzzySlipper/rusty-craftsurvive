@@ -107,6 +107,120 @@ foreach ((long cellX, long cellZ) in cells)
     }
 }
 
+// --- continental biome-, region-, and civilization-aware distribution (#11185) ----
+PoiPlacement CreateContinent(ITerrainColumns columns) =>
+    new(new TerrainGeneratorContract(Seed, TerrainGeneratorContract.CurrentVersion, MapScale.DefaultContinentalSize),
+        new TestDraws(), columns, MapScale.DefaultContinentalSize / 2);
+
+var hillyContinent = new RollingColumns(baseHeight: 140);
+PoiContext wildernessForest = new(MapBiome.TemperateForest, 0.20, 20_000, BeyondFrontier: false, InNeck: false);
+PoiPlacement forestCont = CreateContinent(new ContextualColumns(hillyContinent, wildernessForest));
+PoiPlacement forestContReversed = CreateContinent(new ContextualColumns(hillyContinent, wildernessForest));
+PoiPlacement iceCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.IceField, 0.20, 20_000, false, false)));
+PoiPlacement shrubCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.Shrubland, 0.20, 20_000, false, false)));
+PoiPlacement seaCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.Sea, 0.0, 20_000, false, false)));
+PoiPlacement beyondCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.TemperateForest, 0.20, 20_000, BeyondFrontier: true, InNeck: false)));
+PoiPlacement neckCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.TemperateForest, 0.20, 20_000, BeyondFrontier: false, InNeck: true)));
+PoiPlacement outskirtsCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.TemperateForest, 0.20, 500, false, false)));
+PoiPlacement hinterlandCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.TemperateForest, 0.20, 5_000, false, false)));
+PoiPlacement deepFrontierCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.TemperateForest, 0.20, 50_000, false, false)));
+PoiPlacement alpineKarstCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.Alpine, 0.90, 20_000, false, false)));
+PoiPlacement grasslandCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.Grassland, 0.10, 20_000, false, false)));
+PoiPlacement karstForestCont = CreateContinent(new ContextualColumns(hillyContinent, new(MapBiome.TemperateForest, 0.95, 20_000, false, false)));
+
+// Query order independence on continental placement.
+Dictionary<(long X, long Z), PoiSite?> forestForward = [];
+foreach ((long cellX, long cellZ) in cells)
+{
+    forestForward[(cellX, cellZ)] = forestCont.SiteAt(cellX, cellZ);
+}
+for (int index = cells.Count - 1; index >= 0; index--)
+{
+    Check.That(forestContReversed.SiteAt(cells[index].X, cells[index].Z) == forestForward[cells[index]],
+        $"continental placement at {cells[index]} must not depend on query order");
+}
+
+int forestCount = 0, iceCount = 0, shrubCount = 0, seaCount = 0, beyondCount = 0, neckCount = 0;
+int outskirtsCount = 0, outskirtsDungeons = 0;
+int hinterlandDungeons = 0, deepFrontierDungeons = 0;
+int alpineCavesAndVantages = 0, alpineRuins = 0;
+int grassRuinsAndStones = 0, grassCaves = 0;
+int lowRockForestCaves = 0, karstForestCaves = 0;
+Dictionary<PoiKind, int> forestKinds = [];
+
+foreach ((long cellX, long cellZ) in cells)
+{
+    if (forestForward[(cellX, cellZ)] is PoiSite forestSite)
+    {
+        forestCount++;
+        forestKinds[forestSite.Kind] = forestKinds.GetValueOrDefault(forestSite.Kind) + 1;
+        if (forestSite.Kind == PoiKind.CaveMouth) lowRockForestCaves++;
+    }
+    if (iceCont.SiteAt(cellX, cellZ) is not null) iceCount++;
+    if (shrubCont.SiteAt(cellX, cellZ) is not null) shrubCount++;
+    if (seaCont.SiteAt(cellX, cellZ) is not null) seaCount++;
+    if (beyondCont.SiteAt(cellX, cellZ) is not null) beyondCount++;
+    if (neckCont.SiteAt(cellX, cellZ) is not null) neckCount++;
+    if (outskirtsCont.SiteAt(cellX, cellZ) is PoiSite outskirtsSite)
+    {
+        outskirtsCount++;
+        if (outskirtsSite.Kind == PoiKind.DungeonEntrance) outskirtsDungeons++;
+    }
+    if (hinterlandCont.SiteAt(cellX, cellZ) is { Kind: PoiKind.DungeonEntrance }) hinterlandDungeons++;
+    if (deepFrontierCont.SiteAt(cellX, cellZ) is { Kind: PoiKind.DungeonEntrance }) deepFrontierDungeons++;
+    if (alpineKarstCont.SiteAt(cellX, cellZ) is PoiSite alpineSite)
+    {
+        if (alpineSite.Kind is PoiKind.CaveMouth or PoiKind.VantagePoint) alpineCavesAndVantages++;
+        if (alpineSite.Kind == PoiKind.Ruin) alpineRuins++;
+    }
+    if (grasslandCont.SiteAt(cellX, cellZ) is PoiSite grassSite)
+    {
+        if (grassSite.Kind is PoiKind.Ruin or PoiKind.StandingStones) grassRuinsAndStones++;
+        if (grassSite.Kind == PoiKind.CaveMouth) grassCaves++;
+    }
+    if (karstForestCont.SiteAt(cellX, cellZ) is { Kind: PoiKind.CaveMouth }) karstForestCaves++;
+}
+
+Check.That(beyondCount == 0, $"cells beyond the frontier must place no sites, found {beyondCount}");
+Check.That(seaCount == 0, $"sea biome cells must place no sites, found {seaCount}");
+Check.That(iceCount > 0 && iceCount * 3 < forestCount,
+    $"ice fields must be far sparser than temperate forest (ice={iceCount}, forest={forestCount})");
+Check.That(forestCount < cells.Count / 2 && shrubCount >= forestCount,
+    $"continental density must thin below uniform and favor shrubland over or equal to forest (forest={forestCount}, shrub={shrubCount})");
+Check.That(neckCount > 0 && neckCount < forestCount,
+    $"the mountain neck must be sparser than open forest (neck={neckCount}, forest={forestCount})");
+Check.That(outskirtsCount > 0 && outskirtsCount < forestCount,
+    $"town outskirts must thin wild sites (outskirts={outskirtsCount}, forest={forestCount})");
+Check.That(outskirtsDungeons == 0,
+    $"town outskirts must hold zero dungeon entrances, found {outskirtsDungeons}");
+Check.That(deepFrontierDungeons > hinterlandDungeons,
+    $"deep frontier must hold more dungeon entrances than settled hinterland (deep={deepFrontierDungeons}, hinterland={hinterlandDungeons})");
+Check.That(alpineCavesAndVantages > alpineRuins,
+    $"alpine karst must favor caves and vantages over ruins (caves+vantage={alpineCavesAndVantages}, ruins={alpineRuins})");
+Check.That(grassRuinsAndStones > grassCaves,
+    $"grassland must favor ruins and standing stones over caves (ruins+stones={grassRuinsAndStones}, caves={grassCaves})");
+Check.That(karstForestCaves > lowRockForestCaves,
+    $"high karst rock must increase cave mouths (karst={karstForestCaves}, lowRock={lowRockForestCaves})");
+foreach (PoiKind kind in new[]
+    { PoiKind.StandingStones, PoiKind.Ruin, PoiKind.CaveMouth, PoiKind.DungeonEntrance, PoiKind.VantagePoint })
+{
+    Check.That(forestKinds.GetValueOrDefault(kind) > 0,
+        $"continental hilly forest must reach {kind}; counts were " +
+        string.Join(", ", forestKinds.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}={pair.Value}")));
+}
+
+// PickKind eligibility sweeps: ineligible kinds receive zero weight across [0, 1).
+for (int step = 0; step < 100; step++)
+{
+    double u = step / 100.0;
+    PoiKind flatLow = PoiDistribution.PickKind(in wildernessForest, new TerrainColumn(20, 0), relief: 0, u);
+    Check.That(flatLow is PoiKind.StandingStones or PoiKind.Ruin,
+        $"flat low ground must never pick {flatLow}");
+    PoiKind steepLow = PoiDistribution.PickKind(in wildernessForest, new TerrainColumn(20, PoiConstants.FlatSlopeMaximum + 2), relief: 6, u);
+    Check.That(steepLow != PoiKind.Ruin && steepLow != PoiKind.VantagePoint,
+        $"steep low ground must never pick {steepLow}");
+}
+
 // Flat ground carries no hillside and no height, so relief kinds and lookouts are
 // reconciled away rather than placed where they would make no sense.
 PoiPlacement flat = Create(Seed, TerrainGeneratorContract.CurrentVersion, new FlatColumns(surface: 6));
@@ -705,4 +819,11 @@ sealed class TownColumns(long surface) : ITerrainColumns
 {
     public TerrainColumn ColumnAt(long x, long z) => new(surface, 0);
     public bool InTown(long x, long z) => true;
+}
+
+sealed class ContextualColumns(ITerrainColumns inner, PoiContext context) : ITerrainColumns
+{
+    public TerrainColumn ColumnAt(long x, long z) => inner.ColumnAt(x, z);
+    public (long Surface, long WaterTop) WaterAt(long x, long z) => inner.WaterAt(x, z);
+    public PoiContext PoiContextAt(long x, long z) => context;
 }

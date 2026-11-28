@@ -134,6 +134,7 @@ try
         Check.Section("narrow streams as ribbons", () => RibbonChecks.Run(continent.Map, continentRecipe));
         Check.Section("river travel", () => BoatChecks.Run(continent.Map, continentRecipe));
         ContinentalTerrainChecks(continentRecipe);
+        Check.Section("continental POI distribution", () => ContinentalPoiChecks(continentRecipe));
     });
     using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
     host.Call(engine =>
@@ -275,6 +276,98 @@ partial class Program
         }
         Console.WriteLine($"continent terrain seam: max voxel step {seam} across, {inside} inside");
         Check.That(seam <= Math.Max(inside, 1) + 1, "walking terrain meets across a tile seam like anywhere else");
+    }
+
+    /// <summary>
+    /// Continental POI distribution (#11185): verifies that forbidden mainland holds zero POIs,
+    /// playable region tiles stay well below uniform density, sites respect water/town/outskirts rules,
+    /// and multiple POI kinds appear across real continental terrain.
+    /// </summary>
+    private static void ContinentalPoiChecks(TerrainRecipe recipe)
+    {
+        WorldMap continent = recipe.Map;
+        ContinentDesign design = ContinentDesign.For(continent.Configuration.Size)!;
+        double radius = continent.Radius;
+        long cellSize = PoiConstants.CellSize;
+
+        // 1. Forbidden mainland: every cell wholly beyond the frontier must refuse without building tiles.
+        int beyondChecked = 0, beyondSites = 0;
+        long maxCell = (long)(radius / cellSize) - 2;
+        for (long cx = -maxCell; cx <= maxCell; cx += 8)
+        {
+            for (long cz = -maxCell; cz <= maxCell; cz += 8)
+            {
+                double x0 = (cx * cellSize) / radius, x1 = ((cx + 1) * cellSize) / radius;
+                double z0 = (cz * cellSize) / radius, z1 = ((cz + 1) * cellSize) / radius;
+                if (design.BeyondFrontier(x0, z0) && design.BeyondFrontier(x1, z0)
+                    && design.BeyondFrontier(x0, z1) && design.BeyondFrontier(x1, z1))
+                {
+                    beyondChecked++;
+                    if (recipe.Placement.SiteAt(cx, cz) is not null) beyondSites++;
+                }
+            }
+        }
+        Check.That(beyondChecked > 50, $"the continent must have cells beyond the frontier to audit, checked {beyondChecked}");
+        Check.That(beyondSites == 0, $"cells beyond the frontier must place zero POIs, found {beyondSites}");
+
+        // 2. Playable tiles already built during RegionChecks: (0, 0) and (1, 0), staying strictly inside
+        // each tile's interior so no extra region tiles need to be generated.
+        (double X, double Z)[] seats =
+        [
+            .. Settlements.For(continent).Select(s => (s.X, s.Z)),
+            .. (FrontierBound.For(continent)?.Sites ?? []).Select(s => (s.X, s.Z)),
+        ];
+        (int Tx, int Tz)[] auditedTiles = [(0, 0), (1, 0)];
+        double halfInterior = (MapRegions.TileSpacing / 2) - 512;
+        int dryCells = 0, placed = 0;
+        Dictionary<PoiKind, int> kinds = [];
+        foreach ((int tx, int tz) in auditedTiles)
+        {
+            double centerX = tx * MapRegions.TileSpacing;
+            double centerZ = tz * MapRegions.TileSpacing;
+            long firstX = GridMath.FloorDivide((long)(centerX - halfInterior), cellSize);
+            long lastX = GridMath.FloorDivide((long)(centerX + halfInterior), cellSize) - 1;
+            long firstZ = GridMath.FloorDivide((long)(centerZ - halfInterior), cellSize);
+            long lastZ = GridMath.FloorDivide((long)(centerZ + halfInterior), cellSize) - 1;
+            for (long cx = firstX; cx <= lastX; cx++)
+            {
+                for (long cz = firstZ; cz <= lastZ; cz++)
+                {
+                    long midX = (cx * cellSize) + (cellSize / 2);
+                    long midZ = (cz * cellSize) + (cellSize / 2);
+                    if (recipe.Geography(midX, midZ).Elevation >= GenerationConstants.WaterLevel) dryCells++;
+                    if (recipe.Placement.SiteAt(cx, cz) is not PoiSite site) continue;
+
+                    placed++;
+                    kinds[site.Kind] = kinds.GetValueOrDefault(site.Kind) + 1;
+                    TerrainColumn column = recipe.ColumnAt(site.X, site.Z);
+                    Check.That(!column.Submerged && column.Surface >= PoiConstants.MinimumGroundHeight,
+                        $"{site.Id} must stand on dry ground");
+                    Check.That(!recipe.Columns.InTown(site.X, site.Z), $"{site.Id} must not stand in a town");
+                    Check.That(!design.BeyondFrontier(site.X / radius, site.Z / radius),
+                        $"{site.Id} must not stand beyond the frontier");
+                    double nearestSeat = seats.Length == 0
+                        ? double.PositiveInfinity
+                        : seats.Min(s => double.Hypot(site.X - s.X, site.Z - s.Z));
+                    if (nearestSeat < PoiDistribution.TownOutskirtsMetres)
+                    {
+                        Check.That(site.Kind != PoiKind.DungeonEntrance,
+                            $"{site.Id} lies {nearestSeat:F0} m from a settlement and must not be a DungeonEntrance");
+                    }
+                }
+            }
+        }
+
+        double dryDensity = dryCells > 0 ? placed / (double)dryCells : 0;
+        Console.WriteLine(
+            $"continent POIs: {placed} across {dryCells} dry cells ({dryDensity:P1}), beyondFrontier={beyondSites}/{beyondChecked}; "
+            + string.Join(", ", kinds.OrderBy(p => p.Key).Select(p => $"{p.Key}={p.Value}")));
+        Check.That(dryCells > 1000 && placed > 50,
+            $"audited continental tiles must carry wild sites (placed={placed}, dryCells={dryCells})");
+        Check.That(dryDensity < 0.35,
+            $"continental POI density must be thinned well below uniform ({dryDensity:P1})");
+        Check.That(kinds.Count >= 3,
+            $"audited continental tiles must carry varied POI kinds, found {kinds.Count}");
     }
 
     private const ulong ContinentSeed = 12345;
