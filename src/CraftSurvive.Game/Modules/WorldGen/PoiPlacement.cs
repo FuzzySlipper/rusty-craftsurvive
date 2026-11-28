@@ -27,6 +27,12 @@ internal interface ITerrainColumns
 
     /// <summary>Macro biome, region, and settlement-distance context for continental POI distribution (#11185).</summary>
     PoiContext PoiContextAt(long x, long z) => new(MapBiome.Grassland, 0, double.PositiveInfinity, BeyondFrontier: false, InNeck: false);
+
+    /// <summary>Fast macro region and settlement-distance context for continental crossing cadence (#11186).</summary>
+    CrossingContext CrossingContextAt(long x, long z) => new(double.PositiveInfinity, BeyondFrontier: false, InNeck: false, OpenSea: false);
+
+    /// <summary>Shaped river centreline candidates inside anchor cell (<paramref name="cellX"/>, <paramref name="cellZ"/>) (#11186).</summary>
+    IReadOnlyList<RiverCrossingCandidate>? RiverCandidatesInCell(long cellX, long cellZ) => null;
 }
 
 /// <summary>

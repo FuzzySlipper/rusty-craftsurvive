@@ -84,9 +84,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// 45 adopts worker-callable managed KeyedRng (rusty-engine #11177), decouples per-subsystem feature seed versions so future targeted
     /// fixes do not scramble unrelated placements, refuses POIs on submerged columns or town pads, and scales continental vantage height (#11179);
     /// version 46 decouples WorldMap.ComputeFingerprint from feature GeneratorVersion (mixing GeographySeedVersion instead, #11184);
-    /// version 47 drives continental POI density and kind weights from biome, karst rock, frontier/neck bounds, and settlement distance (#11185).
+    /// version 47 drives continental POI density and kind weights from biome, karst rock, frontier/neck bounds, and settlement distance (#11185);
+    /// version 48 replaces blind axis-aligned continental crossing scans and voxel bridges with hydrology-driven river crossings and parametric textured bridge meshes (#11186).
     /// </summary>
-    internal const uint CurrentVersion = 47;
+    internal const uint CurrentVersion = 48;
 
     private const string GenerationScope = "craftsurvive.terrain";
 
@@ -179,7 +180,7 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     internal const uint GeographySeedVersion = 17;
     internal const uint TreeSeedVersion = 44;
     internal const uint PoiSeedVersion = 47;
-    internal const uint CrossingSeedVersion = 44;
+    internal const uint CrossingSeedVersion = 48;
 
     internal ulong GeographyNoiseSeed => Seed ^ unchecked(GeographySeedVersion * VersionSpread);
 

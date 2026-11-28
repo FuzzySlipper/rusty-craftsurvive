@@ -221,6 +221,11 @@ internal static class ProductIds
 
     internal const ulong PlaceMeshLimit = 0x1000UL;
 
+    /// <summary>The overworld river crossings' bridge meshes standing in the near ground (#11186), at most <see cref="CrossingMeshLimit"/>.</summary>
+    internal const ulong CrossingMeshBase = 0xA_8000UL;
+
+    internal const ulong CrossingMeshLimit = 0x400UL;
+
     /// <summary>The overgrown places' ivy blankets (#10044), one per piece standing, at most <see cref="PlaceMeshLimit"/>.</summary>
     internal const ulong PlaceBlanketBase = 0x9_C000UL;
 

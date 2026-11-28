@@ -503,9 +503,7 @@ for (int index = cells.Count - 1; index >= 0; index--)
 int bridges = 0;
 int wideBridges = 0;
 int dryBridges = 0;
-int deckVoxels = 0;
-int pierVoxels = 0;
-int carriage = 0;
+int layoutBoxes = 0;
 foreach ((long cellX, long cellZ) in cells)
 {
     if (wide.SiteAt(cellX, cellZ) is not null)
@@ -525,10 +523,6 @@ foreach ((long cellX, long cellZ) in cells)
 
     bridges++;
     Check.That(spansReversed[(cellX, cellZ)] == site, $"the crossing in ({cellX},{cellZ}) must not depend on query order");
-    Check.That(CrossingStructure.MaterialAt(site, site.FromX - PoiConstants.CrossingRampLength - 2, site.DeckY, site.FromZ).IsNone
-        && CrossingStructure.MaterialAt(site, site.ToX + PoiConstants.CrossingRampLength + 2, site.DeckY, site.ToZ).IsNone
-        && CrossingStructure.MaterialAt(site, site.FromX, site.DeckY + 2, site.FromZ).IsNone,
-        $"{site.Id} must build nothing beyond its deck and its two ramps");
     Check.That(site.DeckY >= GenerationConstants.WaterLevel + 1,
         $"{site.Id} must lay its deck above the water line, found {site.DeckY}");
     Check.That(site.DeckY == GenerationConstants.WaterLevel + 1 || site.DeckY == 6,
@@ -545,34 +539,6 @@ foreach ((long cellX, long cellZ) in cells)
             $"{site.Id} must only span water, but ({x},{z}) is dry");
     }
 
-    // The defect this asserts against: the deck is laid at the higher bank, so a full-height
-    // abutment is climbable from one side and not the other. Every step down to a bank must be
-    // one course, which is the character's whole step budget.
-    for (long side = 0; side < 2; side++)
-    {
-        long previous = site.DeckY;
-        for (long offset = 1; offset <= PoiConstants.CrossingRampLength; offset++)
-        {
-            long along = side == 0 ? -offset : span + offset;
-            long x = site.AlongX ? site.FromX + along : site.FromX;
-            long z = site.AlongX ? site.FromZ : site.FromZ + along;
-            long top = long.MinValue;
-            for (long y = site.DeckY - PoiConstants.CrossingPierDepth - PoiConstants.CrossingRampLength; y <= site.DeckY; y++)
-            {
-                PoiVoxel step = CrossingStructure.MaterialAt(site, x, y, z);
-                if (step.Kind == PoiVoxelKind.Fill)
-                {
-                    top = y;
-                }
-            }
-
-            Check.That(top != long.MinValue, $"{site.Id} must build a ramp on both sides of its deck");
-            Check.That(previous - top <= 1,
-                $"{site.Id} ramps {previous - top} courses in one block at offset {offset}: the low bank would be unclimbable");
-            previous = top;
-        }
-    }
-
     long nearX = site.AlongX ? site.FromX - 1 : site.FromX;
     long nearZ = site.AlongX ? site.FromZ : site.FromZ - 1;
     long farX = site.AlongX ? site.ToX + 1 : site.ToX;
@@ -581,41 +547,126 @@ foreach ((long cellX, long cellZ) in cells)
         && narrowRiver.ColumnAt(farX, farZ).Surface >= GenerationConstants.WaterLevel,
         $"{site.Id} must land on a bank at both ends");
 
-    for (long y = site.DeckY - PoiConstants.CrossingPierDepth; y <= site.DeckY; y++)
-    {
-        for (long x = Math.Min(site.FromX, site.ToX) - 2; x <= Math.Max(site.FromX, site.ToX) + 2; x++)
-        {
-            for (long z = Math.Min(site.FromZ, site.ToZ) - 2; z <= Math.Max(site.FromZ, site.ToZ) + 2; z++)
-            {
-                PoiVoxel voxel = CrossingStructure.MaterialAt(site, x, y, z);
-                if (voxel.IsNone)
-                {
-                    continue;
-                }
-
-                carriage++;
-                Check.That(voxel.Kind == PoiVoxelKind.Fill,
-                    $"{site.Id} must only fill: a crossing is walked over, never a dam");
-                if (voxel.Material == (ushort)BlockId.Planks)
-                {
-                    deckVoxels++;
-                    Check.That(y == site.DeckY, $"{site.Id} must lay its planks at the deck height");
-                }
-                else if (voxel.Material == (ushort)BlockId.Cobblestone)
-                {
-                    pierVoxels++;
-                    Check.That(y <= site.DeckY, $"{site.Id} must build nothing above its deck");
-                }
-            }
-        }
-    }
+    // Bridge presentation is parametric textured box geometry (#11186): deck top at local y = 0,
+    // gentle walkable ramps meeting both banks, and abutments/piers below the deck.
+    CrossingBridgeGeometry geometry = CrossingLayout.Build(site);
+    layoutBoxes += geometry.Boxes.Length;
+    Check.That(geometry.Boxes.Length >= 8, $"{site.Id} must build deck, ramps, abutments, stringers and rails");
+    Check.That(MathF.Abs(geometry.NearRampPitch) <= 0.50f && MathF.Abs(geometry.FarRampPitch) <= 0.50f,
+        $"{site.Id} ramp slopes must stay walkable (near={geometry.NearRampPitch:F2}, far={geometry.FarRampPitch:F2} rad)");
+    Check.That(geometry.Boxes.Any(box => box.Material == CrossingMaterial.Planks)
+        && geometry.Boxes.Any(box => box.Material == CrossingMaterial.Timber)
+        && geometry.Boxes.Any(box => box.Material == CrossingMaterial.Masonry),
+        $"{site.Id} must use planks, timber, and masonry parts");
 }
 
 Check.That(bridges > 0, "narrow water must carry at least one dry crossing");
 Check.That(wideBridges == 0, $"water 40 blocks wide must be walked around, found {wideBridges} crossings");
 Check.That(dryBridges == 0, $"dry ground must hold no crossing, found {dryBridges}");
-Check.That(deckVoxels > 0 && pierVoxels > 0, "a crossing must have both a deck and piers");
-Check.That(carriage == deckVoxels + pierVoxels, $"a crossing must build only planks and cobblestone, built {carriage - deckVoxels - pierVoxels} other voxels");
+Check.That(layoutBoxes > 0, "crossings must emit bridge mesh geometry");
+
+// --- continental hydrology-driven river crossings (#11186) -----------------------
+CrossingPlacement CreateContinentCrossings(ITerrainColumns columns) =>
+    new(new TerrainGeneratorContract(Seed, TerrainGeneratorContract.CurrentVersion, MapScale.DefaultContinentalSize),
+        new TestDraws(), columns, MapScale.DefaultContinentalSize / 2);
+
+var nearTownHydro = new HydrologyRiverColumns(
+    new CrossingContext(SettlementDistanceMetres: 2_000, BeyondFrontier: false, InNeck: false, OpenSea: false),
+    halfWidth: 3.5, flow: 2.5, Navigability.None, inLake: false);
+var hinterlandHydro = new HydrologyRiverColumns(
+    new CrossingContext(SettlementDistanceMetres: 8_000, BeyondFrontier: false, InNeck: false, OpenSea: false),
+    halfWidth: 3.5, flow: 2.5, Navigability.None, inLake: false);
+var wildernessHydro = new HydrologyRiverColumns(
+    new CrossingContext(SettlementDistanceMetres: 50_000, BeyondFrontier: false, InNeck: false, OpenSea: false),
+    halfWidth: 3.5, flow: 2.5, Navigability.None, inLake: false);
+var neckHydro = new HydrologyRiverColumns(
+    new CrossingContext(SettlementDistanceMetres: 8_000, BeyondFrontier: false, InNeck: true, OpenSea: false),
+    halfWidth: 3.5, flow: 2.5, Navigability.None, inLake: false);
+var beyondHydro = new HydrologyRiverColumns(
+    new CrossingContext(SettlementDistanceMetres: 2_000, BeyondFrontier: true, InNeck: false, OpenSea: false),
+    halfWidth: 3.5, flow: 2.5, Navigability.None, inLake: false);
+var openSeaHydro = new HydrologyRiverColumns(
+    new CrossingContext(SettlementDistanceMetres: 2_000, BeyondFrontier: false, InNeck: false, OpenSea: true),
+    halfWidth: 3.5, flow: 2.5, Navigability.None, inLake: false);
+var trickleHydro = new HydrologyRiverColumns(
+    new CrossingContext(SettlementDistanceMetres: 2_000, BeyondFrontier: false, InNeck: false, OpenSea: false),
+    halfWidth: 1.6, flow: 0.03, Navigability.None, inLake: false);
+var boatRiverHydro = new HydrologyRiverColumns(
+    new CrossingContext(SettlementDistanceMetres: 2_000, BeyondFrontier: false, InNeck: false, OpenSea: false),
+    halfWidth: 14.0, flow: 45.0, Navigability.Boat, inLake: false);
+var lakeHydro = new HydrologyRiverColumns(
+    new CrossingContext(SettlementDistanceMetres: 2_000, BeyondFrontier: false, InNeck: false, OpenSea: false),
+    halfWidth: 4.0, flow: 3.0, Navigability.None, inLake: true);
+
+CrossingPlacement nearTownCross = CreateContinentCrossings(nearTownHydro);
+CrossingPlacement nearTownCrossRev = CreateContinentCrossings(nearTownHydro);
+CrossingPlacement hinterlandCross = CreateContinentCrossings(hinterlandHydro);
+CrossingPlacement wildernessCross = CreateContinentCrossings(wildernessHydro);
+CrossingPlacement neckCross = CreateContinentCrossings(neckHydro);
+CrossingPlacement beyondCross = CreateContinentCrossings(beyondHydro);
+CrossingPlacement openSeaCross = CreateContinentCrossings(openSeaHydro);
+CrossingPlacement trickleCross = CreateContinentCrossings(trickleHydro);
+CrossingPlacement boatCross = CreateContinentCrossings(boatRiverHydro);
+CrossingPlacement lakeCross = CreateContinentCrossings(lakeHydro);
+
+Dictionary<(long X, long Z), CrossingSite?> nearTownForward = [];
+foreach ((long cellX, long cellZ) in cells)
+{
+    nearTownForward[(cellX, cellZ)] = nearTownCross.SiteAt(cellX, cellZ);
+}
+for (int index = cells.Count - 1; index >= 0; index--)
+{
+    Check.That(nearTownCrossRev.SiteAt(cells[index].X, cells[index].Z) == nearTownForward[cells[index]],
+        $"continental crossing at {cells[index]} must not depend on query order");
+}
+
+int nearTownBridges = 0, hinterlandBridges = 0, wildernessBridges = 0, neckBridges = 0;
+int beyondBridges = 0, openSeaBridges = 0, trickleBridges = 0, boatBridges = 0, lakeBridges = 0;
+int diagonalBridges = 0, stoneBridges = 0, timberBridges = 0;
+
+foreach ((long cellX, long cellZ) in cells)
+{
+    if (nearTownForward[(cellX, cellZ)] is CrossingSite nt)
+    {
+        nearTownBridges++;
+        if (nt.Style == CrossingStyle.StoneBridge) stoneBridges++;
+        if (nt.FromX != nt.ToX && nt.FromZ != nt.ToZ) diagonalBridges++;
+        // Bridge must span perpendicularly to the NW-SE diagonal river (downstream along +X,+Z -> bridge along -X,+Z or +X,-Z).
+        double bdx = nt.ToX - nt.FromX, bdz = nt.ToZ - nt.FromZ;
+        double dot = Math.Abs((bdx + bdz) / (Math.Sqrt(2) * Math.Max(1.0, double.Hypot(bdx, bdz))));
+        Check.That(dot < 0.25, $"{nt.Id} must cross perpendicularly to its diagonal river, dot={dot:F2}");
+        CrossingBridgeGeometry built = CrossingLayout.Build(nt);
+        System.Numerics.Vector3 worldForward = System.Numerics.Vector3.Transform(System.Numerics.Vector3.UnitZ, built.Rotation);
+        double align = ((worldForward.X * bdx) + (worldForward.Z * bdz)) / Math.Max(1.0, double.Hypot(bdx, bdz));
+        Check.That(align > 0.99, $"{nt.Id} mesh rotation must align local +Z with bridge span, align={align:F3}");
+    }
+    if (hinterlandCross.SiteAt(cellX, cellZ) is not null) hinterlandBridges++;
+    if (wildernessCross.SiteAt(cellX, cellZ) is CrossingSite w)
+    {
+        wildernessBridges++;
+        if (w.Style == CrossingStyle.TimberFootbridge) timberBridges++;
+    }
+    if (neckCross.SiteAt(cellX, cellZ) is not null) neckBridges++;
+    if (beyondCross.SiteAt(cellX, cellZ) is not null) beyondBridges++;
+    if (openSeaCross.SiteAt(cellX, cellZ) is not null) openSeaBridges++;
+    if (trickleCross.SiteAt(cellX, cellZ) is not null) trickleBridges++;
+    if (boatCross.SiteAt(cellX, cellZ) is not null) boatBridges++;
+    if (lakeCross.SiteAt(cellX, cellZ) is not null) lakeBridges++;
+}
+
+Check.That(beyondBridges == 0, $"cells beyond the frontier must place zero crossings, found {beyondBridges}");
+Check.That(openSeaBridges == 0, $"open sea cells must place zero crossings, found {openSeaBridges}");
+Check.That(trickleBridges == 0, $"tiny trickles below MinimumFlow must place zero crossings, found {trickleBridges}");
+Check.That(boatBridges == 0, $"navigable boat rivers must place zero crossings, found {boatBridges}");
+Check.That(lakeBridges == 0, $"lake interiors must place zero crossings, found {lakeBridges}");
+Check.That(nearTownBridges > hinterlandBridges && hinterlandBridges > wildernessBridges && wildernessBridges > 0,
+    $"continental bridge cadence must follow civilization gradient (nearTown={nearTownBridges}, hinterland={hinterlandBridges}, wilderness={wildernessBridges})");
+Check.That(neckBridges < hinterlandBridges,
+    $"mountain neck must thin bridges relative to open hinterland (neck={neckBridges}, hinterland={hinterlandBridges})");
+Check.That(diagonalBridges == nearTownBridges && nearTownBridges > 0,
+    $"all bridges over a diagonal river must orient diagonally across the channel ({diagonalBridges}/{nearTownBridges})");
+Check.That(stoneBridges == nearTownBridges && timberBridges == wildernessBridges,
+    $"settled crossings must use StoneBridge ({stoneBridges}/{nearTownBridges}) and wilderness creeks TimberFootbridge ({timberBridges}/{wildernessBridges})");
 
 // --- the codec refuses every blob it cannot interpret, and the journal keeps working full ---
 //
@@ -826,4 +877,32 @@ sealed class ContextualColumns(ITerrainColumns inner, PoiContext context) : ITer
     public TerrainColumn ColumnAt(long x, long z) => inner.ColumnAt(x, z);
     public (long Surface, long WaterTop) WaterAt(long x, long z) => inner.WaterAt(x, z);
     public PoiContext PoiContextAt(long x, long z) => context;
+}
+
+// Synthetic continental terrain with a NW-SE diagonal river passing through each anchor cell's centre (#11186).
+sealed class HydrologyRiverColumns(CrossingContext context, double halfWidth, double flow, Navigability nav, bool inLake) : ITerrainColumns
+{
+    private const double InvSqrt2 = 0.7071067811865475;
+
+    public TerrainColumn ColumnAt(long x, long z)
+    {
+        long cx = GridMath.FloorDivide(x, PoiConstants.CellSize);
+        long cz = GridMath.FloorDivide(z, PoiConstants.CellSize);
+        double midX = (cx * PoiConstants.CellSize) + (PoiConstants.CellSize / 2.0);
+        double midZ = (cz * PoiConstants.CellSize) + (PoiConstants.CellSize / 2.0);
+        // Signed perpendicular distance to the diagonal river through (midX, midZ) running along (+1, +1)/sqrt(2).
+        double perp = Math.Abs(((x - midX) - (z - midZ)) * InvSqrt2);
+        return perp < halfWidth
+            ? new TerrainColumn(18, 0, 20)
+            : new TerrainColumn(21, 0, 1);
+    }
+
+    public CrossingContext CrossingContextAt(long x, long z) => context;
+
+    public IReadOnlyList<RiverCrossingCandidate> RiverCandidatesInCell(long cellX, long cellZ)
+    {
+        double midX = (cellX * PoiConstants.CellSize) + (PoiConstants.CellSize / 2.0);
+        double midZ = (cellZ * PoiConstants.CellSize) + (PoiConstants.CellSize / 2.0);
+        return [new RiverCrossingCandidate(midX, midZ, InvSqrt2, InvSqrt2, halfWidth, WaterSurface: 20, flow, nav, inLake)];
+    }
 }

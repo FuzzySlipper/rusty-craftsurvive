@@ -135,6 +135,7 @@ try
         Check.Section("river travel", () => BoatChecks.Run(continent.Map, continentRecipe));
         ContinentalTerrainChecks(continentRecipe);
         Check.Section("continental POI distribution", () => ContinentalPoiChecks(continentRecipe));
+        Check.Section("continental river crossings", () => ContinentalCrossingChecks(continentRecipe));
     });
     using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
     host.Call(engine =>
@@ -368,6 +369,88 @@ partial class Program
             $"continental POI density must be thinned well below uniform ({dryDensity:P1})");
         Check.That(kinds.Count >= 3,
             $"audited continental tiles must carry varied POI kinds, found {kinds.Count}");
+    }
+
+    /// <summary>
+    /// Continental hydrology-driven river crossings (#11186): verifies zero crossings beyond the frontier,
+    /// dramatic thinning vs. blind 256 m grid scanning, valid bank seating & bridge geometry on real
+    /// continental rivers, and non-axis-aligned orientation across meandering channels.
+    /// </summary>
+    private static void ContinentalCrossingChecks(TerrainRecipe recipe)
+    {
+        WorldMap continent = recipe.Map;
+        ContinentDesign design = ContinentDesign.For(continent.Configuration.Size)!;
+        double radius = continent.Radius;
+        long cellSize = PoiConstants.CellSize;
+
+        // 1. Forbidden mainland: zero crossings beyond the frontier (fast-path without building tiles).
+        int beyondChecked = 0, beyondCrossings = 0;
+        long maxCell = (long)(radius / cellSize) - 2;
+        for (long cx = -maxCell; cx <= maxCell; cx += 8)
+        {
+            for (long cz = -maxCell; cz <= maxCell; cz += 8)
+            {
+                double x0 = (cx * cellSize) / radius, x1 = ((cx + 1) * cellSize) / radius;
+                double z0 = (cz * cellSize) / radius, z1 = ((cz + 1) * cellSize) / radius;
+                if (design.BeyondFrontier(x0, z0) && design.BeyondFrontier(x1, z0)
+                    && design.BeyondFrontier(x0, z1) && design.BeyondFrontier(x1, z1))
+                {
+                    beyondChecked++;
+                    if (recipe.Crossings.SiteAt(cx, cz) is not null) beyondCrossings++;
+                }
+            }
+        }
+
+        Check.That(beyondChecked > 50 && beyondCrossings == 0,
+            $"cells beyond the frontier must place zero crossings ({beyondCrossings}/{beyondChecked})");
+
+        // 2. Playable already-built tiles (0, 0) and (1, 0): audit every crossing placed on real rivers.
+        (int Tx, int Tz)[] auditedTiles = [(0, 0), (1, 0)];
+        double halfInterior = (MapRegions.TileSpacing / 2) - 512;
+        int totalCells = 0, placed = 0, diagonal = 0, stone = 0, timber = 0;
+        foreach ((int tx, int tz) in auditedTiles)
+        {
+            double centerX = tx * MapRegions.TileSpacing;
+            double centerZ = tz * MapRegions.TileSpacing;
+            long firstX = GridMath.FloorDivide((long)(centerX - halfInterior), cellSize);
+            long lastX = GridMath.FloorDivide((long)(centerX + halfInterior), cellSize) - 1;
+            long firstZ = GridMath.FloorDivide((long)(centerZ - halfInterior), cellSize);
+            long lastZ = GridMath.FloorDivide((long)(centerZ + halfInterior), cellSize) - 1;
+            for (long cx = firstX; cx <= lastX; cx++)
+            {
+                for (long cz = firstZ; cz <= lastZ; cz++)
+                {
+                    totalCells++;
+                    if (recipe.Crossings.SiteAt(cx, cz) is not CrossingSite site) continue;
+
+                    placed++;
+                    if (site.FromX != site.ToX && site.FromZ != site.ToZ) diagonal++;
+                    if (site.Style == CrossingStyle.StoneBridge) stone++; else timber++;
+
+                    Check.That(!design.BeyondFrontier(site.FromX / radius, site.FromZ / radius)
+                        && !design.BeyondFrontier(site.ToX / radius, site.ToZ / radius),
+                        $"{site.Id} must not stand beyond the frontier");
+                    Check.That(!recipe.Columns.InTown(site.FromX, site.FromZ) && !recipe.Columns.InTown(site.ToX, site.ToZ),
+                        $"{site.Id} must not stand in a town");
+                    Check.That(site.SpanMetres >= CrossingDistribution.MinimumSpanMetres
+                        && site.SpanMetres <= CrossingDistribution.SettledMaximumSpanMetres,
+                        $"{site.Id} span ({site.SpanMetres:F1} m) must stay within bridgeable bounds");
+                    (long nearS, long nearW) = recipe.Columns.WaterAt(site.FromX, site.FromZ);
+                    (long farS, long farW) = recipe.Columns.WaterAt(site.ToX, site.ToZ);
+                    Check.That(nearS > nearW && farS > farW,
+                        $"{site.Id} must land on dry banks at both ends");
+                    CrossingBridgeGeometry built = CrossingLayout.Build(site);
+                    Check.That(built.Boxes.Length >= 8, $"{site.Id} must emit valid bridge geometry");
+                }
+            }
+        }
+
+        Console.WriteLine(
+            $"continent crossings: {placed} across {totalCells} cells (diagonal={diagonal}, stone={stone}, timber={timber}), beyondFrontier={beyondCrossings}/{beyondChecked}");
+        Check.That(placed > 0 && placed < 200,
+            $"hydrology-driven crossings must place sparse bridges across audited tiles (found {placed})");
+        Check.That(diagonal > 0,
+            $"meandering continental rivers must produce non-axis-aligned bridges (diagonal={diagonal}/{placed})");
     }
 
     private const ulong ContinentSeed = 12345;

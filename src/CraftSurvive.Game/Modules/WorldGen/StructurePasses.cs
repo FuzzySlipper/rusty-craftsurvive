@@ -21,13 +21,6 @@ internal static class StructurePasses
         _ => before,
     };
 
-    /// <summary>
-    /// A crossing's voxel over what the ground and the sites left. A crossing only fills, so it
-    /// is something walked over rather than a dam across the water.
-    /// </summary>
-    internal static ushort ApplyCrossing(ushort before, PoiVoxel span, long y, TerrainColumn column) =>
-        span.Kind == PoiVoxelKind.Fill && Fills(before, y, column) ? span.Material : before;
-
     private static bool Fills(ushort before, long y, TerrainColumn column) =>
         before == Terrain.TerrainConstants.EmptyMaterial || y == column.Surface;
 }

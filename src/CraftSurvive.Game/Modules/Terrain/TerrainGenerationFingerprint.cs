@@ -39,7 +39,7 @@ internal static class TerrainGenerationFingerprint
     private const long CatalogueGround = 16;
 
     private static readonly Lazy<ulong> ShippedCatalogue =
-        new(() => StructureCatalogue(PoiStructures.MaterialAt, CrossingStructure.MaterialAt));
+        new(() => StructureCatalogue(PoiStructures.MaterialAt));
 
     /// <summary>
     /// What the chunk cache keys on: the output fingerprint, which catches a change in the Engine's
@@ -157,18 +157,14 @@ internal static class TerrainGenerationFingerprint
     /// <summary>What a structure builder answers for one voxel of a site.</summary>
     internal delegate PoiVoxel SiteGeometry(PoiSite site, long x, long y, long z);
 
-    /// <summary>What a crossing builder answers for one voxel of a span.</summary>
-    internal delegate PoiVoxel CrossingGeometry(CrossingSite site, long x, long y, long z);
-
     /// <summary>
-    /// Every structure and crossing shape the generator can build, sampled over its whole reach
-    /// on synthetic sites. It depends only on the builders and their tuning, not on the seed, so
-    /// it is computed once per process.
+    /// Every voxel-writing structure shape the generator can build, sampled over its whole reach
+    /// on synthetic sites. Crossings moved to meshes (#11186) alongside places (#9992), so only the
+    /// remaining voxel cuts and vantage lamp belong here.
     /// </summary>
-    internal static ulong StructureCatalogue(SiteGeometry sites, CrossingGeometry crossings)
+    internal static ulong StructureCatalogue(SiteGeometry sites)
     {
         ArgumentNullException.ThrowIfNull(sites);
-        ArgumentNullException.ThrowIfNull(crossings);
         ulong hash = FnvOffsetBasis;
         for (long kind = PoiConstants.FirstKind; kind <= PoiConstants.LastKind; kind++)
         {
@@ -181,25 +177,6 @@ internal static class TerrainGenerationFingerprint
             }
 
             hash = MixStructure(hash, sites, new PoiSite(0, 0, (PoiKind)kind, 0, 0, CatalogueGround, minimum + range - 1, 0, 0));
-        }
-
-        foreach (bool alongX in (ReadOnlySpan<bool>)[true, false])
-        {
-            long toX = alongX ? PoiConstants.CrossingMaximumSpan : 0;
-            long toZ = alongX ? 0 : PoiConstants.CrossingMaximumSpan;
-            CrossingSite span = new(0, 0, 0, 0, toX, toZ, CatalogueGround, alongX);
-            long reach = PoiConstants.CrossingMaximumSpan + PoiConstants.CrossingRampLength + 1;
-            long bottom = CatalogueGround - PoiConstants.CrossingPierDepth - PoiConstants.CrossingRampLength - 1;
-            for (long x = -reach; x <= reach; x++)
-            {
-                for (long z = -reach; z <= reach; z++)
-                {
-                    for (long y = bottom; y <= CatalogueGround + 1; y++)
-                    {
-                        hash = MixVoxel(hash, crossings(span, x, y, z));
-                    }
-                }
-            }
         }
 
         return hash;
@@ -267,7 +244,7 @@ internal static class TerrainGenerationFingerprint
 
     private static ulong MixCrossing(ulong hash, CrossingSite site)
     {
-        foreach (long value in (ReadOnlySpan<long>)[site.CellX, site.CellZ, site.FromX, site.FromZ, site.ToX, site.ToZ, site.DeckY, site.AlongX ? 1 : 0])
+        foreach (long value in (ReadOnlySpan<long>)[site.CellX, site.CellZ, site.FromX, site.FromZ, site.ToX, site.ToZ, site.DeckY, site.AlongX ? 1 : 0, (long)site.Style])
         {
             hash = Mix(hash, (ulong)value);
         }

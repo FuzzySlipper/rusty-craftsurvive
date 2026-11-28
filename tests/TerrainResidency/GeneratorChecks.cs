@@ -77,6 +77,8 @@ internal static class GeneratorChecks
                 [(46, 12345UL)] = 0x017b4cded6aa8518UL,
                 [(47, TerrainConstants.DefaultSeed)] = 0xd338ebc4acd6e6b2UL,
                 [(47, 12345UL)] = 0xd2a575e52dfa6913UL,
+                [(48, TerrainConstants.DefaultSeed)] = 0x9edb9043e92a38e5UL,
+                [(48, 12345UL)] = 0x25caa852fae55836UL,
                 [(19, TerrainConstants.DefaultSeed)] = 0xe808453fe4c8386cUL,
                 [(19, 12345UL)] = 0xf439dc53c78a57d1UL,
                 [(18, TerrainConstants.DefaultSeed)] = 0x8780952811978cd6UL,
@@ -120,21 +122,17 @@ internal static class GeneratorChecks
                 "a different recipe version must move the complete terrain fingerprint");
 
             // A structure's geometry is part of the identity even when this seed's probe holds no site of
-            // its kind: each kind that still writes voxels (the holes and the vantage lamp; the places
-            // themselves are meshes, #9992), and the crossing, changed on its own moves the catalogue,
+            // its kind: each kind that still writes voxels (the holes and the vantage lamp; places moved
+            // to meshes in #9992 and crossings in #11186), changed on its own moves the catalogue,
             // and a changed catalogue moves the fingerprint the chunk cache keys on.
-            ulong catalogue = TerrainGenerationFingerprint.StructureCatalogue(PoiStructures.MaterialAt, CrossingStructure.MaterialAt);
+            ulong catalogue = TerrainGenerationFingerprint.StructureCatalogue(PoiStructures.MaterialAt);
             foreach (PoiKind changed in new[] { PoiKind.CaveMouth, PoiKind.DungeonEntrance, PoiKind.VantagePoint })
             {
                 ulong mutated = TerrainGenerationFingerprint.StructureCatalogue(
-                    (site, x, y, z) => PoiStructures.MaterialAt(site, site.Kind == changed ? x + 1 : x, y, z),
-                    CrossingStructure.MaterialAt);
+                    (site, x, y, z) => PoiStructures.MaterialAt(site, site.Kind == changed ? x + 1 : x, y, z));
                 Check.That(mutated != catalogue, $"a change to the {changed} builder must move the structure catalogue");
             }
 
-            Check.That(catalogue != TerrainGenerationFingerprint.StructureCatalogue(
-                    PoiStructures.MaterialAt, (site, x, y, z) => CrossingStructure.MaterialAt(site, x, y + 1, z)),
-                "a change to the crossing builder must move the structure catalogue");
             Check.That(startup == TerrainGenerationFingerprint.Compute(baseline.CreateRecipe(new TestDraws(baseline.Seed)), TerrainGenerationFingerprint.Startup, catalogue),
                 "the fingerprint must be taken over the shipped builders");
             Check.That(startup != TerrainGenerationFingerprint.Compute(baseline.CreateRecipe(new TestDraws(baseline.Seed)), TerrainGenerationFingerprint.Startup, catalogue + 1),

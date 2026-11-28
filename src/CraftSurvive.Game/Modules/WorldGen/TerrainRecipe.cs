@@ -158,6 +158,98 @@ internal sealed class TerrainRecipe : ITerrainColumns
         return new PoiContext(WorldMap.Biome(geography), geography.Rock, settlementDistance, BeyondFrontier: false, InNeck: inNeck);
     }
 
+    CrossingContext ITerrainColumns.CrossingContextAt(long x, long z)
+    {
+        double normX = x / (double)radius, normZ = z / (double)radius;
+        if (design is not null && design.BeyondFrontier(normX, normZ))
+        {
+            return new CrossingContext(double.PositiveInfinity, BeyondFrontier: true, InNeck: false, OpenSea: false);
+        }
+
+        if (FrontierBound.For(Map) is FrontierBound bound && bound.SeaMetres(x, z) > FrontierBound.OpenSeaMetres)
+        {
+            return new CrossingContext(double.PositiveInfinity, BeyondFrontier: false, InNeck: false, OpenSea: true);
+        }
+
+        bool inNeck = design is not null && design.InNeck(normX, normZ);
+        double nearestSq = double.PositiveInfinity;
+        foreach ((double sx, double sz) in settlementSeats.Value)
+        {
+            double dx = x - sx, dz = z - sz;
+            double d2 = (dx * dx) + (dz * dz);
+            if (d2 < nearestSq) nearestSq = d2;
+        }
+
+        double settlementDistance = double.IsPositiveInfinity(nearestSq) ? double.PositiveInfinity : Math.Sqrt(nearestSq);
+        return new CrossingContext(settlementDistance, BeyondFrontier: false, InNeck: inNeck, OpenSea: false);
+    }
+
+    IReadOnlyList<RiverCrossingCandidate>? ITerrainColumns.RiverCandidatesInCell(long cellX, long cellZ)
+    {
+        if (regions is null)
+        {
+            return null;
+        }
+
+        MapDrainage drainage = regions.Drainage;
+        long cell = PoiConstants.CellSize;
+        double minX = cellX * cell, maxX = minX + cell;
+        double minZ = cellZ * cell, maxZ = minZ + cell;
+        double innerMinX = minX + CrossingDistribution.CellEdgeMargin, innerMaxX = maxX - CrossingDistribution.CellEdgeMargin;
+        double innerMinZ = minZ + CrossingDistribution.CellEdgeMargin, innerMaxZ = maxZ - CrossingDistribution.CellEdgeMargin;
+
+        SortedSet<int> reachIds = drainage.ReachesWithin(minX, minZ, maxX, maxZ);
+        if (reachIds.Count == 0)
+        {
+            return null;
+        }
+
+        List<RiverCrossingCandidate>? candidates = null;
+        foreach (int reachId in reachIds)
+        {
+            Reach meta = drainage.Network.Reaches[reachId];
+            if (meta.Flow < CrossingDistribution.MinimumFlow || meta.Class >= Navigability.Boat)
+            {
+                continue;
+            }
+
+            if (!shapedReaches.TryGetValue(reachId, out RiverPoint[]? points))
+            {
+                points = drainage.Shaped(reachId);
+                shapedReaches.Set(reachId, points);
+            }
+
+            if (points.Length < 2)
+            {
+                continue;
+            }
+
+            for (int k = 0; k < points.Length; k++)
+            {
+                RiverPoint pt = points[k];
+                if (pt.X < innerMinX || pt.X > innerMaxX || pt.Z < innerMinZ || pt.Z > innerMaxZ)
+                {
+                    continue;
+                }
+
+                int prev = Math.Max(0, k - 1), next = Math.Min(points.Length - 1, k + 1);
+                double dx = points[next].X - points[prev].X;
+                double dz = points[next].Z - points[prev].Z;
+                double len = double.Hypot(dx, dz);
+                if (len < 1e-6)
+                {
+                    continue;
+                }
+
+                bool inLake = Map.LakeAt(pt.X, pt.Z) is not null;
+                (candidates ??= []).Add(new RiverCrossingCandidate(
+                    pt.X, pt.Z, dx / len, dz / len, pt.HalfWidth, pt.Surface, meta.Flow, meta.Class, inLake));
+            }
+        }
+
+        return candidates;
+    }
+
     /// <summary>
     /// Samples every column and continuous height of a chunk in one pass (#11179): evaluates ground once per
     /// interior column and once along its four one-cell halo edges (320 evaluations instead of 1,536 for a
@@ -229,22 +321,20 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     /// <summary>
     /// Pre-gathered feature sets whose bounds overlap one chunk (#11179), so the 16^3 voxel loop skips
-    /// empty structure/crossing/cave/tree passes with zero per-voxel cache lookups.
+    /// empty structure/cave/tree passes with zero per-voxel cache lookups. Crossings are meshes (#11186).
     /// </summary>
     internal readonly struct ChunkFeatures
     {
         internal PoiSite[] Pois { get; }
-        internal CrossingSite[] Crossings { get; }
         internal CavePlacement[] Caves { get; }
         private readonly TreeShape?[] trees;
         private readonly long treeOriginX;
         private readonly long treeOriginZ;
         private readonly int treeSideX;
 
-        internal ChunkFeatures(PoiSite[] pois, CrossingSite[] crossings, CavePlacement[] caves, TreeShape?[] trees, long treeOriginX, long treeOriginZ, int treeSideX)
+        internal ChunkFeatures(PoiSite[] pois, CavePlacement[] caves, TreeShape?[] trees, long treeOriginX, long treeOriginZ, int treeSideX)
         {
             Pois = pois;
-            Crossings = crossings;
             Caves = caves;
             this.trees = trees;
             this.treeOriginX = treeOriginX;
@@ -292,24 +382,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
             }
         }
 
-        long crossingReach = PoiConstants.CrossingMaximumSpan + PoiConstants.CrossingRampLength + 1;
-        long crossingPad = PoiConstants.CrossingRampLength + PoiConstants.CrossingHalfWidth;
-        long crossingDepth = Math.Max(PoiConstants.CrossingPierDepth, PoiConstants.CrossingRampLength + 1);
-        long firstCrossX = GridMath.FloorDivide(x0 - crossingReach, cell), lastCrossX = GridMath.FloorDivide(x1 + crossingReach, cell);
-        long firstCrossZ = GridMath.FloorDivide(z0 - crossingReach, cell), lastCrossZ = GridMath.FloorDivide(z1 + crossingReach, cell);
-        List<CrossingSite>? overlappingCrossings = null;
-        for (long anchorX = firstCrossX; anchorX <= lastCrossX; anchorX++)
-        for (long anchorZ = firstCrossZ; anchorZ <= lastCrossZ; anchorZ++)
-        {
-            if (crossings.SiteAt(anchorX, anchorZ) is CrossingSite site
-                && Math.Max(site.FromX, site.ToX) + crossingPad >= x0 && Math.Min(site.FromX, site.ToX) - crossingPad <= x1
-                && Math.Max(site.FromZ, site.ToZ) + crossingPad >= z0 && Math.Min(site.FromZ, site.ToZ) - crossingPad <= z1
-                && site.DeckY >= y0 && site.DeckY - crossingDepth <= y1)
-            {
-                (overlappingCrossings ??= []).Add(site);
-            }
-        }
-
         CavePlacement[] columnCaves = caves.NearChunkColumn(address.X, address.Z);
         CavePlacement[] overlappingCaves = [];
         if (columnCaves.Length > 0)
@@ -346,7 +418,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         return new ChunkFeatures(
             overlappingPois is null ? [] : [.. overlappingPois],
-            overlappingCrossings is null ? [] : [.. overlappingCrossings],
             overlappingCaves,
             overlappingTrees ?? [],
             firstTreeX,
@@ -389,17 +460,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
             }
 
             material = StructurePasses.ApplySite(material, poi, address.Y, column);
-        }
-
-        if (features.Crossings.Length > 0)
-        {
-            foreach (CrossingSite site in features.Crossings)
-            {
-                if (CrossingStructure.MaterialAt(site, address.X, address.Y, address.Z) is { IsNone: false } span)
-                {
-                    return StructurePasses.ApplyCrossing(material, span, address.Y, column);
-                }
-            }
         }
 
         return material;
@@ -475,14 +535,11 @@ internal sealed class TerrainRecipe : ITerrainColumns
         return material;
     }
 
-    /// <summary>The overworld's own voxel, before anything underground: the ground, then the places and crossings.</summary>
+    /// <summary>The overworld's own voxel, before anything underground: the ground and the places' voxel cuts/lamp (crossings are meshes, #11186).</summary>
     private ushort SurfaceMaterialAt(VoxelAddress address, TerrainColumn column)
     {
         ushort material = BaseMaterialAt(address, column);
-        material = StructurePasses.ApplySite(material, PoiAt(address.X, address.Y, address.Z), address.Y, column);
-        return CrossingAt(address.X, address.Y, address.Z) is PoiVoxel span
-            ? StructurePasses.ApplyCrossing(material, span, address.Y, column)
-            : material;
+        return StructurePasses.ApplySite(material, PoiAt(address.X, address.Y, address.Z), address.Y, column);
     }
 
     /// <summary>
@@ -583,17 +640,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
     }
 
     /// <summary>
-    /// The bridge voxel at one position. A crossing is decided by its own cell and reaches at
-    /// most a span plus its abutments, so the nine cells around this one are enough.
-    /// </summary>
-    private PoiVoxel? CrossingAt(long x, long y, long z) =>
-        FirstInNeighbourhood<PoiVoxel>(x, z, PoiConstants.CellSize, (anchorX, anchorZ) =>
-            crossings.SiteAt(anchorX, anchorZ) is CrossingSite site
-            && CrossingStructure.MaterialAt(site, x, y, z) is { IsNone: false } voxel
-                ? voxel
-                : null);
-
-    /// <summary>
     /// The structure voxel at one position, asked of whichever of the nine anchor cells around
     /// this one owns a site covering it. Each cell decides for itself from its own coordinates
     /// and the contract, so two chunks that share a structure agree about it without
@@ -619,6 +665,28 @@ internal sealed class TerrainRecipe : ITerrainColumns
             for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
             {
                 if (pois.SiteAt(anchorX, anchorZ) is PoiSite site && Math.Abs(x - site.X) <= reach && Math.Abs(z - site.Z) <= reach)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Whether a column is within a crossing bridge's deck/ramp clearance (#11186), so trees do not grow through bridges.</summary>
+    private bool OnCrossing(long x, long z)
+    {
+        long cell = PoiConstants.CellSize;
+        long pad = (long)Math.Ceiling(CrossingLayout.RampRun + CrossingLayout.StoneDeckWidth);
+        long cellX = GridMath.FloorDivide(x, cell), cellZ = GridMath.FloorDivide(z, cell);
+        for (long anchorX = cellX - 1; anchorX <= cellX + 1; anchorX++)
+        {
+            for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
+            {
+                if (crossings.SiteAt(anchorX, anchorZ) is not CrossingSite site) continue;
+                if (x >= Math.Min(site.FromX, site.ToX) - pad && x <= Math.Max(site.FromX, site.ToX) + pad
+                    && z >= Math.Min(site.FromZ, site.ToZ) - pad && z <= Math.Max(site.FromZ, site.ToZ) + pad)
                 {
                     return true;
                 }
@@ -773,8 +841,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         }
 
         return ChunkFeaturesReach(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1)
-            || ChunkPoisChange(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1)
-            || ChunkCrossingsChange(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1);
+            || ChunkPoisChange(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1);
     }
 
     /// <summary>
@@ -874,61 +941,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
         return false;
     }
 
-    /// <summary>
-    /// Whether a crossing changes whether any voxel in the chunk is empty. It answers exactly,
-    /// the same way the site predicate does, because residency makes the same two opposite
-    /// mistakes expensive: evicting a chunk that holds a deck, or keeping one that holds nothing.
-    /// </summary>
-    private bool ChunkCrossingsChange(long xStart, long xEnd, long yMinimum, long yMaximum, long zStart, long zEnd)
-    {
-        long cell = PoiConstants.CellSize;
-        long reach = PoiConstants.CrossingMaximumSpan + PoiConstants.CrossingRampLength + 1;
-        long firstCellX = GridMath.FloorDivide(xStart - reach, cell);
-        long lastCellX = GridMath.FloorDivide(xEnd + reach, cell);
-        long firstCellZ = GridMath.FloorDivide(zStart - reach, cell);
-        long lastCellZ = GridMath.FloorDivide(zEnd + reach, cell);
-        for (long anchorX = firstCellX; anchorX <= lastCellX; anchorX++)
-        {
-            for (long anchorZ = firstCellZ; anchorZ <= lastCellZ; anchorZ++)
-            {
-                if (crossings.SiteAt(anchorX, anchorZ) is not CrossingSite site)
-                {
-                    continue;
-                }
-
-                long xMinimum = Math.Max(xStart, Math.Min(site.FromX, site.ToX) - reach);
-                long xMaximum = Math.Min(xEnd, Math.Max(site.FromX, site.ToX) + reach);
-                long zMinimum = Math.Max(zStart, Math.Min(site.FromZ, site.ToZ) - reach);
-                long zMaximum = Math.Min(zEnd, Math.Max(site.FromZ, site.ToZ) + reach);
-                long yBottom = Math.Max(yMinimum, site.DeckY - PoiConstants.CrossingPierDepth);
-                long yTop = Math.Min(yMaximum, site.DeckY);
-                for (long y = yBottom; y <= yTop; y++)
-                {
-                    for (long x = xMinimum; x <= xMaximum; x++)
-                    {
-                        for (long z = zMinimum; z <= zMaximum; z++)
-                        {
-                            PoiVoxel span = CrossingStructure.MaterialAt(site, x, y, z);
-                            if (span.Kind != PoiVoxelKind.Fill)
-                            {
-                                continue;
-                            }
-
-                            TerrainColumn column = ColumnAt(x, z);
-                            ushort before = BaseMaterialAt(new VoxelAddress(x, y, z), column);
-                            if (StructurePasses.ApplyCrossing(before, span, y, column) != before)
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
     /// <summary>Whether the chunk overlaps the authored border wall's band.</summary>
     /// <summary>The unquantized height at a column's sample centre; DC receives this shape instead of stair steps.</summary>
     internal double ContinuousHeightAt(long x, long z) => ContinuousHeight(Geography(x, z), x, z);
@@ -969,6 +981,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private readonly ContinentDesign? design;
     private readonly Lazy<TownGround[]> towns;
     private readonly Lazy<(double X, double Z)[]> settlementSeats;
+    private const int ShapedReachCacheLimit = 512;
+    private readonly SharedCache<int, RiverPoint[]> shapedReaches = new(ShapedReachCacheLimit);
 
     /// <summary>Whether a point lies on a town's pad or near enough its edge that nothing natural grows there.</summary>
     private bool InTown(long x, long z) => Towns.Any(town => town.Weight(x, z) > 0);
@@ -1110,7 +1124,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         long z = (anchorZ * TreeCellMetres) + shape.OffsetZ;
         TerrainTree tree = new(x, shape.GroundY, z, shape.Species, shape.Variant, shape.Scale, shape.Yaw);
         bool structured = TreeFelling.Core(tree).Append(TreeFelling.Support(tree))
-            .Any(cell => !PoiAt(cell.X, cell.Y, cell.Z).IsNone || CrossingAt(cell.X, cell.Y, cell.Z) is not null);
+            .Any(cell => !PoiAt(cell.X, cell.Y, cell.Z).IsNone);
         return !structured || TreeFelling.Stands(tree, MaterialAt) ? (tree, continuousGround) : null;
     }
 
@@ -1175,10 +1189,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return null;
         }
 
-        if (OnPlace(trunkX, trunkZ))
+        if (OnPlace(trunkX, trunkZ) || OnCrossing(trunkX, trunkZ))
         {
-            // A place is a mesh, not voxels (#9992): nothing in the ground stops a tree growing through it,
-            // so its footprint and a margin about it stay clear, and it can be seen.
+            // Places (#9992) and bridges (#11186) are meshes, not voxels: nothing in the ground stops a tree
+            // growing through them, so their footprints stay clear.
             return null;
         }
 

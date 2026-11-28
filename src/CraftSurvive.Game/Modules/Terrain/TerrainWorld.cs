@@ -76,6 +76,8 @@ internal sealed class TerrainWorld : IDisposable
         trees = new TerrainTrees(engine, content, frame);
         places = new Places.PlaceMeshes(engine, content, frame, recipe.Placement,
             (x, z) => recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)) + PlaceGroundTopFace, Moss, recipe.Geography);
+        crossings = new Places.CrossingMeshes(engine, frame, recipe.Crossings,
+            (x, z) => recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)) + PlaceGroundTopFace);
         Water = new Water.WaterModel(recipe);
         waterSurfaces = new Water.WaterSurfaces(engine, frame, Water);
         edits = new TerrainEditService(engine, overlayStore, policy, streamer, presentation, ui.Publish,
@@ -149,10 +151,13 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>The overworld places as kit meshes (#9992), stood on the ground's top face.</summary>
     private readonly Places.PlaceMeshes places;
+
+    /// <summary>The overworld river crossings as parametric textured bridge meshes (#11186).</summary>
+    private readonly Places.CrossingMeshes crossings;
     private const double PlaceGroundTopFace = 1.0;
 
-    /// <summary>The places' pieces standing about the player, for the appearance snapshot.</summary>
-    internal IEnumerable<AppearanceFact> PlaceFacts => [.. places.Facts, .. places.BlanketFacts, .. places.CardFacts];
+    /// <summary>The places' and crossings' pieces standing about the player, for the appearance snapshot.</summary>
+    internal IEnumerable<AppearanceFact> PlaceFacts => [.. places.Facts, .. places.BlanketFacts, .. places.CardFacts, .. crossings.Facts];
 
     /// <summary>Sets a site's overgrowth (#10044): its moss deepens, its walls take the ivy blanket.</summary>
     internal string SetOvergrowth(string siteId, float extra) => places.SetOvergrowth(siteId, extra);
@@ -160,10 +165,14 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>Whether a site's place meshes stand at a world point (x, z) now (#9992 review): the horizon hides its silhouette exactly then.</summary>
     internal bool PlaceStands(System.Numerics.Vector2 at) => places.Stands(at);
 
-    internal string PlacesReadout() => places.Readout() + string.Create(CultureInfo.InvariantCulture, $" colliders={PlaceColliders}");
+    internal string PlacesReadout() => places.Readout() + " " + crossings.Readout()
+        + string.Create(CultureInfo.InvariantCulture, $" colliders={PlaceColliders} crossingColliders={CrossingColliders}");
 
     /// <summary>How many place pieces the walking collision holds, for the readout.</summary>
     internal int PlaceColliders { get; private set; }
+
+    /// <summary>How many river bridges the walking collision holds (#11186), for the readout.</summary>
+    internal int CrossingColliders { get; private set; }
 
     /// <summary>The near water surfaces' draw facts (#9877).</summary>
     internal AppearanceFact[] WaterFacts => waterSurfaces.Facts;
@@ -213,6 +222,7 @@ internal sealed class TerrainWorld : IDisposable
     {
         waterSurfaces.AfterAppearanceSnapshot();
         places.AfterAppearanceSnapshot();
+        crossings.AfterAppearanceSnapshot();
     }
 
     internal LandscapeSampleSpace CreateLandscapeStudy(LandscapeStudy study) =>
@@ -439,6 +449,7 @@ internal sealed class TerrainWorld : IDisposable
         farField = null;
         trees.Dispose();
         places.Dispose();
+        crossings.Dispose();
         waterSurfaces.Dispose();
         study?.Dispose();
         waterStudy?.Dispose();
@@ -493,6 +504,7 @@ internal sealed class TerrainWorld : IDisposable
         trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, EditRevision, streamer.ResidentCount);
         SyncMark("trees");
         places.Follow(new Vector3(centerVoxel.X + 0.5f, centerVoxel.Y, centerVoxel.Z + 0.5f), NearEdgeMetres);
+        crossings.Follow(new Vector3(centerVoxel.X + 0.5f, centerVoxel.Y, centerVoxel.Z + 0.5f), NearEdgeMetres);
         SyncMark($"places{places.LastTiming}");
         // The field stones' scatter copies keep the moss origin they were grown with (#10044 review): after a rebase they
         // are grown again from the refreshed materials, so the stain and lichen stay put on the stones.
@@ -539,7 +551,8 @@ internal sealed class TerrainWorld : IDisposable
         if ((surfaceFollowed && waterSurfaces.IceRevision != composedIce) || ((composedIceAny || caveCollision is not null) && composedOrigin != frame.Origin)) ComposeStaticCollision();
         // So are fallen logs and stumps (#10034): compose again when deadwood near the player changed, or they moved on.
         // So are the places' pieces (#9992): compose again when they were laid out again or the player walked on.
-        else if (surfaceFollowed && places.CollisionStale(new Vector3(centerVoxel.X + 0.5f, 0, centerVoxel.Z + 0.5f))) ComposeStaticCollision();
+        else if (surfaceFollowed && (places.CollisionStale(new Vector3(centerVoxel.X + 0.5f, 0, centerVoxel.Z + 0.5f))
+            || crossings.CollisionStale(new Vector3(centerVoxel.X + 0.5f, 0, centerVoxel.Z + 0.5f)))) ComposeStaticCollision();
         else if (surfaceFollowed && plantTiles is PlantTiles flora && (flora.DeadwoodRevision != composedDeadwood
             || Math.Max(Math.Abs(centerVoxel.X - composedDeadwoodAt.X), Math.Abs(centerVoxel.Z - composedDeadwoodAt.Z)) >= DeadwoodStepMetres
             || (DeadwoodColliders > 0 && composedOrigin != frame.Origin)))
@@ -683,6 +696,7 @@ internal sealed class TerrainWorld : IDisposable
         }
 
         PlaceColliders = places.AddCollision(new Vector3(lastCentre.X + 0.5f, 0, lastCentre.Z + 0.5f), assets, vertices, triangles, instances);
+        CrossingColliders = crossings.AddCollision(new Vector3(lastCentre.X + 0.5f, 0, lastCentre.Z + 0.5f), assets, vertices, triangles, instances);
         // A cave's pieces (#10889), given in world metres and moved to the session's frame here.
         if (caveCollision is not null)
         {
